@@ -1,9 +1,8 @@
 function main() {
-    int marci = 23;
+    string x = "Hello world!";
 
-    marci >> 3;
-
-    if marci > 2 {
-
+    # This is an if statement
+    if x == "Hello" {
+        print(x)
     }
 }

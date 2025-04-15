@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use super::type_system::{Type, TypeDiscriminants};
 
-pub mod code_parser;
+pub mod parser;
 
 #[derive(Debug)]
 pub enum Tokens {
@@ -11,6 +11,8 @@ pub enum Tokens {
     TypeDefinition(TypeDiscriminants),
 
     Identifier(String),
+    Quote(String),
+    Comment(String),
 
     Function,
 
@@ -42,8 +44,6 @@ pub enum Tokens {
 
     SetValue,
 
-    CommentStart,
-
     BitAnd,
     BitOr,
     BitLeft,
@@ -61,7 +61,7 @@ pub enum ParsedTokens {
 
     Comparison(Comparison),
 
-    LogicGate(LogicGate),
+    If(If),
 }
 
 pub struct FunctionArguments(Vec<ParsedTokens>);
@@ -74,7 +74,7 @@ pub struct FunctionDefinition {
     return_type: Type,
 }
 
-pub struct LogicGate {
+pub struct If {
     cmp: Comparison,
 
     inner: Vec<ParsedTokens>,

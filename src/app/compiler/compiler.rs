@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::app::code_parser::code_parser::parse_code;
+use crate::app::parser::parser::parse_code;
 
 use super::file_ingest::file_ingest;
 
@@ -9,7 +9,7 @@ pub fn compilation_process(path_to_file: PathBuf) -> anyhow::Result<()> {
 
     let tokens = parse_code(formatted_file_contents);
 
-    dbg!(tokens);
+    println!("{:?}", tokens);
 
     Ok(())
 }
