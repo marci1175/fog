@@ -1,7 +1,7 @@
 mod app;
 
-use std::io::Error;
 use app::cli_parser::cli_parser::CliParseError;
+use std::io::Error;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,7 +10,6 @@ pub enum CompilerError {
     FileError(Error),
 
     // ParsingError(),
-    
     #[error("Could not parse cli: `{0}`")]
     CliParseError(CliParseError),
 }

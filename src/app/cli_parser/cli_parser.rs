@@ -20,6 +20,8 @@ pub enum CliCommand {
     Compile,
     #[strum(message = "`h` - Display this help screen")]
     Help,
+    #[strum(message = "`v` - Display the version of this build.")]
+    Version,
 }
 
 impl TryFrom<String> for CliCommand {
@@ -29,6 +31,7 @@ impl TryFrom<String> for CliCommand {
         match value.as_str() {
             "c" => Ok(Self::Compile),
             "h" => Ok(Self::Help),
+            "v" => Ok(Self::Version),
 
             _ => Err(CliParseError::InvalidArg(value).into()),
         }

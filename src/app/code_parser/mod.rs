@@ -1,19 +1,18 @@
 use std::cmp::Ordering;
 
-use super::type_system::{Types, TypesDiscriminants};
+use super::type_system::{Type, TypeDiscriminants};
 
 pub mod code_parser;
 
 #[derive(Debug)]
 pub enum Tokens {
-    Const(Types),
+    Const(Type),
     Variable,
-    TypeDefinition(TypesDiscriminants),
+    TypeDefinition(TypeDiscriminants),
 
     Identifier(String),
 
-    FunctionArgs,
-    FunctionName,
+    Function,
 
     Multiplication,
     Division,
@@ -34,16 +33,26 @@ pub enum Tokens {
 
     OpenBracket,
     CloseBracket,
+    OpenBraces,
+    CloseBraces,
 
     LineBreak,
     Comma,
+    Colon,
 
     SetValue,
+
+    CommentStart,
+
+    BitAnd,
+    BitOr,
+    BitLeft,
+    BitRight,
 }
 
 pub enum ParsedTokens {
-    Variable(Types),
-    Const(Types),
+    Variable(Type),
+    Const(Type),
 
     Brackets(Vec<ParsedTokens>),
 
@@ -58,11 +67,11 @@ pub enum ParsedTokens {
 pub struct FunctionArguments(Vec<ParsedTokens>);
 
 pub struct FunctionDefinition {
-    args: Vec<Types>,
+    args: Vec<Type>,
 
     inner: Vec<ParsedTokens>,
 
-    return_type: Types,
+    return_type: Type,
 }
 
 pub struct LogicGate {
@@ -72,9 +81,9 @@ pub struct LogicGate {
 }
 
 pub struct Comparison {
-    rhs: Types,
+    rhs: Type,
 
-    lhs: Types,
+    lhs: Type,
 
     ord: Ordering,
 }

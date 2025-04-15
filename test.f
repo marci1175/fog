@@ -1,3 +1,9 @@
-int marci = 1.42;
+function main() {
+    int marci = 23;
 
-marci + 23;
+    marci >> 3;
+
+    if marci > 2 {
+
+    }
+}

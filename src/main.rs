@@ -1,6 +1,9 @@
 use std::{fs, path::PathBuf};
 
-use app::{cli_parser::cli_parser::{parse_args, CliCommand}, compiler};
+use app::{
+    cli_parser::cli_parser::{CliCommand, parse_args},
+    compiler,
+};
 use fog::CompilerError;
 use strum::{EnumMessage, VariantArray};
 
@@ -8,7 +11,7 @@ pub mod app;
 
 fn display_help_prompt() {
     println!("Help:");
-    println!("Here are a list of commands you can use:");
+    println!("Here is a list of commands you can use:");
 
     for (idx, command) in CliCommand::VARIANTS.iter().enumerate() {
         println!("{}. {}", idx + 1, command.get_message().unwrap())
@@ -27,12 +30,13 @@ fn main() -> anyhow::Result<()> {
     let (command, arg) = parse_args(command, argument)?;
 
     match command {
-        app::cli_parser::cli_parser::CliCommand::Compile => {
+        CliCommand::Compile => {
             fs::metadata(&arg).map_err(|err| CompilerError::FileError(err))?;
 
             compiler::compiler::compilation_process(PathBuf::from(arg))?;
         }
-        app::cli_parser::cli_parser::CliCommand::Help => display_help_prompt(),
+        CliCommand::Help => display_help_prompt(),
+        CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),
     }
 
     Ok(())
