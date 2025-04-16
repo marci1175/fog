@@ -1,6 +1,6 @@
 mod app;
 
-use app::cli_parser::cli_parser::CliParseError;
+use app::cli_parser::error::CliParseError;
 use std::io::Error;
 use thiserror::Error;
 

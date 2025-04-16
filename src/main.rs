@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
 
     match command {
         CliCommand::Compile => {
-            fs::metadata(&arg).map_err(|err| CompilerError::FileError(err))?;
+            fs::metadata(&arg).map_err(CompilerError::FileError)?;
 
             compiler::compiler::compilation_process(PathBuf::from(arg))?;
         }

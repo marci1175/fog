@@ -1,17 +1,9 @@
 use anyhow::Error;
-use thiserror::Error;
+
+use super::error::CliParseError;
 
 pub fn parse_args(arg1: String, arg2: String) -> anyhow::Result<(CliCommand, String)> {
-    Ok((
-        CliCommand::try_from(arg1).unwrap_or_else(|_| CliCommand::Help),
-        arg2,
-    ))
-}
-
-#[derive(Debug, Error)]
-pub enum CliParseError {
-    #[error("An invalid argument `{0}` has been provided.")]
-    InvalidArg(String),
+    Ok((CliCommand::try_from(arg1).unwrap_or(CliCommand::Help), arg2))
 }
 
 #[derive(Debug, strum_macros::VariantArray, strum_macros::Display, strum_macros::EnumMessage)]
