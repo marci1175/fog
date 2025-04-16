@@ -21,7 +21,6 @@ pub fn parse_code(raw_string: String) -> Vec<Tokens> {
 
         let single_char = match current_char {
             '+' => Some(Tokens::Addition),
-            '-' => Some(Tokens::Subtraction),
             '*' => Some(Tokens::Multiplication),
             '/' => Some(Tokens::Division),
             ')' => Some(Tokens::CloseBracket),
@@ -152,6 +151,15 @@ pub fn parse_code(raw_string: String) -> Vec<Tokens> {
             string_buffer.clear();
         } else if current_char != ' ' {
             string_buffer.push(current_char);
+        } else if current_char == '-' {
+            // If the last token was a number we know that we are subtracting
+            if matches!(token_list[token_list.len() - 1], Tokens::Const(_)) {
+                token_list.push(Tokens::Subtraction);
+            }
+            // If the last token wasnt a number we know that we are defining a negative number
+            else {
+                string_buffer.push(current_char);
+            }
         }
 
         char_idx += 1;
@@ -180,7 +188,17 @@ fn match_multi_character_expression(string_buffer: String) -> Tokens {
         "function" => Tokens::Function,
         "return" => Tokens::Return,
 
-        _ => Tokens::Identifier(trimmed_string.to_string()),
+        _ => eval_constant_definition(trimmed_string.to_string()),
+    }
+}
+
+/// Need improvement here
+pub fn eval_constant_definition(raw_string: String) -> Tokens {
+    if let Ok(const_eval_f32) = raw_string.parse::<f32>() {
+        return Tokens::Const(Type::F32(const_eval_f32));
+    }
+    else {
+        return Tokens::Identifier(raw_string);
     }
 }
 
@@ -231,7 +249,7 @@ pub fn parse_functions(
                                 let braces_contains_len = braces_contains.len();
 
                                 // Store the function
-                                function_list.insert(function_name, FunctionDefinition { args, inner: parse_tokens(braces_contains), return_type });
+                                function_list.insert(function_name, FunctionDefinition { args, inner: parse_tokens(braces_contains)?, return_type });
 
                                 token_idx = bracket_close_idx + 3 + braces_contains_len + 2;
 
@@ -254,7 +272,7 @@ pub fn parse_functions(
     Ok(function_list)
 }
 
-pub fn parse_function_args(token_list: &[Tokens]) -> Result<HashMap<String, TypeDiscriminants>, ParserError> {
+fn parse_function_args(token_list: &[Tokens]) -> Result<HashMap<String, TypeDiscriminants>, ParserError> {
     // Create a list of args which the function will take, we will return this later
     let mut args: HashMap<String, TypeDiscriminants> = HashMap::new();
 
@@ -288,6 +306,38 @@ pub fn parse_function_args(token_list: &[Tokens]) -> Result<HashMap<String, Type
     Ok(args)
 }
 
-fn parse_tokens(tokens: Vec<Tokens>) -> Vec<ParsedTokens> {
-    vec![]
+fn parse_tokens(tokens: Vec<Tokens>) -> Result<Vec<ParsedTokens>, ParserError> {
+    let mut token_idx = 0;
+
+    let mut parsed_tokens: Vec<ParsedTokens> = Vec::new();
+
+    let mut variable_scope: HashMap<String, TypeDiscriminants> = HashMap::new();
+
+    while token_idx < tokens.len() {
+        if let Tokens::TypeDefinition(var_type) = tokens[token_idx] {
+            if let Tokens::Identifier(var_name) = tokens[token_idx + 1].clone() {
+                parsed_tokens.push(ParsedTokens::Variable((var_name.clone(), var_type.into())));
+
+                variable_scope.insert(var_name, var_type);
+
+                if dbg!(&tokens)[token_idx + 2] == Tokens::LineBreak {
+                    token_idx += 1;
+
+                    continue;
+                } else if tokens[token_idx + 2] == Tokens::SetValue {
+                    // if tokens[token_idx + 2] == Tokens::Subtraction && tokens[token_idx + 3] == Tokens::
+                }
+                else {
+                    return Err(ParserError::SyntaxError);                    
+                }
+            }
+            else {
+                return Err(ParserError::SyntaxError);
+            }
+        }
+
+        token_idx += 1;
+    }
+
+    Ok(parsed_tokens)
 }

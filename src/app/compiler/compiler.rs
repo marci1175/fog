@@ -16,7 +16,7 @@ pub fn compilation_process(path_to_file: PathBuf) -> anyhow::Result<()> {
 
     let parsed_functions = parse_functions(tokens)?;
 
-    dbg!(parsed_functions);
+    dbg!(&parsed_functions);
 
     Ok(())
 }

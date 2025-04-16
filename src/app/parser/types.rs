@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use crate::app::type_system::{Type, TypeDiscriminants};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, strum_macros::Display)]
 pub enum Tokens {
     Const(Type),
     Variable,
