@@ -192,9 +192,18 @@ fn match_multi_character_expression(string_buffer: String) -> Tokens {
     }
 }
 
-/// Need improvement here
+// I guess this works too lol
 pub fn eval_constant_definition(raw_string: String) -> Tokens {
-    if let Ok(const_eval_f32) = raw_string.parse::<f32>() {
+    if let Ok(const_eval_f32) = raw_string.parse::<u8>() {
+        return Tokens::Const(Type::U8(const_eval_f32));
+    }
+    else if let Ok(const_eval_f32) = raw_string.parse::<u32>() {
+        return Tokens::Const(Type::U32(const_eval_f32));
+    }
+    else if let Ok(const_eval_f32) = raw_string.parse::<i32>() {
+        return Tokens::Const(Type::I32(const_eval_f32));
+    }
+    else if let Ok(const_eval_f32) = raw_string.parse::<f32>() {
         return Tokens::Const(Type::F32(const_eval_f32));
     }
     else {
@@ -221,28 +230,38 @@ pub fn parse_functions(
                     if tokens[bracket_close_idx + 1] == Tokens::Colon {
                         if let Tokens::TypeDefinition(return_type) = tokens[bracket_close_idx + 2] {
                             if tokens[bracket_close_idx + 3] == Tokens::OpenBraces {
+                                // Create a varable which stores the level of braces we are in
                                 let mut brace_layer_counter = 1;
 
+                                // Get the slice of the list which may contain the brackets' scope
                                 let tokens_slice = &tokens[bracket_close_idx + 4..];
                                 
+                                // Create an index which indexes the tokens slice
                                 let mut token_braces_idx = 0;
 
+                                // Create a list which contains all the tokens inside the two brackets
                                 let mut braces_contains: Vec<Tokens> = vec![];
 
+                                // Find the scope of this function
                                 loop {
+                                    // If a bracket is closed the layer counter should be incremented
                                     if tokens_slice[token_braces_idx] == Tokens::OpenBraces {
                                         brace_layer_counter += 1;
                                     }
+                                    // If a bracket is closed the layer counter should be decreased
                                     else if tokens_slice[token_braces_idx] == Tokens::CloseBraces {
                                         brace_layer_counter -= 1;
                                     }
 
+                                    // If we have arrived at the end of the brackets this is when we know that this is the end of the function's scope
                                     if brace_layer_counter == 0 {
                                         break;
                                     }
 
+                                    // Store the current item in the token buffer
                                     braces_contains.push(tokens_slice[token_braces_idx].clone());
 
+                                    // Increment the index
                                     token_braces_idx += 1;
                                 }
 
@@ -251,8 +270,10 @@ pub fn parse_functions(
                                 // Store the function
                                 function_list.insert(function_name, FunctionDefinition { args, inner: parse_tokens(braces_contains)?, return_type });
 
+                                // Set the iterator index
                                 token_idx = bracket_close_idx + 3 + braces_contains_len + 2;
 
+                                // Countinue with the loop
                                 continue;
                             }
                         }
