@@ -1,9 +1,6 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{path::PathBuf, sync::Arc};
 
-use crate::app::parser::{
-    parser::{parse_code, parse_functions},
-    types::FunctionDefinition,
-};
+use crate::app::parser::parser::{parse_code, parse_functions, parse_tokens};
 
 use super::file_ingest::file_ingest;
 
@@ -14,9 +11,11 @@ pub fn compilation_process(path_to_file: PathBuf) -> anyhow::Result<()> {
 
     dbg!(&tokens);
 
-    let parsed_functions = parse_functions(tokens)?;
+    let unparsed_functions = parse_tokens(tokens)?;
 
-    dbg!(&parsed_functions);
+    let parsed_functions = parse_functions(Arc::new(unparsed_functions))?;
+
+    dbg!(parsed_functions);
 
     Ok(())
 }

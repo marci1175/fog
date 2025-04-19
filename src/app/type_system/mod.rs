@@ -1,6 +1,8 @@
+use strum_macros::Display;
+
 pub mod type_system;
 
-#[derive(Debug, strum_macros::EnumDiscriminants, Clone, PartialEq)]
+#[derive(Debug, strum_macros::EnumDiscriminants, Clone, PartialEq, Display)]
 #[strum_discriminants(derive(
     strum_macros::Display,
     strum_macros::VariantArray

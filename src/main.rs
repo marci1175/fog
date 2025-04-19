@@ -1,13 +1,11 @@
 use std::{fs, path::PathBuf};
 
-use app::{
+use fog::app::{
     cli_parser::cli_parser::{CliCommand, parse_args},
     compiler,
 };
 use fog::CompilerError;
 use strum::{EnumMessage, VariantArray};
-
-pub mod app;
 
 fn display_help_prompt() {
     println!("Help:");
@@ -21,7 +19,7 @@ fn display_help_prompt() {
 fn main() -> anyhow::Result<()> {
     let mut args = std::env::args();
 
-    let path_to_file = args.next().unwrap_or_default();
+    let _path_to_file = args.next().unwrap_or_default();
 
     let command = args.next().unwrap_or_default();
 
