@@ -6,6 +6,7 @@ function main(): int {
     float x = -2.34;
 
     int y = 9;
-
-    sum(x, y);
+    int z = 2;
+    
+    sum(rhs: z, lhs: y);
 }
