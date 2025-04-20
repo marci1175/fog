@@ -1,4 +1,4 @@
-use std::{collections::HashMap, process::id, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use strum::IntoDiscriminant;
 
@@ -6,7 +6,7 @@ use crate::app::type_system::{Type, TypeDiscriminants};
 
 use super::{
     error::ParserError,
-    types::{FunctionDefinition, ParsedTokens, Tokens, UnparsedFunctionDefinition},
+    types::{unparsed_const_to_typed_const, FunctionDefinition, FunctionSignature, ParsedTokens, Tokens, UnparsedFunctionDefinition},
 };
 
 pub fn parse_code(raw_string: String) -> Vec<Tokens> {
@@ -156,7 +156,7 @@ pub fn parse_code(raw_string: String) -> Vec<Tokens> {
             string_buffer.push(current_char);
         } else if current_char == '-' {
             // If the last token was a number we know that we are subtracting
-            if matches!(token_list[token_list.len() - 1], Tokens::Const(_)) {
+            if matches!(token_list[token_list.len() - 1], Tokens::Literal(_)) {
                 token_list.push(Tokens::Subtraction);
             }
             // If the last token wasnt a number we know that we are defining a negative number
@@ -202,19 +202,9 @@ fn match_multi_character_expression(string_buffer: String) -> Tokens {
 
 // I guess this works too lol
 pub fn eval_constant_definition(raw_string: String) -> Tokens {
-    if let Ok(const_eval_f32) = raw_string.parse::<u8>() {
-        Tokens::Const(Type::U8(const_eval_f32))
-    }
-    else if let Ok(const_eval_f32) = raw_string.parse::<u32>() {
-        return Tokens::Const(Type::U32(const_eval_f32));
-    }
-    else if let Ok(const_eval_f32) = raw_string.parse::<i32>() {
-        return Tokens::Const(Type::I32(const_eval_f32));
-    }
-    else if let Ok(const_eval_f32) = raw_string.parse::<f32>() {
-        return Tokens::Const(Type::F32(const_eval_f32));
-    }
-    else {
+    if raw_string.parse::<u8>().is_ok() || raw_string.parse::<u32>().is_ok() || raw_string.parse::<f32>().is_ok() || raw_string.parse::<i32>().is_ok() {
+        return Tokens::UnparsedLiteral(raw_string);
+    } else {
         return Tokens::Identifier(raw_string);
     }
 }
@@ -231,10 +221,14 @@ pub fn parse_tokens(
         if current_token == Tokens::Function {
             if let Tokens::Identifier(function_name) = tokens[token_idx + 1].clone() {
                 if tokens[token_idx + 2] == Tokens::OpenBracket {
-                    let bracket_close_idx = tokens[token_idx + 2..].iter().position(|token| *token == Tokens::CloseBracket).ok_or(ParserError::InvalidFunctionDefinition)? + (token_idx + 2);
-                    
+                    let bracket_close_idx = tokens[token_idx + 2..]
+                        .iter()
+                        .position(|token| *token == Tokens::CloseBracket)
+                        .ok_or(ParserError::InvalidFunctionDefinition)?
+                        + (token_idx + 2);
+
                     let args = parse_function_args(&tokens[token_idx + 3..bracket_close_idx])?;
-                    
+
                     if tokens[bracket_close_idx + 1] == Tokens::Colon {
                         if let Tokens::TypeDefinition(return_type) = tokens[bracket_close_idx + 2] {
                             if tokens[bracket_close_idx + 3] == Tokens::OpenBraces {
@@ -243,7 +237,7 @@ pub fn parse_tokens(
 
                                 // Get the slice of the list which may contain the brackets' scope
                                 let tokens_slice = &tokens[bracket_close_idx + 4..];
-                                
+
                                 // Create an index which indexes the tokens slice
                                 let mut token_braces_idx = 0;
 
@@ -257,7 +251,8 @@ pub fn parse_tokens(
                                         brace_layer_counter += 1;
                                     }
                                     // If a bracket is closed the layer counter should be decreased
-                                    else if tokens_slice[token_braces_idx] == Tokens::CloseBraces {
+                                    else if tokens_slice[token_braces_idx] == Tokens::CloseBraces
+                                    {
                                         brace_layer_counter -= 1;
                                     }
 
@@ -276,7 +271,13 @@ pub fn parse_tokens(
                                 let braces_contains_len = braces_contains.len();
 
                                 // Store the function
-                                function_list.insert(function_name, UnparsedFunctionDefinition { args, inner: braces_contains, return_type });
+                                function_list.insert(
+                                    function_name,
+                                    UnparsedFunctionDefinition {
+                                        inner: braces_contains,
+                                        function_sig: FunctionSignature { args, return_type },
+                                    },
+                                );
 
                                 // Set the iterator index
                                 token_idx = bracket_close_idx + 3 + braces_contains_len + 2;
@@ -286,10 +287,9 @@ pub fn parse_tokens(
                             }
                         }
                     }
-                    
+
                     return Err(ParserError::InvalidFunctionDefinition);
-                }
-                else {
+                } else {
                     return Err(ParserError::InvalidFunctionDefinition);
                 }
             }
@@ -301,7 +301,9 @@ pub fn parse_tokens(
     Ok(function_list)
 }
 
-fn parse_function_args(token_list: &[Tokens]) -> Result<HashMap<String, TypeDiscriminants>, ParserError> {
+fn parse_function_args(
+    token_list: &[Tokens],
+) -> Result<HashMap<String, TypeDiscriminants>, ParserError> {
     // Create a list of args which the function will take, we will return this later
     let mut args: HashMap<String, TypeDiscriminants> = HashMap::new();
 
@@ -335,19 +337,32 @@ fn parse_function_args(token_list: &[Tokens]) -> Result<HashMap<String, TypeDisc
     Ok(args)
 }
 
-pub fn parse_functions(unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>) -> Result<HashMap<String, FunctionDefinition>, ParserError> {
+pub fn parse_functions(
+    unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+) -> Result<HashMap<String, FunctionDefinition>, ParserError> {
     let mut parsed_functions = HashMap::new();
 
     for (fn_name, unparsed_function) in unparsed_functions.clone().iter() {
-        let function_definition = FunctionDefinition { args: unparsed_function.args.clone(), inner: parse_function(unparsed_function.inner.clone(), unparsed_functions.clone(), unparsed_function.args.clone())?, return_type: unparsed_function.return_type };
-    
+        let function_definition = FunctionDefinition {
+            inner: parse_function(
+                unparsed_function.inner.clone(),
+                unparsed_functions.clone(),
+                unparsed_function.function_sig.args.clone(),
+            )?,
+            function_sig: unparsed_function.function_sig.clone(),
+        };
+
         parsed_functions.insert(fn_name.clone(), function_definition);
     }
 
     Ok(parsed_functions)
 }
 
-fn parse_function(tokens: Vec<Tokens>, function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>, this_function_args: HashMap<String, TypeDiscriminants>) -> Result<Vec<ParsedTokens>, ParserError> {
+fn parse_function(
+    tokens: Vec<Tokens>,
+    function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    this_function_args: HashMap<String, TypeDiscriminants>,
+) -> Result<Vec<ParsedTokens>, ParserError> {
     let mut token_idx = 0;
 
     let mut parsed_tokens: Vec<ParsedTokens> = Vec::new();
@@ -356,79 +371,96 @@ fn parse_function(tokens: Vec<Tokens>, function_signatures: Arc<HashMap<String, 
 
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
-        
+
         if let Tokens::TypeDefinition(var_type) = current_token {
             if let Tokens::Identifier(var_name) = tokens[token_idx + 1].clone() {
-                parsed_tokens.push(ParsedTokens::Variable((var_name.clone(), var_type.into())));
-        
+                parsed_tokens.push(ParsedTokens::NewVariable((var_name.clone(), var_type.into())));
+
                 variable_scope.insert(var_name.clone(), var_type);
-        
-                if tokens[token_idx + 2] == Tokens::LineBreak || tokens[token_idx + 2] == Tokens::SetValue {
+
+                if tokens[token_idx + 2] == Tokens::LineBreak
+                    || tokens[token_idx + 2] == Tokens::SetValue
+                {
                     token_idx += 1;
-        
+
                     continue;
+                } else {
+                    return Err(ParserError::SyntaxError);
                 }
-                else {
-                    return Err(ParserError::SyntaxError);                    
-                }
-            }
-            else {
+            } else {
                 return Err(ParserError::SyntaxError);
             }
-        }
-        else if let Tokens::Identifier(ident_name) = current_token {
+        } else if let Tokens::Identifier(ident_name) = current_token {
             // If the variable exists in the current scope
-            if variable_scope.contains_key(&ident_name) || this_function_args.contains_key(&ident_name) {
+            if variable_scope.contains_key(&ident_name)
+                || this_function_args.contains_key(&ident_name)
+            {
                 match tokens[token_idx + 1] {
                     Tokens::SetValue => {
                         // If there was a constant
                         let current_token = tokens[token_idx + 2].clone();
-                        
-                        if let Tokens::Const(const_var) = tokens[token_idx + 2].clone() {
-                            let variable_type = variable_scope.get(&ident_name).ok_or_else(|| ParserError::VariableNotFound(ident_name.clone()))?;
+
+                        if let Tokens::UnparsedLiteral(raw_string) = tokens[token_idx + 2].clone() {
+                            let variable_type = variable_scope
+                                .get(&ident_name)
+                                .ok_or_else(|| ParserError::VariableNotFound(ident_name.clone()))?;
+
+                            let const_var = unparsed_const_to_typed_const(raw_string, *variable_type)?;
+
                             if const_var.discriminant() == *variable_type {
                                 parsed_tokens.push(ParsedTokens::SetValue((ident_name, const_var)));
-                            }
-                            else {
-                                return Err(ParserError::VariableTypeMismatch(ident_name, *variable_type, const_var.discriminant()));
+                            } else {
+                                return Err(ParserError::VariableTypeMismatch(
+                                    ident_name,
+                                    *variable_type,
+                                    const_var.discriminant(),
+                                ));
                             }
                         }
                         // Else if there is a function call
-                        else if let Tokens::Identifier(fn_name) = current_token {
-                            
+                        else if let Tokens::Identifier(_fn_name) = current_token {
+                        
                         }
                     }
-                    Tokens::SetValueAddition => {},
-                    Tokens::SetValueSubtraction => {},
-                    Tokens::SetValueDivision => {},
-                    Tokens::SetValueMultiplication => {},
-                    Tokens::SetValueModulo => {},
+                    
+                    Tokens::SetValueAddition => {}
+                    Tokens::SetValueSubtraction => {}
+                    Tokens::SetValueDivision => {}
+                    Tokens::SetValueMultiplication => {}
+                    Tokens::SetValueModulo => {}
 
                     _ => {
                         println!("UNIMPLEMENTED FUNCTION: {}", tokens[token_idx + 1]);
-                    },
+                    }
                 }
-    
+
                 if tokens[token_idx + 3] == Tokens::LineBreak {
                     token_idx += 4;
-    
+
                     continue;
+                } else {
+                    return Err(ParserError::SyntaxError);
                 }
-                else {
-                    return Err(ParserError::SyntaxError);                    
-                }
-            }
-            else if let Some(function_sig) = function_signatures.get(&ident_name) {
+            } else if let Some(function_sig) = function_signatures.get(&ident_name) {
                 // If after the function name the first thing isnt a `(` return a syntax error.
                 if tokens[token_idx + 1] != Tokens::OpenBracket {
                     return Err(ParserError::SyntaxError);
                 }
-
-                let variables_passed = parse_function_call(&tokens[token_idx + 2..], variable_scope.clone(), function_sig.args.clone())?;
                 
-                // parsed_tokens.push(ParsedTokens::FunctionCall());
-            }
-            else {
+                let bracket_start_slice = &tokens[token_idx + 2..];
+
+                let bracket_idx = find_closing_bracket(bracket_start_slice);                    
+
+                let (variables_passed, jumped_idx) = parse_function_call(
+                    &tokens[token_idx + 2..bracket_idx + token_idx + 2],
+                    variable_scope.clone(),
+                    function_sig.function_sig.args.clone(),
+                )?;
+
+                parsed_tokens.push(ParsedTokens::FunctionCall((function_sig.function_sig.clone(), ident_name), variables_passed));
+
+                token_idx += jumped_idx;
+            } else {
                 return Err(ParserError::VariableNotFound(ident_name));
             }
         }
@@ -439,50 +471,87 @@ fn parse_function(tokens: Vec<Tokens>, function_signatures: Arc<HashMap<String, 
     Ok(parsed_tokens)
 }
 
-fn parse_function_call(tokens: &[Tokens], variable_scope: HashMap<String, TypeDiscriminants>, function_args: HashMap<String, TypeDiscriminants>) -> Result<Vec<String>, ParserError> {
+fn find_closing_bracket(bracket_start_slice: &[Tokens]) -> usize {
+    let mut bracket_idx = 0;
+    let mut bracket_layer_counter = 1;
+
+    loop {
+        if bracket_start_slice[bracket_idx] == Tokens::OpenBracket {
+            bracket_layer_counter += 1;
+        }
+        else if bracket_start_slice[bracket_idx] == Tokens::CloseBracket {
+            bracket_layer_counter -= 1;
+        }
+
+        if bracket_layer_counter == 0 {
+            break;
+        }
+
+        bracket_idx += 1;
+    }
+
+    bracket_idx
+}
+
+fn parse_function_call(
+    tokens: &[Tokens],
+    variable_scope: HashMap<String, TypeDiscriminants>,
+    function_args: HashMap<String, TypeDiscriminants>,
+) -> Result<(Vec<ParsedTokens>, usize), ParserError> {
     let mut tokens_idx = 0;
 
-    // Variables which will passed in to the function
-    let mut variable_names: Vec<String> = vec![];
+    // Arguments which will passed in to the function
+    let mut arguments: Vec<ParsedTokens> = vec![];
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
 
-        if let Tokens::Identifier(arg_name) = current_token {
-            if Tokens::Comma == tokens[tokens_idx + 1] {
+        if let Tokens::Identifier(arg_name) = current_token.clone() {
+            if Tokens::SetValue == tokens[tokens_idx + 1] {
                 let current_arg = tokens[tokens_idx + 2].clone();
+
+                let argument_type = function_args
+                    .get(&arg_name)
+                    .ok_or(ParserError::ArgumentError(arg_name))?;
+
                 if let Tokens::Identifier(var_name) = current_arg {
-                    let var_type = variable_scope.get(&var_name).ok_or_else(|| ParserError::VariableNotFound(var_name.clone()))?;
-        
-                    let argument_type = dbg!(&function_args).get(&arg_name).ok_or(ParserError::ArgumentError(arg_name))?;
+                    let var_type = variable_scope
+                        .get(&var_name)
+                        .ok_or_else(|| ParserError::VariableNotFound(var_name.clone()))?;
 
                     // If the types match and the argument's name also matches then we can store the variable's name with the argument's name.
                     if argument_type == var_type {
-                        variable_names.push(var_name);
-                    }
-                    else {
+                        tokens_idx += 4;
+
+                        arguments.push(ParsedTokens::VariableReference(var_name));
+                        
+                        continue;
+                    } else {
                         return Err(ParserError::TypeError(*var_type, *argument_type));
                     }
+                } else if let Tokens::Literal(literal) = current_arg {
+                    let literal_type = literal.discriminant();
+
+                    if *argument_type == literal_type {
+                        tokens_idx += 4;
+
+                        arguments.push(ParsedTokens::Literal(literal));
+                        
+                        continue;
+                    } else {
+                        return Err(ParserError::TypeError(literal_type, *argument_type));
+                    }
                 }
-                else if let Tokens::Const(const_type) = current_arg {
-                    unimplemented!("Implement using consts for functions!")
-                }
-            }
-            else {
+            } else {
                 return Err(ParserError::SyntaxError);
             }
-        }
-        else if Tokens::CloseBraces == current_token {
+        } else if Tokens::CloseBraces == current_token {
             break;
-        }
-        else {
+        } else {
             return Err(ParserError::SyntaxError);
         }
-        
 
-
-        tokens_idx += 1;
     }
 
-    Ok(variable_names)
+    Ok((arguments, tokens_idx))
 }

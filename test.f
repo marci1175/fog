@@ -5,8 +5,10 @@ function sum(rhs: int, lhs: int): int {
 function main(): int {
     float x = -2.34;
 
-    int y = 9;
+    int y = 3 - 9;
     int z = 2;
-    
-    sum(rhs: z, lhs: y);
+
+    sum(rhs = z, lhs = y);
+
+    return 0;
 }

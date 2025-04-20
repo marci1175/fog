@@ -3,10 +3,7 @@ use strum_macros::Display;
 pub mod type_system;
 
 #[derive(Debug, strum_macros::EnumDiscriminants, Clone, PartialEq, Display)]
-#[strum_discriminants(derive(
-    strum_macros::Display,
-    strum_macros::VariantArray
-))]
+#[strum_discriminants(derive(strum_macros::Display, strum_macros::VariantArray))]
 pub enum Type {
     I32(i32),
     F32(f32),

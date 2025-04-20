@@ -9,7 +9,7 @@ pub fn compilation_process(path_to_file: PathBuf) -> anyhow::Result<()> {
 
     let tokens = parse_code(formatted_file_contents);
 
-    dbg!(&tokens);
+    // dbg!(&tokens);
 
     let unparsed_functions = parse_tokens(tokens)?;
 

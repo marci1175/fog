@@ -12,7 +12,9 @@ pub enum ParserError {
     TypeError(TypeDiscriminants, TypeDiscriminants),
     #[error("Source code contains a Syntax Error.")]
     SyntaxError,
-    #[error("[INTERNAL ERROR] A variable was not found in the scope when it should've been. This is not the same as `VariableNotFound`!")]
+    #[error(
+        "[INTERNAL ERROR] A variable was not found in the scope when it should've been. This is not the same as `VariableNotFound`!"
+    )]
     InternalVariableError,
     #[error("Variable `{0}` with type `{1}` mismatches `{2}`.")]
     VariableTypeMismatch(String, TypeDiscriminants, TypeDiscriminants),
