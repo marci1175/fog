@@ -10,7 +10,6 @@ pub enum Tokens {
 
     UnparsedLiteral(String),
 
-    Variable,
     TypeDefinition(TypeDiscriminants),
 
     Identifier(String),
@@ -70,14 +69,13 @@ pub enum ParsedTokens {
     NewVariable((String, Type)),
     VariableReference(String),
     Literal(Type),
-    
+
+    Addition(Box<ParsedTokens>, Box<ParsedTokens>),
     Brackets(Vec<ParsedTokens>, TypeDiscriminants),
 
     FunctionCall((FunctionSignature, String), Vec<ParsedTokens>),
 
-    Comparison(Comparison),
-
-    SetValue((String, Type)),
+    SetValue(String, Box<ParsedTokens>),
 
     If(If),
 }
@@ -174,7 +172,7 @@ pub struct Cmp {
 //     Ok(recasted_val)
 // }
 
-pub fn unparsed_const_to_typed_const(raw_string: String, dest_type: TypeDiscriminants) -> Result<Type, ParserError> {
+pub fn unparsed_const_to_typed_literal(raw_string: String, dest_type: TypeDiscriminants) -> Result<Type, ParserError> {
     let typed_var = match dest_type {
         TypeDiscriminants::I32 => Type::I32(raw_string.parse::<i32>().map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?),
         TypeDiscriminants::F32 => Type::F32(raw_string.parse::<f32>().map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?),

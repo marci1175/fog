@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, process::id, sync::Arc};
 
 use strum::IntoDiscriminant;
 
@@ -6,10 +6,10 @@ use crate::app::type_system::{Type, TypeDiscriminants};
 
 use super::{
     error::ParserError,
-    types::{unparsed_const_to_typed_const, FunctionDefinition, FunctionSignature, ParsedTokens, Tokens, UnparsedFunctionDefinition},
+    types::{unparsed_const_to_typed_literal, FunctionDefinition, FunctionSignature, ParsedTokens, Tokens, UnparsedFunctionDefinition},
 };
 
-pub fn parse_code(raw_string: String) -> Vec<Tokens> {
+pub fn parse_code(raw_string: String) -> Result<Vec<Tokens>, ParserError> {
     let mut char_idx: usize = 0;
 
     let mut token_list: Vec<Tokens> = Vec::new();
@@ -75,18 +75,27 @@ pub fn parse_code(raw_string: String) -> Vec<Tokens> {
             let mut quote_idx = char_idx + 1;
 
             loop {
-                let quote_char = char_list[quote_idx];
-                if quote_char == '"' {
-                    token_list.push(Tokens::Quote(quotes_buffer));
-
-                    char_idx = quote_idx + 1;
-
-                    break;
+                let quote_char = char_list.get(quote_idx);
+                
+                match quote_char {
+                    Some(quote_char) => {
+                        if *quote_char == '"' {
+                            token_list.push(Tokens::Literal(Type::String(quotes_buffer)));
+        
+                            char_idx = quote_idx + 1;
+        
+                            break;
+                        }
+        
+                        quotes_buffer.push(*quote_char);
+        
+                        quote_idx += 1;
+                    },
+                    // If there are no more tokens left and we are still in the quote
+                    None => {
+                        return Err(ParserError::SyntaxError);
+                    },
                 }
-
-                quotes_buffer.push(quote_char);
-
-                quote_idx += 1;
             }
 
             continue;
@@ -168,7 +177,7 @@ pub fn parse_code(raw_string: String) -> Vec<Tokens> {
         char_idx += 1;
     }
 
-    token_list
+    Ok(token_list)
 }
 
 fn match_multi_character_expression(string_buffer: String) -> Tokens {
@@ -221,22 +230,18 @@ pub fn parse_tokens(
         if current_token == Tokens::Function {
             if let Tokens::Identifier(function_name) = tokens[token_idx + 1].clone() {
                 if tokens[token_idx + 2] == Tokens::OpenBracket {
-                    let bracket_close_idx = tokens[token_idx + 2..]
-                        .iter()
-                        .position(|token| *token == Tokens::CloseBracket)
-                        .ok_or(ParserError::InvalidFunctionDefinition)?
-                        + (token_idx + 2);
+                    let (bracket_close_idx, args) = parse_function_argument_tokens(&tokens[token_idx + 3..], token_idx)?;
+                    
+                    token_idx += bracket_close_idx + 3;
 
-                    let args = parse_function_args(&tokens[token_idx + 3..bracket_close_idx])?;
-
-                    if tokens[bracket_close_idx + 1] == Tokens::Colon {
-                        if let Tokens::TypeDefinition(return_type) = tokens[bracket_close_idx + 2] {
-                            if tokens[bracket_close_idx + 3] == Tokens::OpenBraces {
+                    if tokens[token_idx + 1] == Tokens::Colon {
+                        if let Tokens::TypeDefinition(return_type) = tokens[token_idx + 2] {
+                            if tokens[token_idx + 3] == Tokens::OpenBraces {
                                 // Create a varable which stores the level of braces we are in
                                 let mut brace_layer_counter = 1;
 
                                 // Get the slice of the list which may contain the brackets' scope
-                                let tokens_slice = &tokens[bracket_close_idx + 4..];
+                                let tokens_slice = &tokens[token_idx + 4..];
 
                                 // Create an index which indexes the tokens slice
                                 let mut token_braces_idx = 0;
@@ -274,13 +279,13 @@ pub fn parse_tokens(
                                 function_list.insert(
                                     function_name,
                                     UnparsedFunctionDefinition {
-                                        inner: braces_contains,
+                                        inner: dbg!(braces_contains),
                                         function_sig: FunctionSignature { args, return_type },
                                     },
                                 );
 
                                 // Set the iterator index
-                                token_idx = bracket_close_idx + 3 + braces_contains_len + 2;
+                                token_idx += braces_contains_len + 4;
 
                                 // Countinue with the loop
                                 continue;
@@ -301,18 +306,34 @@ pub fn parse_tokens(
     Ok(function_list)
 }
 
+fn parse_function_argument_tokens(tokens: &[Tokens], token_idx: usize) -> Result<(usize, HashMap<String, TypeDiscriminants>), ParserError> {
+    let bracket_closing_idx = find_closing_bracket(tokens).map_err(|_| ParserError::InvalidFunctionDefinition)?;
+
+    let mut args = HashMap::new();
+
+    if bracket_closing_idx != 0 {
+        args = parse_function_args(&tokens[token_idx..token_idx + bracket_closing_idx])?;
+    }
+
+    Ok((bracket_closing_idx, args))
+}
+
 fn parse_function_args(
     token_list: &[Tokens],
 ) -> Result<HashMap<String, TypeDiscriminants>, ParserError> {
     // Create a list of args which the function will take, we will return this later
     let mut args: HashMap<String, TypeDiscriminants> = HashMap::new();
 
+    // Create an index which will iterate through the tokens
     let mut args_idx = 0;
 
-    //Iter until we find a CloseBracket: ")"
-    while args_idx < token_list.len() {
+    // Iter until we find a CloseBracket: ")"
+    // This will be the end of the function's arguments
+    while args_idx <= token_list.len() {
         // Match the signature of an argument
         // Get the variable's name
+        // If the token is an identifier then we know that this is a variable name
+        // If the token is a colon then we know that this is a type definition
         if let Tokens::Identifier(var_name) = token_list[args_idx].clone() {
             // Match the colon from the signature, to ensure correct signaure
             if token_list[args_idx + 1] == Tokens::Colon {
@@ -367,9 +388,13 @@ fn parse_function(
 
     let mut parsed_tokens: Vec<ParsedTokens> = Vec::new();
 
-    let mut variable_scope: HashMap<String, TypeDiscriminants> = HashMap::new();
+    let mut variable_scope: HashMap<String, TypeDiscriminants> = this_function_args;
 
-    while token_idx < tokens.len() {
+    if tokens.len() == 0 {
+        return Ok(vec![]);
+    }
+
+    while token_idx <= tokens.len() - 1 {
         let current_token = tokens[token_idx].clone();
 
         if let Tokens::TypeDefinition(var_type) = current_token {
@@ -392,35 +417,17 @@ fn parse_function(
             }
         } else if let Tokens::Identifier(ident_name) = current_token {
             // If the variable exists in the current scope
-            if variable_scope.contains_key(&ident_name)
-                || this_function_args.contains_key(&ident_name)
+            if let Some(variable_type) = variable_scope.get(&ident_name)
             {
-                match tokens[token_idx + 1] {
+                match dbg!(&tokens[token_idx + 1]) {
                     Tokens::SetValue => {
-                        // If there was a constant
-                        let current_token = tokens[token_idx + 2].clone();
+                        let line_break_idx = tokens.iter().skip(token_idx + 1).position(|token| *token == Tokens::LineBreak).ok_or_else(|| ParserError::SyntaxError)? + token_idx + 1;
 
-                        if let Tokens::UnparsedLiteral(raw_string) = tokens[token_idx + 2].clone() {
-                            let variable_type = variable_scope
-                                .get(&ident_name)
-                                .ok_or_else(|| ParserError::VariableNotFound(ident_name.clone()))?;
-
-                            let const_var = unparsed_const_to_typed_const(raw_string, *variable_type)?;
-
-                            if const_var.discriminant() == *variable_type {
-                                parsed_tokens.push(ParsedTokens::SetValue((ident_name, const_var)));
-                            } else {
-                                return Err(ParserError::VariableTypeMismatch(
-                                    ident_name,
-                                    *variable_type,
-                                    const_var.discriminant(),
-                                ));
-                            }
-                        }
-                        // Else if there is a function call
-                        else if let Tokens::Identifier(_fn_name) = current_token {
+                        let selected_tokens = &tokens[token_idx + 1..line_break_idx];
                         
-                        }
+                        token_idx += selected_tokens.len() + 1;
+                        
+                        parse_set_value(selected_tokens, &mut parsed_tokens, function_signatures.clone(), &variable_scope, *variable_type, ident_name.clone())?;
                     }
                     
                     Tokens::SetValueAddition => {}
@@ -433,14 +440,6 @@ fn parse_function(
                         println!("UNIMPLEMENTED FUNCTION: {}", tokens[token_idx + 1]);
                     }
                 }
-
-                if tokens[token_idx + 3] == Tokens::LineBreak {
-                    token_idx += 4;
-
-                    continue;
-                } else {
-                    return Err(ParserError::SyntaxError);
-                }
             } else if let Some(function_sig) = function_signatures.get(&ident_name) {
                 // If after the function name the first thing isnt a `(` return a syntax error.
                 if tokens[token_idx + 1] != Tokens::OpenBracket {
@@ -449,10 +448,10 @@ fn parse_function(
                 
                 let bracket_start_slice = &tokens[token_idx + 2..];
 
-                let bracket_idx = find_closing_bracket(bracket_start_slice);                    
+                let bracket_idx = find_closing_bracket(bracket_start_slice)? + token_idx;                    
 
                 let (variables_passed, jumped_idx) = parse_function_call(
-                    &tokens[token_idx + 2..bracket_idx + token_idx + 2],
+                    &tokens[token_idx + 2..bracket_idx + 2],
                     variable_scope.clone(),
                     function_sig.function_sig.args.clone(),
                 )?;
@@ -471,11 +470,15 @@ fn parse_function(
     Ok(parsed_tokens)
 }
 
-fn find_closing_bracket(bracket_start_slice: &[Tokens]) -> usize {
+fn find_closing_bracket(bracket_start_slice: &[Tokens]) -> Result<usize, ParserError> {
     let mut bracket_idx = 0;
     let mut bracket_layer_counter = 1;
 
     loop {
+        if bracket_start_slice.len() <= bracket_idx {
+            return Err(ParserError::SyntaxError);
+        }
+        
         if bracket_start_slice[bracket_idx] == Tokens::OpenBracket {
             bracket_layer_counter += 1;
         }
@@ -490,7 +493,7 @@ fn find_closing_bracket(bracket_start_slice: &[Tokens]) -> usize {
         bracket_idx += 1;
     }
 
-    bracket_idx
+    Ok(bracket_idx)
 }
 
 fn parse_function_call(
@@ -554,4 +557,274 @@ fn parse_function_call(
     }
 
     Ok((arguments, tokens_idx))
+}
+
+pub fn parse_set_value(tokens: &[Tokens], parsed_tokens: &mut Vec<ParsedTokens>, function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>, variable_scope: &HashMap<String, TypeDiscriminants>, variable_type: TypeDiscriminants,  variable_name: String) -> Result<(), ParserError> {
+    let mut token_idx = 1;
+
+    while token_idx < tokens.len() {
+        let current_token = &tokens.get(token_idx).ok_or_else(|| ParserError::SyntaxError)?;
+        match current_token {
+            Tokens::Literal(literal) => {
+                if variable_type != literal.discriminant() {
+                    return Err(ParserError::TypeError(literal.discriminant(), variable_type));
+                }
+                
+                parsed_tokens.push(ParsedTokens::SetValue(variable_name.clone(), Box::new(ParsedTokens::Literal(literal.clone()))));
+            },
+            Tokens::UnparsedLiteral(raw_string) => {
+                let parsed_literal = unparsed_const_to_typed_literal(raw_string.clone(), variable_type)?;
+            
+                parsed_tokens.push(ParsedTokens::SetValue(variable_name.clone(), Box::new(ParsedTokens::Literal(parsed_literal.clone()))));
+            },
+            Tokens::Identifier(ident_name) => {
+                if let Some(function) = function_signatures.get(&*ident_name) {
+                    if variable_type != function.function_sig.return_type {
+                        return Err(ParserError::TypeError(function.function_sig.return_type, variable_type));
+                    }
+    
+                    let bracket_idx = find_closing_bracket(&tokens[token_idx..])? + token_idx;
+    
+                    let (variables_passed, jumped_idx) = parse_function_call(
+                        &tokens[token_idx..bracket_idx + 2],
+                        variable_scope.clone(),
+                        function.function_sig.args.clone(),
+                    )?;
+    
+                    token_idx += jumped_idx;
+                    
+                    parsed_tokens.push(ParsedTokens::SetValue(variable_name.clone(), Box::new(ParsedTokens::FunctionCall((function.function_sig.clone(), ident_name.clone()), variables_passed))));
+                } else if let Some(variable) = variable_scope.get(&*ident_name) {
+                    if variable_type != *variable {
+                        return Err(ParserError::TypeError(*variable, variable_type));
+                    }
+    
+                    parsed_tokens.push(ParsedTokens::SetValue(variable_name.clone(), Box::new(ParsedTokens::VariableReference(ident_name.clone()))));
+                }
+            },
+            Tokens::Quote(quote) => {
+                parsed_tokens.push(ParsedTokens::SetValue(variable_name.clone(), Box::new(ParsedTokens::Literal(Type::String(quote.clone())))));
+            },
+    
+            Tokens::Addition => {
+                let parsed_token = parsed_tokens.last_mut();
+
+                let next_token = tokens.get(token_idx + 1).ok_or_else(|| ParserError::SyntaxError)?;
+
+                if let Some(ParsedTokens::Addition(lhs, rhs)) = parsed_token {
+                    *lhs = Box::new(ParsedTokens::Addition(lhs.clone(), rhs.clone()));
+
+                    *rhs = match next_token {
+                        Tokens::Literal(literal) => {
+                            let literal_type = literal.discriminant();
+
+                            if literal_type != variable_type {
+                                return Err(ParserError::TypeError(literal_type, variable_type));
+                            }
+
+                            Box::new(ParsedTokens::Literal(literal.clone()))
+                        },
+                        Tokens::UnparsedLiteral(raw_string) => {
+                            let literal = unparsed_const_to_typed_literal(raw_string.clone(), variable_type)?;
+
+                            let literal_type = literal.discriminant();
+                            
+                            if literal_type != variable_type {
+                                return Err(ParserError::TypeError(literal_type, variable_type));
+                            }
+
+                            Box::new(ParsedTokens::Literal(literal))
+                        },
+                        Tokens::Identifier(identifier) => {
+                            if let Some(var_type) = variable_scope.get(&*identifier) {
+                                if variable_type != *var_type {
+                                    return Err(ParserError::TypeError(*var_type, variable_type));
+                                }
+
+                                Box::new(ParsedTokens::VariableReference(identifier.clone()))
+                            }
+                            else if let Some(fn_sig) = function_signatures.get(&*identifier) {
+                                // If after the function name the first thing isnt a `(` return a syntax error.
+                                if tokens[token_idx + 1] != Tokens::OpenBracket {
+                                    return Err(ParserError::SyntaxError);
+                                }
+                                
+                                let bracket_start_slice = &tokens[token_idx + 2..];
+
+                                let bracket_idx = find_closing_bracket(bracket_start_slice)? + token_idx;                    
+
+                                let (variables_passed, jumped_idx) = parse_function_call(
+                                    &tokens[token_idx + 2..bracket_idx + 2],
+                                    variable_scope.clone(),
+                                    fn_sig.function_sig.args.clone(),
+                                )?;
+
+                                token_idx += jumped_idx;
+
+                                Box::new(ParsedTokens::FunctionCall((fn_sig.function_sig.clone(), identifier.clone()), variables_passed))
+                            }
+                            else {
+                                return Err(ParserError::VariableNotFound(identifier.clone()));
+                            }
+                        },
+
+                        _ => {
+                            token_idx += 1;
+                            continue;
+                        },
+                    };
+                }
+                else {
+                    let last_token = tokens.get(token_idx - 1).ok_or_else(|| ParserError::SyntaxError)?;
+                    let next_token = tokens.get(token_idx + 1).ok_or_else(|| ParserError::SyntaxError)?;
+
+                    let lhs = match last_token {
+                        Tokens::Literal(literal) => {
+                            let literal_type = literal.discriminant();
+
+                            if literal_type != variable_type {
+                                return Err(ParserError::TypeError(literal_type, variable_type));
+                            }
+
+                            Box::new(ParsedTokens::Literal(literal.clone()))
+                        },
+                        Tokens::UnparsedLiteral(raw_string) => {
+                            let literal = unparsed_const_to_typed_literal(raw_string.clone(), variable_type)?;
+
+                            let literal_type = literal.discriminant();
+                            
+                            if literal_type != variable_type {
+                                return Err(ParserError::TypeError(literal_type, variable_type));
+                            }
+
+                            Box::new(ParsedTokens::Literal(literal))
+                        },
+                        Tokens::Identifier(identifier) => {
+                            if let Some(var_type) = variable_scope.get(&*identifier) {
+                                if variable_type != *var_type {
+                                    return Err(ParserError::TypeError(*var_type, variable_type));
+                                }
+
+                                Box::new(ParsedTokens::VariableReference(identifier.clone()))
+                            }
+                            else if let Some(fn_sig) = function_signatures.get(&*identifier) {
+                                // If after the function name the first thing isnt a `(` return a syntax error.
+                                if tokens[token_idx + 1] != Tokens::OpenBracket {
+                                    return Err(ParserError::SyntaxError);
+                                }
+                                
+                                let bracket_start_slice = &tokens[token_idx + 2..];
+
+                                let bracket_idx = find_closing_bracket(bracket_start_slice)? + token_idx;                    
+
+                                let (variables_passed, jumped_idx) = parse_function_call(
+                                    &tokens[token_idx + 2..bracket_idx + 2],
+                                    variable_scope.clone(),
+                                    fn_sig.function_sig.args.clone(),
+                                )?;
+
+                                token_idx += jumped_idx;
+
+                                Box::new(ParsedTokens::FunctionCall((fn_sig.function_sig.clone(), identifier.clone()), variables_passed))
+                            }
+                            else {
+                                return Err(ParserError::VariableNotFound(identifier.clone()));
+                            }
+                        },
+
+                        _ => {
+                            token_idx += 1;
+                            continue;
+                        },
+                    };
+
+                    let rhs = match next_token {
+                        Tokens::Literal(literal) => {
+                            let literal_type = literal.discriminant();
+
+                            if literal_type != variable_type {
+                                return Err(ParserError::TypeError(literal_type, variable_type));
+                            }
+
+                            Box::new(ParsedTokens::Literal(literal.clone()))
+                        },
+                        Tokens::UnparsedLiteral(raw_string) => {
+                            let literal = unparsed_const_to_typed_literal(raw_string.clone(), variable_type)?;
+
+                            let literal_type = literal.discriminant();
+                            
+                            if literal_type != variable_type {
+                                return Err(ParserError::TypeError(literal_type, variable_type));
+                            }
+
+                            Box::new(ParsedTokens::Literal(literal))
+                        },
+                        Tokens::Identifier(identifier) => {
+                            if let Some(var_type) = variable_scope.get(&*identifier) {
+                                if variable_type != *var_type {
+                                    return Err(ParserError::TypeError(*var_type, variable_type));
+                                }
+
+                                Box::new(ParsedTokens::VariableReference(identifier.clone()))
+                            }
+                            else if let Some(fn_sig) = function_signatures.get(&*identifier) {
+                                // If after the function name the first thing isnt a `(` return a syntax error.
+                                if tokens[token_idx + 1] != Tokens::OpenBracket {
+                                    return Err(ParserError::SyntaxError);
+                                }
+                                
+                                let bracket_start_slice = &tokens[token_idx + 2..];
+
+                                let bracket_idx = find_closing_bracket(bracket_start_slice)? + token_idx;                    
+
+                                let (variables_passed, jumped_idx) = parse_function_call(
+                                    &tokens[token_idx + 2..bracket_idx + 2],
+                                    variable_scope.clone(),
+                                    fn_sig.function_sig.args.clone(),
+                                )?;
+
+                                token_idx += jumped_idx;
+
+                                Box::new(ParsedTokens::FunctionCall((fn_sig.function_sig.clone(), identifier.clone()), variables_passed))
+                            }
+                            else {
+                                return Err(ParserError::VariableNotFound(identifier.clone()));
+                            }
+                        },
+
+                        _ => {
+                            token_idx += 1;
+                            continue;
+                        },
+                    };
+
+                    let last_token = parsed_tokens.last_mut().unwrap();
+
+                    *last_token = ParsedTokens::Addition(lhs, rhs);
+
+                    token_idx += 3;
+
+                    continue;
+                }
+            }
+            Tokens::Subtraction => {
+                
+            }
+            Tokens::Multiplication => {
+                
+            }
+            Tokens::Division => {
+                
+            }
+
+            _ => {
+                
+            },
+        }
+        token_idx += 1;
+    }
+
+    
+
+    Ok(())
 }
