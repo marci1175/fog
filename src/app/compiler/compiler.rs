@@ -1,19 +1,19 @@
 use std::{path::PathBuf, sync::Arc};
 
-use crate::app::parser::parser::{parse_code, parse_functions, parse_tokens};
+use crate::app::parser::{parser::ParserState, tokenizer::tokenize};
 
 use super::file_ingest::file_ingest;
 
 pub fn compilation_process(path_to_file: PathBuf) -> anyhow::Result<()> {
     let formatted_file_contents = file_ingest(path_to_file)?;
 
-    let tokens = parse_code(formatted_file_contents)?;
+    let tokens = tokenize(formatted_file_contents)?;
 
-    let unparsed_functions = parse_tokens(dbg!(tokens))?;
+    let mut parser_state = ParserState::new(tokens);
 
-    let parsed_functions = parse_functions(Arc::new(unparsed_functions))?;
+    parser_state.parse_tokens()?;
 
-    dbg!(parsed_functions);
+    dbg!(parser_state.function_table());
 
     Ok(())
 }

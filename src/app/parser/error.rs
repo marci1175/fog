@@ -12,10 +12,6 @@ pub enum ParserError {
     TypeError(TypeDiscriminants, TypeDiscriminants),
     #[error("Source code contains a Syntax Error.")]
     SyntaxError,
-    #[error(
-        "[INTERNAL ERROR] A variable was not found in the scope when it should've been. This is not the same as `VariableNotFound`!"
-    )]
-    InternalVariableError,
     #[error("Variable `{0}` with type `{1}` mismatches `{2}`.")]
     VariableTypeMismatch(String, TypeDiscriminants, TypeDiscriminants),
     #[error("The variable named `{0}` has not been found in the current scope.")]
@@ -24,4 +20,10 @@ pub enum ParserError {
     ArgumentError(String),
     #[error("Const definition `{0}` could not be casted to type `{1}`")]
     ConstTypeUndetermined(String, TypeDiscriminants),
+    #[error(
+        "[INTERNAL ERROR] A variable was not found in the scope when it should've been. This is not the same as `VariableNotFound`!"
+    )]
+    InternalVariableError,
+    #[error("[INTERNAL ERROR] Tried to parse an incompatible `Token` into `MathematicalExpression`.")]
+    InternalMathParsingError,
 }

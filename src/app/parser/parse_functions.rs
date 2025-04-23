@@ -1,0 +1,351 @@
+use std::{collections::HashMap, sync::Arc};
+
+use strum::IntoDiscriminant;
+
+use crate::app::type_system::TypeDiscriminants;
+
+use super::{
+    error::ParserError,
+    parser::{find_closing_bracket, parse_set_value},
+    types::{
+        FunctionDefinition, FunctionSignature, ParsedToken, Token, UnparsedFunctionDefinition,
+    },
+};
+
+pub fn create_function_table(
+    tokens: Vec<Token>,
+) -> Result<HashMap<String, UnparsedFunctionDefinition>, ParserError> {
+    let mut token_idx = 0;
+    let mut function_list: HashMap<String, UnparsedFunctionDefinition> = HashMap::new();
+
+    while token_idx < tokens.len() {
+        let current_token = tokens[token_idx].clone();
+
+        if current_token == Token::Function {
+            if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
+                if tokens[token_idx + 2] == Token::OpenBracket {
+                    let (bracket_close_idx, args) =
+                        parse_function_argument_tokens(&tokens[token_idx + 3..], token_idx)?;
+
+                    token_idx += bracket_close_idx + 3;
+
+                    if tokens[token_idx + 1] == Token::Colon {
+                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2] {
+                            if tokens[token_idx + 3] == Token::OpenBraces {
+                                // Create a varable which stores the level of braces we are in
+                                let mut brace_layer_counter = 1;
+
+                                // Get the slice of the list which may contain the brackets' scope
+                                let tokens_slice = &tokens[token_idx + 4..];
+
+                                // Create an index which indexes the tokens slice
+                                let mut token_braces_idx = 0;
+
+                                // Create a list which contains all the tokens inside the two brackets
+                                let mut braces_contains: Vec<Token> = vec![];
+
+                                // Find the scope of this function
+                                loop {
+                                    // If a bracket is closed the layer counter should be incremented
+                                    if tokens_slice[token_braces_idx] == Token::OpenBraces {
+                                        brace_layer_counter += 1;
+                                    }
+                                    // If a bracket is closed the layer counter should be decreased
+                                    else if tokens_slice[token_braces_idx] == Token::CloseBraces
+                                    {
+                                        brace_layer_counter -= 1;
+                                    }
+
+                                    // If we have arrived at the end of the brackets this is when we know that this is the end of the function's scope
+                                    if brace_layer_counter == 0 {
+                                        break;
+                                    }
+
+                                    // Store the current item in the token buffer
+                                    braces_contains.push(tokens_slice[token_braces_idx].clone());
+
+                                    // Increment the index
+                                    token_braces_idx += 1;
+                                }
+
+                                let braces_contains_len = braces_contains.len();
+
+                                // Store the function
+                                function_list.insert(
+                                    function_name,
+                                    UnparsedFunctionDefinition {
+                                        inner: braces_contains,
+                                        function_sig: FunctionSignature { args, return_type },
+                                    },
+                                );
+
+                                // Set the iterator index
+                                token_idx += braces_contains_len + 4;
+
+                                // Countinue with the loop
+                                continue;
+                            }
+                        }
+                    }
+
+                    return Err(ParserError::InvalidFunctionDefinition);
+                } else {
+                    return Err(ParserError::InvalidFunctionDefinition);
+                }
+            }
+        }
+
+        token_idx += 1;
+    }
+
+    Ok(function_list)
+}
+
+fn parse_function_argument_tokens(
+    tokens: &[Token],
+    token_idx: usize,
+) -> Result<(usize, HashMap<String, TypeDiscriminants>), ParserError> {
+    let bracket_closing_idx =
+        find_closing_bracket(tokens).map_err(|_| ParserError::InvalidFunctionDefinition)?;
+
+    let mut args = HashMap::new();
+
+    if bracket_closing_idx != 0 {
+        args = parse_function_args(&tokens[token_idx..token_idx + bracket_closing_idx])?;
+    }
+
+    Ok((bracket_closing_idx, args))
+}
+
+fn parse_function_args(
+    token_list: &[Token],
+) -> Result<HashMap<String, TypeDiscriminants>, ParserError> {
+    // Create a list of args which the function will take, we will return this later
+    let mut args: HashMap<String, TypeDiscriminants> = HashMap::new();
+
+    // Create an index which will iterate through the tokens
+    let mut args_idx = 0;
+
+    // Iter until we find a CloseBracket: ")"
+    // This will be the end of the function's arguments
+    while args_idx <= token_list.len() {
+        // Match the signature of an argument
+        // Get the variable's name
+        // If the token is an identifier then we know that this is a variable name
+        // If the token is a colon then we know that this is a type definition
+        if let Token::Identifier(var_name) = token_list[args_idx].clone() {
+            // Match the colon from the signature, to ensure correct signaure
+            if token_list[args_idx + 1] == Token::Colon {
+                // Get the type of the argument
+                if let Token::TypeDefinition(var_type) = token_list[args_idx + 2] {
+                    // Store the argument in the HashMap
+                    args.insert(var_name, var_type);
+
+                    // Increment the idx
+                    args_idx += 4;
+
+                    // Countinue the loop
+                    continue;
+                }
+            }
+        }
+
+        // If the pattern didnt match the tokens return an error
+        return Err(ParserError::InvalidFunctionDefinition);
+    }
+
+    Ok(args)
+}
+
+pub fn parse_functions(
+    unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+) -> Result<HashMap<String, FunctionDefinition>, ParserError> {
+    let mut parsed_functions = HashMap::new();
+
+    for (fn_name, unparsed_function) in unparsed_functions.clone().iter() {
+        let function_definition = FunctionDefinition {
+            function_sig: unparsed_function.function_sig.clone(),
+            inner: parse_function(
+                unparsed_function.inner.clone(),
+                unparsed_functions.clone(),
+                unparsed_function.function_sig.args.clone(),
+            )?,
+        };
+
+        parsed_functions.insert(fn_name.clone(), function_definition);
+    }
+
+    Ok(parsed_functions)
+}
+
+fn parse_function(
+    tokens: Vec<Token>,
+    function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    this_function_args: HashMap<String, TypeDiscriminants>,
+) -> Result<Vec<ParsedToken>, ParserError> {
+    let mut token_idx = 0;
+
+    let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
+
+    let mut variable_scope: HashMap<String, TypeDiscriminants> = this_function_args;
+
+    if tokens.len() == 0 {
+        return Ok(vec![]);
+    }
+
+    while token_idx <= tokens.len() - 1 {
+        let current_token = tokens[token_idx].clone();
+
+        if let Token::TypeDefinition(var_type) = current_token {
+            if let Token::Identifier(var_name) = tokens[token_idx + 1].clone() {
+                parsed_tokens.push(ParsedToken::NewVariable((
+                    var_name.clone(),
+                    var_type.into(),
+                )));
+
+                variable_scope.insert(var_name.clone(), var_type);
+
+                if tokens[token_idx + 2] == Token::LineBreak
+                    || tokens[token_idx + 2] == Token::SetValue
+                {
+                    token_idx += 1;
+
+                    continue;
+                } else {
+                    return Err(ParserError::SyntaxError);
+                }
+            } else {
+                return Err(ParserError::SyntaxError);
+            }
+        } else if let Token::Identifier(ident_name) = current_token {
+            // If the variable exists in the current scope
+            if let Some(variable_type) = variable_scope.get(&ident_name) {
+                match &tokens[token_idx + 1] {
+                    Token::SetValue => {
+                        let line_break_idx = tokens
+                            .iter()
+                            .skip(token_idx + 1)
+                            .position(|token| *token == Token::LineBreak)
+                            .ok_or_else(|| ParserError::SyntaxError)?
+                            + token_idx
+                            + 1;
+
+                        let selected_tokens = &tokens[token_idx + 1..line_break_idx];
+
+                        token_idx += selected_tokens.len() + 1;
+
+                        parse_set_value(
+                            selected_tokens,
+                            &mut parsed_tokens,
+                            function_signatures.clone(),
+                            &variable_scope,
+                            *variable_type,
+                            ident_name.clone(),
+                        )?;
+                    }
+
+                    Token::SetValueAddition => {}
+                    Token::SetValueSubtraction => {}
+                    Token::SetValueDivision => {}
+                    Token::SetValueMultiplication => {}
+                    Token::SetValueModulo => {}
+
+                    _ => {
+                        println!("UNIMPLEMENTED FUNCTION: {}", tokens[token_idx + 1]);
+                    }
+                }
+            } else if let Some(function_sig) = function_signatures.get(&ident_name) {
+                // If after the function name the first thing isnt a `(` return a syntax error.
+                if tokens[token_idx + 1] != Token::OpenBracket {
+                    return Err(ParserError::SyntaxError);
+                }
+
+                let bracket_start_slice = &tokens[token_idx + 2..];
+
+                let bracket_idx = find_closing_bracket(bracket_start_slice)? + token_idx;
+
+                let (variables_passed, jumped_idx) = parse_function_call_args(
+                    &tokens[token_idx + 2..bracket_idx + 2],
+                    &variable_scope,
+                    function_sig.function_sig.args.clone(),
+                )?;
+
+                parsed_tokens.push(ParsedToken::FunctionCall(
+                    (function_sig.function_sig.clone(), ident_name),
+                    variables_passed,
+                ));
+
+                token_idx += jumped_idx;
+            } else {
+                return Err(ParserError::VariableNotFound(ident_name));
+            }
+        }
+
+        token_idx += 1;
+    }
+
+    Ok(parsed_tokens)
+}
+
+/// First token should be the first argument
+pub fn parse_function_call_args(
+    tokens: &[Token],
+    variable_scope: &HashMap<String, TypeDiscriminants>,
+    function_args: HashMap<String, TypeDiscriminants>,
+) -> Result<(Vec<ParsedToken>, usize), ParserError> {
+    let mut tokens_idx = 0;
+
+    // Arguments which will passed in to the function
+    let mut arguments: Vec<ParsedToken> = vec![];
+
+    while tokens_idx < tokens.len() {
+        let current_token = tokens[tokens_idx].clone();
+
+        if let Token::Identifier(arg_name) = current_token.clone() {
+            if Token::SetValue == tokens[tokens_idx + 1] {
+                let current_arg = tokens[tokens_idx + 2].clone();
+
+                let argument_type = function_args
+                    .get(&arg_name)
+                    .ok_or(ParserError::ArgumentError(arg_name))?;
+
+                if let Token::Identifier(var_name) = current_arg {
+                    let var_type = variable_scope
+                        .get(&var_name)
+                        .ok_or_else(|| ParserError::VariableNotFound(var_name.clone()))?;
+
+                    // If the types match and the argument's name also matches then we can store the variable's name with the argument's name.
+                    if argument_type == var_type {
+                        tokens_idx += 4;
+
+                        arguments.push(ParsedToken::VariableReference(var_name));
+
+                        continue;
+                    } else {
+                        return Err(ParserError::TypeError(*var_type, *argument_type));
+                    }
+                } else if let Token::Literal(literal) = current_arg {
+                    let literal_type = literal.discriminant();
+
+                    if *argument_type == literal_type {
+                        tokens_idx += 4;
+
+                        arguments.push(ParsedToken::Literal(literal));
+
+                        continue;
+                    } else {
+                        return Err(ParserError::TypeError(literal_type, *argument_type));
+                    }
+                }
+            } else {
+                return Err(ParserError::SyntaxError);
+            }
+        } else if Token::CloseBracket == current_token {
+            break;
+        } else {
+            return Err(ParserError::SyntaxError);
+        }
+    }
+
+    Ok((arguments, tokens_idx))
+}

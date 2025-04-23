@@ -1,16 +1,11 @@
-function sum(rhs: int, lhs: int): int {
-    int result = rhs + lhs;
-
-    return result;
+function test(): int {
+    return 0;
 }
 
 function main(): int {
-    float x = -2.34;
+    int z = 300;
 
-    int y = 3;
-    int z = 2 + 5 + 4 + 2;
-
-    sum(rhs = z, lhs = y);
+    z = test() + 2 - -23;
 
     return 0;
 }
