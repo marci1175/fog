@@ -11,7 +11,7 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
 
     let mut string_buffer = String::new();
 
-    while char_idx < raw_string.len() {
+    while char_idx < raw_string.len() - 1 {
         let current_char = char_list[char_idx];
 
         let single_char = match current_char {

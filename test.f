@@ -1,11 +1,7 @@
-function test(): int {
-    return 0;
-}
+function print(msg: string): void {}
 
 function main(): int {
-    int z = 300;
-
-    z = 9 - (2 + 2);
+    print(msg = "Csá!");
 
     return 0;
 }

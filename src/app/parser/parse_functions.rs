@@ -29,7 +29,7 @@ pub fn create_function_table(
 
                     token_idx += bracket_close_idx + 3;
 
-                    if tokens[token_idx + 1] == Token::Colon {
+                    if *dbg!(&tokens[token_idx + 1]) == Token::Colon {
                         if let Token::TypeDefinition(return_type) = tokens[token_idx + 2] {
                             if tokens[token_idx + 3] == Token::OpenBraces {
                                 // Create a varable which stores the level of braces we are in
@@ -188,6 +188,8 @@ fn parse_function(
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
 
     let mut variable_scope: HashMap<String, TypeDiscriminants> = this_function_args;
+    
+    dbg!(&tokens);
 
     if tokens.len() == 0 {
         return Ok(vec![]);
@@ -292,7 +294,7 @@ pub fn parse_function_call_args(
     tokens: &[Token],
     variable_scope: &HashMap<String, TypeDiscriminants>,
     function_args: HashMap<String, TypeDiscriminants>,
-) -> Result<(Vec<ParsedToken>, usize), ParserError> {
+) -> Result<(Vec<ParsedToken>, usize)> {
     let mut tokens_idx = 0;
 
     // Arguments which will passed in to the function
@@ -322,7 +324,7 @@ pub fn parse_function_call_args(
 
                         continue;
                     } else {
-                        return Err(ParserError::TypeError(*var_type, *argument_type));
+                        return Err(ParserError::TypeError(*var_type, *argument_type).into());
                     }
                 } else if let Token::Literal(literal) = current_arg {
                     let literal_type = literal.discriminant();
@@ -334,16 +336,16 @@ pub fn parse_function_call_args(
 
                         continue;
                     } else {
-                        return Err(ParserError::TypeError(literal_type, *argument_type));
+                        return Err(ParserError::TypeError(literal_type, *argument_type).into());
                     }
                 }
             } else {
-                return Err(ParserError::SyntaxError);
+                return Err(ParserError::SyntaxError.into());
             }
         } else if Token::CloseBracket == current_token {
             break;
         } else {
-            return Err(ParserError::SyntaxError);
+            return Err(ParserError::SyntaxError.into());
         }
     }
 

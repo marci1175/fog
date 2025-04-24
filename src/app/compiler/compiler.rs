@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use crate::app::parser::{parser::ParserState, tokenizer::tokenize};
+use crate::app::{codegen::codegen::codegen_main, parser::{parser::ParserState, tokenizer::tokenize}};
 
 use super::file_ingest::file_ingest;
 
@@ -14,6 +14,8 @@ pub fn compilation_process(path_to_file: PathBuf) -> anyhow::Result<()> {
     parser_state.parse_tokens()?;
 
     dbg!(parser_state.function_table());
+
+    codegen_main(parser_state.function_table().clone())?;
 
     Ok(())
 }
