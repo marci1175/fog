@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::app::type_system::TypeDiscriminants;
 
-use super::types::{ParsedToken, Token};
+use super::types::Token;
 
 #[derive(Debug, Error)]
 pub enum ParserError {
@@ -26,7 +26,9 @@ pub enum ParserError {
         "[INTERNAL ERROR] A variable was not found in the scope when it should've been. This is not the same as `VariableNotFound`!"
     )]
     InternalVariableError,
-    #[error("[INTERNAL ERROR] Tried to parse an incompatible `Token` into `MathematicalExpression`.")]
+    #[error(
+        "[INTERNAL ERROR] Tried to parse an incompatible `Token` into `MathematicalExpression`."
+    )]
     InternalMathParsingError,
 }
 

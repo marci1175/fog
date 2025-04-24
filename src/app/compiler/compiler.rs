@@ -1,6 +1,9 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
-use crate::app::{codegen::codegen::codegen_main, parser::{parser::ParserState, tokenizer::tokenize}};
+use crate::app::{
+    codegen::codegen::codegen_main,
+    parser::{parser::ParserState, tokenizer::tokenize},
+};
 
 use super::file_ingest::file_ingest;
 

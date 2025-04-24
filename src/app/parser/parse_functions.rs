@@ -1,8 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
 use anyhow::Result;
+use std::{collections::HashMap, sync::Arc};
 use strum::IntoDiscriminant;
 
-use crate::app::{parser::parser::parse_token_as_value, type_system::TypeDiscriminants};
+use crate::app::type_system::TypeDiscriminants;
 
 use super::{
     error::ParserError,
@@ -48,7 +48,10 @@ pub fn create_function_table(
                                 loop {
                                     // We have itered through the whole function and its still not found, it may be an open brace.
                                     if tokens_slice.len() == token_braces_idx {
-                                        return Err(ParserError::SyntaxError(crate::app::parser::error::SyntaxError::OpenBraces).into());
+                                        return Err(ParserError::SyntaxError(
+                                            crate::app::parser::error::SyntaxError::OpenBraces,
+                                        )
+                                        .into());
                                     }
 
                                     // If a bracket is closed the layer counter should be incremented
@@ -56,8 +59,7 @@ pub fn create_function_table(
                                         brace_layer_counter += 1;
                                     }
                                     // If a bracket is closed the layer counter should be decreased
-                                    else if tokens_slice[token_braces_idx] == Token::CloseBraces
-                                    {
+                                    else if tokens_slice[token_braces_idx] == Token::CloseBraces {
                                         brace_layer_counter -= 1;
                                     }
 
@@ -193,65 +195,85 @@ fn parse_function(
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
 
     let mut variable_scope: HashMap<String, TypeDiscriminants> = this_function_args;
-    
-    if tokens.len() == 0 {
+
+    if tokens.is_empty() {
         return Ok(vec![]);
     }
 
-    while token_idx <= tokens.len() - 1 {
+    while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
 
         if let Token::TypeDefinition(var_type) = current_token {
             if let Token::Identifier(var_name) = tokens[token_idx + 1].clone() {
                 if tokens[token_idx + 2] == Token::SetValue {
                     let line_break_idx = tokens
-                            .iter()
-                            .skip(token_idx + 2)
-                            .position(|token| *token == Token::LineBreak)
-                            .ok_or_else(|| ParserError::SyntaxError(crate::app::parser::error::SyntaxError::MissingLineBreak))?
-                            + token_idx
-                            + 2;
+                        .iter()
+                        .skip(token_idx + 2)
+                        .position(|token| *token == Token::LineBreak)
+                        .ok_or({
+                            ParserError::SyntaxError(
+                                crate::app::parser::error::SyntaxError::MissingLineBreak,
+                            )
+                        })?
+                        + token_idx
+                        + 2;
 
                     let selected_tokens = &tokens[token_idx + 2..line_break_idx];
 
                     // Set the new idx
                     token_idx = line_break_idx;
 
-                    parse_set_value(&selected_tokens, &mut parsed_tokens, function_signatures.clone(), &variable_scope, var_type, var_name)?;
+                    parse_set_value(
+                        selected_tokens,
+                        &mut parsed_tokens,
+                        function_signatures.clone(),
+                        &variable_scope,
+                        var_type,
+                        var_name,
+                    )?;
 
-                    if let Some(ParsedToken::SetValue(var_name, value)) = parsed_tokens.last().cloned() {
-                        parsed_tokens.push(ParsedToken::NewVariable((var_name.clone(), value.clone())));
-                        
+                    if let Some(ParsedToken::SetValue(var_name, value)) =
+                        parsed_tokens.last().cloned()
+                    {
+                        parsed_tokens
+                            .push(ParsedToken::NewVariable((var_name.clone(), value.clone())));
+
                         variable_scope.insert(var_name.clone(), var_type);
 
                         // Remove the last item
                         parsed_tokens.remove(parsed_tokens.len() - 1);
+                    } else {
+                        return Err(ParserError::SyntaxError(
+                            crate::app::parser::error::SyntaxError::InvalidStatementDefinition,
+                        )
+                        .into());
                     }
-                    else {
-                        return Err(ParserError::SyntaxError(crate::app::parser::error::SyntaxError::InvalidStatementDefinition).into());                        
-                    }
-                }
-                else {
+                } else {
                     parsed_tokens.push(ParsedToken::NewVariable((
                         var_name.clone(),
                         Box::new(ParsedToken::Literal(var_type.into())),
                     )));
-    
+
                     variable_scope.insert(var_name.clone(), var_type);
 
                     token_idx += 2;
                 }
 
-                if tokens[token_idx] == Token::LineBreak
-                {
+                if tokens[token_idx] == Token::LineBreak {
                     token_idx += 1;
 
                     continue;
                 } else {
-                    return Err(ParserError::SyntaxError(crate::app::parser::error::SyntaxError::MissingLineBreak).into());
+                    return Err(ParserError::SyntaxError(
+                        crate::app::parser::error::SyntaxError::MissingLineBreak,
+                    )
+                    .into());
                 }
             } else {
-                return Err(ParserError::SyntaxError(crate::app::parser::error::SyntaxError::InvalidStatementDefinition).into());
+                return Err(ParserError::SyntaxError(
+                    crate::app::parser::error::SyntaxError::InvalidStatementDefinition,
+                )
+                .into());
             }
         } else if let Token::Identifier(ident_name) = current_token {
             // If the variable exists in the current scope
@@ -262,7 +284,11 @@ fn parse_function(
                             .iter()
                             .skip(token_idx + 1)
                             .position(|token| *token == Token::LineBreak)
-                            .ok_or_else(|| ParserError::SyntaxError(crate::app::parser::error::SyntaxError::MissingLineBreak))?
+                            .ok_or({
+                                ParserError::SyntaxError(
+                                    crate::app::parser::error::SyntaxError::MissingLineBreak,
+                                )
+                            })?
                             + token_idx
                             + 1;
 
@@ -293,7 +319,10 @@ fn parse_function(
             } else if let Some(function_sig) = function_signatures.get(&ident_name) {
                 // If after the function name the first thing isnt a `(` return a syntax error.
                 if tokens[token_idx + 1] != Token::OpenBracket {
-                    return Err(ParserError::SyntaxError(crate::app::parser::error::SyntaxError::InvalidFunctionDefinition).into());
+                    return Err(ParserError::SyntaxError(
+                        crate::app::parser::error::SyntaxError::InvalidFunctionDefinition,
+                    )
+                    .into());
                 }
 
                 let bracket_start_slice = &tokens[token_idx + 2..];
@@ -374,12 +403,18 @@ pub fn parse_function_call_args(
                     }
                 }
             } else {
-                return Err(ParserError::SyntaxError(super::error::SyntaxError::InvalidStatementDefinition).into());
+                return Err(ParserError::SyntaxError(
+                    super::error::SyntaxError::InvalidStatementDefinition,
+                )
+                .into());
             }
         } else if Token::CloseBracket == current_token {
             break;
         } else {
-            return Err(ParserError::SyntaxError(super::error::SyntaxError::InvalidStatementDefinition).into());
+            return Err(ParserError::SyntaxError(
+                super::error::SyntaxError::InvalidStatementDefinition,
+            )
+            .into());
         }
     }
 

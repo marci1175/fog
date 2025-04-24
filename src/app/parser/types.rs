@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::collections::HashMap;
 
 use strum_macros::Display;
 
@@ -79,12 +79,12 @@ impl TryInto<MathematicalExpressionType> for Token {
 
     fn try_into(self) -> Result<MathematicalExpressionType, Self::Error> {
         let expr = match self {
-            Self::Addition => MathematicalExpressionType::Addition, 
-            Self::Subtraction => MathematicalExpressionType::Subtraction, 
-            Self::Division => MathematicalExpressionType::Division, 
+            Self::Addition => MathematicalExpressionType::Addition,
+            Self::Subtraction => MathematicalExpressionType::Subtraction,
+            Self::Division => MathematicalExpressionType::Division,
             Self::Multiplication => MathematicalExpressionType::Multiplication,
 
-            _ => return Err(ParserError::InternalVariableError) 
+            _ => return Err(ParserError::InternalVariableError),
         };
 
         Ok(expr)
@@ -97,7 +97,11 @@ pub enum ParsedToken {
     VariableReference(String),
     Literal(Type),
 
-    MathematicalExpression(Box<ParsedToken>, MathematicalExpressionType, Box<ParsedToken>),
+    MathematicalExpression(
+        Box<ParsedToken>,
+        MathematicalExpressionType,
+        Box<ParsedToken>,
+    ),
 
     Brackets(Vec<ParsedToken>, TypeDiscriminants),
 
@@ -171,7 +175,7 @@ pub fn unparsed_const_to_typed_literal(
                 .map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?,
         ),
         TypeDiscriminants::String => {
-            return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type).into());
+            return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type));
         }
         TypeDiscriminants::Boolean => {
             if raw_string == "false" {
@@ -179,11 +183,11 @@ pub fn unparsed_const_to_typed_literal(
             } else if raw_string == "true" {
                 Type::Boolean(true)
             } else {
-                return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type).into());
+                return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type));
             }
         }
         TypeDiscriminants::Void => {
-            return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type).into());
+            return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type));
         }
     };
 

@@ -43,15 +43,16 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
             string_buffer.clear();
         } else if current_char == '-' {
             // If the last token was a number we know that we are subtracting
-            if matches!(token_list[token_list.len() - 1], Token::Literal(_)) || matches!(token_list[token_list.len() - 1], Token::UnparsedLiteral(_)) {
+            if matches!(token_list[token_list.len() - 1], Token::Literal(_))
+                || matches!(token_list[token_list.len() - 1], Token::UnparsedLiteral(_))
+            {
                 token_list.push(Token::Subtraction);
             }
             // If the last token wasnt a number we know that we are defining a negative number
             else {
                 string_buffer.push(current_char);
             }
-        }
-        else if current_char == '#' {
+        } else if current_char == '#' {
             let mut comment_buffer = String::new();
 
             let mut comment_idx = char_idx + 1;
@@ -96,7 +97,9 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
                     }
                     // If there are no more tokens left and we are still in the quote
                     None => {
-                        return Err(ParserError::SyntaxError(super::error::SyntaxError::OpenQuotes));
+                        return Err(ParserError::SyntaxError(
+                            super::error::SyntaxError::OpenQuotes,
+                        ));
                     }
                 }
             }
@@ -210,8 +213,8 @@ pub fn eval_constant_definition(raw_string: String) -> Token {
         || raw_string.parse::<f32>().is_ok()
         || raw_string.parse::<i32>().is_ok()
     {
-        return Token::UnparsedLiteral(raw_string);
+        Token::UnparsedLiteral(raw_string)
     } else {
-        return Token::Identifier(raw_string);
+        Token::Identifier(raw_string)
     }
 }

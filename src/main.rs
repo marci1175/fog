@@ -33,7 +33,10 @@ fn main() -> anyhow::Result<()> {
 
             let path_to_out = args.next().unwrap_or_default();
 
-            compiler::compiler::compilation_process(PathBuf::from(arg), PathBuf::from(path_to_out))?;
+            compiler::compiler::compilation_process(
+                PathBuf::from(arg),
+                PathBuf::from(path_to_out),
+            )?;
         }
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),
