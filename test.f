@@ -5,7 +5,7 @@ function test(): int {
 function main(): int {
     int z = 300;
 
-    z = test() + 2 - -23;
+    z = 9 - (2 + 2);
 
     return 0;
 }

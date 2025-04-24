@@ -1,5 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
-
+use anyhow::Result;
 use strum::IntoDiscriminant;
 
 use crate::app::type_system::TypeDiscriminants;
@@ -14,7 +14,7 @@ use super::{
 
 pub fn create_function_table(
     tokens: Vec<Token>,
-) -> Result<HashMap<String, UnparsedFunctionDefinition>, ParserError> {
+) -> Result<HashMap<String, UnparsedFunctionDefinition>> {
     let mut token_idx = 0;
     let mut function_list: HashMap<String, UnparsedFunctionDefinition> = HashMap::new();
 
@@ -88,9 +88,9 @@ pub fn create_function_table(
                         }
                     }
 
-                    return Err(ParserError::InvalidFunctionDefinition);
+                    return Err(ParserError::InvalidFunctionDefinition.into());
                 } else {
-                    return Err(ParserError::InvalidFunctionDefinition);
+                    return Err(ParserError::InvalidFunctionDefinition.into());
                 }
             }
         }
@@ -104,7 +104,7 @@ pub fn create_function_table(
 fn parse_function_argument_tokens(
     tokens: &[Token],
     token_idx: usize,
-) -> Result<(usize, HashMap<String, TypeDiscriminants>), ParserError> {
+) -> Result<(usize, HashMap<String, TypeDiscriminants>)> {
     let bracket_closing_idx =
         find_closing_bracket(tokens).map_err(|_| ParserError::InvalidFunctionDefinition)?;
 
@@ -159,7 +159,7 @@ fn parse_function_args(
 
 pub fn parse_functions(
     unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>,
-) -> Result<HashMap<String, FunctionDefinition>, ParserError> {
+) -> Result<HashMap<String, FunctionDefinition>> {
     let mut parsed_functions = HashMap::new();
 
     for (fn_name, unparsed_function) in unparsed_functions.clone().iter() {
@@ -182,7 +182,7 @@ fn parse_function(
     tokens: Vec<Token>,
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
     this_function_args: HashMap<String, TypeDiscriminants>,
-) -> Result<Vec<ParsedToken>, ParserError> {
+) -> Result<Vec<ParsedToken>> {
     let mut token_idx = 0;
 
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
@@ -212,10 +212,10 @@ fn parse_function(
 
                     continue;
                 } else {
-                    return Err(ParserError::SyntaxError);
+                    return Err(ParserError::SyntaxError.into());
                 }
             } else {
-                return Err(ParserError::SyntaxError);
+                return Err(ParserError::SyntaxError.into());
             }
         } else if let Token::Identifier(ident_name) = current_token {
             // If the variable exists in the current scope
@@ -257,7 +257,7 @@ fn parse_function(
             } else if let Some(function_sig) = function_signatures.get(&ident_name) {
                 // If after the function name the first thing isnt a `(` return a syntax error.
                 if tokens[token_idx + 1] != Token::OpenBracket {
-                    return Err(ParserError::SyntaxError);
+                    return Err(ParserError::SyntaxError.into());
                 }
 
                 let bracket_start_slice = &tokens[token_idx + 2..];
@@ -277,7 +277,7 @@ fn parse_function(
 
                 token_idx += jumped_idx;
             } else {
-                return Err(ParserError::VariableNotFound(ident_name));
+                return Err(ParserError::VariableNotFound(ident_name).into());
             }
         }
 

@@ -1,5 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
-
+use anyhow::Result;
 use crate::app::type_system::TypeDiscriminants;
 
 use super::{
@@ -19,7 +19,7 @@ pub struct ParserState {
 }
 
 impl ParserState {
-    pub fn parse_tokens(&mut self) -> Result<(), ParserError> {
+    pub fn parse_tokens(&mut self) -> Result<()> {
         let unparsed_functions = create_function_table(self.tokens.clone())?;
 
         self.function_table = parse_functions(Arc::new(unparsed_functions))?;
@@ -39,7 +39,7 @@ impl ParserState {
     }
 }
 
-pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize, ParserError> {
+pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize> {
     let mut bracket_layer_counter = 1;
     let iter = bracket_start_slice.iter().enumerate();
 
@@ -56,7 +56,7 @@ pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize, Pars
         }
     }
 
-    Err(ParserError::SyntaxError)
+    Err(ParserError::SyntaxError.into())
 }
 
 pub fn parse_set_value(
@@ -66,7 +66,7 @@ pub fn parse_set_value(
     variable_scope: &HashMap<String, TypeDiscriminants>,
     variable_type: TypeDiscriminants,
     variable_name: String,
-) -> Result<(), ParserError> {
+) -> Result<()> {
     let mut token_idx = 0;
 
     dbg!(tokens);
@@ -155,7 +155,7 @@ fn parse_token_as_value(
     token_idx: &mut usize,
     // The next token in the list
     next_token: &Token,
-) -> Result<ParsedToken, ParserError> {
+) -> Result<ParsedToken> {
     // Match the token
     let inner_value = match next_token {
         Token::Literal(literal) => {
@@ -191,18 +191,18 @@ fn parse_token_as_value(
             } else if let Some(variable) = variable_scope.get(identifier) {
                 // If the variable's type doesnt match the one we want to modify throw an error.
                 if variable_type != *variable {
-                    return Err(ParserError::TypeError(*variable, variable_type));
+                    return Err(ParserError::TypeError(*variable, variable_type).into());
                 }
 
                 // Return the VariableReference
                 ParsedToken::VariableReference(identifier.clone())
             } else {
                 // If none of the above matches throw an error about the variable not being found
-                return Err(ParserError::VariableNotFound(identifier.clone()));
+                return Err(ParserError::VariableNotFound(identifier.clone()).into());
             }
         }
 
-        _ => return Err(ParserError::SyntaxError),
+        _ => return Err(ParserError::SyntaxError.into()),
     };
     Ok(inner_value)
 }
