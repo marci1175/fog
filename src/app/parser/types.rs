@@ -1,5 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap};
 
+use strum_macros::Display;
+
 use crate::app::type_system::{Type, TypeDiscriminants};
 
 use super::error::ParserError;
@@ -89,9 +91,9 @@ impl TryInto<MathematicalExpressionType> for Token {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Display)]
 pub enum ParsedToken {
-    NewVariable((String, Type)),
+    NewVariable((String, Box<ParsedToken>)),
     VariableReference(String),
     Literal(Type),
 

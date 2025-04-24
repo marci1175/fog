@@ -2,6 +2,8 @@ use thiserror::Error;
 
 use crate::app::type_system::TypeDiscriminants;
 
+use super::types::{ParsedToken, Token};
+
 #[derive(Debug, Error)]
 pub enum ParserError {
     #[error("The function definition / signature is invalid.")]
@@ -10,8 +12,8 @@ pub enum ParserError {
     InvalidFunctionCallArguments,
     #[error("Type `{0}` cannot be automaticly casted to type `{1}`.")]
     TypeError(TypeDiscriminants, TypeDiscriminants),
-    #[error("Source code contains a Syntax Error.")]
-    SyntaxError,
+    #[error("Source code contains a Syntax Error: {0}")]
+    SyntaxError(SyntaxError),
     #[error("Variable `{0}` with type `{1}` mismatches `{2}`.")]
     VariableTypeMismatch(String, TypeDiscriminants, TypeDiscriminants),
     #[error("The variable named `{0}` has not been found in the current scope.")]
@@ -26,4 +28,26 @@ pub enum ParserError {
     InternalVariableError,
     #[error("[INTERNAL ERROR] Tried to parse an incompatible `Token` into `MathematicalExpression`.")]
     InternalMathParsingError,
+}
+
+#[derive(Debug, Error)]
+pub enum SyntaxError {
+    #[error(r#"An open '{{' has been left in the code."#)]
+    OpenBraces,
+    #[error("An open '(' has been left in the code.")]
+    OpenBracket,
+    #[error(r#"An open '"' has been left in the code."#)]
+    OpenQuotes,
+    #[error("The code contains a missing `;`.")]
+    MissingLineBreak,
+    #[error("The code contains generic syntax error, like an invalid signature of a statement.")]
+    InvalidStatementDefinition,
+    #[error("The code contains an invalid function definition.")]
+    InvalidFunctionDefinition,
+    #[error("An invalid mathematical expression is present in the code.")]
+    InvalidMathematicalExpressionDefinition,
+    #[error("An invalid `SetValue` definition is present for '{0}'.")]
+    InvalidSetValueDefinition(String),
+    #[error("Token `{0}` could not be interpreted as a Value.")]
+    InvalidValue(Token),
 }

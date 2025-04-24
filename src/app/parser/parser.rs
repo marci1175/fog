@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 use anyhow::Result;
 use crate::app::type_system::TypeDiscriminants;
 
@@ -16,6 +16,8 @@ pub struct ParserState {
     tokens: Vec<Token>,
 
     function_table: HashMap<String, FunctionDefinition>,
+
+    string_definitions: HashSet<String>,
 }
 
 impl ParserState {
@@ -31,6 +33,7 @@ impl ParserState {
         Self {
             tokens,
             function_table: HashMap::new(),
+            string_definitions: HashSet::new(),
         }
     }
 
@@ -56,7 +59,7 @@ pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize> {
         }
     }
 
-    Err(ParserError::SyntaxError.into())
+    Err(ParserError::SyntaxError(super::error::SyntaxError::OpenBraces).into())
 }
 
 pub fn parse_set_value(
@@ -69,21 +72,19 @@ pub fn parse_set_value(
 ) -> Result<()> {
     let mut token_idx = 0;
 
-    dbg!(tokens);
-
     while token_idx < tokens.len() {
         let current_token = &tokens
             .get(token_idx)
-            .ok_or_else(|| ParserError::SyntaxError)?;
+            .ok_or_else(|| ParserError::SyntaxError(crate::app::parser::error::SyntaxError::InvalidMathematicalExpressionDefinition))?;
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
         match current_token {
             Token::Addition | Token::Subtraction | Token::Multiplication | Token::Division => {
-                let last_parsed = parsed_tokens.last_mut().ok_or(ParserError::SyntaxError)?;
+                let last_parsed = parsed_tokens.last_mut().ok_or(ParserError::SyntaxError(crate::app::parser::error::SyntaxError::InvalidMathematicalExpressionDefinition))?;
 
                 let next_token = &tokens
                     .get(token_idx + 1)
-                    .ok_or_else(|| ParserError::SyntaxError)?;
+                    .ok_or_else(|| ParserError::SyntaxError(crate::app::parser::error::SyntaxError::InvalidMathematicalExpressionDefinition))?;
 
                 if let ParsedToken::SetValue(_variable_ref, value) = last_parsed {
                     let mathematical_expr = ParsedToken::MathematicalExpression(
@@ -110,7 +111,7 @@ pub fn parse_set_value(
                 // Grab the next token in the list
                 let next_token = &tokens
                     .get(token_idx + 1)
-                    .ok_or_else(|| ParserError::SyntaxError)?;
+                    .ok_or_else(|| ParserError::SyntaxError(crate::app::parser::error::SyntaxError::InvalidMathematicalExpressionDefinition))?;
 
                 // Pattern match the token into a ParsedToken
                 let inner_value = parse_token_as_value(
@@ -142,7 +143,7 @@ pub fn parse_set_value(
 
 /// Parses the next token as something that holds a value:
 /// Like: FunctionCall, Literal, UnparsedLiteral
-fn parse_token_as_value(
+pub fn parse_token_as_value(
     // This is used to parse the function call's arguments
     tokens: &[Token],
     // Functions available
@@ -202,7 +203,7 @@ fn parse_token_as_value(
             }
         }
 
-        _ => return Err(ParserError::SyntaxError.into()),
+        _ => return Err(ParserError::SyntaxError(super::error::SyntaxError::InvalidValue(next_token.clone())).into()),
     };
     Ok(inner_value)
 }

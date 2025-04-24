@@ -31,7 +31,9 @@ fn main() -> anyhow::Result<()> {
         CliCommand::Compile => {
             fs::metadata(&arg).map_err(CompilerError::FileError)?;
 
-            compiler::compiler::compilation_process(PathBuf::from(arg))?;
+            let path_to_out = args.next().unwrap_or_default();
+
+            compiler::compiler::compilation_process(PathBuf::from(arg), PathBuf::from(path_to_out))?;
         }
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),

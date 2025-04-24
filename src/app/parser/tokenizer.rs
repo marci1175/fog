@@ -11,7 +11,7 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
 
     let mut string_buffer = String::new();
 
-    while char_idx < raw_string.len() - 1 {
+    while char_idx < raw_string.len() {
         let current_char = char_list[char_idx];
 
         let single_char = match current_char {
@@ -96,7 +96,7 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
                     }
                     // If there are no more tokens left and we are still in the quote
                     None => {
-                        return Err(ParserError::SyntaxError);
+                        return Err(ParserError::SyntaxError(super::error::SyntaxError::OpenQuotes));
                     }
                 }
             }

@@ -8,7 +8,7 @@ pub fn parse_args(arg1: String, arg2: String) -> anyhow::Result<(CliCommand, Str
 
 #[derive(Debug, strum_macros::VariantArray, strum_macros::Display, strum_macros::EnumMessage)]
 pub enum CliCommand {
-    #[strum(message = "`c <path-to-file>` - Compile a file")]
+    #[strum(message = "`c <path-to-file> <path-to-out>` - Compile a file")]
     Compile,
     #[strum(message = "`h` - Display this help screen")]
     Help,
