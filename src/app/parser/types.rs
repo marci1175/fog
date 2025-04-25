@@ -15,7 +15,6 @@ pub enum Token {
     TypeDefinition(TypeDiscriminants),
 
     Identifier(String),
-    Quote(String),
     Comment(String),
 
     Function,
@@ -62,27 +61,22 @@ pub enum Token {
 }
 
 #[derive(Debug, Clone)]
-pub struct TokenBlock {
-    inner: Vec<ParsedToken>,
-}
-
-#[derive(Debug, Clone)]
-pub enum MathematicalExpressionType {
+pub enum MathematicalSymbol {
     Addition,
     Subtraction,
     Division,
     Multiplication,
 }
 
-impl TryInto<MathematicalExpressionType> for Token {
+impl TryInto<MathematicalSymbol> for Token {
     type Error = ParserError;
 
-    fn try_into(self) -> Result<MathematicalExpressionType, Self::Error> {
+    fn try_into(self) -> Result<MathematicalSymbol, Self::Error> {
         let expr = match self {
-            Self::Addition => MathematicalExpressionType::Addition,
-            Self::Subtraction => MathematicalExpressionType::Subtraction,
-            Self::Division => MathematicalExpressionType::Division,
-            Self::Multiplication => MathematicalExpressionType::Multiplication,
+            Self::Addition => MathematicalSymbol::Addition,
+            Self::Subtraction => MathematicalSymbol::Subtraction,
+            Self::Division => MathematicalSymbol::Division,
+            Self::Multiplication => MathematicalSymbol::Multiplication,
 
             _ => return Err(ParserError::InternalVariableError),
         };
@@ -97,11 +91,7 @@ pub enum ParsedToken {
     VariableReference(String),
     Literal(Type),
 
-    MathematicalExpression(
-        Box<ParsedToken>,
-        MathematicalExpressionType,
-        Box<ParsedToken>,
-    ),
+    MathematicalExpression(Box<ParsedToken>, MathematicalSymbol, Box<ParsedToken>),
 
     Brackets(Vec<ParsedToken>, TypeDiscriminants),
 

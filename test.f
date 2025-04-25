@@ -1,7 +1,7 @@
-function print(msg: string): void {}
+function sum(lhs: int, rhs: int): int {
+    return lhs + rhs;
+}
 
 function main(): int {
-    int a = 23 + 2;
-
-    return 0;
+    int b = sum(lhs = sum(lhs = 31 - 2, rhs = 2), rhs = 3);
 }

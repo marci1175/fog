@@ -199,6 +199,8 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "*=" => Token::SetValueMultiplication,
         "/=" => Token::SetValueDivision,
         "%=" => Token::SetValueModulo,
+        "false" => Token::Literal(Type::Boolean(false)),
+        "true" => Token::Literal(Type::Boolean(true)),
         "function" => Token::Function,
         "return" => Token::Return,
 

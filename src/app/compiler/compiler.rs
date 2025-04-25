@@ -12,6 +12,8 @@ pub fn compilation_process(path_to_file: PathBuf, target_path: PathBuf) -> anyho
 
     let tokens = tokenize(formatted_file_contents)?;
 
+    dbg!(&tokens);
+
     let mut parser_state = ParserState::new(tokens);
 
     parser_state.parse_tokens()?;

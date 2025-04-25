@@ -18,9 +18,9 @@ pub enum ParserError {
     VariableTypeMismatch(String, TypeDiscriminants, TypeDiscriminants),
     #[error("The variable named `{0}` has not been found in the current scope.")]
     VariableNotFound(String),
-    #[error("The following argument was not found in the argument list: `{0}`")]
+    #[error("The following argument was not found in the argument list: `{0}`.")]
     ArgumentError(String),
-    #[error("Const definition `{0}` could not be casted to type `{1}`")]
+    #[error("Const definition `{0}` could not be casted to type `{1}`.")]
     ConstTypeUndetermined(String, TypeDiscriminants),
     #[error(
         "[INTERNAL ERROR] A variable was not found in the scope when it should've been. This is not the same as `VariableNotFound`!"
