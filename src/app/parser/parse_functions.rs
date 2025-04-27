@@ -381,6 +381,7 @@ pub fn parse_function_call_args(
 
                 arguments.push(parsed_argument);
             } else {
+                
                 return Err(ParserError::SyntaxError(
                     super::error::SyntaxError::InvalidStatementDefinition,
                 )
