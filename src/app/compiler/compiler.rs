@@ -10,7 +10,7 @@ use super::file_ingest::file_ingest;
 pub fn compilation_process(path_to_file: PathBuf, target_path: PathBuf) -> anyhow::Result<()> {
     let formatted_file_contents = file_ingest(path_to_file)?;
 
-    let tokens = tokenize(formatted_file_contents)?;
+    let (tokens, strings) = tokenize(formatted_file_contents)?;
 
     dbg!(&tokens);
 

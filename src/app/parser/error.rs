@@ -1,8 +1,8 @@
 use thiserror::Error;
 
-use crate::app::type_system::TypeDiscriminants;
+use crate::app::type_system::type_system::TypeDiscriminants;
 
-use super::types::Token;
+use super::tokens::Token;
 
 #[derive(Debug, Error)]
 pub enum ParserError {

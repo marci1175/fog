@@ -1,10 +1,11 @@
-use crate::app::type_system::Type;
+use crate::app::type_system::type_system::Type;
 
-use super::{error::ParserError, types::Token};
+use super::{error::ParserError, tokens::Token};
 
-pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
+pub fn tokenize(raw_string: String) -> Result<(Vec<Token>, Vec<String>), ParserError> {
     let mut char_idx: usize = 0;
 
+    let string_definitions: Vec<String> = Vec::new();
     let mut token_list: Vec<Token> = Vec::new();
 
     let char_list = raw_string.chars().collect::<Vec<char>>();
@@ -174,20 +175,34 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
         char_idx += 1;
     }
 
-    Ok(token_list)
+    Ok((token_list, string_definitions))
 }
 
 fn match_multi_character_expression(string_buffer: String) -> Token {
     let trimmed_string = string_buffer.trim();
 
     match trimmed_string {
-        "int" => Token::TypeDefinition(crate::app::type_system::TypeDiscriminants::I32),
-        "string" => Token::TypeDefinition(crate::app::type_system::TypeDiscriminants::String),
-        "uint" => Token::TypeDefinition(crate::app::type_system::TypeDiscriminants::U32),
-        "float" => Token::TypeDefinition(crate::app::type_system::TypeDiscriminants::F32),
-        "uintsmall" => Token::TypeDefinition(crate::app::type_system::TypeDiscriminants::U8),
-        "void" => Token::TypeDefinition(crate::app::type_system::TypeDiscriminants::Void),
-        "bool" => Token::TypeDefinition(crate::app::type_system::TypeDiscriminants::Boolean),
+        "int" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::I32)
+        }
+        "string" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::String)
+        }
+        "uint" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::U32)
+        }
+        "float" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::F32)
+        }
+        "uintsmall" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::U8)
+        }
+        "void" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::Void)
+        }
+        "bool" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::Boolean)
+        }
         "==" => Token::Equals,
         ">=" => Token::EqBigger,
         "<=" => Token::EqSmaller,

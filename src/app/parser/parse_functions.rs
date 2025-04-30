@@ -1,12 +1,12 @@
 use anyhow::Result;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::app::type_system::TypeDiscriminants;
+use crate::app::type_system::type_system::TypeDiscriminants;
 
 use super::{
     error::ParserError,
     parser::{find_closing_bracket, parse_value},
-    types::{
+    tokens::{
         FunctionDefinition, FunctionSignature, ParsedToken, Token, UnparsedFunctionDefinition,
     },
 };
