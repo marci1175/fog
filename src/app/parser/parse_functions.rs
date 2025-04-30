@@ -122,7 +122,6 @@ fn parse_function_argument_tokens(
     Ok((bracket_closing_idx, args))
 }
 
-/// GYERE VISSZA IDE IS
 fn parse_function_args(token_list: &[Token]) -> Result<HashMap<String, TypeDiscriminants>> {
     // Create a list of args which the function will take, we will return this later
     let mut args: HashMap<String, TypeDiscriminants> = HashMap::new();
@@ -381,7 +380,6 @@ pub fn parse_function_call_args(
 
                 arguments.push(parsed_argument);
             } else {
-                
                 return Err(ParserError::SyntaxError(
                     super::error::SyntaxError::InvalidStatementDefinition,
                 )

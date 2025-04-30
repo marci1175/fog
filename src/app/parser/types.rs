@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use strum::IntoDiscriminant;
 use strum_macros::Display;
 
 use crate::app::type_system::{Type, TypeDiscriminants};
@@ -13,6 +14,7 @@ pub enum Token {
     UnparsedLiteral(String),
 
     TypeDefinition(TypeDiscriminants),
+    As,
 
     Identifier(String),
     Comment(String),
@@ -182,4 +184,99 @@ pub fn unparsed_const_to_typed_literal(
     };
 
     Ok(typed_var)
+}
+
+pub fn convert_as(value: Type, dest_type: TypeDiscriminants) -> anyhow::Result<Type> {
+    if value.discriminant() == dest_type {
+        return Ok(value);
+    }
+
+    if dest_type == TypeDiscriminants::Void {
+        return Ok(Type::Void);
+    }
+
+    let return_val = match value {
+        Type::I32(inner) => match dest_type {
+            TypeDiscriminants::F32 => Type::F32(inner as f32),
+            TypeDiscriminants::U32 => Type::U32(inner as u32),
+            TypeDiscriminants::U8 => Type::U8(inner as u8),
+            TypeDiscriminants::String => Type::String(inner.to_string()),
+            TypeDiscriminants::Boolean => {
+                if inner == 1 {
+                    Type::Boolean(true)
+                } else {
+                    Type::Boolean(false)
+                }
+            }
+
+            TypeDiscriminants::I32 | TypeDiscriminants::Void => unreachable!(),
+        },
+        Type::F32(inner) => match dest_type {
+            TypeDiscriminants::I32 => Type::I32(inner as i32),
+            TypeDiscriminants::U32 => Type::U32(inner as u32),
+            TypeDiscriminants::U8 => Type::U8(inner as u8),
+            TypeDiscriminants::String => Type::String(inner.to_string()),
+            TypeDiscriminants::Boolean => {
+                if inner == 1.0 {
+                    Type::Boolean(true)
+                } else {
+                    Type::Boolean(false)
+                }
+            }
+
+            TypeDiscriminants::F32 | TypeDiscriminants::Void => unreachable!(),
+        },
+        Type::U32(inner) => match dest_type {
+            TypeDiscriminants::F32 => Type::F32(inner as f32),
+            TypeDiscriminants::I32 => Type::I32(inner as i32),
+            TypeDiscriminants::U8 => Type::U8(inner as u8),
+            TypeDiscriminants::String => Type::String(inner.to_string()),
+            TypeDiscriminants::Boolean => {
+                if inner == 1 {
+                    Type::Boolean(true)
+                } else {
+                    Type::Boolean(false)
+                }
+            }
+
+            TypeDiscriminants::U32 | TypeDiscriminants::Void => unreachable!(),
+        },
+        Type::U8(inner) => match dest_type {
+            TypeDiscriminants::F32 => Type::F32(inner as f32),
+            TypeDiscriminants::I32 => Type::I32(inner as i32),
+            TypeDiscriminants::U32 => Type::U32(inner as u32),
+            TypeDiscriminants::String => Type::String(inner.to_string()),
+            TypeDiscriminants::Boolean => {
+                if inner == 1 {
+                    Type::Boolean(true)
+                } else {
+                    Type::Boolean(false)
+                }
+            }
+
+            TypeDiscriminants::U8 | TypeDiscriminants::Void => unreachable!(),
+        },
+        Type::String(inner) => match dest_type {
+            TypeDiscriminants::I32 => Type::I32(inner.parse::<i32>()?),
+            TypeDiscriminants::F32 => Type::F32(inner.parse::<f32>()?),
+            TypeDiscriminants::U32 => Type::U32(inner.parse::<u32>()?),
+            TypeDiscriminants::U8 => Type::U8(inner.parse::<u8>()?),
+            TypeDiscriminants::Boolean => Type::Boolean(inner.parse::<bool>()?),
+
+            TypeDiscriminants::String | TypeDiscriminants::Void => unreachable!(),
+        },
+
+        Type::Boolean(inner) => match dest_type {
+            TypeDiscriminants::I32 => Type::I32(inner as i32),
+            TypeDiscriminants::F32 => Type::F32(inner as i32 as f32),
+            TypeDiscriminants::U32 => Type::U32(inner as u32),
+            TypeDiscriminants::U8 => Type::U8(inner as u8),
+            TypeDiscriminants::String => Type::String(inner.to_string()),
+
+            TypeDiscriminants::Boolean | TypeDiscriminants::Void => unreachable!(),
+        },
+        Type::Void => unreachable!(),
+    };
+
+    Ok(return_val)
 }

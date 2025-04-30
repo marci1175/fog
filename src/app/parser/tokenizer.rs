@@ -203,6 +203,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "true" => Token::Literal(Type::Boolean(true)),
         "function" => Token::Function,
         "return" => Token::Return,
+        "as" => Token::As,
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }
