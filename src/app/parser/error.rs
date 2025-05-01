@@ -10,7 +10,7 @@ pub enum ParserError {
     InvalidFunctionDefinition,
     #[error("The function is called with the wrong types of arguments.")]
     InvalidFunctionCallArguments,
-    #[error("Type `{0}` cannot be automaticly casted to type `{1}`.")]
+    #[error("Type `{0}` mismatches type `{1}`.")]
     TypeError(TypeDiscriminants, TypeDiscriminants),
     #[error("Source code contains a Syntax Error: {0}")]
     SyntaxError(SyntaxError),
@@ -52,4 +52,6 @@ pub enum SyntaxError {
     InvalidSetValueDefinition(String),
     #[error("Token `{0}` could not be interpreted as a Value.")]
     InvalidValue(Token),
+    #[error("Casting to a type requires a TypeDefinition after the `As` keyword.")]
+    AsRequiresTypeDef,
 }

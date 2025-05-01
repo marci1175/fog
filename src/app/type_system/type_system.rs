@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use num::cast::AsPrimitive;
 use strum::IntoDiscriminant;
 use strum_macros::Display;
 
@@ -48,6 +51,32 @@ impl StringReference {
     }
 }
 
+pub fn unparsed_const_to_typed_literal_unsafe(
+    raw_string: String,
+    dest_type: TypeDiscriminants,
+) -> Result<Type, ParserError> {
+    let parsed_num = raw_string
+        .parse::<f64>()
+        .map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?;
+
+    let casted_var = match dest_type {
+        TypeDiscriminants::I32 => Type::I32(parsed_num as i32),
+        TypeDiscriminants::F32 => Type::F32(parsed_num as f32),
+        TypeDiscriminants::U32 => Type::U32(parsed_num as u32),
+        TypeDiscriminants::U8 => Type::U8(parsed_num as u8),
+        TypeDiscriminants::String => Type::String(parsed_num.to_string()),
+        TypeDiscriminants::Boolean => {
+            if parsed_num == 1.0 {
+                Type::Boolean(true)
+            } else {
+                Type::Boolean(false)
+            }
+        }
+        TypeDiscriminants::Void => Type::Void,
+    };
+
+    Ok(casted_var)
+}
 pub fn unparsed_const_to_typed_literal(
     raw_string: String,
     dest_type: TypeDiscriminants,

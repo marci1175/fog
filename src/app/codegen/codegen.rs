@@ -5,7 +5,6 @@ use inkwell::values::{FunctionValue, GlobalValue};
 
 use crate::app::parser::tokens::FunctionDefinition;
 
-
 pub fn codegen_main(
     parsed_functions: &HashMap<String, FunctionDefinition>,
     path_to_output: PathBuf,

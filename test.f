@@ -3,5 +3,7 @@ function sum(lhs: int, rhs: int): int {
 }
 
 function main(): int {
-    int b = sum(lhs = sum(lhs = 31 - 2, rhs = 2), rhs = 3);
+    int b = 32;
+
+    int a = -2.1 as float;
 }

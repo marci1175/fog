@@ -2,10 +2,9 @@ use crate::app::type_system::type_system::Type;
 
 use super::{error::ParserError, tokens::Token};
 
-pub fn tokenize(raw_string: String) -> Result<(Vec<Token>, Vec<String>), ParserError> {
+pub fn tokenize(raw_string: String) -> Result<(Vec<Token>), ParserError> {
     let mut char_idx: usize = 0;
 
-    let string_definitions: Vec<String> = Vec::new();
     let mut token_list: Vec<Token> = Vec::new();
 
     let char_list = raw_string.chars().collect::<Vec<char>>();
@@ -175,7 +174,7 @@ pub fn tokenize(raw_string: String) -> Result<(Vec<Token>, Vec<String>), ParserE
         char_idx += 1;
     }
 
-    Ok((token_list, string_definitions))
+    Ok((token_list))
 }
 
 fn match_multi_character_expression(string_buffer: String) -> Token {
