@@ -91,6 +91,7 @@ pub enum ParsedToken {
     NewVariable((String, Box<ParsedToken>)),
     VariableReference(String),
     Literal(Type),
+    TypeCast(Box<ParsedToken>, TypeDiscriminants),
 
     MathematicalExpression(Box<ParsedToken>, MathematicalSymbol, Box<ParsedToken>),
 

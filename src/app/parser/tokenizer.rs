@@ -43,8 +43,16 @@ pub fn tokenize(raw_string: String) -> Result<(Vec<Token>), ParserError> {
             string_buffer.clear();
         } else if current_char == '-' {
             // If the last token was a number we know that we are subtracting
-            if matches!(token_list[token_list.len() - 1], Token::Literal(_))
-                || matches!(token_list[token_list.len() - 1], Token::UnparsedLiteral(_))
+            if (matches!(token_list[token_list.len() - 1], Token::Literal(_))
+                || matches!(token_list[token_list.len() - 1], Token::UnparsedLiteral(_)))
+                && (matches!(
+                    token_list.get(token_list.len() + 1),
+                    Some(Token::Literal(_))
+                ) || matches!(
+                    token_list.get(token_list.len() + 1),
+                    Some(Token::UnparsedLiteral(_))
+                )) || matches!(token_list[token_list.len() - 1], Token::CloseBracket)
+                || matches!(token_list[token_list.len() - 1], Token::TypeDefinition(_))
             {
                 token_list.push(Token::Subtraction);
             }
@@ -174,7 +182,7 @@ pub fn tokenize(raw_string: String) -> Result<(Vec<Token>), ParserError> {
         char_idx += 1;
     }
 
-    Ok((token_list))
+    Ok(token_list)
 }
 
 fn match_multi_character_expression(string_buffer: String) -> Token {

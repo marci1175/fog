@@ -6,6 +6,7 @@ use anyhow::Result;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
+    thread::panicking,
 };
 use strum::IntoDiscriminant;
 
@@ -81,7 +82,7 @@ pub fn parse_value(
         })?;
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
-        match current_token {
+        match dbg!(current_token) {
             // If any mathematical expression is present in the tokens
             Token::Addition | Token::Subtraction | Token::Multiplication | Token::Division => {
                 // Grab the next token after the mathematical expression
@@ -179,7 +180,7 @@ pub fn parse_value(
         }
 
         // Increment token index
-        token_idx += 1;
+        // token_idx += 1;
     }
 
     Ok((
@@ -211,11 +212,6 @@ pub fn parse_token_as_value(
         Token::Literal(literal) => {
             let literal_type = literal.discriminant();
 
-            // If the literal's type doesn't match the variable's type return an error
-            if literal_type != variable_type {
-                return Err(ParserError::TypeError(literal_type, variable_type).into());
-            }
-
             // Increment the token_idx by the tokens we have analyzed
             *token_idx += 1;
 
@@ -227,7 +223,10 @@ pub fn parse_token_as_value(
                     *token_idx += 2;
 
                     // Return the type casted literal
-                    ParsedToken::Literal(convert_as(literal.clone(), *target_type)?)
+                    ParsedToken::TypeCast(
+                        Box::new(ParsedToken::Literal(literal.clone())),
+                        *target_type,
+                    )
                 } else {
                     // Throw an error
                     return Err(ParserError::SyntaxError(
@@ -236,6 +235,11 @@ pub fn parse_token_as_value(
                     .into());
                 }
             } else {
+                // If the literal's type doesn't match the variable's type return an error
+                if literal_type != variable_type {
+                    return Err(ParserError::TypeError(literal_type, variable_type).into());
+                }
+
                 // Push the ParsedToken to the list
                 ParsedToken::Literal(literal.clone())
             }
@@ -243,6 +247,14 @@ pub fn parse_token_as_value(
         Token::UnparsedLiteral(unparsed_literal) => {
             // Increment the token_idx by the tokens we have analyzed
             *token_idx += 1;
+
+            // Push the ParsedToken to the list
+            let parsed_token = ParsedToken::Literal(unparsed_const_to_typed_literal_unsafe(
+                unparsed_literal.clone(),
+                variable_type,
+            )?);
+
+            dbg!(&tokens.get(*token_idx));
 
             // Check if there is an `As` keyword after the variable
             if let Some(Token::As) = tokens.get(*token_idx) {
@@ -257,10 +269,7 @@ pub fn parse_token_as_value(
                     *token_idx += 2;
 
                     // Return the type casted literal
-                    ParsedToken::Literal(unparsed_const_to_typed_literal_unsafe(
-                        unparsed_literal.clone(),
-                        *target_type,
-                    )?)
+                    ParsedToken::TypeCast(Box::new(parsed_token), *target_type)
                 } else {
                     // Throw an error
                     return Err(ParserError::SyntaxError(
@@ -269,25 +278,12 @@ pub fn parse_token_as_value(
                     .into());
                 }
             } else {
-                // Push the ParsedToken to the list
-                ParsedToken::Literal(unparsed_const_to_typed_literal_unsafe(
-                    unparsed_literal.clone(),
-                    variable_type,
-                )?)
+                parsed_token
             }
         }
         Token::Identifier(identifier) => {
             // Try to find the identifier in the functions' list
             if let Some(function) = function_signatures.get(identifier) {
-                // If the function's return type doesn't match the variable's return type return an error
-                if function.function_sig.return_type != variable_type {
-                    return Err(ParserError::TypeError(
-                        function.function_sig.return_type,
-                        variable_type,
-                    )
-                    .into());
-                }
-
                 // Parse the call arguments and tokens parsed.
                 let (call_arguments, idx_jmp) = parse_functions::parse_function_call_args(
                     &tokens[*token_idx + 2..],
@@ -296,25 +292,74 @@ pub fn parse_token_as_value(
                     function_signatures.clone(),
                 )?;
 
-                // Increment the token index, and add the offset
-                *token_idx += idx_jmp + 2;
-
                 // Return the function call
-                ParsedToken::FunctionCall(
+                let parsed_token = ParsedToken::FunctionCall(
                     (function.function_sig.clone(), identifier.clone()),
                     call_arguments,
-                )
+                );
+
+                // Increment the token index, and add the offset
+                *token_idx += idx_jmp + 2 + 1;
+
+                if let Some(Token::As) = tokens.get(*token_idx) {
+                    if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
+                        *token_idx += 2;
+
+                        ParsedToken::TypeCast(Box::new(parsed_token), *target_type)
+                    } else {
+                        // Throw an error
+                        return Err(ParserError::SyntaxError(
+                            super::error::SyntaxError::AsRequiresTypeDef,
+                        )
+                        .into());
+                    }
+                } else {
+                    // If the function's return type doesn't match the variable's return type return an error
+                    if function.function_sig.return_type != variable_type {
+                        return Err(ParserError::TypeError(
+                            function.function_sig.return_type,
+                            variable_type,
+                        )
+                        .into());
+                    }
+
+                    parsed_token
+                }
+            }
             // If the identifier could not be found in the function list search in the variable scope
-            } else if let Some(variable) = variable_scope.get(identifier) {
+            else if let Some(variable) = variable_scope.get(identifier) {
+                let parsed_token = ParsedToken::VariableReference(identifier.clone());
+
+                *token_idx += 1;
+
+                if let Some(Token::As) = tokens.get(*token_idx) {
+                    if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
+                        // Ezt lehet hogy késöbb ki kell majd venni
+                        if *target_type != variable_type {
+                            return Err(ParserError::TypeError(*target_type, variable_type).into());
+                        }
+
+                        // Increment the token index after checking target type
+                        *token_idx += 2;
+
+                        // Return the type casted literal
+                        return Ok(ParsedToken::TypeCast(Box::new(parsed_token), *target_type));
+                    } else {
+                        // Throw an error
+                        return Err(ParserError::SyntaxError(
+                            super::error::SyntaxError::AsRequiresTypeDef,
+                        )
+                        .into());
+                    }
+                }
+
                 // If the variable's type doesnt match the one we want to modify throw an error.
                 if variable_type != *variable {
                     return Err(ParserError::TypeError(*variable, variable_type).into());
                 }
 
-                *token_idx += 1;
-
                 // Return the VariableReference
-                ParsedToken::VariableReference(identifier.clone())
+                parsed_token
             } else {
                 // If none of the above matches throw an error about the variable not being found
                 return Err(ParserError::VariableNotFound(identifier.clone()).into());
