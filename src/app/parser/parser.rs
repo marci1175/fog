@@ -61,7 +61,7 @@ pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize> {
         }
     }
 
-    Err(ParserError::SyntaxError(super::error::SyntaxError::OpenBraces).into())
+    Err(ParserError::SyntaxError(super::error::SyntaxError::OpenBracket).into())
 }
 
 pub fn parse_value(
@@ -73,7 +73,7 @@ pub fn parse_value(
     let mut token_idx = 0;
 
     let mut parsed_token: Option<ParsedToken> = None;
-
+    
     while token_idx < tokens.len() {
         let current_token = &tokens.get(token_idx).ok_or({
             ParserError::SyntaxError(
@@ -82,7 +82,7 @@ pub fn parse_value(
         })?;
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
-        match dbg!(current_token) {
+        match current_token {
             // If any mathematical expression is present in the tokens
             Token::Addition | Token::Subtraction | Token::Multiplication | Token::Division => {
                 // Grab the next token after the mathematical expression
@@ -93,6 +93,8 @@ pub fn parse_value(
                 // If we have parsed something already move it to the left-hand side of the mathematical expression
                 // Add the new parsed token to the right-hand side of the mathematical expression.
                 if let Some(parsed_token) = &mut parsed_token {
+                    token_idx += 1;
+                    
                     // Modify the parsed token
                     *parsed_token = ParsedToken::MathematicalExpression(
                         // Move the token to the left side
@@ -254,8 +256,6 @@ pub fn parse_token_as_value(
                 variable_type,
             )?);
 
-            dbg!(&tokens.get(*token_idx));
-
             // Check if there is an `As` keyword after the variable
             if let Some(Token::As) = tokens.get(*token_idx) {
                 // If there isnt a TypeDefinition after the `As` keyword raise an error
@@ -364,6 +364,20 @@ pub fn parse_token_as_value(
                 // If none of the above matches throw an error about the variable not being found
                 return Err(ParserError::VariableNotFound(identifier.clone()).into());
             }
+        }
+        Token::OpenBracket => {
+            *token_idx += 1;
+
+            let closing_idx = find_closing_bracket(dbg!(&tokens[*token_idx..]))? + *token_idx;
+            
+            // Get the tokens inside the block aka the "()"
+            let tokens_inside_block = &tokens[*token_idx..closing_idx];
+
+            let (parsed_token, _jmp_idx) = parse_value(tokens_inside_block, function_signatures.clone(), variable_scope, variable_type)?;
+
+            *token_idx += closing_idx + 1;
+
+            ParsedToken::MathematicalBlock(Box::new(parsed_token))
         }
 
         _ => {

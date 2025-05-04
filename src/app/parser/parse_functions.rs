@@ -48,7 +48,7 @@ pub fn create_function_table(
                                     // We have itered through the whole function and its still not found, it may be an open brace.
                                     if tokens_slice.len() == token_braces_idx {
                                         return Err(ParserError::SyntaxError(
-                                            crate::app::parser::error::SyntaxError::OpenBraces,
+                                            crate::app::parser::error::SyntaxError::OpenBracket,
                                         )
                                         .into());
                                     }
@@ -337,6 +337,9 @@ fn parse_function(
                 return Err(ParserError::VariableNotFound(ident_name).into());
             }
         }
+        else if let Token::If = current_token {
+
+        }
 
         token_idx += 1;
     }
@@ -355,6 +358,8 @@ pub fn parse_function_call_args(
 
     // Arguments which will passed in to the function
     let mut arguments: Vec<ParsedToken> = vec![];
+    
+    dbg!(&tokens);
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();

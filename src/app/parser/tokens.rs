@@ -89,8 +89,11 @@ impl TryInto<MathematicalSymbol> for Token {
 #[derive(Debug, Clone, Display)]
 pub enum ParsedToken {
     NewVariable((String, Box<ParsedToken>)),
+
     VariableReference(String),
+
     Literal(Type),
+
     TypeCast(Box<ParsedToken>, TypeDiscriminants),
 
     MathematicalExpression(Box<ParsedToken>, MathematicalSymbol, Box<ParsedToken>),
@@ -100,6 +103,8 @@ pub enum ParsedToken {
     FunctionCall((FunctionSignature, String), Vec<ParsedToken>),
 
     SetValue(String, Box<ParsedToken>),
+
+    MathematicalBlock(Box<ParsedToken>),
 
     If(If),
 }
