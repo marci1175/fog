@@ -2,7 +2,7 @@ use crate::app::type_system::type_system::Type;
 
 use super::{error::ParserError, tokens::Token};
 
-pub fn tokenize(raw_string: String) -> Result<(Vec<Token>), ParserError> {
+pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
     let mut char_idx: usize = 0;
 
     let mut token_list: Vec<Token> = Vec::new();
@@ -51,7 +51,8 @@ pub fn tokenize(raw_string: String) -> Result<(Vec<Token>), ParserError> {
                 ) || matches!(
                     token_list.get(token_list.len() + 1),
                     Some(Token::UnparsedLiteral(_))
-                )) || matches!(token_list[token_list.len() - 1], Token::CloseBracket)
+                ))
+                || matches!(token_list[token_list.len() - 1], Token::CloseBracket)
                 || matches!(token_list[token_list.len() - 1], Token::TypeDefinition(_))
             {
                 token_list.push(Token::Subtraction);

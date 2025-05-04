@@ -1,12 +1,11 @@
 use crate::app::type_system::type_system::{
-    TypeDiscriminants, convert_as, unparsed_const_to_typed_literal,
+    TypeDiscriminants,
     unparsed_const_to_typed_literal_unsafe,
 };
 use anyhow::Result;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::Arc,
-    thread::panicking,
 };
 use strum::IntoDiscriminant;
 
@@ -73,7 +72,7 @@ pub fn parse_value(
     let mut token_idx = 0;
 
     let mut parsed_token: Option<ParsedToken> = None;
-    
+
     while token_idx < tokens.len() {
         let current_token = &tokens.get(token_idx).ok_or({
             ParserError::SyntaxError(
@@ -94,7 +93,7 @@ pub fn parse_value(
                 // Add the new parsed token to the right-hand side of the mathematical expression.
                 if let Some(parsed_token) = &mut parsed_token {
                     token_idx += 1;
-                    
+
                     // Modify the parsed token
                     *parsed_token = ParsedToken::MathematicalExpression(
                         // Move the token to the left side
@@ -369,11 +368,16 @@ pub fn parse_token_as_value(
             *token_idx += 1;
 
             let closing_idx = find_closing_bracket(dbg!(&tokens[*token_idx..]))? + *token_idx;
-            
+
             // Get the tokens inside the block aka the "()"
             let tokens_inside_block = &tokens[*token_idx..closing_idx];
 
-            let (parsed_token, _jmp_idx) = parse_value(tokens_inside_block, function_signatures.clone(), variable_scope, variable_type)?;
+            let (parsed_token, _jmp_idx) = parse_value(
+                tokens_inside_block,
+                function_signatures.clone(),
+                variable_scope,
+                variable_type,
+            )?;
 
             *token_idx += closing_idx + 1;
 

@@ -336,9 +336,7 @@ fn parse_function(
             } else {
                 return Err(ParserError::VariableNotFound(ident_name).into());
             }
-        }
-        else if let Token::If = current_token {
-
+        } else if let Token::If = current_token {
         }
 
         token_idx += 1;
@@ -358,7 +356,7 @@ pub fn parse_function_call_args(
 
     // Arguments which will passed in to the function
     let mut arguments: Vec<ParsedToken> = vec![];
-    
+
     dbg!(&tokens);
 
     while tokens_idx < tokens.len() {
