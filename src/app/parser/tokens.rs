@@ -67,6 +67,7 @@ pub enum MathematicalSymbol {
     Subtraction,
     Division,
     Multiplication,
+    Modulo,
 }
 
 impl TryInto<MathematicalSymbol> for Token {
@@ -78,6 +79,7 @@ impl TryInto<MathematicalSymbol> for Token {
             Self::Subtraction => MathematicalSymbol::Subtraction,
             Self::Division => MathematicalSymbol::Division,
             Self::Multiplication => MathematicalSymbol::Multiplication,
+            Self::Modulo => MathematicalSymbol::Modulo,
 
             _ => return Err(ParserError::InternalVariableError),
         };
@@ -105,6 +107,8 @@ pub enum ParsedToken {
     SetValue(String, Box<ParsedToken>),
 
     MathematicalBlock(Box<ParsedToken>),
+
+    ReturnValue(Box<ParsedToken>),
 
     If(If),
 }

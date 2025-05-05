@@ -1,12 +1,8 @@
 use crate::app::type_system::type_system::{
-    TypeDiscriminants,
-    unparsed_const_to_typed_literal_unsafe,
+    TypeDiscriminants, unparsed_const_to_typed_literal_unsafe,
 };
 use anyhow::Result;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 use strum::IntoDiscriminant;
 
 use super::{
@@ -46,7 +42,7 @@ impl ParserState {
 pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize> {
     let mut bracket_layer_counter = 1;
     let iter = bracket_start_slice.iter().enumerate();
-
+    
     for (idx, token) in iter {
         match token {
             Token::OpenBracket => bracket_layer_counter += 1,
@@ -73,12 +69,7 @@ pub fn parse_value(
 
     let mut parsed_token: Option<ParsedToken> = None;
 
-    dbg!(&tokens);
-    
-    dbg!(tokens.len());
-
     while token_idx < tokens.len() {
-        dbg!(&token_idx);
         let current_token = &tokens.get(token_idx).ok_or({
             ParserError::SyntaxError(
                 crate::app::parser::error::SyntaxError::InvalidMathematicalExpressionDefinition,
@@ -180,11 +171,6 @@ pub fn parse_value(
 
             _ => unimplemented!(),
         }
-
-        // Increment token index
-        // token_idx += 1;
-
-        dbg!(&token_idx);
     }
 
     Ok((
@@ -371,7 +357,7 @@ pub fn parse_token_as_value(
             *token_idx += 1;
 
             let closing_idx = find_closing_bracket(&tokens[*token_idx..])?;
-            
+
             // Get the tokens inside the block aka the "()"
             let tokens_inside_block = &tokens[*token_idx..*token_idx + closing_idx];
 

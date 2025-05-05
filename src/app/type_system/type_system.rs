@@ -1,4 +1,3 @@
-
 use strum::IntoDiscriminant;
 use strum_macros::Display;
 

@@ -5,9 +5,9 @@ use crate::app::type_system::type_system::TypeDiscriminants;
 
 use super::{
     error::ParserError,
-    parser::{find_closing_bracket, parse_value},
+    parser::{find_closing_bracket, parse_token_as_value, parse_value},
     tokens::{
-        FunctionDefinition, FunctionSignature, ParsedToken, Token, UnparsedFunctionDefinition,
+        FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token, UnparsedFunctionDefinition
     },
 };
 
@@ -172,10 +172,10 @@ pub fn parse_functions(
     for (fn_name, unparsed_function) in unparsed_functions.clone().iter() {
         let function_definition = FunctionDefinition {
             function_sig: unparsed_function.function_sig.clone(),
-            inner: parse_function(
+            inner: parse_function_block(
                 unparsed_function.inner.clone(),
                 unparsed_functions.clone(),
-                unparsed_function.function_sig.args.clone(),
+                unparsed_function.function_sig.clone(),
             )?,
         };
 
@@ -185,16 +185,17 @@ pub fn parse_functions(
     Ok(parsed_functions)
 }
 
-fn parse_function(
+fn parse_function_block(
     tokens: Vec<Token>,
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
-    this_function_args: HashMap<String, TypeDiscriminants>,
+    this_function_signature: FunctionSignature,
 ) -> Result<Vec<ParsedToken>> {
     let mut token_idx = 0;
 
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
 
-    let mut variable_scope: HashMap<String, TypeDiscriminants> = this_function_args;
+    let mut variable_scope: HashMap<String, TypeDiscriminants> =
+        this_function_signature.args.clone();
 
     if tokens.is_empty() {
         return Ok(vec![]);
@@ -223,7 +224,7 @@ fn parse_function(
                     // Set the new idx
                     token_idx = line_break_idx;
 
-                    let (parsed_value, idx_jmp) = parse_value(
+                    let (parsed_value, _) = parse_value(
                         selected_tokens,
                         function_signatures.clone(),
                         &variable_scope,
@@ -247,7 +248,7 @@ fn parse_function(
                     token_idx += 2;
                 }
 
-                if tokens[token_idx] == Token::LineBreak {
+                if *dbg!(&tokens[token_idx]) == Token::LineBreak {
                     token_idx += 1;
 
                     continue;
@@ -266,25 +267,27 @@ fn parse_function(
         } else if let Token::Identifier(ident_name) = current_token {
             // If the variable exists in the current scope
             if let Some(variable_type) = variable_scope.get(&ident_name) {
-                match &tokens[token_idx + 1] {
+                // Increment the token index
+                token_idx += 1;
+
+                match &tokens[token_idx] {
                     Token::SetValue => {
                         let line_break_idx = tokens
                             .iter()
-                            .skip(token_idx + 1)
+                            .skip(token_idx)
                             .position(|token| *token == Token::LineBreak)
                             .ok_or({
                                 ParserError::SyntaxError(
                                     crate::app::parser::error::SyntaxError::MissingLineBreak,
                                 )
                             })?
-                            + token_idx
-                            + 1;
+                            + token_idx;
 
-                        let selected_tokens = &tokens[token_idx + 2..line_break_idx];
+                        let selected_tokens = &tokens[token_idx + 1..line_break_idx];
 
-                        token_idx += selected_tokens.len() + 2;
+                        token_idx += selected_tokens.len() + 1;
 
-                        let (parsed_token, idx_jmp) = parse_value(
+                        let (parsed_token, _) = parse_value(
                             selected_tokens,
                             function_signatures.clone(),
                             &variable_scope,
@@ -296,15 +299,23 @@ fn parse_function(
                             Box::new(parsed_token),
                         ));
                     }
-
-                    Token::SetValueAddition => {}
-                    Token::SetValueSubtraction => {}
-                    Token::SetValueDivision => {}
-                    Token::SetValueMultiplication => {}
-                    Token::SetValueModulo => {}
-
+                    Token::SetValueAddition => {
+                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Addition)?;
+                    }
+                    Token::SetValueSubtraction => {
+                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Subtraction)?;
+                    }
+                    Token::SetValueDivision => {
+                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Division)?;
+                    }
+                    Token::SetValueMultiplication => {
+                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Multiplication)?;
+                    }
+                    Token::SetValueModulo => {
+                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Modulo)?;
+                    }
                     _ => {
-                        println!("UNIMPLEMENTED FUNCTION: {}", tokens[token_idx + 1]);
+                        println!("UNIMPLEMENTED FUNCTION: {}", tokens[token_idx]);
                     }
                 }
             } else if let Some(function_sig) = function_signatures.get(&ident_name) {
@@ -336,13 +347,56 @@ fn parse_function(
             } else {
                 return Err(ParserError::VariableNotFound(ident_name).into());
             }
-        } else if let Token::If = current_token {
+        } else if let Token::Return = current_token {
+            token_idx += 1;
+
+            let next_token = &tokens[token_idx];
+
+            parsed_tokens.push(ParsedToken::ReturnValue(Box::new(parse_token_as_value(
+                &tokens,
+                &function_signatures,
+                &variable_scope,
+                this_function_signature.return_type,
+                &mut token_idx,
+                next_token,
+            )?)));
         }
 
         token_idx += 1;
     }
 
     Ok(parsed_tokens)
+}
+
+fn set_value_math_expr(tokens: &Vec<Token>, function_signatures: &Arc<HashMap<String, UnparsedFunctionDefinition>>, token_idx: &mut usize, parsed_tokens: &mut Vec<ParsedToken>, variable_scope: &HashMap<String, TypeDiscriminants>, variable_type: &TypeDiscriminants, ident_name: &String, math_symbol: MathematicalSymbol) -> Result<(), anyhow::Error> {
+    *token_idx += 1;
+
+    let eval_token =
+        tokens
+            .get(token_idx.clone())
+            .ok_or(ParserError::SyntaxError(
+                super::error::SyntaxError::InvalidStatementDefinition,
+            ))?;
+
+    let next_token = parse_token_as_value(
+        tokens,
+        function_signatures,
+        variable_scope,
+        *variable_type,
+        token_idx,
+        eval_token,
+    )?;
+
+    parsed_tokens.push(ParsedToken::SetValue(
+        ident_name.clone(),
+        Box::new(ParsedToken::MathematicalExpression(
+            Box::new(ParsedToken::VariableReference(ident_name.clone())),
+            math_symbol,
+            Box::new(next_token),
+        )),
+    ));
+
+    Ok(())
 }
 
 /// First token should be the first argument
@@ -357,15 +411,11 @@ pub fn parse_function_call_args(
     // Arguments which will passed in to the function
     let mut arguments: Vec<ParsedToken> = vec![];
 
-    dbg!(&tokens);
-
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
 
         if let Token::Identifier(arg_name) = current_token.clone() {
             if Token::SetValue == tokens[tokens_idx + 1] {
-                let current_arg = tokens[tokens_idx + 2].clone();
-
                 let argument_type = this_function_args
                     .get(&arg_name)
                     .ok_or(ParserError::ArgumentError(arg_name))?;

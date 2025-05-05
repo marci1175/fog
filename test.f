@@ -3,5 +3,5 @@ function sum(lhs: int, rhs: int): int {
 }
 
 function main(): int {
-    int a = 3 + (sum(lhs = 2, rhs = 23) - 2 / 2 * (23 - 2));
+    int a = 23;
 }

@@ -30,7 +30,7 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
 
             _ => None,
         };
-        
+
         if let Some(single_char_token) = single_char {
             if !string_buffer.trim().is_empty() {
                 let token = match_multi_character_expression(string_buffer.clone());
@@ -45,7 +45,10 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
             let last_token = &token_list[token_list.len() - 1];
 
             // If the last token was a number we know that we are subtracting
-            if (matches!(last_token, Token::Literal(_)) || matches!(last_token, Token::UnparsedLiteral(_)) || matches!(last_token, Token::Identifier(_)) || matches!(last_token, Token::CloseBracket))
+            if (matches!(last_token, Token::Literal(_))
+                || matches!(last_token, Token::UnparsedLiteral(_))
+                || matches!(last_token, Token::Identifier(_))
+                || matches!(last_token, Token::CloseBracket))
             {
                 token_list.push(Token::Subtraction);
             }
@@ -108,15 +111,47 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
             continue;
         } else if current_char == '=' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
-                if *next_char == '=' {
-                    token_list.push(Token::Equals);
+                match *next_char {
+                    '=' => {
+                        token_list.push(Token::Equals);
+    
+                        char_idx += 2;
+                    },
+                    '+' => {
+                        token_list.push(Token::SetValueAddition);
+                        
+                        char_idx += 2;
+                    },
+                    '-' => {
+                        token_list.push(Token::SetValueSubtraction);
+                        
+                        char_idx += 2;
+                    },
+                    '*' => {
+                        token_list.push(Token::SetValueMultiplication);
+                        
+                        char_idx += 2;
+                    },
+                    '/' => {
+                        token_list.push(Token::SetValueDivision);
+                        
+                        char_idx += 2;
+                    },
+                    '%' => {
+                        token_list.push(Token::SetValueModulo);
+                        
+                        char_idx += 2;
+                    },
 
-                    char_idx += 2;
-                    continue;
+                    _ => {
+                        token_list.push(Token::SetValue);
+
+                        char_idx += 1;
+                    }
                 }
-            }
 
-            token_list.push(Token::SetValue);
+                continue;
+            }
         } else if current_char == '&' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '&' {
@@ -209,10 +244,10 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "&&" => Token::And,
         "||" => Token::Or,
         "if" => Token::If,
-        "+=" => Token::SetValueAddition,
-        "-=" => Token::SetValueSubtraction,
-        "*=" => Token::SetValueMultiplication,
-        "/=" => Token::SetValueDivision,
+        "=+" => Token::SetValueAddition,
+        "=-" => Token::SetValueSubtraction,
+        "=*" => Token::SetValueMultiplication,
+        "=/" => Token::SetValueDivision,
         "%=" => Token::SetValueModulo,
         "false" => Token::Literal(Type::Boolean(false)),
         "true" => Token::Literal(Type::Boolean(true)),
