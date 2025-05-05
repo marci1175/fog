@@ -404,10 +404,12 @@ fn parse_function_block(
 
             if this_function_signature.return_type == TypeDiscriminants::Void {
                 if *next_token != Token::LineBreak {
-                    return Err(ParserError::SyntaxError(super::error::SyntaxError::InvalidStatementDefinition).into());
+                    return Err(ParserError::SyntaxError(
+                        super::error::SyntaxError::InvalidStatementDefinition,
+                    )
+                    .into());
                 }
-            }
-            else {
+            } else {
                 parsed_tokens.push(ParsedToken::ReturnValue(Box::new(parse_token_as_value(
                     &tokens,
                     &function_signatures,
@@ -424,7 +426,9 @@ fn parse_function_block(
 
     // If there isnt a returned value and the returned type isnt `Void` raise an error
     if !has_return && this_function_signature.return_type != TypeDiscriminants::Void {
-        return Err(ParserError::SyntaxError(super::error::SyntaxError::FunctionRequiresReturn).into());
+        return Err(
+            ParserError::SyntaxError(super::error::SyntaxError::FunctionRequiresReturn).into(),
+        );
     }
 
     Ok(parsed_tokens)

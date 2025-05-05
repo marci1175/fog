@@ -1,5 +1,5 @@
-function sum(lhs: int, rhs: int): int {
-    return lhs + rhs;
+function sum(lhs: int, rhs: float): int {
+    return (lhs + rhs as int);
 }
 
 function main(): int {
@@ -11,5 +11,5 @@ function main(): int {
 }
 
 function test(): void {
-    return;
+
 }
