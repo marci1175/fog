@@ -7,7 +7,8 @@ use super::{
     error::ParserError,
     parser::{find_closing_bracket, parse_token_as_value, parse_value},
     tokens::{
-        FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token, UnparsedFunctionDefinition
+        FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token,
+        UnparsedFunctionDefinition,
     },
 };
 
@@ -300,19 +301,64 @@ fn parse_function_block(
                         ));
                     }
                     Token::SetValueAddition => {
-                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Addition)?;
+                        set_value_math_expr(
+                            &tokens,
+                            &function_signatures,
+                            &mut token_idx,
+                            &mut parsed_tokens,
+                            &variable_scope,
+                            variable_type,
+                            &ident_name,
+                            MathematicalSymbol::Addition,
+                        )?;
                     }
                     Token::SetValueSubtraction => {
-                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Subtraction)?;
+                        set_value_math_expr(
+                            &tokens,
+                            &function_signatures,
+                            &mut token_idx,
+                            &mut parsed_tokens,
+                            &variable_scope,
+                            variable_type,
+                            &ident_name,
+                            MathematicalSymbol::Subtraction,
+                        )?;
                     }
                     Token::SetValueDivision => {
-                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Division)?;
+                        set_value_math_expr(
+                            &tokens,
+                            &function_signatures,
+                            &mut token_idx,
+                            &mut parsed_tokens,
+                            &variable_scope,
+                            variable_type,
+                            &ident_name,
+                            MathematicalSymbol::Division,
+                        )?;
                     }
                     Token::SetValueMultiplication => {
-                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Multiplication)?;
+                        set_value_math_expr(
+                            &tokens,
+                            &function_signatures,
+                            &mut token_idx,
+                            &mut parsed_tokens,
+                            &variable_scope,
+                            variable_type,
+                            &ident_name,
+                            MathematicalSymbol::Multiplication,
+                        )?;
                     }
                     Token::SetValueModulo => {
-                        set_value_math_expr(&tokens, &function_signatures, &mut token_idx, &mut parsed_tokens, &variable_scope, variable_type, &ident_name, MathematicalSymbol::Modulo)?;
+                        set_value_math_expr(
+                            &tokens,
+                            &function_signatures,
+                            &mut token_idx,
+                            &mut parsed_tokens,
+                            &variable_scope,
+                            variable_type,
+                            &ident_name,
+                            MathematicalSymbol::Modulo,
+                        )?;
                     }
                     _ => {
                         println!("UNIMPLEMENTED FUNCTION: {}", tokens[token_idx]);
@@ -368,15 +414,21 @@ fn parse_function_block(
     Ok(parsed_tokens)
 }
 
-fn set_value_math_expr(tokens: &Vec<Token>, function_signatures: &Arc<HashMap<String, UnparsedFunctionDefinition>>, token_idx: &mut usize, parsed_tokens: &mut Vec<ParsedToken>, variable_scope: &HashMap<String, TypeDiscriminants>, variable_type: &TypeDiscriminants, ident_name: &String, math_symbol: MathematicalSymbol) -> Result<(), anyhow::Error> {
+fn set_value_math_expr(
+    tokens: &Vec<Token>,
+    function_signatures: &Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    token_idx: &mut usize,
+    parsed_tokens: &mut Vec<ParsedToken>,
+    variable_scope: &HashMap<String, TypeDiscriminants>,
+    variable_type: &TypeDiscriminants,
+    ident_name: &String,
+    math_symbol: MathematicalSymbol,
+) -> Result<(), anyhow::Error> {
     *token_idx += 1;
 
-    let eval_token =
-        tokens
-            .get(token_idx.clone())
-            .ok_or(ParserError::SyntaxError(
-                super::error::SyntaxError::InvalidStatementDefinition,
-            ))?;
+    let eval_token = tokens.get(*token_idx).ok_or(ParserError::SyntaxError(
+        super::error::SyntaxError::InvalidStatementDefinition,
+    ))?;
 
     let next_token = parse_token_as_value(
         tokens,

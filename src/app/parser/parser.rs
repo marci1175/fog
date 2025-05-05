@@ -42,7 +42,7 @@ impl ParserState {
 pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize> {
     let mut bracket_layer_counter = 1;
     let iter = bracket_start_slice.iter().enumerate();
-    
+
     for (idx, token) in iter {
         match token {
             Token::OpenBracket => bracket_layer_counter += 1,

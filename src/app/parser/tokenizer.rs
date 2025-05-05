@@ -114,34 +114,34 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
                 match *next_char {
                     '=' => {
                         token_list.push(Token::Equals);
-    
+
                         char_idx += 2;
-                    },
+                    }
                     '+' => {
                         token_list.push(Token::SetValueAddition);
-                        
+
                         char_idx += 2;
-                    },
+                    }
                     '-' => {
                         token_list.push(Token::SetValueSubtraction);
-                        
+
                         char_idx += 2;
-                    },
+                    }
                     '*' => {
                         token_list.push(Token::SetValueMultiplication);
-                        
+
                         char_idx += 2;
-                    },
+                    }
                     '/' => {
                         token_list.push(Token::SetValueDivision);
-                        
+
                         char_idx += 2;
-                    },
+                    }
                     '%' => {
                         token_list.push(Token::SetValueModulo);
-                        
+
                         char_idx += 2;
-                    },
+                    }
 
                     _ => {
                         token_list.push(Token::SetValue);
