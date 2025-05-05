@@ -3,5 +3,13 @@ function sum(lhs: int, rhs: int): int {
 }
 
 function main(): int {
-    int a = 23;
+    void a;
+
+    a = test();
+    
+    return 0;
+}
+
+function test(): void {
+    return;
 }

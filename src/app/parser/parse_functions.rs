@@ -202,6 +202,8 @@ fn parse_function_block(
         return Ok(vec![]);
     }
 
+    let mut has_return = false;
+
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
 
@@ -394,21 +396,35 @@ fn parse_function_block(
                 return Err(ParserError::VariableNotFound(ident_name).into());
             }
         } else if let Token::Return = current_token {
+            has_return = true;
+
             token_idx += 1;
 
             let next_token = &tokens[token_idx];
 
-            parsed_tokens.push(ParsedToken::ReturnValue(Box::new(parse_token_as_value(
-                &tokens,
-                &function_signatures,
-                &variable_scope,
-                this_function_signature.return_type,
-                &mut token_idx,
-                next_token,
-            )?)));
+            if this_function_signature.return_type == TypeDiscriminants::Void {
+                if *next_token != Token::LineBreak {
+                    return Err(ParserError::SyntaxError(super::error::SyntaxError::InvalidStatementDefinition).into());
+                }
+            }
+            else {
+                parsed_tokens.push(ParsedToken::ReturnValue(Box::new(parse_token_as_value(
+                    &tokens,
+                    &function_signatures,
+                    &variable_scope,
+                    this_function_signature.return_type,
+                    &mut token_idx,
+                    next_token,
+                )?)));
+            }
         }
 
         token_idx += 1;
+    }
+
+    // If there isnt a returned value and the returned type isnt `Void` raise an error
+    if !has_return && this_function_signature.return_type != TypeDiscriminants::Void {
+        return Err(ParserError::SyntaxError(super::error::SyntaxError::FunctionRequiresReturn).into());
     }
 
     Ok(parsed_tokens)

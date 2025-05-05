@@ -54,4 +54,6 @@ pub enum SyntaxError {
     InvalidValue(Token),
     #[error("Casting to a type requires a TypeDefinition after the `As` keyword.")]
     AsRequiresTypeDef,
+    #[error("Function requires a returned value.")]
+    FunctionRequiresReturn,
 }
