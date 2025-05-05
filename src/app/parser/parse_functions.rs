@@ -379,6 +379,8 @@ pub fn parse_function_call_args(
                     *argument_type,
                 )?;
 
+                dbg!(&tokens[tokens_idx]);
+
                 tokens_idx += jump_idx;
 
                 arguments.push(parsed_argument);

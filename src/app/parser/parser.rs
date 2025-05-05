@@ -73,7 +73,12 @@ pub fn parse_value(
 
     let mut parsed_token: Option<ParsedToken> = None;
 
+    dbg!(&tokens);
+    
+    dbg!(tokens.len());
+
     while token_idx < tokens.len() {
+        dbg!(&token_idx);
         let current_token = &tokens.get(token_idx).ok_or({
             ParserError::SyntaxError(
                 crate::app::parser::error::SyntaxError::InvalidMathematicalExpressionDefinition,
@@ -110,16 +115,12 @@ pub fn parse_value(
                             next_token,
                         )?),
                     );
-
-                    token_idx += 1;
                 } else {
                     return Err(ParserError::SyntaxError(
                         super::error::SyntaxError::InvalidMathematicalExpressionDefinition,
                     )
                     .into());
                 }
-
-                continue;
             }
 
             // This pattern match is purely for initializing the value of the variable.
@@ -182,6 +183,8 @@ pub fn parse_value(
 
         // Increment token index
         // token_idx += 1;
+
+        dbg!(&token_idx);
     }
 
     Ok((
@@ -367,10 +370,10 @@ pub fn parse_token_as_value(
         Token::OpenBracket => {
             *token_idx += 1;
 
-            let closing_idx = find_closing_bracket(dbg!(&tokens[*token_idx..]))? + *token_idx;
-
+            let closing_idx = find_closing_bracket(&tokens[*token_idx..])?;
+            
             // Get the tokens inside the block aka the "()"
-            let tokens_inside_block = &tokens[*token_idx..closing_idx];
+            let tokens_inside_block = &tokens[*token_idx..*token_idx + closing_idx];
 
             let (parsed_token, _jmp_idx) = parse_value(
                 tokens_inside_block,

@@ -30,7 +30,7 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
 
             _ => None,
         };
-
+        
         if let Some(single_char_token) = single_char {
             if !string_buffer.trim().is_empty() {
                 let token = match_multi_character_expression(string_buffer.clone());
@@ -42,18 +42,10 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
 
             string_buffer.clear();
         } else if current_char == '-' {
+            let last_token = &token_list[token_list.len() - 1];
+
             // If the last token was a number we know that we are subtracting
-            if (matches!(*dbg!(&token_list[token_list.len() - 1]), Token::Literal(_))
-                || matches!(token_list[token_list.len() - 1], Token::UnparsedLiteral(_)))
-                && (matches!(
-                    *dbg!(&token_list.get(token_list.len() + 1)),
-                    Some(Token::Literal(_))
-                ) || matches!(
-                    token_list.get(token_list.len() + 1),
-                    Some(Token::UnparsedLiteral(_))
-                ))
-                || matches!(token_list[token_list.len() - 1], Token::CloseBracket)
-                || matches!(token_list[token_list.len() - 1], Token::TypeDefinition(_))
+            if (matches!(last_token, Token::Literal(_)) || matches!(last_token, Token::UnparsedLiteral(_)) || matches!(last_token, Token::Identifier(_)) || matches!(last_token, Token::CloseBracket))
             {
                 token_list.push(Token::Subtraction);
             }
