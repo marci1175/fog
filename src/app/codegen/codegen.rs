@@ -3,17 +3,17 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
 use anyhow::Result;
 use inkwell::{
     AddressSpace,
+    builder::Builder,
     context::Context,
     types::{BasicMetadataTypeEnum, FunctionType},
-    values::{FunctionValue, GlobalValue},
+    values::{BasicValueEnum, FunctionValue, GlobalValue},
 };
 
 use crate::{
-    CompilerError,
     app::{
-        parser::tokens::{FunctionDefinition, FunctionSignature},
-        type_system::type_system::TypeDiscriminants,
-    },
+        parser::tokens::{FunctionDefinition, FunctionSignature, ParsedToken},
+        type_system::type_system::{Type, TypeDiscriminants},
+    }, CompilerError
 };
 
 pub fn codegen_main(
@@ -22,13 +22,50 @@ pub fn codegen_main(
 ) -> Result<()> {
     let context = Context::create();
     let module = context.create_module("main");
+    let builder = context.create_builder();
 
     for (function_name, function_definition) in parsed_functions.iter() {
-        let function_val = module.add_function(
+        // Create function signature
+        let function = module.add_function(
             function_name,
             create_fn_type_from_ty_disc(&context, function_definition.function_sig.clone()),
             None,
         );
+
+        // Create a BasicBlock
+        let basic_block = context.append_basic_block(function, "fn_main_entry");
+
+        // Insert the BasicBlock at the end
+        builder.position_at_end(basic_block);
+
+        // Create a HashMap of the arguments the function takes
+        let mut arguments: HashMap<String, BasicValueEnum> = HashMap::new();
+
+        // Get the arguments and store them in the HashMap
+        for (idx, argument) in function.get_param_iter().enumerate() {
+            // Get the name of the argument from the function signature's argument list
+            let argument_name = function_definition
+                .function_sig
+                .args
+                .get_index(idx)
+                .unwrap()
+                .0
+                .clone();
+
+            // Set the name of the arguments so that it is easier to debug later
+            argument.set_name(&argument_name);
+
+            // Insert the entry
+            arguments.insert(argument_name, argument);
+        }
+
+        // Iterate through all the `ParsedToken`-s and create the LLVM-IR from the tokens
+        create_ir(
+            &builder,
+            &context,
+            function_definition.inner.clone(),
+            arguments,
+        )?;
     }
 
     // Write LLVM IR to a file.
@@ -38,6 +75,79 @@ pub fn codegen_main(
             err.to_string(),
         ))
     })?;
+
+    Ok(())
+}
+
+pub fn create_ir(
+    // Inkwell IR builder
+    builder: &Builder,
+    // Inkwell Context
+    ctx: &Context,
+    // The list of ParsedToken-s
+    parsed_tokens: Vec<ParsedToken>,
+    // This argument is initalized with the HashMap of the arguments
+    mut available_variables: HashMap<String, BasicValueEnum>,
+) -> Result<()> {
+    let i32_type = ctx.i32_type();
+
+    for token in parsed_tokens {
+        match token {
+            ParsedToken::NewVariable((name, init_val)) => {
+                let lit = match *init_val {
+                    ParsedToken::NewVariable(_) => todo!(),
+                    ParsedToken::VariableReference(_) => todo!(),
+                    ParsedToken::Literal(literal) => literal,
+                    ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
+                    ParsedToken::MathematicalExpression(
+                        parsed_token,
+                        mathematical_symbol,
+                        parsed_token1,
+                    ) => todo!(),
+                    ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
+                    ParsedToken::FunctionCall(_, parsed_tokens) => todo!(),
+                    ParsedToken::SetValue(_, parsed_token) => todo!(),
+                    ParsedToken::MathematicalBlock(parsed_token) => todo!(),
+                    ParsedToken::ReturnValue(parsed_token) => todo!(),
+                    ParsedToken::If(_) => todo!(),
+                };
+
+                match lit {
+                    crate::app::type_system::type_system::Type::I32(inner) => {
+                        // Allocate a new variable
+                        let v_ptr = builder.build_alloca(i32_type, &name)?;
+
+                        let init_val = i32_type.const_int(inner as u64, true);
+
+                        builder.build_store(v_ptr, init_val)?;
+
+                        let loaded_val = builder.build_load(i32_type, v_ptr, &name)?;
+                    }
+                    
+                    _ => unimplemented!(),
+                }
+            }
+            ParsedToken::ReturnValue(parsed_token) => {
+                match *parsed_token {
+                    ParsedToken::Literal(inner_val) => {
+                        match inner_val {
+                            Type::I32(inner) => {
+                                let returned_val = i32_type.const_int(inner as u64, true);
+                                
+                                builder.build_return(Some(&returned_val))?;
+                            },
+
+                            _ => unimplemented!()
+                        }
+                    }
+
+                    _ => unimplemented!()
+                }
+            },
+
+            _ => unimplemented!(),
+        }
+    }
 
     Ok(())
 }
@@ -92,37 +202,4 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
     }
 
     arg_list
-}
-
-pub fn generate_code_from_parsed_tokens() {}
-
-#[derive(Debug, Clone)]
-pub struct GlobalCodeGenState {
-    pub global_functions: HashMap<String, FunctionValue<'static>>,
-    pub global_values: HashMap<String, GlobalValue<'static>>,
-}
-
-impl Default for GlobalCodeGenState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl GlobalCodeGenState {
-    pub fn new() -> Self {
-        Self {
-            global_functions: HashMap::new(),
-            global_values: HashMap::new(),
-        }
-    }
-
-    pub fn from_hashmap(
-        global_functions: HashMap<String, FunctionValue<'static>>,
-        global_values: HashMap<String, GlobalValue<'static>>,
-    ) -> Self {
-        Self {
-            global_functions,
-            global_values,
-        }
-    }
 }

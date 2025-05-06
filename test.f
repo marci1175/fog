@@ -1,17 +1,5 @@
-function sum(lhs: int, rhs: float): int {
-    return (lhs + rhs as int);
-}
-
 function main(): int {
-    int a;
+    int val_1 = 69;
 
-    a = test();
-    
-    a = sum(lhs = 2, rhs = 2.2);
-
-    return 0;
-}
-
-function test(): int {
-    return 0;
+    return 420;
 }

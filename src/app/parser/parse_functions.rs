@@ -419,14 +419,16 @@ fn parse_function_block(
                         .into());
                     }
                 } else {
-                    parsed_tokens.push(ParsedToken::ReturnValue(Box::new(parse_token_as_value(
-                        &tokens,
-                        &function_signatures,
+                    let (returned_value, jmp_idx) = parse_value(
+                        &tokens[token_idx..],
+                        function_signatures.clone(),
                         &variable_scope,
                         this_function_signature.return_type,
-                        &mut token_idx,
-                        next_token,
-                    )?)));
+                    )?;
+
+                    token_idx += jmp_idx;
+
+                    parsed_tokens.push(ParsedToken::ReturnValue(Box::new(returned_value)));
                 }
             }
 
