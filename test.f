@@ -3,13 +3,15 @@ function sum(lhs: int, rhs: float): int {
 }
 
 function main(): int {
-    void a;
+    int a;
 
     a = test();
     
+    a = sum(lhs = 2, rhs = 2.2);
+
     return 0;
 }
 
-function test(): void {
-
+function test(): int {
+    return 0;
 }

@@ -11,3 +11,4 @@ thiserror = "2.0.12"
 
 inkwell = { version = "0.5.0", features = ["llvm18-0", "target-x86"], default-features = false }
 num = "0.4.3"
+indexmap = "2.9.0"

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::fmt::Display;
 
 use strum_macros::Display;
 
@@ -127,8 +127,17 @@ pub struct FunctionDefinition {
 
 #[derive(Debug, Clone)]
 pub struct FunctionSignature {
-    pub args: HashMap<String, TypeDiscriminants>,
+    pub args: indexmap::IndexMap<String, TypeDiscriminants>,
     pub return_type: TypeDiscriminants,
+}
+
+impl Display for FunctionSignature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!(
+            "Arguments: {:?}, Return type: {}",
+            self.args, self.return_type
+        ))
+    }
 }
 
 #[derive(Debug, Clone)]

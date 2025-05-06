@@ -4,7 +4,6 @@ use anyhow::Result;
 use inkwell::{
     AddressSpace,
     context::Context,
-    module::Linkage,
     types::{BasicMetadataTypeEnum, FunctionType},
     values::{FunctionValue, GlobalValue},
 };
@@ -26,7 +25,7 @@ pub fn codegen_main(
 
     for (function_name, function_definition) in parsed_functions.iter() {
         let function_val = module.add_function(
-            &function_name,
+            function_name,
             create_fn_type_from_ty_disc(&context, function_definition.function_sig.clone()),
             None,
         );

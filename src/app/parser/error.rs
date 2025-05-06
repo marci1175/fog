@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::app::type_system::type_system::TypeDiscriminants;
 
-use super::tokens::Token;
+use super::tokens::{FunctionSignature, Token};
 
 #[derive(Debug, Error)]
 pub enum ParserError {
@@ -56,4 +56,6 @@ pub enum SyntaxError {
     AsRequiresTypeDef,
     #[error("Function requires a returned value.")]
     FunctionRequiresReturn,
+    #[error("Duplicate function definitions have been found with function `{0}`. Signature: `{1}`")]
+    DuplicateFunctions(String, FunctionSignature),
 }
