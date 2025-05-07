@@ -6,14 +6,15 @@ use inkwell::{
     builder::Builder,
     context::Context,
     types::{BasicMetadataTypeEnum, FunctionType},
-    values::{BasicValueEnum, FunctionValue, GlobalValue},
+    values::BasicValueEnum,
 };
 
 use crate::{
+    CompilerError,
     app::{
         parser::tokens::{FunctionDefinition, FunctionSignature, ParsedToken},
         type_system::type_system::{Type, TypeDiscriminants},
-    }, CompilerError
+    },
 };
 
 pub fn codegen_main(
@@ -87,7 +88,7 @@ pub fn create_ir(
     // The list of ParsedToken-s
     parsed_tokens: Vec<ParsedToken>,
     // This argument is initalized with the HashMap of the arguments
-    mut available_variables: HashMap<String, BasicValueEnum>,
+    available_variables: HashMap<String, BasicValueEnum>,
 ) -> Result<()> {
     let i32_type = ctx.i32_type();
 
@@ -123,26 +124,22 @@ pub fn create_ir(
 
                         let loaded_val = builder.build_load(i32_type, v_ptr, &name)?;
                     }
-                    
+
                     _ => unimplemented!(),
                 }
             }
-            ParsedToken::ReturnValue(parsed_token) => {
-                match *parsed_token {
-                    ParsedToken::Literal(inner_val) => {
-                        match inner_val {
-                            Type::I32(inner) => {
-                                let returned_val = i32_type.const_int(inner as u64, true);
-                                
-                                builder.build_return(Some(&returned_val))?;
-                            },
+            ParsedToken::ReturnValue(parsed_token) => match *parsed_token {
+                ParsedToken::Literal(inner_val) => match inner_val {
+                    Type::I32(inner) => {
+                        let returned_val = i32_type.const_int(inner as u64, true);
 
-                            _ => unimplemented!()
-                        }
+                        builder.build_return(Some(&returned_val))?;
                     }
 
-                    _ => unimplemented!()
-                }
+                    _ => unimplemented!(),
+                },
+
+                _ => unimplemented!(),
             },
 
             _ => unimplemented!(),
