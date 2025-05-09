@@ -1,12 +1,10 @@
-mod lib;
-
-pub use fog_lib;
-use std::{fs, path::PathBuf};
 use fog::CompilerError;
 use fog::app::{
     cli_parser::cli_parser::{CliCommand, parse_args},
     compiler,
 };
+pub use fog_lib;
+use std::{fs, path::PathBuf};
 use strum::{EnumMessage, VariantArray};
 
 fn display_help_prompt() {

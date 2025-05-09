@@ -26,7 +26,7 @@ pub fn codegen_main(
     let builder = context.create_builder();
 
     // Expose library functions
-    expose_lib_functions(context, module);
+    expose_lib_functions(&context, module.clone());
 
     for (function_name, function_definition) in parsed_functions.iter() {
         // Create function signature
@@ -204,7 +204,7 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
     arg_list
 }
 
-use fog_lib::{putchar, getchar};
+use fog_lib::{getchar, putchar};
 
 crate::expose_lib_functions! {
     ((putchar -> i32), i32),
@@ -225,7 +225,7 @@ macro_rules! expose_lib_functions {
             )+
         }
 
-        pub fn expose_lib_functions(context: Context, module: inkwell::module::Module) {
+        pub fn expose_lib_functions<'a>(context: &'a Context, module: inkwell::module::Module<'a>) {
             $(
                 let type_discriminant = crate::match_type!($fn_ret);
 
@@ -296,7 +296,7 @@ macro_rules! expose_lib_functions {
                         },
                     };
 
-                    module.add_function($fn_name, function_type, None);
+                    module.add_function(stringify!($fn_name), function_type, None);
                 }
             )+;
         }

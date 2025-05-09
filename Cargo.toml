@@ -14,7 +14,7 @@ num = "0.4.3"
 indexmap = "2.9.0"
 
 # Import custom standard library
-fog_lib = { path = "./fog_lib" } 
+fog_lib = { path = "./fog_lib", features = ["std"] } 
 
 [profile.dev]
 panic = "abort"

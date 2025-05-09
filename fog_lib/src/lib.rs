@@ -1,7 +1,9 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
+#![no_main]
+
 use core::panic::PanicInfo;
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "std")))]
 #[panic_handler]
 fn panic(_panic: &PanicInfo) -> ! {
     loop {}
