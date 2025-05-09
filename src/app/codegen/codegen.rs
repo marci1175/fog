@@ -200,3 +200,18 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
 
     arg_list
 }
+
+crate::expose_lib_functions! {
+    ((putchar -> i32), i32),
+    ((getchar -> i32), )
+}
+
+
+#[macro_export]
+macro_rules! expose_lib_functions {
+    {$((($fn_name:ident -> $fn_ret:ty), $($fn_arg:ty), *)), +} => {
+        pub fn expose_lib_functions(module: inkwell::module::Module) {
+            
+        }
+    };
+}
