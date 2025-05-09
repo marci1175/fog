@@ -1,10 +1,10 @@
 [package]
-name = "fog-lib"
+name = "fog_lib"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["lib", "staticlib"]
 
 [dependencies]
 libc = {default-features = false, version = "0.2.172"}

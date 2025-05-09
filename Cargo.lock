@@ -79,12 +79,20 @@ name = "fog"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "fog_lib",
  "indexmap",
  "inkwell",
  "num",
  "strum",
  "strum_macros",
  "thiserror 2.0.12",
+]
+
+[[package]]
+name = "fog_lib"
+version = "0.1.0"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

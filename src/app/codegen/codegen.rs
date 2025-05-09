@@ -25,6 +25,9 @@ pub fn codegen_main(
     let module = context.create_module("main");
     let builder = context.create_builder();
 
+    // Expose library functions
+    expose_lib_functions(context, module);
+
     for (function_name, function_definition) in parsed_functions.iter() {
         // Create function signature
         let function = module.add_function(
@@ -191,7 +194,7 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
             }
             TypeDiscriminants::Boolean => BasicMetadataTypeEnum::IntType(ctx.bool_type()),
             TypeDiscriminants::Void => {
-                panic!("Cant take a void as an argument")
+                panic!("Can't take a `Void` as an argument")
             }
         };
 
@@ -201,17 +204,166 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
     arg_list
 }
 
+use fog_lib::{putchar, getchar};
+
 crate::expose_lib_functions! {
     ((putchar -> i32), i32),
     ((getchar -> i32), )
 }
 
-
 #[macro_export]
 macro_rules! expose_lib_functions {
     {$((($fn_name:ident -> $fn_ret:ty), $($fn_arg:ty), *)), +} => {
-        pub fn expose_lib_functions(module: inkwell::module::Module) {
-            
+        pub fn print_function_signatures() {
+            $(
+                println!("Function: {}", stringify!($fn_name));
+                println!("Return Type: {}", stringify!($fn_ret));
+                $(
+                    println!("Arg Type: {}", stringify!($fn_arg));
+                )*
+                println!("---");
+            )+
         }
+
+        pub fn expose_lib_functions(context: Context, module: inkwell::module::Module) {
+            $(
+                let type_discriminant = crate::match_type!($fn_ret);
+
+                if let Some(type_disc) = type_discriminant {
+                    let function_type = match type_disc {
+                        TypeDiscriminants::I32 => {
+                            let return_type = context.i32_type();
+
+                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+
+                            let function_type = return_type.fn_type(&args, false);
+
+                            function_type
+                        },
+                        TypeDiscriminants::F32 => {
+                            let return_type = context.f32_type();
+
+                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+
+                            let function_type = return_type.fn_type(&args, false);
+
+                            function_type
+                        },
+                        TypeDiscriminants::U32 => {
+                            let return_type = context.i32_type();
+
+                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+
+                            let function_type = return_type.fn_type(&args, false);
+
+                            function_type
+                        },
+                        TypeDiscriminants::U8 => {
+                            let return_type = context.i32_type();
+
+                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+
+                            let function_type = return_type.fn_type(&args, false);
+
+                            function_type
+                        },
+                        TypeDiscriminants::String => {
+                            let return_type = context.ptr_type(AddressSpace::default());
+
+                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+
+                            let function_type = return_type.fn_type(&args, false);
+
+                            function_type
+                        },
+                        TypeDiscriminants::Boolean => {
+                            let return_type = context.bool_type();
+
+                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+
+                            let function_type = return_type.fn_type(&args, false);
+
+                            function_type
+                        },
+                        TypeDiscriminants::Void => {
+                            let return_type = context.void_type();
+
+                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+
+                            let function_type = return_type.fn_type(&args, false);
+
+                            function_type
+                        },
+                    };
+
+                    module.add_function($fn_name, function_type, None);
+                }
+            )+;
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! parse_function_args {
+    ( $context:expr; $($fn_arg:ty), *) => {
+        {
+            let mut args: Vec<BasicMetadataTypeEnum> = Vec::new();
+
+            $(
+                if let Some(arg_ty) = crate::match_type!($fn_arg) {
+                    match arg_ty {
+                        TypeDiscriminants::I32 => {
+                            args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
+                        },
+                        TypeDiscriminants::F32 => {
+                            args.push(BasicMetadataTypeEnum::FloatType($context.f32_type()));
+                        },
+                        TypeDiscriminants::U32 => {
+                            args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
+                        },
+                        TypeDiscriminants::U8 => {
+                            args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
+                        },
+                        TypeDiscriminants::String => {
+                            args.push(BasicMetadataTypeEnum::PointerType($context.ptr_type(AddressSpace::default())));
+                        },
+                        TypeDiscriminants::Boolean => {
+                            args.push(BasicMetadataTypeEnum::IntType($context.bool_type()));
+                        },
+                        TypeDiscriminants::Void => {
+                            panic!("Can't take `Void` as an argument.");
+                        },
+                    }
+                }
+
+            )*;
+
+            args
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! match_type {
+    (f32) => {
+        Some(TypeDiscriminants::F32)
+    };
+    (i32) => {
+        Some(TypeDiscriminants::I32)
+    };
+    (u32) => {
+        Some(TypeDiscriminants::U32)
+    };
+    (u8) => {
+        Some(TypeDiscriminants::U8)
+    };
+    (bool) => {
+        Some(TypeDiscriminants::Boolean)
+    };
+    (String) => {
+        Some(TypeDiscriminants::String)
+    };
+    ($other:ty) => {
+        None
     };
 }
