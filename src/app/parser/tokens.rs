@@ -113,7 +113,7 @@ pub enum ParsedToken {
     If(If),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct UnparsedFunctionDefinition {
     pub function_sig: FunctionSignature,
     pub inner: Vec<Token>,
@@ -125,7 +125,7 @@ pub struct FunctionDefinition {
     pub inner: Vec<ParsedToken>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FunctionSignature {
     pub args: indexmap::IndexMap<String, TypeDiscriminants>,
     pub return_type: TypeDiscriminants,

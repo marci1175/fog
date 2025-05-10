@@ -1,6 +1,6 @@
-use crate::app::type_system::type_system::{
-    TypeDiscriminants, unparsed_const_to_typed_literal_unsafe,
-};
+use crate::app::{codegen, type_system::type_system::{
+    unparsed_const_to_typed_literal_unsafe, TypeDiscriminants
+}};
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, sync::Arc};
@@ -9,7 +9,7 @@ use strum::IntoDiscriminant;
 use super::{
     error::ParserError,
     parse_functions::{self, create_function_table, parse_functions},
-    tokens::{FunctionDefinition, ParsedToken, Token, UnparsedFunctionDefinition},
+    tokens::{FunctionDefinition, FunctionSignature, ParsedToken, Token, UnparsedFunctionDefinition},
 };
 
 #[derive(Debug, Clone)]
@@ -23,7 +23,9 @@ impl ParserState {
     pub fn parse_tokens(&mut self) -> Result<()> {
         let unparsed_functions = create_function_table(self.tokens.clone())?;
 
-        self.function_table = parse_functions(Arc::new(unparsed_functions))?;
+        let standard_function_table = Arc::new(codegen::codegen::create_function_table());
+
+        self.function_table = parse_functions(Arc::new(unparsed_functions), standard_function_table.clone())?;
 
         Ok(())
     }
@@ -266,7 +268,7 @@ pub fn parse_token_as_value(
                 )?;
 
                 // Return the function call
-                let parsed_token = ParsedToken::FunctionCall(
+                let parsed_token: ParsedToken = ParsedToken::FunctionCall(
                     (function.function_sig.clone(), identifier.clone()),
                     call_arguments,
                 );

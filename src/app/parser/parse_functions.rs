@@ -1,6 +1,6 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 use crate::app::type_system::type_system::TypeDiscriminants;
 
@@ -179,6 +179,7 @@ fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDisc
 
 pub fn parse_functions(
     unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    standard_function_table: Arc<HashSet<String>>,
 ) -> Result<HashMap<String, FunctionDefinition>> {
     let mut parsed_functions = HashMap::new();
 
@@ -189,6 +190,7 @@ pub fn parse_functions(
                 unparsed_function.inner.clone(),
                 unparsed_functions.clone(),
                 unparsed_function.function_sig.clone(),
+                standard_function_table.clone(),
             )?,
         };
 
@@ -202,6 +204,7 @@ fn parse_function_block(
     tokens: Vec<Token>,
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
     this_function_signature: FunctionSignature,
+    standard_function_table: Arc<HashSet<String>>,
 ) -> Result<Vec<ParsedToken>> {
     let mut token_idx = 0;
 
@@ -260,7 +263,7 @@ fn parse_function_block(
                         token_idx += 2;
                     }
 
-                    if *dbg!(&tokens[token_idx]) == Token::LineBreak {
+                    if tokens[token_idx] == Token::LineBreak {
                         token_idx += 1;
 
                         continue;
