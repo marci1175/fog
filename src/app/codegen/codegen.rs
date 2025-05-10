@@ -1,8 +1,17 @@
-use std::{collections::{HashMap, HashSet}, io::ErrorKind, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    io::ErrorKind,
+    path::PathBuf,
+};
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use inkwell::{
-    builder::Builder, context::Context, module::Module, types::{BasicMetadataTypeEnum, FunctionType}, values::BasicValueEnum, AddressSpace
+    AddressSpace,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    types::{BasicMetadataTypeEnum, FunctionType},
+    values::BasicValueEnum,
 };
 
 use crate::{
@@ -103,7 +112,9 @@ pub fn create_ir(
         match token {
             ParsedToken::NewVariable((name, init_val)) => {
                 match *init_val {
-                    ParsedToken::NewVariable(_) => unreachable!("Setting the Value of the Variable as creating a Variable, is a syntax error."),
+                    ParsedToken::NewVariable(_) => unreachable!(
+                        "Setting the Value of the Variable as creating a Variable, is a syntax error."
+                    ),
                     ParsedToken::VariableReference(_) => unimplemented!(),
                     ParsedToken::Literal(literal) => {
                         match literal {
@@ -123,7 +134,7 @@ pub fn create_ir(
 
                             _ => unimplemented!(),
                         }
-                    },
+                    }
                     ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
                     ParsedToken::MathematicalExpression(
                         parsed_token,
@@ -133,11 +144,13 @@ pub fn create_ir(
                     ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
                     ParsedToken::FunctionCall((fn_sig, fn_name), parsed_tokens) => {
                         // Try accessing the function in the current module
-                        let function_value = module.get_function(&fn_name).ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
-                        
+                        let function_value = module
+                            .get_function(&fn_name)
+                            .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
+
                         // Create function call
                         let call = builder.build_call(function_value, &vec![], "")?;
-                        
+
                         // Handle returned value
                         let returned_value = call.try_as_basic_value().left();
 
@@ -145,44 +158,65 @@ pub fn create_ir(
                             match fn_sig.return_type {
                                 TypeDiscriminants::I32 => {
                                     // Get returned float value
-                                    let returned_float = i32_type.const_int(returned.into_int_value().get_sign_extended_constant().unwrap() as u64, true);
+                                    let returned_float = i32_type.const_int(
+                                        returned
+                                            .into_int_value()
+                                            .get_sign_extended_constant()
+                                            .unwrap()
+                                            as u64,
+                                        true,
+                                    );
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(i32_type, &name)?;
 
                                     // Store the const in the pointer
                                     builder.build_store(v_ptr, returned_float)?;
-                                },
+                                }
                                 TypeDiscriminants::F32 => {
                                     // Get returned float value
-                                    let returned_float = f32_type.const_float(returned.into_float_value().get_constant().unwrap().0);
+                                    let returned_float = f32_type.const_float(
+                                        returned.into_float_value().get_constant().unwrap().0,
+                                    );
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(f32_type, &name)?;
 
                                     // Store the const in the pointer
                                     builder.build_store(v_ptr, returned_float)?;
-                                },
+                                }
                                 TypeDiscriminants::U32 => {
                                     // Get returned float value
-                                    let returned_float = i32_type.const_int(returned.into_int_value().get_zero_extended_constant().unwrap(), false);
+                                    let returned_float = i32_type.const_int(
+                                        returned
+                                            .into_int_value()
+                                            .get_zero_extended_constant()
+                                            .unwrap(),
+                                        false,
+                                    );
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(i32_type, &name)?;
 
                                     // Store the const in the pointer
                                     builder.build_store(v_ptr, returned_float)?;
-                                },
+                                }
                                 TypeDiscriminants::U8 => {
                                     // Get returned float value
-                                    let returned_float = i8_type.const_int(returned.into_int_value().get_zero_extended_constant().unwrap(), false);
+                                    let returned_float = i8_type.const_int(
+                                        returned
+                                            .into_int_value()
+                                            .get_zero_extended_constant()
+                                            .unwrap(),
+                                        false,
+                                    );
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(i8_type, &name)?;
 
                                     // Store the const in the pointer
                                     builder.build_store(v_ptr, returned_float)?;
-                                },
+                                }
                                 TypeDiscriminants::String => {
                                     // Get returned pointer value
                                     let returned_ptr = returned.into_pointer_value();
@@ -192,7 +226,7 @@ pub fn create_ir(
 
                                     // Store the const in the pointer
                                     builder.build_store(v_ptr, returned_ptr)?;
-                                },
+                                }
                                 TypeDiscriminants::Boolean => {
                                     // Get returned boolean value
                                     let returned_bool = returned.into_int_value();
@@ -200,19 +234,23 @@ pub fn create_ir(
                                     let v_ptr = builder.build_alloca(bool_type, &name)?;
 
                                     builder.build_store(v_ptr, returned_bool)?;
-                                },
+                                }
                                 TypeDiscriminants::Void => {
-                                    unreachable!("A void can not be parsed, as a void functuion returns a `None`.");
-                                },
+                                    unreachable!(
+                                        "A void can not be parsed, as a void functuion returns a `None`."
+                                    );
+                                }
                             };
-                        }
-                        else {
+                        } else {
                             // Ensure the return type was `Void` else raise an erro
                             if fn_sig.return_type != TypeDiscriminants::Void {
-                                return Err(CodeGenError::InternalFunctionReturnedVoid(fn_sig.return_type).into());
+                                return Err(CodeGenError::InternalFunctionReturnedVoid(
+                                    fn_sig.return_type,
+                                )
+                                .into());
                             }
                         }
-                    },
+                    }
                     ParsedToken::SetValue(_, parsed_token) => todo!(),
                     ParsedToken::MathematicalBlock(parsed_token) => todo!(),
                     ParsedToken::ReturnValue(parsed_token) => todo!(),
@@ -234,12 +272,14 @@ pub fn create_ir(
             },
             ParsedToken::FunctionCall((fn_sig, fn_name), args) => {
                 // Try accessing the function in the current module
-                let function_value = module.get_function(&fn_name).ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
-                
+                let function_value = module
+                    .get_function(&fn_name)
+                    .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
+
                 // Create function call
-                // We don't have to handle the returned type 
+                // We don't have to handle the returned type
                 builder.build_call(function_value, &vec![], "")?;
-            },
+            }
             _ => unimplemented!(),
         }
     }
@@ -295,14 +335,19 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
 
         arg_list.push(argument_sig);
     }
-    
+
     arg_list
 }
 
 /// Write this function
-pub fn get_basic_value_from_parsed_token(ctx: &Context, token: ParsedToken) -> Result<BasicValueEnum> {
+pub fn get_basic_value_from_parsed_token(
+    ctx: &Context,
+    token: ParsedToken,
+) -> Result<BasicValueEnum> {
     panic!();
-    Ok(BasicValueEnum::IntValue(ctx.i32_type().const_int(12, false)))
+    Ok(BasicValueEnum::IntValue(
+        ctx.i32_type().const_int(12, false),
+    ))
 }
 
 // use fog_lib::{getchar, putchar};
@@ -391,7 +436,7 @@ macro_rules! expose_lib_functions {
                 }
             )+;
         }
-        
+
         pub fn create_function_table() -> std::collections::HashSet<String> {
             let mut function_table = std::collections::HashSet::new();
 

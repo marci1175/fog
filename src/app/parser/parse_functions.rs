@@ -1,6 +1,9 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::app::type_system::type_system::TypeDiscriminants;
 

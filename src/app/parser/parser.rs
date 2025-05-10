@@ -1,6 +1,7 @@
-use crate::app::{codegen, type_system::type_system::{
-    unparsed_const_to_typed_literal_unsafe, TypeDiscriminants
-}};
+use crate::app::{
+    codegen,
+    type_system::type_system::{TypeDiscriminants, unparsed_const_to_typed_literal_unsafe},
+};
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, sync::Arc};
@@ -9,7 +10,9 @@ use strum::IntoDiscriminant;
 use super::{
     error::ParserError,
     parse_functions::{self, create_function_table, parse_functions},
-    tokens::{FunctionDefinition, FunctionSignature, ParsedToken, Token, UnparsedFunctionDefinition},
+    tokens::{
+        FunctionDefinition, FunctionSignature, ParsedToken, Token, UnparsedFunctionDefinition,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -25,7 +28,10 @@ impl ParserState {
 
         let standard_function_table = Arc::new(codegen::codegen::create_function_table());
 
-        self.function_table = parse_functions(Arc::new(unparsed_functions), standard_function_table.clone())?;
+        self.function_table = parse_functions(
+            Arc::new(unparsed_functions),
+            standard_function_table.clone(),
+        )?;
 
         Ok(())
     }
