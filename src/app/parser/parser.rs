@@ -26,7 +26,8 @@ impl ParserState {
     pub fn parse_tokens(&mut self) -> Result<()> {
         let unparsed_functions = create_function_table(self.tokens.clone())?;
 
-        let standard_function_table = Arc::new(codegen::codegen::create_function_table());
+        let standard_function_table: Arc<HashMap<String, FunctionSignature>> =
+            Arc::new(codegen::codegen::create_function_table());
 
         self.function_table = parse_functions(
             Arc::new(unparsed_functions),
@@ -74,6 +75,7 @@ pub fn parse_value(
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &IndexMap<String, TypeDiscriminants>,
     variable_type: TypeDiscriminants,
+    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<(ParsedToken, usize)> {
     let mut token_idx = 0;
 
@@ -114,6 +116,7 @@ pub fn parse_value(
                             variable_type,
                             &mut token_idx,
                             next_token,
+                            standard_function_table.clone(),
                         )?),
                     );
                 } else {
@@ -134,6 +137,7 @@ pub fn parse_value(
                     variable_type,
                     &mut token_idx,
                     current_token,
+                    standard_function_table.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -152,6 +156,7 @@ pub fn parse_value(
                     variable_type,
                     &mut token_idx,
                     current_token,
+                    standard_function_table.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -189,6 +194,7 @@ pub fn parse_token_as_value(
     token_idx: &mut usize,
     // The token we want to evaluate
     eval_token: &Token,
+    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<ParsedToken> {
     // Match the token
     let inner_value = match eval_token {
@@ -271,6 +277,7 @@ pub fn parse_token_as_value(
                     variable_scope,
                     function.function_sig.args.clone(),
                     function_signatures.clone(),
+                    standard_function_table.clone(),
                 )?;
 
                 // Return the function call
@@ -341,6 +348,49 @@ pub fn parse_token_as_value(
 
                 // Return the VariableReference
                 parsed_token
+            } else if let Some(function_sig) = standard_function_table.get(identifier) {
+                // Parse the call arguments and tokens parsed.
+                let (call_arguments, idx_jmp) = parse_functions::parse_function_call_args(
+                    &tokens[*token_idx + 2..],
+                    variable_scope,
+                    function_sig.args.clone(),
+                    function_signatures.clone(),
+                    standard_function_table.clone(),
+                )?;
+
+                // Return the function call
+                let parsed_token: ParsedToken = ParsedToken::FunctionCall(
+                    (function_sig.clone(), identifier.clone()),
+                    call_arguments,
+                );
+
+                // Increment the token index, and add the offset
+                *token_idx += idx_jmp + 2 + 1;
+
+                if let Some(Token::As) = tokens.get(*token_idx) {
+                    if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
+                        *token_idx += 2;
+
+                        ParsedToken::TypeCast(Box::new(parsed_token), *target_type)
+                    } else {
+                        // Throw an error
+                        return Err(ParserError::SyntaxError(
+                            super::error::SyntaxError::AsRequiresTypeDef,
+                        )
+                        .into());
+                    }
+                } else {
+                    // If the function's return type doesn't match the variable's return type return an error
+                    if function_sig.return_type != variable_type {
+                        return Err(ParserError::TypeError(
+                            function_sig.return_type,
+                            variable_type,
+                        )
+                        .into());
+                    }
+
+                    parsed_token
+                }
             } else {
                 // If none of the above matches throw an error about the variable not being found
                 return Err(ParserError::VariableNotFound(identifier.clone()).into());
@@ -359,6 +409,7 @@ pub fn parse_token_as_value(
                 function_signatures.clone(),
                 variable_scope,
                 variable_type,
+                standard_function_table,
             )?;
 
             *token_idx += closing_idx + 1;

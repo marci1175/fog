@@ -1,10 +1,14 @@
 ; ModuleID = 'main'
 source_filename = "main"
 
+declare i32 @putchar(i32)
+
+declare i32 @getchar()
+
+declare i32 @return_1()
+
 define i32 @main() {
 fn_main_entry:
-  %val_1 = alloca i32, align 4
-  store i32 69, ptr %val_1, align 4
-  %val_11 = load i32, ptr %val_1, align 4
-  ret i32 420
+  %0 = call i32 @putchar()
+  ret i32 0
 }

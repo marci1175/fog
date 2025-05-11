@@ -11,7 +11,7 @@ use inkwell::{
     context::Context,
     module::Module,
     types::{BasicMetadataTypeEnum, FunctionType},
-    values::BasicValueEnum,
+    values::{BasicValueEnum, PointerValue},
 };
 
 use crate::{
@@ -33,7 +33,7 @@ pub fn codegen_main(
     let builder = context.create_builder();
 
     // Expose library functions
-    expose_lib_functions(&context, module.clone());
+    expose_lib_functions(&context, &module);
 
     for (function_name, function_definition) in parsed_functions.iter() {
         // Create function signature
@@ -108,6 +108,8 @@ pub fn create_ir(
     let f32_type = ctx.f32_type();
     let pointer_type = ctx.ptr_type(AddressSpace::default());
 
+    let mut variable_map: HashMap<String, (PointerValue, BasicMetadataTypeEnum)> = HashMap::new();
+
     for token in parsed_tokens {
         match token {
             ParsedToken::NewVariable((name, init_val)) => {
@@ -158,64 +160,63 @@ pub fn create_ir(
                             match fn_sig.return_type {
                                 TypeDiscriminants::I32 => {
                                     // Get returned float value
-                                    let returned_float = i32_type.const_int(
-                                        returned
-                                            .into_int_value()
-                                            .get_sign_extended_constant()
-                                            .unwrap()
-                                            as u64,
-                                        true,
-                                    );
+                                    let returned_int = returned.into_int_value();
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(i32_type, &name)?;
 
+                                    variable_map.insert(
+                                        name.clone(),
+                                        (v_ptr.clone(), BasicMetadataTypeEnum::IntType(i32_type)),
+                                    );
+
                                     // Store the const in the pointer
-                                    builder.build_store(v_ptr, returned_float)?;
+                                    builder.build_store(v_ptr, returned_int)?;
                                 }
                                 TypeDiscriminants::F32 => {
                                     // Get returned float value
-                                    let returned_float = f32_type.const_float(
-                                        returned.into_float_value().get_constant().unwrap().0,
-                                    );
+                                    let returned_float = returned.into_float_value();
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(f32_type, &name)?;
+
+                                    variable_map.insert(
+                                        name.clone(),
+                                        (v_ptr.clone(), BasicMetadataTypeEnum::FloatType(f32_type)),
+                                    );
 
                                     // Store the const in the pointer
                                     builder.build_store(v_ptr, returned_float)?;
                                 }
                                 TypeDiscriminants::U32 => {
                                     // Get returned float value
-                                    let returned_float = i32_type.const_int(
-                                        returned
-                                            .into_int_value()
-                                            .get_zero_extended_constant()
-                                            .unwrap(),
-                                        false,
-                                    );
+                                    let returned_float = returned.into_int_value();
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(i32_type, &name)?;
+
+                                    variable_map.insert(
+                                        name.clone(),
+                                        (v_ptr.clone(), BasicMetadataTypeEnum::IntType(i32_type)),
+                                    );
 
                                     // Store the const in the pointer
                                     builder.build_store(v_ptr, returned_float)?;
                                 }
                                 TypeDiscriminants::U8 => {
                                     // Get returned float value
-                                    let returned_float = i8_type.const_int(
-                                        returned
-                                            .into_int_value()
-                                            .get_zero_extended_constant()
-                                            .unwrap(),
-                                        false,
-                                    );
+                                    let returned_smalint = returned.into_int_value();
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(i8_type, &name)?;
 
+                                    variable_map.insert(
+                                        name.clone(),
+                                        (v_ptr.clone(), BasicMetadataTypeEnum::IntType(i8_type)),
+                                    );
+
                                     // Store the const in the pointer
-                                    builder.build_store(v_ptr, returned_float)?;
+                                    builder.build_store(v_ptr, returned_smalint)?;
                                 }
                                 TypeDiscriminants::String => {
                                     // Get returned pointer value
@@ -223,6 +224,14 @@ pub fn create_ir(
 
                                     // Allocate a new variable
                                     let v_ptr = builder.build_alloca(pointer_type, &name)?;
+
+                                    variable_map.insert(
+                                        name.clone(),
+                                        (
+                                            v_ptr.clone(),
+                                            BasicMetadataTypeEnum::PointerType(pointer_type),
+                                        ),
+                                    );
 
                                     // Store the const in the pointer
                                     builder.build_store(v_ptr, returned_ptr)?;
@@ -232,6 +241,11 @@ pub fn create_ir(
                                     let returned_bool = returned.into_int_value();
 
                                     let v_ptr = builder.build_alloca(bool_type, &name)?;
+
+                                    variable_map.insert(
+                                        name.clone(),
+                                        (v_ptr.clone(), BasicMetadataTypeEnum::IntType(bool_type)),
+                                    );
 
                                     builder.build_store(v_ptr, returned_bool)?;
                                 }
@@ -257,19 +271,51 @@ pub fn create_ir(
                     ParsedToken::If(_) => todo!(),
                 };
             }
-            ParsedToken::ReturnValue(parsed_token) => match *parsed_token {
-                ParsedToken::Literal(inner_val) => match inner_val {
-                    Type::I32(inner) => {
-                        let returned_val = i32_type.const_int(inner as u64, true);
+            ParsedToken::ReturnValue(parsed_token) => {
+                match *parsed_token {
+                    ParsedToken::Literal(inner_val) => match inner_val {
+                        Type::I32(inner) => {
+                            let returned_val = i32_type.const_int(inner as u64, true);
 
-                        builder.build_return(Some(&returned_val))?;
+                            builder.build_return(Some(&returned_val))?;
+                        }
+
+                        _ => unimplemented!(),
+                    },
+                    ParsedToken::VariableReference(variable_name) => {
+                        let get_variable = variable_map.get(&variable_name);
+
+                        if let Some((pointer, var_type)) = get_variable {
+                            let variable_value =
+                                match var_type {
+                                    BasicMetadataTypeEnum::ArrayType(array_type) => {
+                                        builder.build_load(*array_type, *pointer, "variable_ref")?
+                                    }
+                                    BasicMetadataTypeEnum::FloatType(float_type) => {
+                                        builder.build_load(*float_type, *pointer, "variable_ref")?
+                                    }
+                                    BasicMetadataTypeEnum::IntType(int_type) => {
+                                        builder.build_load(*int_type, *pointer, "variable_ref")?
+                                    }
+                                    BasicMetadataTypeEnum::PointerType(pointer_type) => builder
+                                        .build_load(*pointer_type, *pointer, "variable_ref")?,
+                                    BasicMetadataTypeEnum::StructType(struct_type) => builder
+                                        .build_load(*struct_type, *pointer, "variable_ref")?,
+                                    BasicMetadataTypeEnum::VectorType(vector_type) => builder
+                                        .build_load(*vector_type, *pointer, "variable_ref")?,
+                                    BasicMetadataTypeEnum::MetadataType(metadata_type) => {
+                                        unimplemented!()
+                                    }
+                                };
+
+                            builder.build_return(Some(&variable_value))?;
+                        }
                     }
+                    ParsedToken::FunctionCall((fn_sig, fn_name), arguments) => {}
 
                     _ => unimplemented!(),
-                },
-
-                _ => unimplemented!(),
-            },
+                }
+            }
             ParsedToken::FunctionCall((fn_sig, fn_name), args) => {
                 // Try accessing the function in the current module
                 let function_value = module
@@ -339,109 +385,108 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
     arg_list
 }
 
-/// Write this function
-pub fn get_basic_value_from_parsed_token(
-    ctx: &Context,
-    token: ParsedToken,
-) -> Result<BasicValueEnum> {
-    panic!();
-    Ok(BasicValueEnum::IntValue(
-        ctx.i32_type().const_int(12, false),
-    ))
-}
-
-// use fog_lib::{getchar, putchar};
-
 crate::expose_lib_functions! {
-    ((putchar -> i32), i32),
+    ((putchar -> i32), "char" = i32),
     ((getchar -> i32), ),
     ((return_1 -> i32), )
 }
 
 #[macro_export]
 macro_rules! expose_lib_functions {
-    {$((($fn_name:ident -> $fn_ret:ty), $($fn_arg:ty), *)), +} => {
-        pub fn expose_lib_functions<'a>(context: &'a Context, module: inkwell::module::Module<'a>) {
+    {$((($fn_name:ident -> $fn_ret:ty), $($fn_arg_name: literal = $fn_arg:ty), *)), +} => {
+        pub fn expose_lib_functions<'a>(context: &'a Context, module: &inkwell::module::Module<'a>) {
             $(
                 let type_discriminant = crate::match_type!($fn_ret);
 
-                if let Some(type_disc) = type_discriminant {
-                    let function_type = match type_disc {
-                        TypeDiscriminants::I32 => {
-                            let return_type = context.i32_type();
+                let function_type = match type_discriminant {
+                    TypeDiscriminants::I32 => {
+                        let return_type = context.i32_type();
 
-                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+                        let args = crate::parse_function_args!(context; $($fn_arg),*);
 
-                            let function_type = return_type.fn_type(&args, false);
+                        let function_type = return_type.fn_type(&args, false);
 
-                            function_type
-                        },
-                        TypeDiscriminants::F32 => {
-                            let return_type = context.f32_type();
+                        function_type
+                    },
+                    TypeDiscriminants::F32 => {
+                        let return_type = context.f32_type();
 
-                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+                        let args = crate::parse_function_args!(context; $($fn_arg),*);
 
-                            let function_type = return_type.fn_type(&args, false);
+                        let function_type = return_type.fn_type(&args, false);
 
-                            function_type
-                        },
-                        TypeDiscriminants::U32 => {
-                            let return_type = context.i32_type();
+                        function_type
+                    },
+                    TypeDiscriminants::U32 => {
+                        let return_type = context.i32_type();
 
-                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+                        let args = crate::parse_function_args!(context; $($fn_arg),*);
 
-                            let function_type = return_type.fn_type(&args, false);
+                        let function_type = return_type.fn_type(&args, false);
 
-                            function_type
-                        },
-                        TypeDiscriminants::U8 => {
-                            let return_type = context.i32_type();
+                        function_type
+                    },
+                    TypeDiscriminants::U8 => {
+                        let return_type = context.i32_type();
 
-                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+                        let args = crate::parse_function_args!(context; $($fn_arg),*);
 
-                            let function_type = return_type.fn_type(&args, false);
+                        let function_type = return_type.fn_type(&args, false);
 
-                            function_type
-                        },
-                        TypeDiscriminants::String => {
-                            let return_type = context.ptr_type(AddressSpace::default());
+                        function_type
+                    },
+                    TypeDiscriminants::String => {
+                        let return_type = context.ptr_type(AddressSpace::default());
 
-                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+                        let args = crate::parse_function_args!(context; $($fn_arg),*);
 
-                            let function_type = return_type.fn_type(&args, false);
+                        let function_type = return_type.fn_type(&args, false);
 
-                            function_type
-                        },
-                        TypeDiscriminants::Boolean => {
-                            let return_type = context.bool_type();
+                        function_type
+                    },
+                    TypeDiscriminants::Boolean => {
+                        let return_type = context.bool_type();
 
-                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+                        let args = crate::parse_function_args!(context; $($fn_arg),*);
 
-                            let function_type = return_type.fn_type(&args, false);
+                        let function_type = return_type.fn_type(&args, false);
 
-                            function_type
-                        },
-                        TypeDiscriminants::Void => {
-                            let return_type = context.void_type();
+                        function_type
+                    },
+                    TypeDiscriminants::Void => {
+                        let return_type = context.void_type();
 
-                            let args = crate::parse_function_args!(context; $($fn_arg),*);
+                        let args = crate::parse_function_args!(context; $($fn_arg),*);
 
-                            let function_type = return_type.fn_type(&args, false);
+                        let function_type = return_type.fn_type(&args, false);
 
-                            function_type
-                        },
-                    };
+                        function_type
+                    },
 
-                    module.add_function(stringify!($fn_name), function_type, None);
-                }
+                };
+
+                module.add_function(stringify!($fn_name), function_type, None);
             )+;
         }
 
-        pub fn create_function_table() -> std::collections::HashSet<String> {
-            let mut function_table = std::collections::HashSet::new();
+        pub fn create_function_table() -> std::collections::HashMap<String, FunctionSignature> {
+            let mut function_table = std::collections::HashMap::new();
 
             $(
-                function_table.insert(stringify!($fn_name).to_string());
+                let mut args = indexmap::IndexMap::new();
+
+                $(
+                    let arg_type = crate::match_type!($fn_arg);
+
+                    let arg_name = $fn_arg_name.to_string();
+
+                    args.insert(arg_name.to_string(), arg_type);
+                )*;
+
+                function_table.insert(stringify!($fn_name).to_string(), FunctionSignature {
+                    return_type: dbg!(crate::match_type!($fn_ret)),
+                    args: args,
+                });
             )+;
 
             return function_table;
@@ -456,32 +501,31 @@ macro_rules! parse_function_args {
             let mut args: Vec<BasicMetadataTypeEnum> = Vec::new();
 
             $(
-                if let Some(arg_ty) = crate::match_type!($fn_arg) {
-                    match arg_ty {
-                        TypeDiscriminants::I32 => {
-                            args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
-                        },
-                        TypeDiscriminants::F32 => {
-                            args.push(BasicMetadataTypeEnum::FloatType($context.f32_type()));
-                        },
-                        TypeDiscriminants::U32 => {
-                            args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
-                        },
-                        TypeDiscriminants::U8 => {
-                            args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
-                        },
-                        TypeDiscriminants::String => {
-                            args.push(BasicMetadataTypeEnum::PointerType($context.ptr_type(AddressSpace::default())));
-                        },
-                        TypeDiscriminants::Boolean => {
-                            args.push(BasicMetadataTypeEnum::IntType($context.bool_type()));
-                        },
-                        TypeDiscriminants::Void => {
-                            panic!("Can't take `Void` as an argument.");
-                        },
-                    }
-                }
+                let arg_ty = crate::match_type!($fn_arg);
 
+                match arg_ty {
+                    TypeDiscriminants::I32 => {
+                        args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
+                    },
+                    TypeDiscriminants::F32 => {
+                        args.push(BasicMetadataTypeEnum::FloatType($context.f32_type()));
+                    },
+                    TypeDiscriminants::U32 => {
+                        args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
+                    },
+                    TypeDiscriminants::U8 => {
+                        args.push(BasicMetadataTypeEnum::IntType($context.i32_type()));
+                    },
+                    TypeDiscriminants::String => {
+                        args.push(BasicMetadataTypeEnum::PointerType($context.ptr_type(AddressSpace::default())));
+                    },
+                    TypeDiscriminants::Boolean => {
+                        args.push(BasicMetadataTypeEnum::IntType($context.bool_type()));
+                    },
+                    TypeDiscriminants::Void => {
+                        panic!("Can't take `Void` as an argument.");
+                    },
+                };
             )*;
 
             args
@@ -491,25 +535,15 @@ macro_rules! parse_function_args {
 
 #[macro_export]
 macro_rules! match_type {
-    (f32) => {
-        Some(TypeDiscriminants::F32)
-    };
-    (i32) => {
-        Some(TypeDiscriminants::I32)
-    };
-    (u32) => {
-        Some(TypeDiscriminants::U32)
-    };
-    (u8) => {
-        Some(TypeDiscriminants::U8)
-    };
-    (bool) => {
-        Some(TypeDiscriminants::Boolean)
-    };
-    (String) => {
-        Some(TypeDiscriminants::String)
-    };
-    ($other:ty) => {
-        None
-    };
+    ($t:ty) => {{
+        match stringify!($t) {
+            "i32" => TypeDiscriminants::I32,
+            "f32" => TypeDiscriminants::F32,
+            "u32" => TypeDiscriminants::U32,
+            "u8" => TypeDiscriminants::U8,
+            "bool" => TypeDiscriminants::Boolean,
+            "String" => TypeDiscriminants::String,
+            _ => TypeDiscriminants::Void,
+        }
+    }};
 }

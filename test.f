@@ -1,5 +1,5 @@
 function main(): int {
-    int val_1 = return_1();
+    putchar(char = 23);
 
-    return 420;
+    return 0;
 }

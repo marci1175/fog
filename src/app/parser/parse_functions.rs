@@ -182,7 +182,7 @@ fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDisc
 
 pub fn parse_functions(
     unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>,
-    standard_function_table: Arc<HashSet<String>>,
+    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<HashMap<String, FunctionDefinition>> {
     let mut parsed_functions = HashMap::new();
 
@@ -207,7 +207,7 @@ fn parse_function_block(
     tokens: Vec<Token>,
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
     this_function_signature: FunctionSignature,
-    standard_function_table: Arc<HashSet<String>>,
+    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<Vec<ParsedToken>> {
     let mut token_idx = 0;
 
@@ -247,6 +247,7 @@ fn parse_function_block(
                             function_signatures.clone(),
                             &variable_scope,
                             var_type,
+                            standard_function_table.clone(),
                         )?;
 
                         parsed_tokens.push(ParsedToken::NewVariable((
@@ -310,6 +311,7 @@ fn parse_function_block(
                                 function_signatures.clone(),
                                 &variable_scope,
                                 *variable_type,
+                                standard_function_table.clone(),
                             )?;
 
                             parsed_tokens.push(ParsedToken::SetValue(
@@ -327,6 +329,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Addition,
+                                standard_function_table.clone(),
                             )?;
                         }
                         Token::SetValueSubtraction => {
@@ -339,6 +342,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Subtraction,
+                                standard_function_table.clone(),
                             )?;
                         }
                         Token::SetValueDivision => {
@@ -351,6 +355,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Division,
+                                standard_function_table.clone(),
                             )?;
                         }
                         Token::SetValueMultiplication => {
@@ -363,6 +368,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Multiplication,
+                                standard_function_table.clone(),
                             )?;
                         }
                         Token::SetValueModulo => {
@@ -375,6 +381,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Modulo,
+                                standard_function_table.clone(),
                             )?;
                         }
                         _ => {
@@ -399,10 +406,38 @@ fn parse_function_block(
                         &variable_scope,
                         function_sig.function_sig.args.clone(),
                         function_signatures.clone(),
+                        standard_function_table.clone(),
                     )?;
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
                         (function_sig.function_sig.clone(), ident_name),
+                        variables_passed,
+                    ));
+
+                    token_idx += jumped_idx;
+                } else if let Some(function_sig) = standard_function_table.get(&ident_name) {
+                    // If after the function name the first thing isnt a `(` return a syntax error.
+                    if tokens[token_idx + 1] != Token::OpenBracket {
+                        return Err(ParserError::SyntaxError(
+                            crate::app::parser::error::SyntaxError::InvalidFunctionDefinition,
+                        )
+                        .into());
+                    }
+
+                    let bracket_start_slice = &tokens[token_idx + 2..];
+
+                    let bracket_idx = find_closing_bracket(bracket_start_slice)? + token_idx;
+
+                    let (variables_passed, jumped_idx) = parse_function_call_args(
+                        &tokens[token_idx + 2..bracket_idx + 2],
+                        &variable_scope,
+                        function_sig.args.clone(),
+                        function_signatures.clone(),
+                        standard_function_table.clone(),
+                    )?;
+
+                    parsed_tokens.push(ParsedToken::FunctionCall(
+                        (function_sig.clone(), ident_name),
                         variables_passed,
                     ));
 
@@ -430,6 +465,7 @@ fn parse_function_block(
                         function_signatures.clone(),
                         &variable_scope,
                         this_function_signature.return_type,
+                        standard_function_table.clone(),
                     )?;
 
                     token_idx += jmp_idx;
@@ -461,6 +497,7 @@ fn set_value_math_expr(
     variable_type: &TypeDiscriminants,
     ident_name: &String,
     math_symbol: MathematicalSymbol,
+    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<(), anyhow::Error> {
     *token_idx += 1;
 
@@ -475,6 +512,7 @@ fn set_value_math_expr(
         *variable_type,
         token_idx,
         eval_token,
+        standard_function_table,
     )?;
 
     parsed_tokens.push(ParsedToken::SetValue(
@@ -495,6 +533,7 @@ pub fn parse_function_call_args(
     variable_scope: &IndexMap<String, TypeDiscriminants>,
     this_function_args: IndexMap<String, TypeDiscriminants>,
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<(Vec<ParsedToken>, usize)> {
     let mut tokens_idx = 0;
 
@@ -517,6 +556,7 @@ pub fn parse_function_call_args(
                     function_signatures.clone(),
                     variable_scope,
                     *argument_type,
+                    standard_function_table.clone(),
                 )?;
 
                 tokens_idx += jump_idx;
