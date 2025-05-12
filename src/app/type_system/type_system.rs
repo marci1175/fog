@@ -4,7 +4,7 @@ use strum_macros::Display;
 use crate::app::parser::error::ParserError;
 
 #[derive(Debug, strum_macros::EnumDiscriminants, Clone, PartialEq, Display, Default)]
-#[strum_discriminants(derive(strum_macros::Display, strum_macros::VariantArray, Default))]
+#[strum_discriminants(derive(strum_macros::Display, strum_macros::VariantArray, Default, Hash))]
 pub enum Type {
     I32(i32),
     F32(f32),

@@ -12,4 +12,6 @@ pub enum CodeGenError {
     InternalFunctionNotFound(String),
     #[error("[INTERNAL ERROR] Function did not return anything when the returned type was {0}.")]
     InternalFunctionReturnedVoid(TypeDiscriminants),
+    #[error("[INTERNAL ERROR] Variable `{0}` was not found in Variable map.")]
+    InternalVariableNotFound(String),
 }

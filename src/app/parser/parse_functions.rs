@@ -534,20 +534,20 @@ pub fn parse_function_call_args(
     this_function_args: IndexMap<String, TypeDiscriminants>,
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
-) -> Result<(Vec<ParsedToken>, usize)> {
+) -> Result<(IndexMap<String, ParsedToken>, usize)> {
     let mut tokens_idx = 0;
 
     // Arguments which will passed in to the function
-    let mut arguments: Vec<ParsedToken> = vec![];
+    let mut arguments: IndexMap<String, ParsedToken> = IndexMap::new();
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
 
         if let Token::Identifier(arg_name) = dbg!(current_token.clone()) {
-            if Token::SetValue == *dbg!(&tokens[tokens_idx + 1]) {
+            if Token::SetValue == tokens[tokens_idx + 1] {
                 let argument_type = this_function_args
                     .get(&arg_name)
-                    .ok_or(ParserError::ArgumentError(arg_name))?;
+                    .ok_or(ParserError::ArgumentError(arg_name.clone()))?;
 
                 tokens_idx += 2;
 
@@ -561,7 +561,7 @@ pub fn parse_function_call_args(
 
                 tokens_idx += jump_idx;
 
-                arguments.push(parsed_argument);
+                arguments.insert(arg_name.clone(), parsed_argument);
             } else {
                 return Err(ParserError::SyntaxError(
                     super::error::SyntaxError::InvalidStatementDefinition,

@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use indexmap::IndexMap;
 use strum_macros::Display;
 
 use crate::app::type_system::type_system::{Type, TypeDiscriminants};
@@ -102,7 +103,7 @@ pub enum ParsedToken {
 
     Brackets(Vec<ParsedToken>, TypeDiscriminants),
 
-    FunctionCall((FunctionSignature, String), Vec<ParsedToken>),
+    FunctionCall((FunctionSignature, String), IndexMap<String, ParsedToken>),
 
     SetValue(String, Box<ParsedToken>),
 

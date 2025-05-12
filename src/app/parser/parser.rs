@@ -89,7 +89,7 @@ pub fn parse_value(
         })?;
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
-        match dbg!(current_token) {
+        match current_token {
             // If any mathematical expression is present in the tokens
             Token::Addition | Token::Subtraction | Token::Multiplication | Token::Division => {
                 // Grab the next token after the mathematical expression

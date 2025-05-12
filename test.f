@@ -1,5 +1,7 @@
 function main(): int {
-    print(char = 23);
+    int charin = getchar();
 
-    return 0;
+    int charout = putchar(char = charin);
+
+    return charin;
 }

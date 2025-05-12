@@ -5,13 +5,9 @@ use std::{
 };
 
 use anyhow::{Result, ensure};
+use indexmap::IndexMap;
 use inkwell::{
-    AddressSpace,
-    builder::Builder,
-    context::Context,
-    module::Module,
-    types::{BasicMetadataTypeEnum, FunctionType},
-    values::{BasicValueEnum, PointerValue},
+    builder::Builder, context::Context, module::Module, types::{BasicMetadataTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue}, AddressSpace
 };
 
 use crate::{
@@ -150,8 +146,95 @@ pub fn create_ir(
                             .get_function(&fn_name)
                             .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
 
+                        
+                        let sig_iter = fn_sig.args.iter().map(|(key, value)| {
+                            ((key.clone(), *value), parsed_tokens.get(key).unwrap().clone())
+                        });
+
+                        // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
+                        let fn_argument_list: IndexMap<(String, TypeDiscriminants), ParsedToken> = IndexMap::from_iter(sig_iter);
+
+                        // Keep the list of the arguments passed in
+                        let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
+
+                        for ((arg_name, arg_type), parsed_token) in fn_argument_list.iter() {
+                            match parsed_token {
+                                ParsedToken::NewVariable(_) => todo!(),
+                                ParsedToken::VariableReference(variable_ref) => {
+                                    let (var_ptr, data_type) = variable_map.get(variable_ref).ok_or(CodeGenError::InternalVariableNotFound(variable_ref.clone()))?;
+                                    
+                                    let value = match arg_type {
+                                        TypeDiscriminants::I32 => {
+                                            builder.build_load(i32_type, var_ptr.clone(), "dereferenced_variable_reference")?
+                                        }
+                                        TypeDiscriminants::F32 => {
+                                            builder.build_load(f32_type, var_ptr.clone(), "dereferenced_variable_reference")?
+                                        }
+                                        TypeDiscriminants::U32 => {
+                                            builder.build_load(i32_type, var_ptr.clone(), "dereferenced_variable_reference")?
+                                        }
+                                        TypeDiscriminants::U8 => {
+                                            builder.build_load(i32_type, var_ptr.clone(), "dereferenced_variable_reference")?
+                                        }
+                                        TypeDiscriminants::String => {
+                                            unimplemented!()
+                                        }
+                                        TypeDiscriminants::Boolean => {
+                                            builder.build_load(i32_type, var_ptr.clone(), "dereferenced_variable_reference")?
+                                        }
+                                        TypeDiscriminants::Void => unreachable!(),
+                                    };
+
+                                    match arg_type {
+                                        TypeDiscriminants::I32 => arguments_passed_in.push(BasicMetadataValueEnum::IntValue(value.into_int_value())),
+                                        TypeDiscriminants::F32 => arguments_passed_in.push(BasicMetadataValueEnum::FloatValue(value.into_float_value())),
+                                        TypeDiscriminants::U32 => arguments_passed_in.push(BasicMetadataValueEnum::IntValue(value.into_int_value())),
+                                        TypeDiscriminants::U8 => arguments_passed_in.push(BasicMetadataValueEnum::IntValue(value.into_int_value())),
+                                        TypeDiscriminants::String => arguments_passed_in.push(BasicMetadataValueEnum::PointerValue(value.into_pointer_value())),
+                                        TypeDiscriminants::Boolean => arguments_passed_in.push(BasicMetadataValueEnum::IntValue(value.into_int_value())),
+                                        TypeDiscriminants::Void => unreachable!(),
+                                    }
+                                },
+                                ParsedToken::Literal(literal) => {
+                                    match literal {
+                                        Type::I32(inner) => {
+                                            arguments_passed_in.push(BasicMetadataValueEnum::IntValue(i32_type.const_int(*inner as u64, true)));
+                                        },
+                                        Type::F32(inner) => {
+                                            arguments_passed_in.push(BasicMetadataValueEnum::FloatValue(f32_type.const_float(*inner as f64)));
+                                        },
+                                        Type::U32(inner) => {
+                                            arguments_passed_in.push(BasicMetadataValueEnum::IntValue(i32_type.const_int(*inner as u64, false)));
+                                        },
+                                        Type::U8(inner) => {
+                                            arguments_passed_in.push(BasicMetadataValueEnum::IntValue(i32_type.const_int(*inner as u64, false)));
+                                        },
+                                        Type::String(inner) => {
+                                            unimplemented!();
+                                            // arguments_passed_in.push(BasicMetadataValueEnum::PointerValue());
+                                        },
+                                        Type::Boolean(inner) => {
+                                            arguments_passed_in.push(BasicMetadataValueEnum::IntValue(bool_type.const_int(*inner as u64, true)));
+                                        },
+                                        Type::Void => {
+                                            unreachable!();
+                                            // arguments_passed_in.push(BasicMetadataValueEnum::IntValue(i32_type.const_int(*inner as u64, true)));
+                                        },
+                                    }
+                                },
+                                ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
+                                ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => todo!(),
+                                ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
+                                ParsedToken::FunctionCall(_, index_map) => todo!(),
+                                ParsedToken::SetValue(_, parsed_token) => todo!(),
+                                ParsedToken::MathematicalBlock(parsed_token) => todo!(),
+                                ParsedToken::ReturnValue(parsed_token) => todo!(),
+                                ParsedToken::If(_) => todo!(),
+                            }
+                        }
+
                         // Create function call
-                        let call = builder.build_call(function_value, &vec![], "")?;
+                        let call = builder.build_call(function_value, &arguments_passed_in, "function_call")?;
 
                         // Handle returned value
                         let returned_value = call.try_as_basic_value().left();
@@ -387,7 +470,7 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
 
 crate::expose_lib_functions! {
     ((putchar -> i32), "char" = i32),
-    ((print -> i32), "char" = i32),
+    ((printchar -> i32), "char" = i32),
     ((getchar -> i32), ),
     ((return_1 -> i32), )
 }
@@ -485,7 +568,7 @@ macro_rules! expose_lib_functions {
                 )*;
 
                 function_table.insert(stringify!($fn_name).to_string(), FunctionSignature {
-                    return_type: dbg!(crate::match_type!($fn_ret)),
+                    return_type: crate::match_type!($fn_ret),
                     args: args,
                 });
             )+;

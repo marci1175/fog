@@ -1,6 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![no_main]
 
+use libc::putchar;
+
 #[cfg(not(any(test, feature = "std")))]
 #[panic_handler]
 fn panic(_panic: &core::panic::PanicInfo) -> ! {
@@ -10,4 +12,13 @@ fn panic(_panic: &core::panic::PanicInfo) -> ! {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn return_1() -> i32 {
     return 1;
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn printchar(c: i32) -> i32 {
+    unsafe {
+        putchar(c);
+    };
+
+    c
 }
