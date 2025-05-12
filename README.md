@@ -8,8 +8,8 @@
 | LLVM backend    | Supported ✅ |
 | Cross-compilation | Supported ✅ | 
 | Powerful Abstractions | Supported ✅|
+| Modules and Libraries | Supported ✅ |
 | More time-efficient compilation times | In progress ⚠️ |
-| Full FFI support | Planned 🔵 |
+| FFI support | In progress ⚠️ |
 | Dynamic memory allocation | Planned 🔵 |
-| Modules and Libraries | Planned 🔵 |
-| Asnyc support | Not supported ❎|
+| Asnyc support | Planned 🔵 |
