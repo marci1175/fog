@@ -387,6 +387,7 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
 
 crate::expose_lib_functions! {
     ((putchar -> i32), "char" = i32),
+    ((print -> i32), "char" = i32),
     ((getchar -> i32), ),
     ((return_1 -> i32), )
 }
