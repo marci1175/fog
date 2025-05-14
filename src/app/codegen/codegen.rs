@@ -416,6 +416,24 @@ pub fn create_ir(
     Ok(())
 }
 
+pub fn parse_parsed_token(ctx: &Context, module: &Module, parsed_token: ParsedToken) -> Type {
+    match parsed_token {
+        ParsedToken::NewVariable(_) => todo!(),
+        ParsedToken::VariableReference(_) => todo!(),
+        ParsedToken::Literal(_) => todo!(),
+        ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
+        ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => todo!(),
+        ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
+        ParsedToken::FunctionCall(_, index_map) => todo!(),
+        ParsedToken::SetValue(_, parsed_token) => todo!(),
+        ParsedToken::MathematicalBlock(parsed_token) => todo!(),
+        ParsedToken::ReturnValue(parsed_token) => todo!(),
+        ParsedToken::If(_) => todo!(),
+    }
+
+    todo!()
+}
+
 pub fn create_fn_type_from_ty_disc(ctx: &Context, fn_sig: FunctionSignature) -> FunctionType<'_> {
     match fn_sig.return_type {
         TypeDiscriminants::I32 => ctx
