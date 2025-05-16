@@ -135,37 +135,40 @@ pub fn create_ir_from_parsed_token<'a, 'b>(
     builder: &'a Builder,
     parsed_token: ParsedToken,
     variable_map: &'b mut HashMap<String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>)>,
-    variable_reference: Option<String>,
+    variable_reference: Option<(String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>))>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminants,
 ) -> anyhow::Result<()> {
     match parsed_token {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
-            create_new_variable(
+            let (ptr, ptr_ty) = create_new_variable(ctx, builder, var_name.clone(), var_type)?;
+
+            variable_map.insert(var_name.clone(), (ptr, ptr_ty));
+
+            // Set the value of the newly created variable
+            create_ir_from_parsed_token(
                 ctx,
                 module,
                 builder,
+                *var_set_val,
                 variable_map,
-                var_name.clone(),
-                var_type,
-                var_set_val,
+                Some((var_name, (ptr, ptr_ty))),
                 fn_ret_ty,
             )?;
         }
         ParsedToken::VariableReference(ref_var_name) => {
-            if let Some(var_name) = variable_reference {
-                // The original variable we are going to modify
-                let variable_query = variable_map.get(&var_name);
-
+            if let Some(var_ref) = variable_reference {
                 // The referenced variable
                 let ref_variable_query = variable_map.get(&ref_var_name);
 
-                if let (Some((orig_ptr, orig_ty)), Some((ref_ptr, ref_ty))) =
-                    (variable_query, ref_variable_query)
-                {
-                    if orig_ty != ref_ty {
+                if let ((orig_ptr, orig_ty), Some((ref_ptr, ref_ty))) = (
+                    // The original variable we are going to modify
+                    var_ref.1,
+                    ref_variable_query,
+                ) {
+                    if orig_ty != *ref_ty {
                         return Err(CodeGenError::InternalVariableTypeMismatch(
-                            var_name.clone(),
+                            var_ref.0.clone(),
                             ref_var_name.clone(),
                         )
                         .into());
@@ -174,25 +177,19 @@ pub fn create_ir_from_parsed_token<'a, 'b>(
                     match ref_ty {
                         BasicMetadataTypeEnum::ArrayType(array_type) => {
                             // Get the referenced variable's value
-                            let ref_var_val = builder.build_load(
-                                *array_type,
-                                *ref_ptr,
-                                "var_deref",
-                            )?;
+                            let ref_var_val =
+                                builder.build_load(*array_type, *ref_ptr, "var_deref")?;
 
                             // Store the referenced variable's value in the original
-                            builder.build_store(*orig_ptr, ref_var_val)?;
+                            builder.build_store(orig_ptr, ref_var_val)?;
                         }
                         BasicMetadataTypeEnum::FloatType(float_type) => {
                             // Get the referenced variable's value
-                            let ref_var_val = builder.build_load(
-                                *float_type,
-                                *ref_ptr,
-                                "var_deref",
-                            )?;
+                            let ref_var_val =
+                                builder.build_load(*float_type, *ref_ptr, "var_deref")?;
 
                             // Store the referenced variable's value in the original
-                            builder.build_store(*orig_ptr, ref_var_val)?;
+                            builder.build_store(orig_ptr, ref_var_val)?;
                         }
                         BasicMetadataTypeEnum::IntType(int_type) => {
                             // Get the referenced variable's value
@@ -200,40 +197,31 @@ pub fn create_ir_from_parsed_token<'a, 'b>(
                                 builder.build_load(*int_type, *ref_ptr, "var_deref")?;
 
                             // Store the referenced variable's value in the original
-                            builder.build_store(*orig_ptr, ref_var_val)?;
+                            builder.build_store(orig_ptr, ref_var_val)?;
                         }
                         BasicMetadataTypeEnum::PointerType(pointer_type) => {
                             // Get the referenced variable's value
-                            let ref_var_val = builder.build_load(
-                                *pointer_type,
-                                *ref_ptr,
-                                "var_deref",
-                            )?;
+                            let ref_var_val =
+                                builder.build_load(*pointer_type, *ref_ptr, "var_deref")?;
 
                             // Store the referenced variable's value in the original
-                            builder.build_store(*orig_ptr, ref_var_val)?;
+                            builder.build_store(orig_ptr, ref_var_val)?;
                         }
                         BasicMetadataTypeEnum::StructType(struct_type) => {
                             // Get the referenced variable's value
-                            let ref_var_val = builder.build_load(
-                                *struct_type,
-                                *ref_ptr,
-                                "var_deref",
-                            )?;
+                            let ref_var_val =
+                                builder.build_load(*struct_type, *ref_ptr, "var_deref")?;
 
                             // Store the referenced variable's value in the original
-                            builder.build_store(*orig_ptr, ref_var_val)?;
+                            builder.build_store(orig_ptr, ref_var_val)?;
                         }
                         BasicMetadataTypeEnum::VectorType(vector_type) => {
                             // Get the referenced variable's value
-                            let ref_var_val = builder.build_load(
-                                *vector_type,
-                                *ref_ptr,
-                                "var_deref",
-                            )?;
+                            let ref_var_val =
+                                builder.build_load(*vector_type, *ref_ptr, "var_deref")?;
 
                             // Store the referenced variable's value in the original
-                            builder.build_store(*orig_ptr, ref_var_val)?;
+                            builder.build_store(orig_ptr, ref_var_val)?;
                         }
 
                         _ => unimplemented!(),
@@ -243,16 +231,10 @@ pub fn create_ir_from_parsed_token<'a, 'b>(
         }
         ParsedToken::Literal(literal) => {
             // There this is None there is nothing we can do with this so just return
-            if let Some(ref_variable_name) = variable_reference {
-                let variable_query = variable_map.get(&ref_variable_name);
+            if let Some(var_ref) = variable_reference {
+                let (ptr, _var_type) = var_ref.1;
 
-                if let Some((ptr, _var_type)) = variable_query {
-                    set_value_of_ptr(ctx, builder, literal, *ptr)?;
-                } else {
-                    return Err(
-                        CodeGenError::InternalVariableNotFound(ref_variable_name.clone()).into(),
-                    );
-                }
+                set_value_of_ptr(ctx, builder, literal, ptr)?;
             }
         }
         ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
@@ -281,63 +263,107 @@ pub fn create_ir_from_parsed_token<'a, 'b>(
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
             for ((arg_name, arg_type), parsed_token) in fn_argument_list.iter() {
-                
-           }
+                // Create a temporary variable for the argument thats passed in
+                let (ptr, ptr_ty) = create_new_variable(ctx, builder, arg_name.clone(), *arg_type)?;
+
+                // Set the value of the temp variable to the value the argument has
+                create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    parsed_token.clone(),
+                    variable_map,
+                    Some((arg_name.clone(), (ptr, ptr_ty))),
+                    fn_ret_ty,
+                )?;
+
+                // Push the argument to the list of arguments
+                match ptr_ty {
+                    BasicMetadataTypeEnum::ArrayType(array_type) => {
+                        let loaded_val = builder.build_load(array_type, ptr, &arg_name)?;
+
+                        arguments_passed_in.push(loaded_val.into());
+                    }
+                    BasicMetadataTypeEnum::FloatType(float_type) => {
+                        let loaded_val = builder.build_load(float_type, ptr, arg_name)?;
+
+                        arguments_passed_in.push(loaded_val.into());
+                    }
+                    BasicMetadataTypeEnum::IntType(int_type) => {
+                        let loaded_val = builder.build_load(int_type, ptr, arg_name)?;
+
+                        arguments_passed_in.push(loaded_val.into());
+                    }
+                    BasicMetadataTypeEnum::PointerType(pointer_type) => {
+                        let loaded_val = builder.build_load(pointer_type, ptr, arg_name)?;
+
+                        arguments_passed_in.push(loaded_val.into());
+                    }
+                    BasicMetadataTypeEnum::StructType(struct_type) => {
+                        let loaded_val = builder.build_load(struct_type, ptr, arg_name)?;
+
+                        arguments_passed_in.push(loaded_val.into());
+                    }
+                    BasicMetadataTypeEnum::VectorType(vector_type) => {
+                        let loaded_val = builder.build_load(vector_type, ptr, arg_name)?;
+
+                        arguments_passed_in.push(loaded_val.into());
+                    }
+
+                    _ => unimplemented!(),
+                }
+            }
 
             // Create function call
-            let call = builder.build_call(
-                function_value,
-                &arguments_passed_in,
-                "function_call",
-            )?;
+            let call = builder.build_call(function_value, &arguments_passed_in, "function_call")?;
 
             // Handle returned value
             let returned_value = call.try_as_basic_value().left();
 
             if let Some(returned) = returned_value {
                 if let Some(variable_name) = variable_reference {
-                    if let Some((v_ptr, _var_ty)) = variable_map.get(&variable_name) {
-                        match fn_sig.return_type {
+                    let (v_ptr, _var_ty) = variable_name.1;
+                    match fn_sig.return_type {
                         TypeDiscriminants::I32 => {
                             // Get returned float value
                             let returned_int = returned.into_int_value();
 
                             // Store the const in the pointer
-                            builder.build_store(*v_ptr, returned_int)?;
+                            builder.build_store(v_ptr, returned_int)?;
                         }
                         TypeDiscriminants::F32 => {
                             // Get returned float value
                             let returned_float = returned.into_float_value();
 
                             // Store the const in the pointer
-                            builder.build_store(*v_ptr, returned_float)?;
+                            builder.build_store(v_ptr, returned_float)?;
                         }
                         TypeDiscriminants::U32 => {
                             // Get returned float value
                             let returned_float = returned.into_int_value();
 
                             // Store the const in the pointer
-                            builder.build_store(*v_ptr, returned_float)?;
+                            builder.build_store(v_ptr, returned_float)?;
                         }
                         TypeDiscriminants::U8 => {
                             // Get returned float value
                             let returned_smalint = returned.into_int_value();
 
                             // Store the const in the pointer
-                            builder.build_store(*v_ptr, returned_smalint)?;
+                            builder.build_store(v_ptr, returned_smalint)?;
                         }
                         TypeDiscriminants::String => {
                             // Get returned pointer value
                             let returned_ptr = returned.into_pointer_value();
 
                             // Store the const in the pointer
-                            builder.build_store(*v_ptr, returned_ptr)?;
+                            builder.build_store(v_ptr, returned_ptr)?;
                         }
                         TypeDiscriminants::Boolean => {
                             // Get returned boolean value
                             let returned_bool = returned.into_int_value();
 
-                            builder.build_store(*v_ptr, returned_bool)?;
+                            builder.build_store(v_ptr, returned_bool)?;
                         }
                         TypeDiscriminants::Void => {
                             unreachable!(
@@ -345,31 +371,33 @@ pub fn create_ir_from_parsed_token<'a, 'b>(
                             );
                         }
                     };
-                    }
                 }
             } else {
                 // Ensure the return type was `Void` else raise an error
                 if fn_sig.return_type != TypeDiscriminants::Void {
-                    return Err(CodeGenError::InternalFunctionReturnedVoid(
-                        fn_sig.return_type,
-                    )
-                    .into());
+                    return Err(
+                        CodeGenError::InternalFunctionReturnedVoid(fn_sig.return_type).into(),
+                    );
                 }
             }
-        },
+        }
         ParsedToken::SetValue(_, parsed_token) => todo!(),
         ParsedToken::MathematicalBlock(parsed_token) => todo!(),
         ParsedToken::ReturnValue(parsed_token) => {
             // Create a temporary variable to store the literal in
             // This temporary variable is used to return the value
-            let (ptr, ptr_ty) = create_new_variable(
+            let var_name = String::from("ret_tmp_var");
+
+            let (ptr, ptr_ty) = create_new_variable(ctx, builder, var_name.clone(), fn_ret_ty)?;
+
+            // Set the value of the newly created variable
+            create_ir_from_parsed_token(
                 ctx,
                 module,
                 builder,
+                *parsed_token,
                 variable_map,
-                String::from("ret_tmp_var"),
-                fn_ret_ty,
-                parsed_token.clone(),
+                Some((var_name, (ptr, ptr_ty))),
                 fn_ret_ty,
             )?;
 
@@ -428,13 +456,9 @@ pub fn create_ir_from_parsed_token<'a, 'b>(
 
 fn create_new_variable<'a, 'b>(
     ctx: &'a Context,
-    module: &'a Module<'_>,
     builder: &'a Builder<'_>,
-    variable_map: &'b mut HashMap<String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>)>,
     var_name: String,
     var_type: TypeDiscriminants,
-    var_set_val: Box<ParsedToken>,
-    fn_ret_ty: TypeDiscriminants,
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>), anyhow::Error> {
     let bool_type = ctx.bool_type();
     let i32_type = ctx.i32_type();
@@ -478,19 +502,6 @@ fn create_new_variable<'a, 'b>(
             unreachable!("Variables with a Void value shouldn't be created.");
         }
     };
-
-    variable_map.insert(var_name.clone(), (ptr, ptr_ty));
-
-    // Set the value of the newly created variable
-    create_ir_from_parsed_token(
-        ctx,
-        module,
-        builder,
-        *var_set_val,
-        variable_map,
-        Some(var_name),
-        fn_ret_ty,
-    )?;
 
     Ok((ptr.clone(), ptr_ty.clone()))
 }
