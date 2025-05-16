@@ -25,7 +25,7 @@ fn main() -> anyhow::Result<()> {
 
     let argument = args.next().unwrap_or_default();
 
-    let (command, arg) = parse_args(command, argument)?;
+    let (command, arg) = parse_args(command, argument);
 
     match command {
         CliCommand::Compile => {
