@@ -1,7 +1,13 @@
+function return_23(): int {
+    return 23;
+}
+
 function main(): int {
-    int charin = getchar();
+    int a = 5677;
 
-    int charout = putchar(char = charin);
+    int b = return_23();
 
-    return charin;
+    putchar(char = 24);
+    
+    return b;
 }

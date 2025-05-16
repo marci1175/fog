@@ -14,4 +14,6 @@ pub enum CodeGenError {
     InternalFunctionReturnedVoid(TypeDiscriminants),
     #[error("[INTERNAL ERROR] Variable `{0}` was not found in Variable map.")]
     InternalVariableNotFound(String),
+    #[error("[INTERNAL ERROR] Variable {0} mismatches variable `{1}`'s type.")]
+    InternalVariableTypeMismatch(String, String),
 }

@@ -250,17 +250,19 @@ fn parse_function_block(
                             standard_function_table.clone(),
                         )?;
 
-                        parsed_tokens.push(ParsedToken::NewVariable((
+                        parsed_tokens.push(ParsedToken::NewVariable(
                             var_name.clone(),
+                            var_type.clone(),
                             Box::new(parsed_value.clone()),
-                        )));
+                        ));
 
                         variable_scope.insert(var_name, var_type);
                     } else {
-                        parsed_tokens.push(ParsedToken::NewVariable((
+                        parsed_tokens.push(ParsedToken::NewVariable(
                             var_name.clone(),
+                            var_type.clone(),
                             Box::new(ParsedToken::Literal(var_type.into())),
-                        )));
+                        ));
 
                         variable_scope.insert(var_name.clone(), var_type);
 

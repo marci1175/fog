@@ -91,7 +91,7 @@ impl TryInto<MathematicalSymbol> for Token {
 
 #[derive(Debug, Clone, Display)]
 pub enum ParsedToken {
-    NewVariable((String, Box<ParsedToken>)),
+    NewVariable(String, TypeDiscriminants, Box<ParsedToken>),
 
     VariableReference(String),
 

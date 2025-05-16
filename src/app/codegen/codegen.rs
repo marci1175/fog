@@ -7,7 +7,12 @@ use std::{
 use anyhow::{Result, ensure};
 use indexmap::IndexMap;
 use inkwell::{
-    builder::Builder, context::Context, module::Module, types::{BasicMetadataTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValueEnum, PointerValue}, AddressSpace
+    AddressSpace,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntType},
+    values::{ArrayValue, BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
 };
 
 use crate::{
@@ -40,7 +45,7 @@ pub fn codegen_main(
         );
 
         // Create a BasicBlock
-        let basic_block = context.append_basic_block(function, "fn_main_entry");
+        let basic_block = context.append_basic_block(function, "main_fn_entry");
 
         // Insert the BasicBlock at the end
         builder.position_at_end(basic_block);
@@ -73,6 +78,7 @@ pub fn codegen_main(
             &context,
             function_definition.inner.clone(),
             arguments,
+            function_definition.function_sig.return_type,
         )?;
     }
 
@@ -97,6 +103,8 @@ pub fn create_ir(
     parsed_tokens: Vec<ParsedToken>,
     // This argument is initalized with the HashMap of the arguments
     available_variables: HashMap<String, BasicValueEnum>,
+    // Type returned type of the Function
+    fn_ret_ty: TypeDiscriminants,
 ) -> Result<()> {
     let bool_type = ctx.bool_type();
     let i32_type = ctx.i32_type();
@@ -107,331 +115,384 @@ pub fn create_ir(
     let mut variable_map: HashMap<String, (PointerValue, BasicMetadataTypeEnum)> = HashMap::new();
 
     for token in parsed_tokens {
-        match token {
-            ParsedToken::NewVariable((name, init_val)) => {
-                match *init_val {
-                    ParsedToken::NewVariable(_) => unreachable!(
-                        "Setting the Value of the Variable as creating a Variable, is a syntax error."
-                    ),
-                    ParsedToken::VariableReference(_) => unimplemented!(),
-                    ParsedToken::Literal(literal) => {
-                        match literal {
-                            crate::app::type_system::type_system::Type::I32(inner) => {
-                                // Allocate a new variable
-                                let v_ptr = builder.build_alloca(i32_type, &name)?;
-
-                                // Initalize const value
-                                let init_val = i32_type.const_int(inner as u64, true);
-
-                                // Store const
-                                builder.build_store(v_ptr, init_val)?;
-
-                                // Load const into pointer
-                                builder.build_load(i32_type, v_ptr, &name)?;
-                            }
-
-                            _ => unimplemented!(),
-                        }
-                    }
-                    ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
-                    ParsedToken::MathematicalExpression(
-                        parsed_token,
-                        mathematical_symbol,
-                        parsed_token1,
-                    ) => todo!(),
-                    ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
-                    ParsedToken::FunctionCall((fn_sig, fn_name), parsed_tokens) => {
-                        // Try accessing the function in the current module
-                        let function_value = module
-                            .get_function(&fn_name)
-                            .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
-
-                        
-                        let sig_iter = fn_sig.args.iter().map(|(key, value)| {
-                            ((key.clone(), *value), parsed_tokens.get(key).unwrap().clone())
-                        });
-
-                        // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
-                        let fn_argument_list: IndexMap<(String, TypeDiscriminants), ParsedToken> = IndexMap::from_iter(sig_iter);
-
-                        // Keep the list of the arguments passed in
-                        let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
-
-                        for ((arg_name, arg_type), parsed_token) in fn_argument_list.iter() {
-                            match parsed_token {
-                                ParsedToken::NewVariable(_) => todo!(),
-                                ParsedToken::VariableReference(variable_ref) => {
-                                    let (var_ptr, data_type) = variable_map.get(variable_ref).ok_or(CodeGenError::InternalVariableNotFound(variable_ref.clone()))?;
-                                    
-                                    let value = match arg_type {
-                                        TypeDiscriminants::I32 => {
-                                            builder.build_load(i32_type, var_ptr.clone(), "dereferenced_variable_reference")?
-                                        }
-                                        TypeDiscriminants::F32 => {
-                                            builder.build_load(f32_type, var_ptr.clone(), "dereferenced_variable_reference")?
-                                        }
-                                        TypeDiscriminants::U32 => {
-                                            builder.build_load(i32_type, var_ptr.clone(), "dereferenced_variable_reference")?
-                                        }
-                                        TypeDiscriminants::U8 => {
-                                            builder.build_load(i32_type, var_ptr.clone(), "dereferenced_variable_reference")?
-                                        }
-                                        TypeDiscriminants::String => {
-                                            unimplemented!()
-                                        }
-                                        TypeDiscriminants::Boolean => {
-                                            builder.build_load(i32_type, var_ptr.clone(), "dereferenced_variable_reference")?
-                                        }
-                                        TypeDiscriminants::Void => unreachable!(),
-                                    };
-
-                                    match arg_type {
-                                        TypeDiscriminants::I32 => arguments_passed_in.push(BasicMetadataValueEnum::IntValue(value.into_int_value())),
-                                        TypeDiscriminants::F32 => arguments_passed_in.push(BasicMetadataValueEnum::FloatValue(value.into_float_value())),
-                                        TypeDiscriminants::U32 => arguments_passed_in.push(BasicMetadataValueEnum::IntValue(value.into_int_value())),
-                                        TypeDiscriminants::U8 => arguments_passed_in.push(BasicMetadataValueEnum::IntValue(value.into_int_value())),
-                                        TypeDiscriminants::String => arguments_passed_in.push(BasicMetadataValueEnum::PointerValue(value.into_pointer_value())),
-                                        TypeDiscriminants::Boolean => arguments_passed_in.push(BasicMetadataValueEnum::IntValue(value.into_int_value())),
-                                        TypeDiscriminants::Void => unreachable!(),
-                                    }
-                                },
-                                ParsedToken::Literal(literal) => {
-                                    match literal {
-                                        Type::I32(inner) => {
-                                            arguments_passed_in.push(BasicMetadataValueEnum::IntValue(i32_type.const_int(*inner as u64, true)));
-                                        },
-                                        Type::F32(inner) => {
-                                            arguments_passed_in.push(BasicMetadataValueEnum::FloatValue(f32_type.const_float(*inner as f64)));
-                                        },
-                                        Type::U32(inner) => {
-                                            arguments_passed_in.push(BasicMetadataValueEnum::IntValue(i32_type.const_int(*inner as u64, false)));
-                                        },
-                                        Type::U8(inner) => {
-                                            arguments_passed_in.push(BasicMetadataValueEnum::IntValue(i32_type.const_int(*inner as u64, false)));
-                                        },
-                                        Type::String(inner) => {
-                                            unimplemented!();
-                                            // arguments_passed_in.push(BasicMetadataValueEnum::PointerValue());
-                                        },
-                                        Type::Boolean(inner) => {
-                                            arguments_passed_in.push(BasicMetadataValueEnum::IntValue(bool_type.const_int(*inner as u64, true)));
-                                        },
-                                        Type::Void => {
-                                            unreachable!();
-                                            // arguments_passed_in.push(BasicMetadataValueEnum::IntValue(i32_type.const_int(*inner as u64, true)));
-                                        },
-                                    }
-                                },
-                                ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
-                                ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => todo!(),
-                                ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
-                                ParsedToken::FunctionCall(_, index_map) => todo!(),
-                                ParsedToken::SetValue(_, parsed_token) => todo!(),
-                                ParsedToken::MathematicalBlock(parsed_token) => todo!(),
-                                ParsedToken::ReturnValue(parsed_token) => todo!(),
-                                ParsedToken::If(_) => todo!(),
-                            }
-                        }
-
-                        // Create function call
-                        let call = builder.build_call(function_value, &arguments_passed_in, "function_call")?;
-
-                        // Handle returned value
-                        let returned_value = call.try_as_basic_value().left();
-
-                        if let Some(returned) = returned_value {
-                            match fn_sig.return_type {
-                                TypeDiscriminants::I32 => {
-                                    // Get returned float value
-                                    let returned_int = returned.into_int_value();
-
-                                    // Allocate a new variable
-                                    let v_ptr = builder.build_alloca(i32_type, &name)?;
-
-                                    variable_map.insert(
-                                        name.clone(),
-                                        (v_ptr.clone(), BasicMetadataTypeEnum::IntType(i32_type)),
-                                    );
-
-                                    // Store the const in the pointer
-                                    builder.build_store(v_ptr, returned_int)?;
-                                }
-                                TypeDiscriminants::F32 => {
-                                    // Get returned float value
-                                    let returned_float = returned.into_float_value();
-
-                                    // Allocate a new variable
-                                    let v_ptr = builder.build_alloca(f32_type, &name)?;
-
-                                    variable_map.insert(
-                                        name.clone(),
-                                        (v_ptr.clone(), BasicMetadataTypeEnum::FloatType(f32_type)),
-                                    );
-
-                                    // Store the const in the pointer
-                                    builder.build_store(v_ptr, returned_float)?;
-                                }
-                                TypeDiscriminants::U32 => {
-                                    // Get returned float value
-                                    let returned_float = returned.into_int_value();
-
-                                    // Allocate a new variable
-                                    let v_ptr = builder.build_alloca(i32_type, &name)?;
-
-                                    variable_map.insert(
-                                        name.clone(),
-                                        (v_ptr.clone(), BasicMetadataTypeEnum::IntType(i32_type)),
-                                    );
-
-                                    // Store the const in the pointer
-                                    builder.build_store(v_ptr, returned_float)?;
-                                }
-                                TypeDiscriminants::U8 => {
-                                    // Get returned float value
-                                    let returned_smalint = returned.into_int_value();
-
-                                    // Allocate a new variable
-                                    let v_ptr = builder.build_alloca(i8_type, &name)?;
-
-                                    variable_map.insert(
-                                        name.clone(),
-                                        (v_ptr.clone(), BasicMetadataTypeEnum::IntType(i8_type)),
-                                    );
-
-                                    // Store the const in the pointer
-                                    builder.build_store(v_ptr, returned_smalint)?;
-                                }
-                                TypeDiscriminants::String => {
-                                    // Get returned pointer value
-                                    let returned_ptr = returned.into_pointer_value();
-
-                                    // Allocate a new variable
-                                    let v_ptr = builder.build_alloca(pointer_type, &name)?;
-
-                                    variable_map.insert(
-                                        name.clone(),
-                                        (
-                                            v_ptr.clone(),
-                                            BasicMetadataTypeEnum::PointerType(pointer_type),
-                                        ),
-                                    );
-
-                                    // Store the const in the pointer
-                                    builder.build_store(v_ptr, returned_ptr)?;
-                                }
-                                TypeDiscriminants::Boolean => {
-                                    // Get returned boolean value
-                                    let returned_bool = returned.into_int_value();
-
-                                    let v_ptr = builder.build_alloca(bool_type, &name)?;
-
-                                    variable_map.insert(
-                                        name.clone(),
-                                        (v_ptr.clone(), BasicMetadataTypeEnum::IntType(bool_type)),
-                                    );
-
-                                    builder.build_store(v_ptr, returned_bool)?;
-                                }
-                                TypeDiscriminants::Void => {
-                                    unreachable!(
-                                        "A void can not be parsed, as a void functuion returns a `None`."
-                                    );
-                                }
-                            };
-                        } else {
-                            // Ensure the return type was `Void` else raise an erro
-                            if fn_sig.return_type != TypeDiscriminants::Void {
-                                return Err(CodeGenError::InternalFunctionReturnedVoid(
-                                    fn_sig.return_type,
-                                )
-                                .into());
-                            }
-                        }
-                    }
-                    ParsedToken::SetValue(_, parsed_token) => todo!(),
-                    ParsedToken::MathematicalBlock(parsed_token) => todo!(),
-                    ParsedToken::ReturnValue(parsed_token) => todo!(),
-                    ParsedToken::If(_) => todo!(),
-                };
-            }
-            ParsedToken::ReturnValue(parsed_token) => {
-                match *parsed_token {
-                    ParsedToken::Literal(inner_val) => match inner_val {
-                        Type::I32(inner) => {
-                            let returned_val = i32_type.const_int(inner as u64, true);
-
-                            builder.build_return(Some(&returned_val))?;
-                        }
-
-                        _ => unimplemented!(),
-                    },
-                    ParsedToken::VariableReference(variable_name) => {
-                        let get_variable = variable_map.get(&variable_name);
-
-                        if let Some((pointer, var_type)) = get_variable {
-                            let variable_value =
-                                match var_type {
-                                    BasicMetadataTypeEnum::ArrayType(array_type) => {
-                                        builder.build_load(*array_type, *pointer, "variable_ref")?
-                                    }
-                                    BasicMetadataTypeEnum::FloatType(float_type) => {
-                                        builder.build_load(*float_type, *pointer, "variable_ref")?
-                                    }
-                                    BasicMetadataTypeEnum::IntType(int_type) => {
-                                        builder.build_load(*int_type, *pointer, "variable_ref")?
-                                    }
-                                    BasicMetadataTypeEnum::PointerType(pointer_type) => builder
-                                        .build_load(*pointer_type, *pointer, "variable_ref")?,
-                                    BasicMetadataTypeEnum::StructType(struct_type) => builder
-                                        .build_load(*struct_type, *pointer, "variable_ref")?,
-                                    BasicMetadataTypeEnum::VectorType(vector_type) => builder
-                                        .build_load(*vector_type, *pointer, "variable_ref")?,
-                                    BasicMetadataTypeEnum::MetadataType(metadata_type) => {
-                                        unimplemented!()
-                                    }
-                                };
-
-                            builder.build_return(Some(&variable_value))?;
-                        }
-                    }
-                    ParsedToken::FunctionCall((fn_sig, fn_name), arguments) => {}
-
-                    _ => unimplemented!(),
-                }
-            }
-            ParsedToken::FunctionCall((fn_sig, fn_name), args) => {
-                // Try accessing the function in the current module
-                let function_value = module
-                    .get_function(&fn_name)
-                    .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
-
-                // Create function call
-                // We don't have to handle the returned type
-                builder.build_call(function_value, &vec![], "")?;
-            }
-            _ => unimplemented!(),
-        }
+        create_ir_from_parsed_token(
+            ctx,
+            module,
+            builder,
+            token,
+            &mut variable_map,
+            None,
+            fn_ret_ty,
+        )?;
     }
 
     Ok(())
 }
 
-pub fn parse_parsed_token(ctx: &Context, module: &Module, parsed_token: ParsedToken) -> Type {
+pub fn create_ir_from_parsed_token<'a, 'b>(
+    ctx: &'a Context,
+    module: &'a Module,
+    builder: &'a Builder,
+    parsed_token: ParsedToken,
+    variable_map: &'b mut HashMap<String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>)>,
+    variable_reference: Option<String>,
+    // Type returned type of the Function
+    fn_ret_ty: TypeDiscriminants,
+) -> anyhow::Result<()> {
     match parsed_token {
-        ParsedToken::NewVariable(_) => todo!(),
-        ParsedToken::VariableReference(_) => todo!(),
-        ParsedToken::Literal(_) => todo!(),
+        ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
+            create_new_variable(
+                ctx,
+                module,
+                builder,
+                variable_map,
+                var_name.clone(),
+                var_type,
+                var_set_val,
+                fn_ret_ty,
+            )?;
+        }
+        ParsedToken::VariableReference(ref_var_name) => {
+            if let Some(var_name) = variable_reference {
+                // The original variable we are going to modify
+                let variable_query = variable_map.get(&var_name);
+
+                // The referenced variable
+                let ref_variable_query = variable_map.get(&ref_var_name);
+
+                if let (Some((orig_ptr, orig_ty)), Some((ref_ptr, ref_ty))) =
+                    (variable_query, ref_variable_query)
+                {
+                    if orig_ty != ref_ty {
+                        return Err(CodeGenError::InternalVariableTypeMismatch(
+                            var_name.clone(),
+                            ref_var_name.clone(),
+                        )
+                        .into());
+                    }
+
+                    match ref_ty {
+                        BasicMetadataTypeEnum::ArrayType(array_type) => {
+                            // Get the referenced variable's value
+                            let ref_var_val = builder.build_load(
+                                *array_type,
+                                *ref_ptr,
+                                "var_deref",
+                            )?;
+
+                            // Store the referenced variable's value in the original
+                            builder.build_store(*orig_ptr, ref_var_val)?;
+                        }
+                        BasicMetadataTypeEnum::FloatType(float_type) => {
+                            // Get the referenced variable's value
+                            let ref_var_val = builder.build_load(
+                                *float_type,
+                                *ref_ptr,
+                                "var_deref",
+                            )?;
+
+                            // Store the referenced variable's value in the original
+                            builder.build_store(*orig_ptr, ref_var_val)?;
+                        }
+                        BasicMetadataTypeEnum::IntType(int_type) => {
+                            // Get the referenced variable's value
+                            let ref_var_val =
+                                builder.build_load(*int_type, *ref_ptr, "var_deref")?;
+
+                            // Store the referenced variable's value in the original
+                            builder.build_store(*orig_ptr, ref_var_val)?;
+                        }
+                        BasicMetadataTypeEnum::PointerType(pointer_type) => {
+                            // Get the referenced variable's value
+                            let ref_var_val = builder.build_load(
+                                *pointer_type,
+                                *ref_ptr,
+                                "var_deref",
+                            )?;
+
+                            // Store the referenced variable's value in the original
+                            builder.build_store(*orig_ptr, ref_var_val)?;
+                        }
+                        BasicMetadataTypeEnum::StructType(struct_type) => {
+                            // Get the referenced variable's value
+                            let ref_var_val = builder.build_load(
+                                *struct_type,
+                                *ref_ptr,
+                                "var_deref",
+                            )?;
+
+                            // Store the referenced variable's value in the original
+                            builder.build_store(*orig_ptr, ref_var_val)?;
+                        }
+                        BasicMetadataTypeEnum::VectorType(vector_type) => {
+                            // Get the referenced variable's value
+                            let ref_var_val = builder.build_load(
+                                *vector_type,
+                                *ref_ptr,
+                                "var_deref",
+                            )?;
+
+                            // Store the referenced variable's value in the original
+                            builder.build_store(*orig_ptr, ref_var_val)?;
+                        }
+
+                        _ => unimplemented!(),
+                    };
+                }
+            }
+        }
+        ParsedToken::Literal(literal) => {
+            // There this is None there is nothing we can do with this so just return
+            if let Some(ref_variable_name) = variable_reference {
+                let variable_query = variable_map.get(&ref_variable_name);
+
+                if let Some((ptr, _var_type)) = variable_query {
+                    set_value_of_ptr(ctx, builder, literal, *ptr)?;
+                } else {
+                    return Err(
+                        CodeGenError::InternalVariableNotFound(ref_variable_name.clone()).into(),
+                    );
+                }
+            }
+        }
         ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
-        ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => todo!(),
+        ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => {
+            todo!()
+        }
         ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
-        ParsedToken::FunctionCall(_, index_map) => todo!(),
+        ParsedToken::FunctionCall((fn_sig, fn_name), parsed_tokens) => {
+            // Try accessing the function in the current module
+            let function_value = module
+                .get_function(&fn_name)
+                .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
+
+            let sig_iter = fn_sig.args.iter().map(|(key, value)| {
+                (
+                    (key.clone(), *value),
+                    parsed_tokens.get(key).unwrap().clone(),
+                )
+            });
+
+            // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
+            let fn_argument_list: IndexMap<(String, TypeDiscriminants), ParsedToken> =
+                IndexMap::from_iter(sig_iter);
+
+            // Keep the list of the arguments passed in
+            let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
+
+            for ((arg_name, arg_type), parsed_token) in fn_argument_list.iter() {
+                
+           }
+
+            // Create function call
+            let call = builder.build_call(
+                function_value,
+                &arguments_passed_in,
+                "function_call",
+            )?;
+
+            // Handle returned value
+            let returned_value = call.try_as_basic_value().left();
+
+            if let Some(returned) = returned_value {
+                if let Some(variable_name) = variable_reference {
+                    if let Some((v_ptr, _var_ty)) = variable_map.get(&variable_name) {
+                        match fn_sig.return_type {
+                        TypeDiscriminants::I32 => {
+                            // Get returned float value
+                            let returned_int = returned.into_int_value();
+
+                            // Store the const in the pointer
+                            builder.build_store(*v_ptr, returned_int)?;
+                        }
+                        TypeDiscriminants::F32 => {
+                            // Get returned float value
+                            let returned_float = returned.into_float_value();
+
+                            // Store the const in the pointer
+                            builder.build_store(*v_ptr, returned_float)?;
+                        }
+                        TypeDiscriminants::U32 => {
+                            // Get returned float value
+                            let returned_float = returned.into_int_value();
+
+                            // Store the const in the pointer
+                            builder.build_store(*v_ptr, returned_float)?;
+                        }
+                        TypeDiscriminants::U8 => {
+                            // Get returned float value
+                            let returned_smalint = returned.into_int_value();
+
+                            // Store the const in the pointer
+                            builder.build_store(*v_ptr, returned_smalint)?;
+                        }
+                        TypeDiscriminants::String => {
+                            // Get returned pointer value
+                            let returned_ptr = returned.into_pointer_value();
+
+                            // Store the const in the pointer
+                            builder.build_store(*v_ptr, returned_ptr)?;
+                        }
+                        TypeDiscriminants::Boolean => {
+                            // Get returned boolean value
+                            let returned_bool = returned.into_int_value();
+
+                            builder.build_store(*v_ptr, returned_bool)?;
+                        }
+                        TypeDiscriminants::Void => {
+                            unreachable!(
+                                "A void can not be parsed, as a void functuion returns a `None`."
+                            );
+                        }
+                    };
+                    }
+                }
+            } else {
+                // Ensure the return type was `Void` else raise an error
+                if fn_sig.return_type != TypeDiscriminants::Void {
+                    return Err(CodeGenError::InternalFunctionReturnedVoid(
+                        fn_sig.return_type,
+                    )
+                    .into());
+                }
+            }
+        },
         ParsedToken::SetValue(_, parsed_token) => todo!(),
         ParsedToken::MathematicalBlock(parsed_token) => todo!(),
-        ParsedToken::ReturnValue(parsed_token) => todo!(),
+        ParsedToken::ReturnValue(parsed_token) => {
+            // Create a temporary variable to store the literal in
+            // This temporary variable is used to return the value
+            let (ptr, ptr_ty) = create_new_variable(
+                ctx,
+                module,
+                builder,
+                variable_map,
+                String::from("ret_tmp_var"),
+                fn_ret_ty,
+                parsed_token.clone(),
+                fn_ret_ty,
+            )?;
+
+            match ptr_ty {
+                BasicMetadataTypeEnum::ArrayType(array_type) => {
+                    builder.build_return(Some(&builder.build_load(
+                        array_type,
+                        ptr,
+                        "ret_tmp_var",
+                    )?))?;
+                }
+                BasicMetadataTypeEnum::FloatType(float_type) => {
+                    builder.build_return(Some(&builder.build_load(
+                        float_type,
+                        ptr,
+                        "ret_tmp_var",
+                    )?))?;
+                }
+                BasicMetadataTypeEnum::IntType(int_type) => {
+                    builder.build_return(Some(&builder.build_load(
+                        int_type,
+                        ptr,
+                        "ret_tmp_var",
+                    )?))?;
+                }
+                BasicMetadataTypeEnum::PointerType(pointer_type) => {
+                    builder.build_return(Some(&builder.build_load(
+                        pointer_type,
+                        ptr,
+                        "ret_tmp_var",
+                    )?))?;
+                }
+                BasicMetadataTypeEnum::StructType(struct_type) => {
+                    builder.build_return(Some(&builder.build_load(
+                        struct_type,
+                        ptr,
+                        "ret_tmp_var",
+                    )?))?;
+                }
+                BasicMetadataTypeEnum::VectorType(vector_type) => {
+                    builder.build_return(Some(&builder.build_load(
+                        vector_type,
+                        ptr,
+                        "ret_tmp_var",
+                    )?))?;
+                }
+
+                _ => unimplemented!(),
+            };
+        }
         ParsedToken::If(_) => todo!(),
     }
 
-    todo!()
+    Ok(())
+}
+
+fn create_new_variable<'a, 'b>(
+    ctx: &'a Context,
+    module: &'a Module<'_>,
+    builder: &'a Builder<'_>,
+    variable_map: &'b mut HashMap<String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>)>,
+    var_name: String,
+    var_type: TypeDiscriminants,
+    var_set_val: Box<ParsedToken>,
+    fn_ret_ty: TypeDiscriminants,
+) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>), anyhow::Error> {
+    let bool_type = ctx.bool_type();
+    let i32_type = ctx.i32_type();
+    let i8_type = ctx.i8_type();
+    let f32_type = ctx.f32_type();
+    let void_type = ctx.void_type();
+    let pointer_type = ctx.ptr_type(AddressSpace::default());
+
+    let (ptr, ptr_ty): (PointerValue, BasicMetadataTypeEnum) = match var_type {
+        TypeDiscriminants::I32 => {
+            let v_ptr = builder.build_alloca(i32_type, &var_name)?;
+
+            (v_ptr, BasicMetadataTypeEnum::IntType(i32_type))
+        }
+        TypeDiscriminants::F32 => {
+            let v_ptr = builder.build_alloca(f32_type, &var_name)?;
+
+            (v_ptr, BasicMetadataTypeEnum::FloatType(f32_type))
+        }
+        TypeDiscriminants::U32 => {
+            let v_ptr = builder.build_alloca(i32_type, &var_name)?;
+
+            (v_ptr, BasicMetadataTypeEnum::IntType(i32_type))
+        }
+        TypeDiscriminants::U8 => {
+            let v_ptr = builder.build_alloca(i8_type, &var_name)?;
+
+            (v_ptr, BasicMetadataTypeEnum::IntType(i8_type))
+        }
+        TypeDiscriminants::String => {
+            let v_ptr = builder.build_alloca(pointer_type, &var_name)?;
+
+            (v_ptr, BasicMetadataTypeEnum::PointerType(pointer_type))
+        }
+        TypeDiscriminants::Boolean => {
+            let v_ptr = builder.build_alloca(bool_type, &var_name)?;
+
+            (v_ptr, BasicMetadataTypeEnum::IntType(bool_type))
+        }
+        TypeDiscriminants::Void => {
+            unreachable!("Variables with a Void value shouldn't be created.");
+        }
+    };
+
+    variable_map.insert(var_name.clone(), (ptr, ptr_ty));
+
+    // Set the value of the newly created variable
+    create_ir_from_parsed_token(
+        ctx,
+        module,
+        builder,
+        *var_set_val,
+        variable_map,
+        Some(var_name),
+        fn_ret_ty,
+    )?;
+
+    Ok((ptr.clone(), ptr_ty.clone()))
 }
 
 pub fn create_fn_type_from_ty_disc(ctx: &Context, fn_sig: FunctionSignature) -> FunctionType<'_> {
@@ -484,6 +545,88 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
     }
 
     arg_list
+}
+
+/// This function takes in the LLVM-IR creation variables, and the variable pointer which is dereferenced to set the variables value.
+/// Ensure that we are setting variable type `T` with value `T`
+pub fn set_value_of_ptr(
+    ctx: &Context,
+    builder: &Builder,
+    value: Type,
+    v_ptr: PointerValue<'_>,
+) -> anyhow::Result<()> {
+    let bool_type = ctx.bool_type();
+    let i32_type = ctx.i32_type();
+    let i8_type = ctx.i8_type();
+    let f32_type = ctx.f32_type();
+
+    match value {
+        Type::I32(inner) => {
+            // Initalize const value
+            let init_val = i32_type.const_int(inner as u64, true);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::F32(inner) => {
+            // Initalize const value
+            let init_val = f32_type.const_float(inner as f64);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::U32(inner) => {
+            // Initalize const value
+            let init_val = i32_type.const_int(inner as u64, false);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::U8(inner) => {
+            // Initalize const value
+            let init_val = i8_type.const_int(inner as u64, false);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::String(inner) => {
+            // Get the String's bytes
+            let string_bytes = inner.as_bytes();
+
+            // Create an appropriate sized array for the String
+            let sized_array = i8_type.array_type(string_bytes.len() as u32);
+
+            // Allocate the String buffer
+            let buffer_ptr = builder.build_alloca(sized_array, "string_buffer")?;
+
+            // Create the string array
+            let str_array = i8_type.const_array(
+                string_bytes
+                    .iter()
+                    .map(|byte| i8_type.const_int(*byte as u64, false))
+                    .collect::<Vec<IntValue>>()
+                    .as_slice(),
+            );
+
+            // Store the String array in the buffer
+            builder.build_store(buffer_ptr, str_array)?;
+
+            // Store const
+            builder.build_store(v_ptr, buffer_ptr)?;
+        }
+        Type::Boolean(inner) => {
+            // Initalize const value
+            let init_val = bool_type.const_int(inner as u64, false);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::Void => {
+            unreachable!()
+        }
+    }
+
+    Ok(())
 }
 
 crate::expose_lib_functions! {
