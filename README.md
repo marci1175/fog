@@ -9,7 +9,8 @@
 | Cross-compilation | Supported ✅ | 
 | Powerful Abstractions | Supported ✅|
 | Modules and Libraries | Supported ✅ |
-| More time-efficient compilation times | In progress ⚠️ |
-| FFI support | In progress ⚠️ |
+| FFI support | Partially supported ⚠️ |
+| Function Generics | In progress ⚠️ |
+| Structs, custom types | In progress ⚠️ |
 | Dynamic memory allocation | Planned 🔵 |
 | Asnyc support | Planned 🔵 |
