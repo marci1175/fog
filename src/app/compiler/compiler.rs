@@ -1,28 +1,40 @@
 use std::path::PathBuf;
 
-use crate::app::{
-    codegen::codegen::codegen_main,
-    parser::{parser::ParserState, tokenizer::tokenize},
+use crate::{
+    ApplicationError,
+    app::{
+        codegen::codegen::codegen_main,
+        parser::{parser::ParserState, tokenizer::tokenize},
+    },
 };
 
 use super::file_ingest::file_ingest;
 
-pub fn compilation_process(path_to_file: PathBuf, target_path: PathBuf) -> anyhow::Result<()> {
+pub fn compilation_process(
+    path_to_file: PathBuf,
+    target_path: PathBuf,
+    optimization: bool,
+) -> anyhow::Result<()> {
     let formatted_file_contents = file_ingest(path_to_file)?;
 
     let tokens = tokenize(formatted_file_contents)?;
 
-    dbg!(&tokens);
-
     let mut parser_state = ParserState::new(tokens);
 
-    parser_state.parse_tokens()?;
+    parser_state
+        .parse_tokens()
+        .map_err(|err| ApplicationError::ParsingError(err))?;
 
     let function_table = parser_state.function_table();
+    let imported_functions = parser_state.imported_functions();
 
-    dbg!(&function_table);
-
-    codegen_main(function_table, target_path)?;
+    codegen_main(
+        function_table,
+        target_path,
+        optimization,
+        imported_functions,
+    )
+    .map_err(|err| ApplicationError::CodeGenError(err))?;
 
     Ok(())
 }

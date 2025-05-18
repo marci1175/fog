@@ -1,17 +1,22 @@
 pub mod app;
 
-use app::{cli_parser::error::CliParseError, codegen::error::CodeGenError, parser::error::ParserError};
+use app::{
+    cli_parser::error::CliParseError, codegen::error::CodeGenError, parser::error::ParserError,
+};
 use std::io::Error;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum CompilerError {
-    #[error("File could not be accessed: `{0}`")]
+pub enum ApplicationError {
+    #[error("File could not be accessed: {0}")]
     FileError(Error),
 
-    #[error("The following error occured while parsing: `{0}`")]
-    ParsingError(ParserError),
+    #[error("The following error occured while parsing: {0}")]
+    ParsingError(anyhow::Error),
 
-    #[error("Could not parse cli: `{0}`")]
+    #[error("Could not parse cli: {0}")]
     CliParseError(CliParseError),
+
+    #[error("Error occured while generating LLVM-IR: {0}")]
+    CodeGenError(anyhow::Error),
 }

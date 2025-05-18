@@ -16,4 +16,8 @@ pub enum CodeGenError {
     InternalVariableNotFound(String),
     #[error("[INTERNAL ERROR] Variable {0} mismatches variable `{1}`'s type.")]
     InternalVariableTypeMismatch(String, String),
+    #[error("[INTERNAL ERROR] The automatic optimiser has failed after the code generation.")]
+    InternalOptimisationPassFailed,
+    #[error("[INTERNAL ERROR] Failed to get TargetTriple for host.")]
+    FaliedToAcquireTargetTriple,
 }

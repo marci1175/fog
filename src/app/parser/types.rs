@@ -1,4 +1,8 @@
-use std::fmt::Display;
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    ops::{Deref, DerefMut},
+};
 
 use indexmap::IndexMap;
 use strum_macros::Display;
@@ -60,6 +64,8 @@ pub enum Token {
     BitOr,
     BitLeft,
     BitRight,
+
+    Import,
 }
 
 #[derive(Debug, Clone)]
@@ -159,3 +165,22 @@ pub struct Comparison {
 
 #[derive(Debug, Clone)]
 pub struct Cmp {}
+
+/// These are used to define Imports.
+/// Function symbols are manually defined to be imported.
+#[derive(Debug, Clone, Default)]
+pub struct Imports(HashMap<String, FunctionSignature>);
+
+impl DerefMut for Imports {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Deref for Imports {
+    type Target = HashMap<String, FunctionSignature>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}

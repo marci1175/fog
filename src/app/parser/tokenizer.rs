@@ -1,6 +1,6 @@
 use crate::app::type_system::type_system::Type;
 
-use super::{error::ParserError, tokens::Token};
+use super::{error::ParserError, types::Token};
 
 pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
     let mut char_idx: usize = 0;
@@ -251,6 +251,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "%=" => Token::SetValueModulo,
         "false" => Token::Literal(Type::Boolean(false)),
         "true" => Token::Literal(Type::Boolean(true)),
+        "import" => Token::Import,
         "function" => Token::Function,
         "return" => Token::Return,
         "as" => Token::As,

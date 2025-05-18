@@ -1,4 +1,4 @@
-use fog::CompilerError;
+use fog::ApplicationError;
 use fog::app::{
     cli_parser::cli_parser::{CliCommand, parse_args},
     compiler,
@@ -29,13 +29,15 @@ fn main() -> anyhow::Result<()> {
 
     match command {
         CliCommand::Compile => {
-            fs::metadata(&arg).map_err(CompilerError::FileError)?;
+            fs::metadata(&arg).map_err(ApplicationError::FileError)?;
 
             let path_to_out = args.next().unwrap_or_default();
 
             compiler::compiler::compilation_process(
                 PathBuf::from(arg),
                 PathBuf::from(path_to_out),
+                args.next().unwrap_or_default() == "release"
+                    || args.next().unwrap_or_default() == "r",
             )?;
         }
         CliCommand::Help => display_help_prompt(),

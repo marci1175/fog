@@ -1,5 +1,8 @@
+import getchar(): int;
+import putchar(char: int): int;
+
 function main(): int {
-    int a = 60;
+    int a = 23;
 
     putchar(char = a);
     int get_char_res = getchar();

@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::app::type_system::type_system::TypeDiscriminants;
 
-use super::tokens::{FunctionSignature, Token};
+use super::types::{FunctionSignature, Token};
 
 #[derive(Debug, Error)]
 pub enum ParserError {
@@ -30,6 +30,8 @@ pub enum ParserError {
         "[INTERNAL ERROR] Tried to parse an incompatible `Token` into `MathematicalExpression`."
     )]
     InternalMathParsingError,
+    #[error("A function with this name/signature has been imported already.")]
+    DuplicateSignatureImports,
 }
 
 #[derive(Debug, Error)]
@@ -58,4 +60,6 @@ pub enum SyntaxError {
     FunctionRequiresReturn,
     #[error("Duplicate function definitions have been found with function `{0}`. Signature: `{1}`")]
     DuplicateFunctions(String, FunctionSignature),
+    #[error("The import's signature is invalid.")]
+    InvalidImportDefinition,
 }

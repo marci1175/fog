@@ -10,17 +10,21 @@ use crate::app::type_system::type_system::TypeDiscriminants;
 use super::{
     error::ParserError,
     parser::{find_closing_bracket, parse_token_as_value, parse_value},
-    tokens::{
-        FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token,
+    types::{
+        FunctionDefinition, FunctionSignature, Imports, MathematicalSymbol, ParsedToken, Token,
         UnparsedFunctionDefinition,
     },
 };
 
-pub fn create_function_table(
+pub fn create_signature_table(
     tokens: Vec<Token>,
-) -> Result<HashMap<String, UnparsedFunctionDefinition>> {
+) -> Result<(
+    HashMap<String, UnparsedFunctionDefinition>,
+    Arc<HashMap<String, FunctionSignature>>,
+)> {
     let mut token_idx = 0;
     let mut function_list: HashMap<String, UnparsedFunctionDefinition> = HashMap::new();
+    let mut imports: HashMap<String, FunctionSignature> = HashMap::new();
 
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
@@ -115,12 +119,43 @@ pub fn create_function_table(
                     return Err(ParserError::InvalidFunctionDefinition.into());
                 }
             }
+        } else if current_token == Token::Import {
+            if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
+                if tokens[token_idx + 2] == Token::OpenBracket {
+                    let (bracket_close_idx, args) =
+                        parse_function_argument_tokens(&tokens[token_idx + 3..])?;
+
+                    token_idx += bracket_close_idx + 3;
+
+                    if tokens[token_idx + 1] == Token::Colon {
+                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2] {
+                            if tokens[token_idx + 3] == Token::LineBreak {
+                                if imports.get(&function_name).is_some()
+                                    || function_list.get(&function_name).is_some()
+                                {
+                                    return Err(ParserError::DuplicateSignatureImports.into());
+                                }
+
+                                imports
+                                    .insert(function_name, FunctionSignature { args, return_type });
+
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return Err(ParserError::SyntaxError(
+                super::error::SyntaxError::InvalidImportDefinition,
+            )
+            .into());
         }
 
         token_idx += 1;
     }
 
-    Ok(function_list)
+    Ok((function_list, Arc::new(imports)))
 }
 
 fn parse_function_argument_tokens(
@@ -386,9 +421,7 @@ fn parse_function_block(
                                 standard_function_table.clone(),
                             )?;
                         }
-                        _ => {
-                            println!("UNIMPLEMENTED FUNCTION: {}", tokens[token_idx]);
-                        }
+                        _ => {}
                     }
                 } else if let Some(function_sig) = function_signatures.get(&ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
@@ -545,7 +578,7 @@ pub fn parse_function_call_args(
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
 
-        if let Token::Identifier(arg_name) = dbg!(current_token.clone()) {
+        if let Token::Identifier(arg_name) = current_token.clone() {
             if Token::SetValue == tokens[tokens_idx + 1] {
                 let argument_type = this_function_args
                     .get(&arg_name)

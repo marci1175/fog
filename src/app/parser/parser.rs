@@ -4,14 +4,15 @@ use crate::app::{
 };
 use anyhow::Result;
 use indexmap::IndexMap;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, ops::Deref, sync::Arc};
 use strum::IntoDiscriminant;
 
 use super::{
     error::ParserError,
-    parse_functions::{self, create_function_table, parse_functions},
-    tokens::{
-        FunctionDefinition, FunctionSignature, ParsedToken, Token, UnparsedFunctionDefinition,
+    parse_functions::{self, create_signature_table, parse_functions},
+    types::{
+        FunctionDefinition, FunctionSignature, Imports, ParsedToken, Token,
+        UnparsedFunctionDefinition,
     },
 };
 
@@ -20,19 +21,21 @@ pub struct ParserState {
     tokens: Vec<Token>,
 
     function_table: HashMap<String, FunctionDefinition>,
+
+    imported_functions: Arc<HashMap<String, FunctionSignature>>,
 }
 
 impl ParserState {
     pub fn parse_tokens(&mut self) -> Result<()> {
-        let unparsed_functions = create_function_table(self.tokens.clone())?;
+        // Create user defined signature table
+        // Create a standard import table which can be used later by other functions
+        let (unparsed_functions, imports) = create_signature_table(self.tokens.clone())?;
 
-        let standard_function_table: Arc<HashMap<String, FunctionSignature>> =
-            Arc::new(codegen::codegen::create_function_table());
+        // Copy the the HashMap to this field
+        self.imported_functions = imports.clone();
 
-        self.function_table = parse_functions(
-            Arc::new(unparsed_functions),
-            standard_function_table.clone(),
-        )?;
+        // Set the function table field of this struct
+        self.function_table = parse_functions(Arc::new(unparsed_functions), imports.clone())?;
 
         Ok(())
     }
@@ -41,11 +44,16 @@ impl ParserState {
         Self {
             tokens,
             function_table: HashMap::new(),
+            imported_functions: Arc::new(HashMap::new()),
         }
     }
 
     pub fn function_table(&self) -> &HashMap<String, FunctionDefinition> {
         &self.function_table
+    }
+
+    pub fn imported_functions(&self) -> &HashMap<String, FunctionSignature> {
+        &self.imported_functions
     }
 }
 
