@@ -1,11 +1,10 @@
 import getchar(): int;
-import putchar(char: int): int;
+import greet(): void;
 
 function main(): int {
-    int a = 23;
+    greet();
 
-    putchar(char = a);
-    int get_char_res = getchar();
-
-    return get_char_res;
+    int a = getchar();
+    
+    return a;
 }

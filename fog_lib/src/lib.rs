@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![no_main]
 
-use libc::putchar;
+use libc::{c_char, putchar};
 
 #[cfg(not(any(test, feature = "std")))]
 #[panic_handler]
@@ -21,4 +21,13 @@ pub unsafe extern "C" fn printchar(c: i32) -> i32 {
     };
 
     c
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn greet() -> i32 {
+    unsafe {
+        let char_array: &[u8] = b"Hello world!\n\0";
+        
+        libc::puts(char_array.as_ptr() as *const i8)
+    }
 }
