@@ -1,0 +1,7 @@
+import io::print;
+
+function main(): int {
+    print("Hello World!");
+    
+    return 0;
+}

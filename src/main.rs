@@ -49,6 +49,21 @@ fn main() -> anyhow::Result<()> {
         }
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),
+        CliCommand::New => {
+            let mut path_to_folder = PathBuf::from(arg);
+
+            fs::create_dir_all(&path_to_folder).map_err(ApplicationError::FileError)?;
+
+            path_to_folder.push("main.f");
+
+            fs::write(&path_to_folder, include_str!("../defaults/default_code.f")).map_err(ApplicationError::FileError)?;
+
+            path_to_folder.pop();
+
+            path_to_folder.push("project.toml");
+
+            fs::write(&path_to_folder, "").map_err(ApplicationError::FileError)?;
+        }
     }
 
     Ok(())

@@ -15,6 +15,7 @@ indexmap = "2.9.0"
 
 # Import custom standard library
 fog_lib = { path = "./fog_lib", features = ["std"] } 
+toml = "0.8.22"
 
 [profile.dev]
 panic = "abort"

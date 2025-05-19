@@ -36,7 +36,7 @@ pub fn compilation_process(
         optimization,
         imported_functions,
     )
-    .map_err(|err| ApplicationError::CodeGenError(err))?;
+    .map_err(ApplicationError::CodeGenError)?;
 
     Ok(())
 }

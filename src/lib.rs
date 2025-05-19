@@ -1,8 +1,6 @@
 pub mod app;
 
-use app::{
-    cli_parser::error::CliParseError, codegen::error::CodeGenError, parser::error::ParserError,
-};
+use app::cli_parser::error::CliParseError;
 use std::io::Error;
 use thiserror::Error;
 

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs,
     path::PathBuf,
     sync::Arc,
@@ -14,7 +14,7 @@ use super::{
     parser::{ParserState, find_closing_bracket, parse_token_as_value, parse_value},
     tokenizer::tokenize,
     types::{
-        FunctionDefinition, FunctionSignature, Imports, MathematicalSymbol, ParsedToken, Token,
+        FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token,
         UnparsedFunctionDefinition,
     },
 };
@@ -170,8 +170,7 @@ pub fn create_signature_table(
                                     // Continue looping over the top-level tokens
                                     continue;
                                 }
-                            } else {
-                            }
+                            } 
                         }
                     }
                 }
@@ -365,7 +364,7 @@ fn parse_function_block(
 
                         parsed_tokens.push(ParsedToken::NewVariable(
                             var_name.clone(),
-                            var_type.clone(),
+                            var_type,
                             Box::new(parsed_value.clone()),
                         ));
 
@@ -373,7 +372,7 @@ fn parse_function_block(
                     } else {
                         parsed_tokens.push(ParsedToken::NewVariable(
                             var_name.clone(),
-                            var_type.clone(),
+                            var_type,
                             Box::new(ParsedToken::Literal(var_type.into())),
                         ));
 

@@ -1,29 +1,28 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     io::ErrorKind,
     path::PathBuf,
-    process::Command,
 };
 
-use anyhow::{Result, ensure};
+use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
     AddressSpace,
     builder::Builder,
     context::Context,
     module::Module,
-    passes::{PassBuilderOptions, PassManager},
-    targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, IntType},
+    passes::PassBuilderOptions,
+    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
+    types::{BasicMetadataTypeEnum, FunctionType},
     values::{
-        ArrayValue, BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue,
+        BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue,
     },
 };
 
 use crate::{
     ApplicationError,
     app::{
-        parser::types::{FunctionDefinition, FunctionSignature, Imports, ParsedToken},
+        parser::types::{FunctionDefinition, FunctionSignature, ParsedToken},
         type_system::type_system::{Type, TypeDiscriminants},
     },
 };
@@ -223,7 +222,7 @@ pub fn import_user_lib_functions<'a>(
             }
         };
 
-        module.add_function(&import_name, function_type, None);
+        module.add_function(import_name, function_type, None);
     }
 }
 
@@ -240,12 +239,6 @@ pub fn create_ir(
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminants,
 ) -> Result<()> {
-    let bool_type = ctx.bool_type();
-    let i32_type = ctx.i32_type();
-    let i8_type = ctx.i8_type();
-    let f32_type = ctx.f32_type();
-    let pointer_type = ctx.ptr_type(AddressSpace::default());
-
     let mut variable_map: HashMap<String, (PointerValue, BasicMetadataTypeEnum)> = HashMap::new();
 
     for (arg_name, arg_val) in available_arguments {
@@ -301,12 +294,12 @@ pub fn create_ir(
     Ok(())
 }
 
-pub fn create_ir_from_parsed_token<'a, 'b>(
+pub fn create_ir_from_parsed_token<'a>(
     ctx: &'a Context,
     module: &'a Module,
     builder: &'a Builder,
     parsed_token: ParsedToken,
-    variable_map: &'b mut HashMap<String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>)>,
+    variable_map: &mut HashMap<String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>)>,
     variable_reference: Option<(String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>))>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminants,
@@ -452,7 +445,7 @@ pub fn create_ir_from_parsed_token<'a, 'b>(
                 // Push the argument to the list of arguments
                 match ptr_ty {
                     BasicMetadataTypeEnum::ArrayType(array_type) => {
-                        let loaded_val = builder.build_load(array_type, ptr, &arg_name)?;
+                        let loaded_val = builder.build_load(array_type, ptr, arg_name)?;
 
                         arguments_passed_in.push(loaded_val.into());
                     }
@@ -675,7 +668,7 @@ fn create_new_variable<'a, 'b>(
         }
     };
 
-    Ok((ptr.clone(), ptr_ty.clone()))
+    Ok((ptr, ptr_ty))
 }
 
 pub fn create_fn_type_from_ty_disc(ctx: &Context, fn_sig: FunctionSignature) -> FunctionType<'_> {
