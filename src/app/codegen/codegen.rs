@@ -31,7 +31,7 @@ use crate::{
 use super::error::CodeGenError;
 
 pub fn codegen_main(
-    parsed_functions: &HashMap<String, FunctionDefinition>,
+    parsed_functions: &IndexMap<String, FunctionDefinition>,
     path_to_output: PathBuf,
     optimization: bool,
     imported_functions: &HashMap<String, FunctionSignature>,
@@ -43,7 +43,9 @@ pub fn codegen_main(
     // Import functions defined by the user via llvm
     import_user_lib_functions(&context, &module, imported_functions, parsed_functions);
 
-    for (function_name, function_definition) in parsed_functions.iter() {
+    // We want to reverse the order of iteration because when we insert an imported function into the `IndexMap` it will be inserted at the end.
+    // Thus if a function references a function defined/added later to the function table it will return an error, due to it not being found.
+    for (function_name, function_definition) in parsed_functions.iter().rev() {
         // Create function signature
         let function = module.add_function(
             function_name,
@@ -140,7 +142,7 @@ pub fn import_user_lib_functions<'a>(
     ctx: &'a Context,
     module: &Module<'a>,
     imported_functions: &'a HashMap<String, FunctionSignature>,
-    parsed_functions: &HashMap<String, FunctionDefinition>,
+    parsed_functions: &IndexMap<String, FunctionDefinition>,
 ) {
     for (import_name, import_sig) in imported_functions.iter() {
         // If a function with the same name as the imports exists, do not expose the function signature instead define the whole function

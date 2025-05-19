@@ -33,7 +33,7 @@ pub fn create_signature_table(
     let mut source_imports: HashMap<String, FunctionDefinition> = HashMap::new();
     let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
 
-    let mut imported_file_list: HashMap<String, HashMap<String, FunctionDefinition>> =
+    let mut imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> =
         HashMap::new();
 
     while token_idx < tokens.len() {
@@ -292,8 +292,8 @@ fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDisc
 pub fn parse_functions(
     unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
-) -> Result<HashMap<String, FunctionDefinition>> {
-    let mut parsed_functions = HashMap::new();
+) -> Result<IndexMap<String, FunctionDefinition>> {
+    let mut parsed_functions = IndexMap::new();
 
     for (fn_idx, (fn_name, unparsed_function)) in unparsed_functions.clone().iter().enumerate() {
         let function_definition = FunctionDefinition {

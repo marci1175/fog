@@ -1,13 +1,13 @@
 ; ModuleID = 'main'
 source_filename = "main"
 
-declare void @greet()
-
 declare i32 @getchar()
+
+declare void @greet()
 
 define i32 @apad(i32 %x) {
 main_fn_entry:
-  ret i32 %x
+  ret i32 23
 }
 
 define i32 @main() {

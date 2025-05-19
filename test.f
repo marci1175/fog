@@ -1,5 +1,5 @@
 import "sample.f";
-import sample.apad;
+import sample::apad;
 
 import getchar(): int;
 import greet(): void;

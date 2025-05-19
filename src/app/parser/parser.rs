@@ -20,7 +20,7 @@ use super::{
 pub struct ParserState {
     tokens: Vec<Token>,
 
-    function_table: HashMap<String, FunctionDefinition>,
+    function_table: IndexMap<String, FunctionDefinition>,
 
     imported_functions: Arc<HashMap<String, FunctionSignature>>,
 }
@@ -57,12 +57,12 @@ impl ParserState {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
-            function_table: HashMap::new(),
+            function_table: IndexMap::new(),
             imported_functions: Arc::new(HashMap::new()),
         }
     }
 
-    pub fn function_table(&self) -> &HashMap<String, FunctionDefinition> {
+    pub fn function_table(&self) -> &IndexMap<String, FunctionDefinition> {
         &self.function_table
     }
 

@@ -274,6 +274,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "return" => Token::Return,
         "as" => Token::As,
         "extend" => Token::Extend,
+        "struct" => Token::Struct,
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }

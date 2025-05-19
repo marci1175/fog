@@ -22,7 +22,8 @@ pub enum Token {
 
     Identifier(String),
     Comment(String),
-
+    
+    Struct,
     Extend,
     Function,
     Return,

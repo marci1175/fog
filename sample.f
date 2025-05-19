@@ -1,3 +1,3 @@
-function apad(x: int): float {
-    return 23.2;
+function apad(x: int): int {
+    return 23;
 }
