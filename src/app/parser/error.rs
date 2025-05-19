@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use thiserror::Error;
 
 use crate::app::type_system::type_system::TypeDiscriminants;
@@ -32,6 +34,8 @@ pub enum ParserError {
     InternalMathParsingError,
     #[error("A function with this name/signature has been imported already.")]
     DuplicateSignatureImports,
+    #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
+    LinkedSourceFileMissing(PathBuf),
 }
 
 #[derive(Debug, Error)]

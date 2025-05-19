@@ -41,7 +41,7 @@ pub fn codegen_main(
     let builder = context.create_builder();
 
     // Import functions defined by the user via llvm
-    import_user_lib_functions(&context, &module, imported_functions);
+    import_user_lib_functions(&context, &module, imported_functions, parsed_functions);
 
     for (function_name, function_definition) in parsed_functions.iter() {
         // Create function signature
@@ -112,19 +112,19 @@ pub fn codegen_main(
         .unwrap();
 
     // Create opt passes list
-    let passes = ["sink", "mem2reg"];
+    let passes = ["sink", "mem2reg"].join(",");
 
     // Run optimization passes if the user prompted to
     if optimization {
+        let passes = passes.as_str();
+
+        println!("Running optimization passes: {passes}...");
         module
-            .run_passes(
-                passes.join(",").as_str(),
-                &target_machine,
-                PassBuilderOptions::create(),
-            )
+            .run_passes(passes, &target_machine, PassBuilderOptions::create())
             .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
     }
 
+    println!("Writing LLVM-IR to output file...");
     // Write LLVM IR to a file.
     module.print_to_file(path_to_output).map_err(|err| {
         ApplicationError::FileError(std::io::Error::new(
@@ -140,8 +140,15 @@ pub fn import_user_lib_functions<'a>(
     ctx: &'a Context,
     module: &Module<'a>,
     imported_functions: &'a HashMap<String, FunctionSignature>,
+    parsed_functions: &HashMap<String, FunctionDefinition>,
 ) {
     for (import_name, import_sig) in imported_functions.iter() {
+        // If a function with the same name as the imports exists, do not expose the function signature instead define the whole function
+        // This means that the function has been imported, and we do not need to expose it in the LLVM-IR
+        if parsed_functions.contains_key(import_name) {
+            continue;
+        }
+
         let mut args = Vec::new();
 
         for (_, arg_ty) in &import_sig.args {
@@ -227,7 +234,7 @@ pub fn create_ir(
     // The list of ParsedToken-s
     parsed_tokens: Vec<ParsedToken>,
     // This argument is initalized with the HashMap of the arguments
-    available_variables: HashMap<String, BasicValueEnum>,
+    available_arguments: HashMap<String, BasicValueEnum>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminants,
 ) -> Result<()> {
@@ -238,6 +245,44 @@ pub fn create_ir(
     let pointer_type = ctx.ptr_type(AddressSpace::default());
 
     let mut variable_map: HashMap<String, (PointerValue, BasicMetadataTypeEnum)> = HashMap::new();
+
+    for (arg_name, arg_val) in available_arguments {
+        let (v_ptr, ty) = match arg_val {
+            BasicValueEnum::ArrayValue(value) => {
+                let v_ptr = builder.build_alloca(value.get_type(), &arg_name)?;
+                builder.build_store(v_ptr, value)?;
+
+                (v_ptr, BasicMetadataTypeEnum::ArrayType(value.get_type()))
+            }
+            BasicValueEnum::IntValue(value) => {
+                let v_ptr = builder.build_alloca(value.get_type(), &arg_name)?;
+                builder.build_store(v_ptr, value)?;
+                (v_ptr, BasicMetadataTypeEnum::IntType(value.get_type()))
+            }
+            BasicValueEnum::FloatValue(value) => {
+                let v_ptr = builder.build_alloca(value.get_type(), &arg_name)?;
+                builder.build_store(v_ptr, value)?;
+                (v_ptr, BasicMetadataTypeEnum::FloatType(value.get_type()))
+            }
+            BasicValueEnum::PointerValue(value) => {
+                let v_ptr = builder.build_alloca(value.get_type(), &arg_name)?;
+                builder.build_store(v_ptr, value)?;
+                (v_ptr, BasicMetadataTypeEnum::PointerType(value.get_type()))
+            }
+            BasicValueEnum::StructValue(value) => {
+                let v_ptr = builder.build_alloca(value.get_type(), &arg_name)?;
+                builder.build_store(v_ptr, value)?;
+                (v_ptr, BasicMetadataTypeEnum::StructType(value.get_type()))
+            }
+            BasicValueEnum::VectorValue(value) => {
+                let v_ptr = builder.build_alloca(value.get_type(), &arg_name)?;
+                builder.build_store(v_ptr, value)?;
+                (v_ptr, BasicMetadataTypeEnum::VectorType(value.get_type()))
+            }
+        };
+
+        variable_map.insert(arg_name, (v_ptr, ty));
+    }
 
     for token in parsed_tokens {
         create_ir_from_parsed_token(

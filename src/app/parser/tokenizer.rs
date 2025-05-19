@@ -25,7 +25,6 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
             '!' => Some(Token::Not),
             ';' => Some(Token::LineBreak),
             ',' => Some(Token::Comma),
-            ':' => Some(Token::Colon),
             '%' => Some(Token::Modulo),
 
             _ => None,
@@ -152,6 +151,25 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
 
                 continue;
             }
+        } else if current_char == ':' {
+            if !string_buffer.trim().is_empty() {
+                let token = match_multi_character_expression(string_buffer.clone());
+
+                token_list.push(token);
+
+                string_buffer.clear();
+            }
+
+            if let Some(next_char) = char_list.get(char_idx + 1) {
+                if *next_char == ':' {
+                    token_list.push(Token::DoubleColon);
+
+                    char_idx += 2;
+                    continue;
+                }
+            }
+
+            token_list.push(Token::Colon);
         } else if current_char == '&' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '&' {
@@ -255,6 +273,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "function" => Token::Function,
         "return" => Token::Return,
         "as" => Token::As,
+        "extend" => Token::Extend,
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }

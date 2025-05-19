@@ -2,14 +2,17 @@ use anyhow::Result;
 use indexmap::IndexMap;
 use std::{
     collections::{HashMap, HashSet},
+    fs,
+    path::PathBuf,
     sync::Arc,
 };
 
-use crate::app::type_system::type_system::TypeDiscriminants;
+use crate::app::type_system::type_system::{Type, TypeDiscriminants};
 
 use super::{
     error::ParserError,
-    parser::{find_closing_bracket, parse_token_as_value, parse_value},
+    parser::{ParserState, find_closing_bracket, parse_token_as_value, parse_value},
+    tokenizer::tokenize,
     types::{
         FunctionDefinition, FunctionSignature, Imports, MathematicalSymbol, ParsedToken, Token,
         UnparsedFunctionDefinition,
@@ -20,11 +23,18 @@ pub fn create_signature_table(
     tokens: Vec<Token>,
 ) -> Result<(
     HashMap<String, UnparsedFunctionDefinition>,
-    Arc<HashMap<String, FunctionSignature>>,
+    HashMap<String, FunctionDefinition>,
+    HashMap<String, FunctionSignature>,
 )> {
     let mut token_idx = 0;
+
     let mut function_list: HashMap<String, UnparsedFunctionDefinition> = HashMap::new();
-    let mut imports: HashMap<String, FunctionSignature> = HashMap::new();
+
+    let mut source_imports: HashMap<String, FunctionDefinition> = HashMap::new();
+    let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
+
+    let mut imported_file_list: HashMap<String, HashMap<String, FunctionDefinition>> =
+        HashMap::new();
 
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
@@ -120,7 +130,7 @@ pub fn create_signature_table(
                 }
             }
         } else if current_token == Token::Import {
-            if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
+            if let Token::Identifier(identifier) = tokens[token_idx + 1].clone() {
                 if tokens[token_idx + 2] == Token::OpenBracket {
                     let (bracket_close_idx, args) =
                         parse_function_argument_tokens(&tokens[token_idx + 3..])?;
@@ -130,20 +140,84 @@ pub fn create_signature_table(
                     if tokens[token_idx + 1] == Token::Colon {
                         if let Token::TypeDefinition(return_type) = tokens[token_idx + 2] {
                             if tokens[token_idx + 3] == Token::LineBreak {
-                                if imports.get(&function_name).is_some()
-                                    || function_list.get(&function_name).is_some()
+                                if external_imports.get(&identifier).is_some()
+                                    || function_list.get(&identifier).is_some()
                                 {
                                     return Err(ParserError::DuplicateSignatureImports.into());
                                 }
 
-                                imports
-                                    .insert(function_name, FunctionSignature { args, return_type });
+                                external_imports
+                                    .insert(identifier, FunctionSignature { args, return_type });
 
                                 continue;
                             }
                         }
                     }
+                } else if Token::DoubleColon == tokens[token_idx + 2] {
+                    if let Token::Identifier(lib_function_name) = &tokens[token_idx + 3] {
+                        let imported_file_query = imported_file_list.get(&identifier);
+
+                        if Token::LineBreak == tokens[token_idx + 4] {
+                            if let Some(imported_file) = imported_file_query {
+                                if let Some(function_def) = imported_file.get(lib_function_name) {
+                                    // Store the imported function
+                                    source_imports
+                                        .insert(lib_function_name.clone(), function_def.clone());
+
+                                    // Increment token index
+                                    token_idx += 4;
+
+                                    // Continue looping over the top-level tokens
+                                    continue;
+                                }
+                            }
+                            else {
+                                
+                            }
+                        }
+                    }
                 }
+            } else if let Token::Literal(Type::String(path_to_linked_file)) =
+                tokens[token_idx + 1].clone()
+            {
+                // Turn the String literal into path
+                let path = PathBuf::from(path_to_linked_file);
+
+                // Check if a file exists at that path
+                if !fs::exists(&path)?
+                    || path.extension().unwrap_or_default().to_string_lossy() == ".f"
+                {
+                    return Err(ParserError::LinkedSourceFileMissing(path).into());
+                }
+
+                // Get the File's content
+                let file_contents = fs::read_to_string(&path)?;
+
+                // Get the file's name so that it can be referred to later
+                let file_name = path.file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+
+                // Tokenize the raw source file
+                let tokens = tokenize(file_contents)?;
+
+                // Create a new Parser state
+                let mut parser_state = ParserState::new(tokens);
+
+                println!(
+                    "Imported file from `{}`. Parsing source file...",
+                    path.display()
+                );
+
+                // Parse the tokens
+                parser_state.parse_tokens()?;
+
+                // Save the file's name and the functions it contains so that we can refer to it later.
+                imported_file_list.insert(file_name, parser_state.function_table().clone());
+
+                token_idx += 2;
+                continue;
             }
 
             return Err(ParserError::SyntaxError(
@@ -155,7 +229,7 @@ pub fn create_signature_table(
         token_idx += 1;
     }
 
-    Ok((function_list, Arc::new(imports)))
+    Ok((function_list, source_imports, external_imports))
 }
 
 fn parse_function_argument_tokens(
@@ -217,21 +291,26 @@ fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDisc
 
 pub fn parse_functions(
     unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>,
-    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
+    function_imports: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<HashMap<String, FunctionDefinition>> {
     let mut parsed_functions = HashMap::new();
 
-    for (fn_name, unparsed_function) in unparsed_functions.clone().iter() {
+    for (fn_idx, (fn_name, unparsed_function)) in unparsed_functions.clone().iter().enumerate() {
         let function_definition = FunctionDefinition {
             function_sig: unparsed_function.function_sig.clone(),
             inner: parse_function_block(
                 unparsed_function.inner.clone(),
                 unparsed_functions.clone(),
                 unparsed_function.function_sig.clone(),
-                standard_function_table.clone(),
+                function_imports.clone(),
             )?,
         };
 
+        println!(
+            "Parsed function `{fn_name}` ({}/{})",
+            fn_idx + 1,
+            unparsed_functions.len()
+        );
         parsed_functions.insert(fn_name.clone(), function_definition);
     }
 
@@ -242,7 +321,7 @@ fn parse_function_block(
     tokens: Vec<Token>,
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
     this_function_signature: FunctionSignature,
-    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
+    function_imports: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<Vec<ParsedToken>> {
     let mut token_idx = 0;
 
@@ -282,7 +361,7 @@ fn parse_function_block(
                             function_signatures.clone(),
                             &variable_scope,
                             var_type,
-                            standard_function_table.clone(),
+                            function_imports.clone(),
                         )?;
 
                         parsed_tokens.push(ParsedToken::NewVariable(
@@ -348,7 +427,7 @@ fn parse_function_block(
                                 function_signatures.clone(),
                                 &variable_scope,
                                 *variable_type,
-                                standard_function_table.clone(),
+                                function_imports.clone(),
                             )?;
 
                             parsed_tokens.push(ParsedToken::SetValue(
@@ -366,7 +445,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Addition,
-                                standard_function_table.clone(),
+                                function_imports.clone(),
                             )?;
                         }
                         Token::SetValueSubtraction => {
@@ -379,7 +458,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Subtraction,
-                                standard_function_table.clone(),
+                                function_imports.clone(),
                             )?;
                         }
                         Token::SetValueDivision => {
@@ -392,7 +471,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Division,
-                                standard_function_table.clone(),
+                                function_imports.clone(),
                             )?;
                         }
                         Token::SetValueMultiplication => {
@@ -405,7 +484,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Multiplication,
-                                standard_function_table.clone(),
+                                function_imports.clone(),
                             )?;
                         }
                         Token::SetValueModulo => {
@@ -418,7 +497,7 @@ fn parse_function_block(
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Modulo,
-                                standard_function_table.clone(),
+                                function_imports.clone(),
                             )?;
                         }
                         _ => {}
@@ -441,7 +520,7 @@ fn parse_function_block(
                         &variable_scope,
                         function_sig.function_sig.args.clone(),
                         function_signatures.clone(),
-                        standard_function_table.clone(),
+                        function_imports.clone(),
                     )?;
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
@@ -450,7 +529,7 @@ fn parse_function_block(
                     ));
 
                     token_idx += jumped_idx;
-                } else if let Some(function_sig) = standard_function_table.get(&ident_name) {
+                } else if let Some(function_sig) = function_imports.get(&ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
                     if tokens[token_idx + 1] != Token::OpenBracket {
                         return Err(ParserError::SyntaxError(
@@ -468,7 +547,7 @@ fn parse_function_block(
                         &variable_scope,
                         function_sig.args.clone(),
                         function_signatures.clone(),
-                        standard_function_table.clone(),
+                        function_imports.clone(),
                     )?;
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
@@ -500,7 +579,7 @@ fn parse_function_block(
                         function_signatures.clone(),
                         &variable_scope,
                         this_function_signature.return_type,
-                        standard_function_table.clone(),
+                        function_imports.clone(),
                     )?;
 
                     token_idx += jmp_idx;

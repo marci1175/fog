@@ -29,16 +29,23 @@ fn main() -> anyhow::Result<()> {
 
     match command {
         CliCommand::Compile => {
+            println!("Reading file path...");
+
             fs::metadata(&arg).map_err(ApplicationError::FileError)?;
 
-            let path_to_out = args.next().unwrap_or_default();
+            let path_to_out = PathBuf::from(args.next().unwrap_or_default());
 
             compiler::compiler::compilation_process(
                 PathBuf::from(arg),
-                PathBuf::from(path_to_out),
+                path_to_out.clone(),
                 args.next().unwrap_or_default() == "release"
                     || args.next().unwrap_or_default() == "r",
             )?;
+
+            println!(
+                "Compilation finished, output file is located at: {:?}",
+                fs::canonicalize(path_to_out).unwrap_or_default()
+            );
         }
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),

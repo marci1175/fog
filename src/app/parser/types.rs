@@ -23,6 +23,7 @@ pub enum Token {
     Identifier(String),
     Comment(String),
 
+    Extend,
     Function,
     Return,
 
@@ -56,6 +57,7 @@ pub enum Token {
 
     LineBreak,
     Comma,
+    DoubleColon,
     Colon,
 
     SetValue,

@@ -15,19 +15,21 @@ pub fn compilation_process(
     target_path: PathBuf,
     optimization: bool,
 ) -> anyhow::Result<()> {
+    println!("Reading file...");
     let formatted_file_contents = file_ingest(path_to_file)?;
 
+    println!("Tokenizing...");
     let tokens = tokenize(formatted_file_contents)?;
 
     let mut parser_state = ParserState::new(tokens);
 
-    parser_state
-        .parse_tokens()
-        .map_err(|err| ApplicationError::ParsingError(err))?;
+    println!("Parsing Tokens...");
+    parser_state.parse_tokens()?;
 
     let function_table = parser_state.function_table();
     let imported_functions = parser_state.imported_functions();
 
+    println!("LLVM-IR generation...");
     codegen_main(
         function_table,
         target_path,

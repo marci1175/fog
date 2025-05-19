@@ -27,15 +27,29 @@ pub struct ParserState {
 
 impl ParserState {
     pub fn parse_tokens(&mut self) -> Result<()> {
+        println!("Creating signature table...");
         // Create user defined signature table
-        // Create a standard import table which can be used later by other functions
-        let (unparsed_functions, imports) = create_signature_table(self.tokens.clone())?;
+        // Create an import table which can be used later by other functions
+        let (unparsed_functions, source_imports, mut external_imports) =
+            create_signature_table(self.tokens.clone())?;
+
+        // Extend the list of external imports with source imports aka imports from Fog source files.
+        external_imports.extend(source_imports.iter().map(|(fn_name, fn_def)| {
+            (fn_name.clone(), fn_def.function_sig.clone())
+        }));
+
+        let imports = Arc::new(external_imports);
 
         // Copy the the HashMap to this field
         self.imported_functions = imports.clone();
 
+        println!("Parsing functions...");
         // Set the function table field of this struct
-        self.function_table = parse_functions(Arc::new(unparsed_functions), imports.clone())?;
+        self.function_table =
+            parse_functions(Arc::new(unparsed_functions), imports.clone())?;
+
+        // Extend function table with imported functions. (Imported from Fog source code)
+        self.function_table.extend(source_imports);
 
         Ok(())
     }
@@ -83,7 +97,7 @@ pub fn parse_value(
     function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &IndexMap<String, TypeDiscriminants>,
     variable_type: TypeDiscriminants,
-    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
+    function_imports: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<(ParsedToken, usize)> {
     let mut token_idx = 0;
 
@@ -124,7 +138,7 @@ pub fn parse_value(
                             variable_type,
                             &mut token_idx,
                             next_token,
-                            standard_function_table.clone(),
+                            function_imports.clone(),
                         )?),
                     );
                 } else {
@@ -145,7 +159,7 @@ pub fn parse_value(
                     variable_type,
                     &mut token_idx,
                     current_token,
-                    standard_function_table.clone(),
+                    function_imports.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -164,7 +178,7 @@ pub fn parse_value(
                     variable_type,
                     &mut token_idx,
                     current_token,
-                    standard_function_table.clone(),
+                    function_imports.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -202,7 +216,7 @@ pub fn parse_token_as_value(
     token_idx: &mut usize,
     // The token we want to evaluate
     eval_token: &Token,
-    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
+    function_imports: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<ParsedToken> {
     // Match the token
     let inner_value = match eval_token {
@@ -285,7 +299,7 @@ pub fn parse_token_as_value(
                     variable_scope,
                     function.function_sig.args.clone(),
                     function_signatures.clone(),
-                    standard_function_table.clone(),
+                    function_imports.clone(),
                 )?;
 
                 // Return the function call
@@ -356,14 +370,14 @@ pub fn parse_token_as_value(
 
                 // Return the VariableReference
                 parsed_token
-            } else if let Some(function_sig) = standard_function_table.get(identifier) {
+            } else if let Some(function_sig) = function_imports.get(identifier) {
                 // Parse the call arguments and tokens parsed.
                 let (call_arguments, idx_jmp) = parse_functions::parse_function_call_args(
                     &tokens[*token_idx + 2..],
                     variable_scope,
                     function_sig.args.clone(),
                     function_signatures.clone(),
-                    standard_function_table.clone(),
+                    function_imports.clone(),
                 )?;
 
                 // Return the function call
@@ -417,7 +431,7 @@ pub fn parse_token_as_value(
                 function_signatures.clone(),
                 variable_scope,
                 variable_type,
-                standard_function_table,
+                function_imports,
             )?;
 
             *token_idx += closing_idx + 1;
