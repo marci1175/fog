@@ -34,9 +34,11 @@ impl ParserState {
             create_signature_table(self.tokens.clone())?;
 
         // Extend the list of external imports with source imports aka imports from Fog source files.
-        external_imports.extend(source_imports.iter().map(|(fn_name, fn_def)| {
-            (fn_name.clone(), fn_def.function_sig.clone())
-        }));
+        external_imports.extend(
+            source_imports
+                .iter()
+                .map(|(fn_name, fn_def)| (fn_name.clone(), fn_def.function_sig.clone())),
+        );
 
         let imports = Arc::new(external_imports);
 
@@ -45,8 +47,7 @@ impl ParserState {
 
         println!("Parsing functions...");
         // Set the function table field of this struct
-        self.function_table =
-            parse_functions(Arc::new(unparsed_functions), imports.clone())?;
+        self.function_table = parse_functions(Arc::new(unparsed_functions), imports.clone())?;
 
         // Extend function table with imported functions. (Imported from Fog source code)
         self.function_table.extend(source_imports);

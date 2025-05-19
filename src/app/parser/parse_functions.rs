@@ -170,9 +170,7 @@ pub fn create_signature_table(
                                     // Continue looping over the top-level tokens
                                     continue;
                                 }
-                            }
-                            else {
-                                
+                            } else {
                             }
                         }
                     }
@@ -194,7 +192,8 @@ pub fn create_signature_table(
                 let file_contents = fs::read_to_string(&path)?;
 
                 // Get the file's name so that it can be referred to later
-                let file_name = path.file_stem()
+                let file_name = path
+                    .file_stem()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string();
