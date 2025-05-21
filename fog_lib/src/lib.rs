@@ -25,7 +25,5 @@ pub unsafe extern "C" fn printchar(c: i32) -> i32 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn print(str_ptr: *const i8) -> i32 {
-    unsafe {
-        libc::puts(str_ptr)
-    }
+    unsafe { libc::puts(str_ptr) }
 }

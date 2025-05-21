@@ -70,7 +70,10 @@ impl ParserState {
     }
 }
 
-pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize> {
+pub fn find_closing_bracket(
+    bracket_start_slice: &[Token],
+    open_bracket_count: usize,
+) -> Result<usize> {
     let mut bracket_layer_counter = 1;
     let iter = bracket_start_slice.iter().enumerate();
 
@@ -79,7 +82,7 @@ pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize> {
             Token::OpenBracket => bracket_layer_counter += 1,
             Token::CloseBracket => {
                 bracket_layer_counter -= 1;
-                if bracket_layer_counter == 0 {
+                if bracket_layer_counter == open_bracket_count {
                     return Ok(idx);
                 }
             }
@@ -93,7 +96,7 @@ pub fn find_closing_bracket(bracket_start_slice: &[Token]) -> Result<usize> {
 /// This is a top level implementation for `parse_token_as_value`
 pub fn parse_value(
     tokens: &[Token],
-    function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &IndexMap<String, TypeDiscriminants>,
     variable_type: TypeDiscriminants,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
@@ -206,7 +209,7 @@ pub fn parse_token_as_value(
     // This is used to parse the function call's arguments
     tokens: &[Token],
     // Functions available
-    function_signatures: &Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     // Variables available
     variable_scope: &IndexMap<String, TypeDiscriminants>,
     // The variable's type which we are parsing for
@@ -420,7 +423,7 @@ pub fn parse_token_as_value(
         Token::OpenBracket => {
             *token_idx += 1;
 
-            let closing_idx = find_closing_bracket(&tokens[*token_idx..])?;
+            let closing_idx = find_closing_bracket(&tokens[*token_idx..], 0)?;
 
             // Get the tokens inside the block aka the "()"
             let tokens_inside_block = &tokens[*token_idx..*token_idx + closing_idx];

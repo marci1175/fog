@@ -1,11 +1,11 @@
 import print(str: string): int;
 
+function test(str: string, fl: float, opt: int): int {
+    return 0;
+}
+
 function main(): int {
-    string test = "123456789\0";
-    
-    print(str = test);
-    print(str = test);
-    print(str = test);
+    test(opt = 2, "Fasz", 23.4);
 
     return 0;
 }

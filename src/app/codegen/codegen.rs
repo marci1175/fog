@@ -36,9 +36,8 @@ pub fn codegen_main(
     // Import functions defined by the user via llvm
     import_user_lib_functions(&context, &module, imported_functions, parsed_functions);
 
-    // We want to reverse the order of iteration because when we insert an imported function into the `IndexMap` it will be inserted at the end.
-    // Thus if a function references a function defined/added later to the function table it will return an error, due to it not being found.
-    for (function_name, function_definition) in parsed_functions.iter().rev() {
+    // We stricly only want to iterate trough the function definitions' order, becuase then we will avoid functions not being generated before usage.
+    for (function_name, function_definition) in parsed_functions.iter() {
         // Create function signature
         let function = module.add_function(
             function_name,

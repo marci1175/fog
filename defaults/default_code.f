@@ -1,7 +1,7 @@
-import io::print;
+import print(msg = string): int;
 
 function main(): int {
-    print(msg = "Hello World!");
+    print("Hello World!");
     
     return 0;
 }

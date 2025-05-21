@@ -17,13 +17,13 @@ use super::{
 pub fn create_signature_table(
     tokens: Vec<Token>,
 ) -> Result<(
-    HashMap<String, UnparsedFunctionDefinition>,
+    IndexMap<String, UnparsedFunctionDefinition>,
     HashMap<String, FunctionDefinition>,
     HashMap<String, FunctionSignature>,
 )> {
     let mut token_idx = 0;
 
-    let mut function_list: HashMap<String, UnparsedFunctionDefinition> = HashMap::new();
+    let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
 
     let mut source_imports: HashMap<String, FunctionDefinition> = HashMap::new();
     let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
@@ -229,7 +229,7 @@ fn parse_function_argument_tokens(
     tokens: &[Token],
 ) -> Result<(usize, IndexMap<String, TypeDiscriminants>)> {
     let bracket_closing_idx =
-        find_closing_bracket(tokens).map_err(|_| ParserError::InvalidFunctionDefinition)?;
+        find_closing_bracket(tokens, 0).map_err(|_| ParserError::InvalidFunctionDefinition)?;
 
     let mut args = IndexMap::new();
 
@@ -283,7 +283,7 @@ fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDisc
 }
 
 pub fn parse_functions(
-    unparsed_functions: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    unparsed_functions: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<IndexMap<String, FunctionDefinition>> {
     let mut parsed_functions = IndexMap::new();
@@ -312,7 +312,7 @@ pub fn parse_functions(
 
 fn parse_function_block(
     tokens: Vec<Token>,
-    function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     this_function_signature: FunctionSignature,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<Vec<ParsedToken>> {
@@ -506,7 +506,7 @@ fn parse_function_block(
 
                     let bracket_start_slice = &tokens[token_idx + 2..];
 
-                    let bracket_idx = find_closing_bracket(bracket_start_slice)? + token_idx;
+                    let bracket_idx = find_closing_bracket(bracket_start_slice, 0)? + token_idx;
 
                     let (variables_passed, jumped_idx) = parse_function_call_args(
                         &tokens[token_idx + 2..bracket_idx + 2],
@@ -533,7 +533,7 @@ fn parse_function_block(
 
                     let bracket_start_slice = &tokens[token_idx + 2..];
 
-                    let bracket_idx = find_closing_bracket(bracket_start_slice)? + token_idx;
+                    let bracket_idx = find_closing_bracket(bracket_start_slice, 0)? + token_idx;
 
                     let (variables_passed, jumped_idx) = parse_function_call_args(
                         &tokens[token_idx + 2..bracket_idx + 2],
@@ -597,7 +597,7 @@ fn parse_function_block(
 
 fn set_value_math_expr(
     tokens: &Vec<Token>,
-    function_signatures: &Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
     parsed_tokens: &mut Vec<ParsedToken>,
     variable_scope: &IndexMap<String, TypeDiscriminants>,
@@ -638,20 +638,26 @@ fn set_value_math_expr(
 pub fn parse_function_call_args(
     tokens: &[Token],
     variable_scope: &IndexMap<String, TypeDiscriminants>,
-    this_function_args: IndexMap<String, TypeDiscriminants>,
-    function_signatures: Arc<HashMap<String, UnparsedFunctionDefinition>>,
+    mut this_function_args: IndexMap<String, TypeDiscriminants>,
+    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
 ) -> Result<(IndexMap<String, ParsedToken>, usize)> {
     let mut tokens_idx = 0;
+    let args_list_len = tokens[tokens_idx..].len();
 
     // Arguments which will passed in to the function
     let mut arguments: IndexMap<String, ParsedToken> = IndexMap::new();
+
+    // If there are no arguments just return everything as is
+    if tokens.is_empty() {
+        return Ok((arguments, tokens_idx));
+    }
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
 
         if let Token::Identifier(arg_name) = current_token.clone() {
-            if Token::SetValue == tokens[tokens_idx + 1] {
+            if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
                 let argument_type = this_function_args
                     .get(&arg_name)
                     .ok_or(ParserError::ArgumentError(arg_name.clone()))?;
@@ -659,7 +665,7 @@ pub fn parse_function_call_args(
                 tokens_idx += 2;
 
                 let (parsed_argument, jump_idx) = parse_value(
-                    &tokens[tokens_idx..tokens.len()],
+                    &tokens[tokens_idx..],
                     function_signatures.clone(),
                     variable_scope,
                     *argument_type,
@@ -668,22 +674,99 @@ pub fn parse_function_call_args(
 
                 tokens_idx += jump_idx;
 
+                // Remove tha argument from the argument list so we can parse unnamed arguments easier
+                this_function_args.swap_remove(&arg_name);
+
                 arguments.insert(arg_name.clone(), parsed_argument);
             } else {
-                return Err(ParserError::SyntaxError(
-                    super::error::SyntaxError::InvalidStatementDefinition,
-                )
-                .into());
+                let args_list_len = tokens[tokens_idx..].len();
+
+                let mut token_buf = Vec::new();
+
+                // We should start by finding the comma and parsing the tokens in between the current idx and the comma
+                while tokens_idx < args_list_len {
+                    let token = &tokens[tokens_idx];
+
+                    // If a comma is found parse the tokens from the slice
+                    if *token == Token::Comma || tokens_idx == args_list_len - 1 {
+                        if tokens_idx == args_list_len - 1 {
+                            token_buf.push(token.clone());
+                        }
+
+                        // We can safely unwrap here
+                        let fn_argument = this_function_args.first_entry().unwrap();
+
+                        let (parsed_argument, _jump_idx) = parse_value(
+                            &token_buf,
+                            function_signatures.clone(),
+                            variable_scope,
+                            *fn_argument.get(),
+                            standard_function_table.clone(),
+                        )?;
+
+                        token_buf.clear();
+
+                        arguments.insert(fn_argument.key().clone(), parsed_argument);
+
+                        // Remove the argument from the argument list
+                        fn_argument.swap_remove();
+
+                        break;
+                    } else {
+                        token_buf.push(token.clone());
+                    }
+
+                    tokens_idx += 1;
+                }
+
+                return Ok((arguments, tokens_idx));
             }
         } else if Token::CloseBracket == current_token {
             break;
         } else if Token::Comma == current_token {
             tokens_idx += 1;
         } else {
-            return Err(ParserError::SyntaxError(
-                super::error::SyntaxError::InvalidStatementDefinition,
-            )
-            .into());
+            let mut token_buf = Vec::new();
+
+            // We should start by finding the comma and parsing the tokens in between the current idx and the comma
+            while tokens_idx < args_list_len {
+                let token = &tokens[tokens_idx];
+
+                // If a comma is found parse the tokens from the slice
+                if *token == Token::Comma || tokens_idx == args_list_len - 1 {
+                    if tokens_idx == args_list_len - 1 {
+                        token_buf.push(token.clone());
+                    }
+
+                    // We can safely unwrap here
+                    let fn_argument = this_function_args.first_entry();
+
+                    if let Some(fn_argument) = fn_argument {
+                        let (parsed_argument, _jump_idx) = parse_value(
+                            &token_buf,
+                            function_signatures.clone(),
+                            variable_scope,
+                            *fn_argument.get(),
+                            standard_function_table.clone(),
+                        )?;
+
+                        token_buf.clear();
+
+                        arguments.insert(fn_argument.key().clone(), parsed_argument);
+
+                        // Remove the argument from the argument list
+                        fn_argument.swap_remove();
+                    } else {
+                        return Ok((arguments, tokens_idx));
+                    }
+
+                    break;
+                } else {
+                    token_buf.push(token.clone());
+                }
+
+                tokens_idx += 1;
+            }
         }
     }
 
