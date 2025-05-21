@@ -1,7 +1,7 @@
 import io::print;
 
 function main(): int {
-    print("Hello World!");
+    print(msg = "Hello World!");
     
     return 0;
 }

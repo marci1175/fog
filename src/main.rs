@@ -56,7 +56,8 @@ fn main() -> anyhow::Result<()> {
 
             path_to_folder.push("main.f");
 
-            fs::write(&path_to_folder, include_str!("../defaults/default_code.f")).map_err(ApplicationError::FileError)?;
+            fs::write(&path_to_folder, include_str!("../defaults/default_code.f"))
+                .map_err(ApplicationError::FileError)?;
 
             path_to_folder.pop();
 

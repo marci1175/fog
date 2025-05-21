@@ -1,4 +1,6 @@
-use crate::app::type_system::type_system::{TypeDiscriminants, unparsed_const_to_typed_literal_unsafe};
+use crate::app::type_system::type_system::{
+    TypeDiscriminants, unparsed_const_to_typed_literal_unsafe,
+};
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, sync::Arc};
@@ -8,8 +10,7 @@ use super::{
     error::ParserError,
     parse_functions::{self, create_signature_table, parse_functions},
     types::{
-        FunctionDefinition, FunctionSignature, ParsedToken, Token,
-        UnparsedFunctionDefinition,
+        FunctionDefinition, FunctionSignature, ParsedToken, Token, UnparsedFunctionDefinition,
     },
 };
 

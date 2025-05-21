@@ -31,7 +31,7 @@ pub fn compilation_process(
 
     println!("LLVM-IR generation...");
     codegen_main(
-        function_table,
+        dbg!(function_table),
         target_path,
         optimization,
         imported_functions,

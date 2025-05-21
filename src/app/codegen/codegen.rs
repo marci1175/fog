@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    io::ErrorKind,
-    path::PathBuf,
-};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -14,9 +10,7 @@ use inkwell::{
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     types::{BasicMetadataTypeEnum, FunctionType},
-    values::{
-        BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue,
-    },
+    values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
 };
 
 use crate::{
@@ -402,7 +396,9 @@ pub fn create_ir_from_parsed_token<'a>(
                 set_value_of_ptr(ctx, builder, literal, ptr)?;
             }
         }
-        ParsedToken::TypeCast(parsed_token, type_discriminants) => todo!(),
+        ParsedToken::TypeCast(parsed_token, type_discriminants) => {
+            todo!()
+        }
         ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => {
             todo!()
         }
@@ -766,8 +762,15 @@ pub fn set_value_of_ptr(
             builder.build_store(v_ptr, init_val)?;
         }
         Type::String(inner) => {
-            // Get the String's bytes
-            let string_bytes = inner.as_bytes();
+            // Get the String's bytes, add the null terminator
+            let mut string_bytes = inner.as_bytes().to_vec();
+
+            // Append the null byte if it doesn't exist yet to terminate the string at the end.
+            if let Some(last_byte) = string_bytes.last() {
+                if *last_byte != 0 {
+                    string_bytes.push(0);
+                }
+            }
 
             // Create an appropriate sized array for the String
             let sized_array = i8_type.array_type(string_bytes.len() as u32);

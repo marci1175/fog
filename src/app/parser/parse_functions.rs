@@ -1,11 +1,6 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use std::{
-    collections::HashMap,
-    fs,
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use crate::app::type_system::type_system::{Type, TypeDiscriminants};
 
@@ -170,7 +165,7 @@ pub fn create_signature_table(
                                     // Continue looping over the top-level tokens
                                     continue;
                                 }
-                            } 
+                            }
                         }
                     }
                 }

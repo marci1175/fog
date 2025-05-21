@@ -86,6 +86,55 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
 
                 match quote_char {
                     Some(quote_char) => {
+                        if *quote_char == '\\' {
+                            match char_list.get(quote_idx + 1) {
+                                Some('n') => {
+                                    quotes_buffer.push('\n');
+
+                                    quote_idx += 2;
+
+                                    continue;
+                                }
+                                Some('r') => {
+                                    quotes_buffer.push('\r');
+
+                                    quote_idx += 2;
+
+                                    continue;
+                                }
+                                Some('t') => {
+                                    quotes_buffer.push('\t');
+
+                                    quote_idx += 2;
+
+                                    continue;
+                                }
+                                Some('0') => {
+                                    quotes_buffer.push('\0');
+
+                                    quote_idx += 2;
+
+                                    continue;
+                                }
+                                Some('\\') => {
+                                    quotes_buffer.push('\\');
+                                    quote_idx += 2;
+
+                                    continue;
+                                }
+                                Some(char) => {
+                                    quotes_buffer.push('\\');
+                                    quotes_buffer.push(*char);
+
+                                    quote_idx += 2;
+
+                                    continue;
+                                }
+
+                                None => {}
+                            }
+                        }
+
                         if *quote_char == '"' {
                             token_list.push(Token::Literal(Type::String(quotes_buffer)));
 

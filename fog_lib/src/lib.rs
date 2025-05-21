@@ -24,10 +24,8 @@ pub unsafe extern "C" fn printchar(c: i32) -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn greet() -> i32 {
+pub unsafe extern "C" fn print(str_ptr: *const i8) -> i32 {
     unsafe {
-        let char_array: &[u8] = b"Hello world!\n\0";
-        
-        libc::puts(char_array.as_ptr() as *const i8)
+        libc::puts(str_ptr)
     }
 }

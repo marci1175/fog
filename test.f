@@ -1,15 +1,11 @@
-import "sample.f";
-import sample::apad;
-
-import getchar(): int;
-import greet(): void;
+import print(str: string): int;
 
 function main(): int {
-    greet();
-
-    int b = apad(x = 420);
-
-    int a = getchar();
+    string test = "123456789\0";
     
-    return b;
+    print(str = test);
+    print(str = test);
+    print(str = test);
+
+    return 0;
 }
