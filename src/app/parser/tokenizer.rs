@@ -18,8 +18,8 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
             '+' => Some(Token::Addition),
             '*' => Some(Token::Multiplication),
             '/' => Some(Token::Division),
-            ')' => Some(Token::CloseBracket),
-            '(' => Some(Token::OpenBracket),
+            ')' => Some(Token::CloseParentheses),
+            '(' => Some(Token::OpenParentheses),
             '}' => Some(Token::CloseBraces),
             '{' => Some(Token::OpenBraces),
             '!' => Some(Token::Not),
@@ -47,7 +47,7 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
             if (matches!(last_token, Token::Literal(_))
                 || matches!(last_token, Token::UnparsedLiteral(_))
                 || matches!(last_token, Token::Identifier(_))
-                || matches!(last_token, Token::CloseBracket))
+                || matches!(last_token, Token::CloseParentheses))
             {
                 token_list.push(Token::Subtraction);
             }

@@ -1,9 +1,9 @@
 ; ModuleID = 'main'
 source_filename = "main"
 
-declare i32 @getchar()
-
 declare i32 @print(ptr)
+
+declare i32 @getchar()
 
 define i32 @main() {
 main_fn_entry:

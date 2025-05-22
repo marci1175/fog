@@ -6,10 +6,12 @@ use crate::app::type_system::type_system::{Type, TypeDiscriminants};
 
 use super::{
     error::ParserError,
-    parser::{ParserState, find_closing_bracket, parse_token_as_value, parse_value},
+    parser::{
+        ParserState, find_closing_braces, find_closing_paren, parse_token_as_value, parse_value,
+    },
     tokenizer::tokenize,
     types::{
-        FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token,
+        CustomType, FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token,
         UnparsedFunctionDefinition,
     },
 };
@@ -20,6 +22,7 @@ pub fn create_signature_table(
     IndexMap<String, UnparsedFunctionDefinition>,
     HashMap<String, FunctionDefinition>,
     HashMap<String, FunctionSignature>,
+    IndexMap<String, CustomType>,
 )> {
     let mut token_idx = 0;
 
@@ -31,12 +34,14 @@ pub fn create_signature_table(
     let mut imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> =
         HashMap::new();
 
+    let mut custom_items: IndexMap<String, CustomType> = IndexMap::new();
+
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
 
         if current_token == Token::Function {
             if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
-                if tokens[token_idx + 2] == Token::OpenBracket {
+                if tokens[token_idx + 2] == Token::OpenParentheses {
                     let (bracket_close_idx, args) =
                         parse_function_argument_tokens(&tokens[token_idx + 3..])?;
 
@@ -48,13 +53,13 @@ pub fn create_signature_table(
                                 // Create a varable which stores the level of braces we are in
                                 let mut brace_layer_counter = 1;
 
-                                // Get the slice of the list which may contain the brackets' scope
+                                // Get the slice of the list which may contain the braces' scope
                                 let tokens_slice = &tokens[token_idx + 4..];
 
                                 // Create an index which indexes the tokens slice
                                 let mut token_braces_idx = 0;
 
-                                // Create a list which contains all the tokens inside the two brackets
+                                // Create a list which contains all the tokens inside the two braces
                                 let mut braces_contains: Vec<Token> = vec![];
 
                                 // Find the scope of this function
@@ -62,7 +67,7 @@ pub fn create_signature_table(
                                     // We have itered through the whole function and its still not found, it may be an open brace.
                                     if tokens_slice.len() == token_braces_idx {
                                         return Err(ParserError::SyntaxError(
-                                            crate::app::parser::error::SyntaxError::OpenBracket,
+                                            crate::app::parser::error::SyntaxError::LeftOpenParentheses,
                                         )
                                         .into());
                                     }
@@ -76,7 +81,7 @@ pub fn create_signature_table(
                                         brace_layer_counter -= 1;
                                     }
 
-                                    // If we have arrived at the end of the brackets this is when we know that this is the end of the function's scope
+                                    // If we have arrived at the end of the braces this is when we know that this is the end of the function's scope
                                     if brace_layer_counter == 0 {
                                         break;
                                     }
@@ -123,10 +128,15 @@ pub fn create_signature_table(
                 } else {
                     return Err(ParserError::InvalidFunctionDefinition.into());
                 }
+            } else {
+                return Err(ParserError::SyntaxError(
+                    super::error::SyntaxError::InvalidFunctionName,
+                )
+                .into());
             }
         } else if current_token == Token::Import {
             if let Token::Identifier(identifier) = tokens[token_idx + 1].clone() {
-                if tokens[token_idx + 2] == Token::OpenBracket {
+                if tokens[token_idx + 2] == Token::OpenParentheses {
                     let (bracket_close_idx, args) =
                         parse_function_argument_tokens(&tokens[token_idx + 3..])?;
 
@@ -217,19 +227,84 @@ pub fn create_signature_table(
                 super::error::SyntaxError::InvalidImportDefinition,
             )
             .into());
+        } else if current_token == Token::Struct {
+            if let Some(Token::Identifier(struct_name)) = tokens.get(token_idx + 1) {
+                if let Some(Token::OpenBraces) = tokens.get(token_idx + 2) {
+                    // Search for the closing brace's index
+                    let braces_idx =
+                        find_closing_braces(&tokens[token_idx + 3..], 0)? + token_idx + 3;
+
+                    // Retrive the tokens from the braces
+                    let struct_slice = tokens[token_idx + 3..braces_idx].to_vec();
+
+                    // Create a list for the struct fields
+                    let mut struct_fields: IndexMap<String, TypeDiscriminants> = IndexMap::new();
+
+                    // Store the idx
+                    let mut token_idx = 0;
+
+                    // Parse the struct fields
+                    while token_idx < struct_slice.len() {
+                        // Get the current token
+                        let current_token = &struct_slice[token_idx];
+
+                        // Pattern match the syntax
+                        if let Token::Identifier(field_name) = current_token {
+                            if let Token::Colon = struct_slice[token_idx + 1] {
+                                if let Token::TypeDefinition(field_type) =
+                                    struct_slice[token_idx + 2]
+                                {
+                                    if let Some(Token::Comma) = struct_slice.get(token_idx + 3) {
+                                        // Save the field's type and name
+                                        struct_fields.insert(field_name.clone(), field_type);
+
+                                        // Increment the token index
+                                        token_idx += 4;
+
+                                        // Continue looping through, if the pattern doesnt match the syntax return an error
+                                        continue;
+                                    }
+                                } else if let Token::Identifier(custom_type) =
+                                    &struct_slice[token_idx + 2]
+                                {
+                                    if let Some(custom_item) = custom_items.get(custom_type) {}
+                                }
+                            }
+                        }
+
+                        // Return a syntax error
+                        return Err(ParserError::SyntaxError(
+                            super::error::SyntaxError::InvalidStructFieldDefinition,
+                        )
+                        .into());
+                    }
+
+                    // Save the custom item
+                    custom_items.insert(struct_name.to_string(), CustomType::Struct(struct_fields));
+                }
+            } else {
+                return Err(
+                    ParserError::SyntaxError(super::error::SyntaxError::InvalidStructName).into(),
+                );
+            }
         }
 
         token_idx += 1;
     }
 
-    Ok((function_list, source_imports, external_imports))
+    Ok((
+        function_list,
+        source_imports,
+        external_imports,
+        custom_items,
+    ))
 }
 
 fn parse_function_argument_tokens(
     tokens: &[Token],
 ) -> Result<(usize, IndexMap<String, TypeDiscriminants>)> {
     let bracket_closing_idx =
-        find_closing_bracket(tokens, 0).map_err(|_| ParserError::InvalidFunctionDefinition)?;
+        find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidFunctionDefinition)?;
 
     let mut args = IndexMap::new();
 
@@ -285,6 +360,7 @@ fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDisc
 pub fn parse_functions(
     unparsed_functions: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
+    custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<IndexMap<String, FunctionDefinition>> {
     let mut parsed_functions = IndexMap::new();
 
@@ -296,6 +372,7 @@ pub fn parse_functions(
                 unparsed_functions.clone(),
                 unparsed_function.function_sig.clone(),
                 function_imports.clone(),
+                custom_items.clone(),
             )?,
         };
 
@@ -315,6 +392,7 @@ fn parse_function_block(
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     this_function_signature: FunctionSignature,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
+    custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<Vec<ParsedToken>> {
     let mut token_idx = 0;
 
@@ -497,16 +575,16 @@ fn parse_function_block(
                     }
                 } else if let Some(function_sig) = function_signatures.get(&ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
-                    if tokens[token_idx + 1] != Token::OpenBracket {
+                    if tokens[token_idx + 1] != Token::OpenParentheses {
                         return Err(ParserError::SyntaxError(
                             crate::app::parser::error::SyntaxError::InvalidFunctionDefinition,
                         )
                         .into());
                     }
 
-                    let bracket_start_slice = &tokens[token_idx + 2..];
+                    let paren_start_slice = &tokens[token_idx + 2..];
 
-                    let bracket_idx = find_closing_bracket(bracket_start_slice, 0)? + token_idx;
+                    let bracket_idx = find_closing_paren(paren_start_slice, 0)? + token_idx;
 
                     let (variables_passed, jumped_idx) = parse_function_call_args(
                         &tokens[token_idx + 2..bracket_idx + 2],
@@ -524,7 +602,7 @@ fn parse_function_block(
                     token_idx += jumped_idx;
                 } else if let Some(function_sig) = function_imports.get(&ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
-                    if tokens[token_idx + 1] != Token::OpenBracket {
+                    if tokens[token_idx + 1] != Token::OpenParentheses {
                         return Err(ParserError::SyntaxError(
                             crate::app::parser::error::SyntaxError::InvalidFunctionDefinition,
                         )
@@ -533,7 +611,7 @@ fn parse_function_block(
 
                     let bracket_start_slice = &tokens[token_idx + 2..];
 
-                    let bracket_idx = find_closing_bracket(bracket_start_slice, 0)? + token_idx;
+                    let bracket_idx = find_closing_paren(bracket_start_slice, 0)? + token_idx;
 
                     let (variables_passed, jumped_idx) = parse_function_call_args(
                         &tokens[token_idx + 2..bracket_idx + 2],
@@ -549,6 +627,17 @@ fn parse_function_block(
                     ));
 
                     token_idx += jumped_idx;
+                } else if let Some(custom_type) = custom_items.get(&ident_name) {
+                    match custom_type {
+                        CustomType::Struct(struct_fields) => {}
+                        CustomType::Enum(enum_types) => {}
+                        CustomType::Extend(_, _) => {
+                            return Err(ParserError::SyntaxError(
+                                super::error::SyntaxError::InvalidStructExtensionPlacement,
+                            )
+                            .into());
+                        }
+                    };
                 } else {
                     return Err(ParserError::VariableNotFound(ident_name).into());
                 }
@@ -721,7 +810,7 @@ pub fn parse_function_call_args(
 
                 return Ok((arguments, tokens_idx));
             }
-        } else if Token::CloseBracket == current_token {
+        } else if Token::CloseParentheses == current_token {
             break;
         } else if Token::Comma == current_token {
             tokens_idx += 1;

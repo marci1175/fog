@@ -43,7 +43,7 @@ pub enum SyntaxError {
     #[error(r#"An open '{{' has been left in the code."#)]
     OpenBraces,
     #[error("An open '(' has been left in the code.")]
-    OpenBracket,
+    LeftOpenParentheses,
     #[error(r#"An open '"' has been left in the code."#)]
     OpenQuotes,
     #[error("The code contains a missing `;`.")]
@@ -62,8 +62,18 @@ pub enum SyntaxError {
     AsRequiresTypeDef,
     #[error("Function requires a returned value.")]
     FunctionRequiresReturn,
-    #[error("Duplicate function definitions have been found with function `{0}`. Signature: `{1}`")]
+    #[error(
+        "Duplicate function definitions have been found with function `{0}`. Signature: `{1}`."
+    )]
     DuplicateFunctions(String, FunctionSignature),
     #[error("The import's signature is invalid.")]
     InvalidImportDefinition,
+    #[error("Invalid Function name definition.")]
+    InvalidFunctionName,
+    #[error("Invalid Struct name definition.")]
+    InvalidStructName,
+    #[error("Invalid Struct field definition.")]
+    InvalidStructFieldDefinition,
+    #[error("Struct Extensions should be only placed on the top-most layer of code.")]
+    InvalidStructExtensionPlacement,
 }

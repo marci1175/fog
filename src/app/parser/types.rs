@@ -51,8 +51,8 @@ pub enum Token {
     Smaller,
     EqSmaller,
 
-    OpenBracket,
-    CloseBracket,
+    OpenParentheses,
+    CloseParentheses,
     OpenBraces,
     CloseBraces,
 
@@ -120,6 +120,7 @@ pub enum ParsedToken {
 
     ReturnValue(Box<ParsedToken>),
 
+    // Const(TypeDiscriminants),
     If(If),
 }
 
@@ -148,6 +149,17 @@ impl Display for FunctionSignature {
             self.args, self.return_type
         ))
     }
+}
+
+/// All of the custom types implemented by the User are defined here
+#[derive(Debug, Clone)]
+pub enum CustomType {
+    Struct(IndexMap<String, TypeDiscriminants>),
+    Enum(IndexMap<String, TypeDiscriminants>),
+
+    /// First argument is the struct's name which the Extend extends
+    /// The second argument is the list of functions the stuct is being extended with
+    Extend(String, IndexMap<String, FunctionDefinition>),
 }
 
 #[derive(Debug, Clone)]
