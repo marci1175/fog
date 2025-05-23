@@ -22,8 +22,6 @@ pub enum ParserError {
     VariableNotFound(String),
     #[error("The following argument was not found in the argument list: `{0}`.")]
     ArgumentError(String),
-    #[error("Const definition `{0}` could not be casted to type `{1}`.")]
-    ConstTypeUndetermined(String, TypeDiscriminants),
     #[error(
         "[INTERNAL ERROR] A variable was not found in the scope when it should've been. This is not the same as `VariableNotFound`!"
     )]
@@ -36,6 +34,8 @@ pub enum ParserError {
     DuplicateSignatureImports,
     #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
     LinkedSourceFileMissing(PathBuf),
+    #[error(r#"Type `{1}` cannot be constructed from String "{0}"."#)]
+    InvalidTypeCast(String, TypeDiscriminants),
 }
 
 #[derive(Debug, Error)]

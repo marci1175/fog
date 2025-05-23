@@ -9,7 +9,7 @@ use inkwell::{
     module::Module,
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{BasicMetadataTypeEnum, FunctionType},
+    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
     values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
 };
 
@@ -79,7 +79,7 @@ pub fn codegen_main(
             &context,
             function_definition.inner.clone(),
             arguments,
-            function_definition.function_sig.return_type,
+            function_definition.function_sig.return_type.clone(),
         )?;
     }
 
@@ -158,60 +158,57 @@ pub fn import_user_lib_functions<'a>(
                 TypeDiscriminants::Void => {
                     panic!("Can't take a `Void` as an argument")
                 }
+                TypeDiscriminants::Struct((_struct_name, struct_inner)) => {
+                    let field_ty = struct_field_to_ty_list(ctx, struct_inner);
+
+                    BasicMetadataTypeEnum::StructType(ctx.struct_type(&field_ty, true))
+                }
             };
 
             args.push(argument_sig);
         }
 
-        let function_type = match import_sig.return_type {
+        let function_type = match &import_sig.return_type {
             TypeDiscriminants::I32 => {
                 let return_type = ctx.i32_type();
 
-                let function_type = return_type.fn_type(&args, false);
-
-                function_type
+                return_type.fn_type(&args, false)
             }
             TypeDiscriminants::F32 => {
                 let return_type = ctx.f32_type();
 
-                let function_type = return_type.fn_type(&args, false);
-
-                function_type
+                return_type.fn_type(&args, false)
             }
             TypeDiscriminants::U32 => {
                 let return_type = ctx.i32_type();
 
-                let function_type = return_type.fn_type(&args, false);
-
-                function_type
+                return_type.fn_type(&args, false)
             }
             TypeDiscriminants::U8 => {
                 let return_type = ctx.i32_type();
 
-                let function_type = return_type.fn_type(&args, false);
-
-                function_type
+                return_type.fn_type(&args, false)
             }
             TypeDiscriminants::String => {
                 let return_type = ctx.ptr_type(AddressSpace::default());
 
-                let function_type = return_type.fn_type(&args, false);
-
-                function_type
+                return_type.fn_type(&args, false)
             }
             TypeDiscriminants::Boolean => {
                 let return_type = ctx.bool_type();
 
-                let function_type = return_type.fn_type(&args, false);
-
-                function_type
+                return_type.fn_type(&args, false)
             }
             TypeDiscriminants::Void => {
                 let return_type = ctx.void_type();
 
-                let function_type = return_type.fn_type(&args, false);
+                return_type.fn_type(&args, false)
+            }
+            TypeDiscriminants::Struct((_struct_name, struct_inner)) => {
+                let return_type =
+                    ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), true);
 
-                function_type
+                return_type.fn_type(&args, false)
             }
         };
 
@@ -280,7 +277,7 @@ pub fn create_ir(
             token,
             &mut variable_map,
             None,
-            fn_ret_ty,
+            fn_ret_ty.clone(),
         )?;
     }
 
@@ -410,21 +407,22 @@ pub fn create_ir_from_parsed_token<'a>(
 
             let sig_iter = fn_sig.args.iter().map(|(key, value)| {
                 (
-                    (key.clone(), *value),
-                    parsed_tokens.get(key).unwrap().clone(),
+                    key.clone(),
+                    (value.clone(), parsed_tokens.get(key).unwrap().clone()),
                 )
             });
 
             // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
-            let fn_argument_list: IndexMap<(String, TypeDiscriminants), ParsedToken> =
+            let fn_argument_list: IndexMap<String, (TypeDiscriminants, ParsedToken)> =
                 IndexMap::from_iter(sig_iter);
 
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for ((arg_name, arg_type), parsed_token) in fn_argument_list.iter() {
+            for (arg_name, (arg_type, parsed_token)) in fn_argument_list.iter() {
                 // Create a temporary variable for the argument thats passed in
-                let (ptr, ptr_ty) = create_new_variable(ctx, builder, arg_name.clone(), *arg_type)?;
+                let (ptr, ptr_ty) =
+                    create_new_variable(ctx, builder, arg_name.clone(), arg_type.clone())?;
 
                 // Set the value of the temp variable to the value the argument has
                 create_ir_from_parsed_token(
@@ -434,7 +432,7 @@ pub fn create_ir_from_parsed_token<'a>(
                     parsed_token.clone(),
                     variable_map,
                     Some((arg_name.clone(), (ptr, ptr_ty))),
-                    fn_ret_ty,
+                    fn_ret_ty.clone(),
                 )?;
 
                 // Push the argument to the list of arguments
@@ -530,6 +528,13 @@ pub fn create_ir_from_parsed_token<'a>(
                                 "A void can not be parsed, as a void functuion returns a `None`."
                             );
                         }
+                        TypeDiscriminants::Struct((struct_name, struct_inner)) => {
+                            // Get returned pointer value
+                            let returned_struct = returned.into_struct_value();
+
+                            // Store the const in the pointer
+                            builder.build_store(v_ptr, returned_struct)?;
+                        }
                     };
                 }
             } else {
@@ -548,7 +553,8 @@ pub fn create_ir_from_parsed_token<'a>(
             // This temporary variable is used to return the value
             let var_name = String::from("ret_tmp_var");
 
-            let (ptr, ptr_ty) = create_new_variable(ctx, builder, var_name.clone(), fn_ret_ty)?;
+            let (ptr, ptr_ty) =
+                create_new_variable(ctx, builder, var_name.clone(), fn_ret_ty.clone())?;
 
             // Set the value of the newly created variable
             create_ir_from_parsed_token(
@@ -558,7 +564,7 @@ pub fn create_ir_from_parsed_token<'a>(
                 *parsed_token,
                 variable_map,
                 Some((var_name, (ptr, ptr_ty))),
-                fn_ret_ty,
+                fn_ret_ty.clone(),
             )?;
 
             match ptr_ty {
@@ -609,6 +615,13 @@ pub fn create_ir_from_parsed_token<'a>(
             };
         }
         ParsedToken::If(_) => todo!(),
+        ParsedToken::InitalizeStruct(struct_fields, init_struct) => {
+            let struct_fields = struct_field_to_ty_list(ctx, &struct_fields);
+
+            let struct_type = ctx.struct_type(&struct_fields, true);
+
+            // struct_type.const_named_struct(&basic_val_from_struct(ctx, builder, init_struct)?);
+        }
     }
 
     Ok(())
@@ -624,7 +637,6 @@ fn create_new_variable<'a, 'b>(
     let i32_type = ctx.i32_type();
     let i8_type = ctx.i8_type();
     let f32_type = ctx.f32_type();
-    let void_type = ctx.void_type();
     let pointer_type = ctx.ptr_type(AddressSpace::default());
 
     let (ptr, ptr_ty): (PointerValue, BasicMetadataTypeEnum) = match var_type {
@@ -661,6 +673,12 @@ fn create_new_variable<'a, 'b>(
         TypeDiscriminants::Void => {
             unreachable!("Variables with a Void value shouldn't be created.");
         }
+        TypeDiscriminants::Struct((struct_name, struct_inner)) => {
+            let struct_ty = ctx.struct_type(&struct_field_to_ty_list(ctx, &struct_inner), true);
+            let v_ptr = builder.build_alloca(struct_ty, &var_name)?;
+
+            (v_ptr, BasicMetadataTypeEnum::StructType(struct_ty))
+        }
     };
 
     Ok((ptr, ptr_ty))
@@ -689,6 +707,9 @@ pub fn create_fn_type_from_ty_disc(ctx: &Context, fn_sig: FunctionSignature) -> 
         TypeDiscriminants::Void => ctx
             .void_type()
             .fn_type(&get_args_from_sig(ctx, fn_sig), false),
+        TypeDiscriminants::Struct((ref _struct_name, ref struct_inner)) => ctx
+            .struct_type(&struct_field_to_ty_list(ctx, struct_inner), true)
+            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
     }
 }
 
@@ -709,6 +730,12 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
             TypeDiscriminants::Boolean => BasicMetadataTypeEnum::IntType(ctx.bool_type()),
             TypeDiscriminants::Void => {
                 panic!("Can't take a `Void` as an argument")
+            }
+            TypeDiscriminants::Struct((struct_name, struct_inner)) => {
+                let struct_type =
+                    ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), true);
+
+                BasicMetadataTypeEnum::StructType(struct_type)
             }
         };
 
@@ -761,33 +788,7 @@ pub fn set_value_of_ptr(
             builder.build_store(v_ptr, init_val)?;
         }
         Type::String(inner) => {
-            // Get the String's bytes, add the null terminator
-            let mut string_bytes = inner.as_bytes().to_vec();
-
-            // Append the null byte if it doesn't exist yet to terminate the string at the end.
-            if let Some(last_byte) = string_bytes.last() {
-                if *last_byte != 0 {
-                    string_bytes.push(0);
-                }
-            }
-
-            // Create an appropriate sized array for the String
-            let sized_array = i8_type.array_type(string_bytes.len() as u32);
-
-            // Allocate the String buffer
-            let buffer_ptr = builder.build_alloca(sized_array, "string_buffer")?;
-
-            // Create the string array
-            let str_array = i8_type.const_array(
-                string_bytes
-                    .iter()
-                    .map(|byte| i8_type.const_int(*byte as u64, false))
-                    .collect::<Vec<IntValue>>()
-                    .as_slice(),
-            );
-
-            // Store the String array in the buffer
-            builder.build_store(buffer_ptr, str_array)?;
+            let buffer_ptr = allocate_string(builder, i8_type, inner)?;
 
             // Store const
             builder.build_store(v_ptr, buffer_ptr)?;
@@ -802,7 +803,140 @@ pub fn set_value_of_ptr(
         Type::Void => {
             unreachable!()
         }
+        Type::Struct((struct_name, struct_inner)) => {
+            let struct_type = ctx.struct_type(
+                &struct_field_to_ty_list(ctx, &struct_field_to_discriminant(&struct_inner)),
+                true,
+            );
+
+            let init_val = struct_type.const_named_struct(&basic_val_from_struct(
+                ctx,
+                builder,
+                &struct_inner,
+            )?);
+
+            builder.build_store(v_ptr, init_val)?;
+        }
     }
 
     Ok(())
+}
+
+pub fn allocate_string<'a>(
+    builder: &'a Builder<'_>,
+    i8_type: inkwell::types::IntType<'a>,
+    string_buffer: String,
+) -> Result<PointerValue<'a>, anyhow::Error> {
+    let mut string_bytes = string_buffer.as_bytes().to_vec();
+    if let Some(last_byte) = string_bytes.last() {
+        if *last_byte != 0 {
+            string_bytes.push(0);
+        }
+    }
+    let sized_array = i8_type.array_type(string_bytes.len() as u32);
+    let buffer_ptr = builder.build_alloca(sized_array, "string_buffer")?;
+    let str_array = i8_type.const_array(
+        string_bytes
+            .iter()
+            .map(|byte| i8_type.const_int(*byte as u64, false))
+            .collect::<Vec<IntValue>>()
+            .as_slice(),
+    );
+    builder.build_store(buffer_ptr, str_array)?;
+    Ok(buffer_ptr)
+}
+
+pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminants) -> BasicTypeEnum<'a> {
+    let i32_type = ctx.i32_type();
+    let f32_type = ctx.f32_type();
+    let ptr_type = ctx.ptr_type(AddressSpace::default());
+
+    let field_ty = match ty {
+        TypeDiscriminants::I32 => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminants::F32 => BasicTypeEnum::FloatType(f32_type),
+        TypeDiscriminants::U32 => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminants::U8 => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminants::String => BasicTypeEnum::PointerType(ptr_type),
+        TypeDiscriminants::Boolean => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminants::Void => {
+            unimplemented!();
+        }
+        TypeDiscriminants::Struct((struct_name, struct_inner)) => {
+            let struct_type = ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), true);
+
+            BasicTypeEnum::StructType(struct_type)
+        }
+    };
+
+    field_ty
+}
+
+pub fn struct_field_to_ty_list<'a>(
+    ctx: &'a Context,
+    struct_inner: &IndexMap<String, TypeDiscriminants>,
+) -> Vec<BasicTypeEnum<'a>> {
+    let mut type_list = Vec::new();
+
+    for (_, ty) in struct_inner.iter() {
+        let basic_ty = ty_to_llvm_ty(ctx, &ty);
+
+        type_list.push(basic_ty);
+    }
+
+    type_list
+}
+
+pub fn struct_field_to_discriminant(
+    struct_inner: &IndexMap<String, Type>,
+) -> IndexMap<String, TypeDiscriminants> {
+    IndexMap::from_iter(
+        struct_inner
+            .iter()
+            .map(|(a, b)| (a.clone(), b.discriminant())),
+    )
+}
+
+pub fn basic_val_from_struct<'a>(
+    ctx: &'a Context,
+    builder: &'a Builder,
+    struct_inner: &IndexMap<String, Type>,
+) -> anyhow::Result<Vec<BasicValueEnum<'a>>> {
+    let mut struct_vals = Vec::new();
+    let i32_type = ctx.i32_type();
+    let i8_type = ctx.i8_type();
+    let f32_type = ctx.f32_type();
+
+    for (_, val) in struct_inner.iter() {
+        let basic_val = match val {
+            Type::I32(inner) => BasicValueEnum::IntValue(i32_type.const_int(*inner as u64, true)),
+            Type::F32(inner) => BasicValueEnum::FloatValue(f32_type.const_float(*inner as f64)),
+            Type::U32(inner) => BasicValueEnum::IntValue(i32_type.const_int(*inner as u64, false)),
+            Type::U8(inner) => BasicValueEnum::IntValue(i32_type.const_int(*inner as u64, false)),
+            Type::String(inner) => {
+                let buf_ptr = allocate_string(builder, i8_type, inner.clone())?;
+
+                BasicValueEnum::PointerValue(buf_ptr)
+            }
+            Type::Boolean(inner) => {
+                BasicValueEnum::IntValue(i32_type.const_int(*inner as u64, true))
+            }
+            Type::Void => unreachable!(),
+            Type::Struct((_struct_name, struct_inner)) => {
+                let struct_type = ctx.struct_type(
+                    &struct_field_to_ty_list(ctx, &struct_field_to_discriminant(struct_inner)),
+                    true,
+                );
+
+                BasicValueEnum::StructValue(struct_type.const_named_struct(&basic_val_from_struct(
+                    ctx,
+                    builder,
+                    struct_inner,
+                )?))
+            }
+        };
+
+        struct_vals.push(basic_val);
+    }
+
+    Ok(struct_vals)
 }

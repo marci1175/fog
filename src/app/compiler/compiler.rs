@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     ApplicationError,
     app::{
@@ -10,33 +12,56 @@ use crate::{
 
 use super::file_ingest::file_ingest;
 
-pub fn compilation_process(
-    path_to_file: PathBuf,
-    target_path: PathBuf,
-    optimization: bool,
-) -> anyhow::Result<()> {
-    println!("Reading file...");
-    let formatted_file_contents = file_ingest(path_to_file)?;
+#[derive(Deserialize, Serialize)]
+pub struct CompilerConfig {
+    pub name: String,
+    pub is_library: bool,
+}
 
-    println!("Tokenizing...");
-    let tokens = tokenize(formatted_file_contents)?;
+impl Default for CompilerConfig {
+    fn default() -> Self {
+        Self {
+            name: "project".to_string(),
+            is_library: false,
+        }
+    }
+}
 
-    let mut parser_state = ParserState::new(tokens);
+pub struct CompilerState {
+    config: CompilerConfig,
+}
 
-    println!("Parsing Tokens...");
-    parser_state.parse_tokens()?;
+impl CompilerState {
+    pub fn new(config: CompilerConfig) -> Self {
+        Self { config }
+    }
 
-    let function_table = parser_state.function_table();
-    let imported_functions = parser_state.imported_functions();
+    pub fn compilation_process(
+        &self,
+        file_contents: String,
+        target_path: PathBuf,
+        optimization: bool,
+    ) -> anyhow::Result<()> {
+        println!("Tokenizing...");
+        let tokens = tokenize(file_contents)?;
 
-    println!("LLVM-IR generation...");
-    codegen_main(
-        function_table,
-        target_path,
-        optimization,
-        imported_functions,
-    )
-    .map_err(ApplicationError::CodeGenError)?;
+        let mut parser_state = ParserState::new(tokens);
 
-    Ok(())
+        println!("Parsing Tokens...");
+        parser_state.parse_tokens()?;
+
+        let function_table = parser_state.function_table();
+        let imported_functions = parser_state.imported_functions();
+
+        println!("LLVM-IR generation...");
+        codegen_main(
+            function_table,
+            target_path,
+            optimization,
+            imported_functions,
+        )
+        .map_err(ApplicationError::CodeGenError)?;
+
+        Ok(())
+    }
 }

@@ -83,6 +83,7 @@ dependencies = [
  "indexmap",
  "inkwell",
  "num",
+ "serde",
  "strum",
  "strum_macros",
  "thiserror 2.0.12",

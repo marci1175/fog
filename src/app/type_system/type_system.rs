@@ -1,10 +1,12 @@
+use std::fmt::Display;
+
+use indexmap::IndexMap;
 use strum::IntoDiscriminant;
 use strum_macros::Display;
 
-use crate::app::parser::error::ParserError;
+use crate::app::parser::{error::ParserError, types::CustomType};
 
-#[derive(Debug, strum_macros::EnumDiscriminants, Clone, PartialEq, Display, Default)]
-#[strum_discriminants(derive(strum_macros::Display, strum_macros::VariantArray, Default, Hash))]
+#[derive(Debug, Clone, PartialEq, Display, Default)]
 pub enum Type {
     I32(i32),
     F32(f32),
@@ -15,8 +17,48 @@ pub enum Type {
     Boolean(bool),
 
     #[default]
-    #[strum_discriminants(default)]
     Void,
+
+    Struct((String, IndexMap<String, Type>)),
+}
+
+impl Type {
+    pub fn discriminant(&self) -> TypeDiscriminants {
+        match self {
+            Type::I32(_) => TypeDiscriminants::I32,
+            Type::F32(_) => TypeDiscriminants::F32,
+            Type::U32(_) => TypeDiscriminants::U32,
+            Type::U8(_) => TypeDiscriminants::U8,
+            Type::String(_) => TypeDiscriminants::String,
+            Type::Boolean(_) => TypeDiscriminants::Boolean,
+            Type::Void => TypeDiscriminants::Void,
+            Type::Struct((struct_name, struct_fields)) => {
+                let mut struct_field_ty_list = IndexMap::new();
+
+                for (name, ty) in struct_fields.iter() {
+                    struct_field_ty_list.insert(name.clone(), ty.discriminant());
+                }
+
+                TypeDiscriminants::Struct((struct_name.clone(), struct_field_ty_list))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Eq)]
+pub enum TypeDiscriminants {
+    I32,
+    F32,
+    U32,
+    U8,
+
+    String,
+    Boolean,
+
+    #[default]
+    Void,
+
+    Struct((String, IndexMap<String, TypeDiscriminants>)),
 }
 
 impl From<TypeDiscriminants> for Type {
@@ -29,7 +71,25 @@ impl From<TypeDiscriminants> for Type {
             TypeDiscriminants::String => Self::String(String::new()),
             TypeDiscriminants::Boolean => Self::Boolean(false),
             TypeDiscriminants::Void => Self::Void,
+            TypeDiscriminants::Struct(_) => {
+                unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
+            }
         }
+    }
+}
+
+impl Display for TypeDiscriminants {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&match self {
+            TypeDiscriminants::I32 => format!("I32"),
+            TypeDiscriminants::F32 => format!("F32"),
+            TypeDiscriminants::U32 => format!("U32"),
+            TypeDiscriminants::U8 => format!("U8"),
+            TypeDiscriminants::String => format!("String"),
+            TypeDiscriminants::Boolean => format!("Boolean"),
+            TypeDiscriminants::Void => format!("Void"),
+            TypeDiscriminants::Struct((struct_name, _)) => format!("Struct({struct_name})"),
+        })
     }
 }
 
@@ -56,7 +116,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
 ) -> Result<Type, ParserError> {
     let parsed_num = raw_string
         .parse::<f64>()
-        .map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?;
+        .map_err(|_| ParserError::InvalidTypeCast(raw_string.clone(), dest_type.clone()))?;
 
     let casted_var = match dest_type {
         TypeDiscriminants::I32 => Type::I32(parsed_num as i32),
@@ -72,53 +132,15 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             }
         }
         TypeDiscriminants::Void => Type::Void,
+        TypeDiscriminants::Struct(inner) => {
+            return Err(ParserError::InvalidTypeCast(
+                raw_string,
+                TypeDiscriminants::Struct(inner),
+            ));
+        }
     };
 
     Ok(casted_var)
-}
-pub fn unparsed_const_to_typed_literal(
-    raw_string: String,
-    dest_type: TypeDiscriminants,
-) -> Result<Type, ParserError> {
-    let typed_var = match dest_type {
-        TypeDiscriminants::I32 => Type::I32(
-            raw_string
-                .parse::<i32>()
-                .map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?,
-        ),
-        TypeDiscriminants::F32 => Type::F32(
-            raw_string
-                .parse::<f32>()
-                .map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?,
-        ),
-        TypeDiscriminants::U32 => Type::U32(
-            raw_string
-                .parse::<u32>()
-                .map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?,
-        ),
-        TypeDiscriminants::U8 => Type::U8(
-            raw_string
-                .parse::<u8>()
-                .map_err(|_| ParserError::ConstTypeUndetermined(raw_string, dest_type))?,
-        ),
-        TypeDiscriminants::String => {
-            return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type));
-        }
-        TypeDiscriminants::Boolean => {
-            if raw_string == "false" {
-                Type::Boolean(false)
-            } else if raw_string == "true" {
-                Type::Boolean(true)
-            } else {
-                return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type));
-            }
-        }
-        TypeDiscriminants::Void => {
-            return Err(ParserError::ConstTypeUndetermined(raw_string, dest_type));
-        }
-    };
-
-    Ok(typed_var)
 }
 
 pub fn convert_as(value: Type, dest_type: TypeDiscriminants) -> anyhow::Result<Type> {
@@ -143,8 +165,9 @@ pub fn convert_as(value: Type, dest_type: TypeDiscriminants) -> anyhow::Result<T
                     Type::Boolean(false)
                 }
             }
-
-            TypeDiscriminants::I32 | TypeDiscriminants::Void => unreachable!(),
+            TypeDiscriminants::I32 | TypeDiscriminants::Void | TypeDiscriminants::Struct(_) => {
+                unreachable!()
+            }
         },
         Type::F32(inner) => match dest_type {
             TypeDiscriminants::I32 => Type::I32(inner as i32),
@@ -159,7 +182,9 @@ pub fn convert_as(value: Type, dest_type: TypeDiscriminants) -> anyhow::Result<T
                 }
             }
 
-            TypeDiscriminants::F32 | TypeDiscriminants::Void => unreachable!(),
+            TypeDiscriminants::F32 | TypeDiscriminants::Void | TypeDiscriminants::Struct(_) => {
+                unreachable!()
+            }
         },
         Type::U32(inner) => match dest_type {
             TypeDiscriminants::F32 => Type::F32(inner as f32),
@@ -174,7 +199,9 @@ pub fn convert_as(value: Type, dest_type: TypeDiscriminants) -> anyhow::Result<T
                 }
             }
 
-            TypeDiscriminants::U32 | TypeDiscriminants::Void => unreachable!(),
+            TypeDiscriminants::U32 | TypeDiscriminants::Void | TypeDiscriminants::Struct(_) => {
+                unreachable!()
+            }
         },
         Type::U8(inner) => match dest_type {
             TypeDiscriminants::F32 => Type::F32(inner as f32),
@@ -189,7 +216,9 @@ pub fn convert_as(value: Type, dest_type: TypeDiscriminants) -> anyhow::Result<T
                 }
             }
 
-            TypeDiscriminants::U8 | TypeDiscriminants::Void => unreachable!(),
+            TypeDiscriminants::U8 | TypeDiscriminants::Void | TypeDiscriminants::Struct(_) => {
+                unreachable!()
+            }
         },
         Type::String(inner) => match dest_type {
             TypeDiscriminants::I32 => Type::I32(inner.parse::<i32>()?),
@@ -198,9 +227,10 @@ pub fn convert_as(value: Type, dest_type: TypeDiscriminants) -> anyhow::Result<T
             TypeDiscriminants::U8 => Type::U8(inner.parse::<u8>()?),
             TypeDiscriminants::Boolean => Type::Boolean(inner.parse::<bool>()?),
 
-            TypeDiscriminants::String | TypeDiscriminants::Void => unreachable!(),
+            TypeDiscriminants::String | TypeDiscriminants::Void | TypeDiscriminants::Struct(_) => {
+                unreachable!()
+            }
         },
-
         Type::Boolean(inner) => match dest_type {
             TypeDiscriminants::I32 => Type::I32(inner as i32),
             TypeDiscriminants::F32 => Type::F32(inner as i32 as f32),
@@ -208,9 +238,11 @@ pub fn convert_as(value: Type, dest_type: TypeDiscriminants) -> anyhow::Result<T
             TypeDiscriminants::U8 => Type::U8(inner as u8),
             TypeDiscriminants::String => Type::String(inner.to_string()),
 
-            TypeDiscriminants::Boolean | TypeDiscriminants::Void => unreachable!(),
+            TypeDiscriminants::Boolean | TypeDiscriminants::Void | TypeDiscriminants::Struct(_) => {
+                unreachable!()
+            }
         },
-        Type::Void => unreachable!(),
+        Type::Void | Type::Struct(_) => unreachable!(),
     };
 
     Ok(return_val)

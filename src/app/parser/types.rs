@@ -122,6 +122,11 @@ pub enum ParsedToken {
 
     // Const(TypeDiscriminants),
     If(If),
+
+    InitalizeStruct(
+        IndexMap<String, TypeDiscriminants>,
+        IndexMap<String, Box<ParsedToken>>,
+    ),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -152,14 +157,13 @@ impl Display for FunctionSignature {
 }
 
 /// All of the custom types implemented by the User are defined here
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Display)]
 pub enum CustomType {
-    Struct(IndexMap<String, TypeDiscriminants>),
+    Struct((String, IndexMap<String, TypeDiscriminants>)),
     Enum(IndexMap<String, TypeDiscriminants>),
-
-    /// First argument is the struct's name which the Extend extends
-    /// The second argument is the list of functions the stuct is being extended with
-    Extend(String, IndexMap<String, FunctionDefinition>),
+    // First argument is the struct's name which the Extend extends
+    // The second argument is the list of functions the stuct is being extended with
+    // Extend(String, IndexMap<String, FunctionDefinition>),
 }
 
 #[derive(Debug, Clone)]

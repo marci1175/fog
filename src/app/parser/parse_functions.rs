@@ -48,7 +48,7 @@ pub fn create_signature_table(
                     token_idx += bracket_close_idx + 3;
 
                     if tokens[token_idx + 1] == Token::Colon {
-                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2] {
+                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone() {
                             if tokens[token_idx + 3] == Token::OpenBraces {
                                 // Create a varable which stores the level of braces we are in
                                 let mut brace_layer_counter = 1;
@@ -143,7 +143,7 @@ pub fn create_signature_table(
                     token_idx += bracket_close_idx + 3;
 
                     if tokens[token_idx + 1] == Token::Colon {
-                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2] {
+                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone() {
                             if tokens[token_idx + 3] == Token::LineBreak {
                                 if external_imports.get(&identifier).is_some()
                                     || function_list.get(&identifier).is_some()
@@ -251,23 +251,44 @@ pub fn create_signature_table(
                         // Pattern match the syntax
                         if let Token::Identifier(field_name) = current_token {
                             if let Token::Colon = struct_slice[token_idx + 1] {
-                                if let Token::TypeDefinition(field_type) =
-                                    struct_slice[token_idx + 2]
-                                {
-                                    if let Some(Token::Comma) = struct_slice.get(token_idx + 3) {
+                                if let Some(Token::Comma) = struct_slice.get(token_idx + 3) {
+                                    if let Token::TypeDefinition(field_type) =
+                                        &struct_slice[token_idx + 2]
+                                    {
                                         // Save the field's type and name
-                                        struct_fields.insert(field_name.clone(), field_type);
+                                        struct_fields
+                                            .insert(field_name.clone(), field_type.clone());
 
                                         // Increment the token index
                                         token_idx += 4;
 
                                         // Continue looping through, if the pattern doesnt match the syntax return an error
                                         continue;
+                                    } else if let Token::Identifier(custom_type) =
+                                        &struct_slice[token_idx + 2]
+                                    {
+                                        if let Some(custom_item) = custom_items.get(custom_type) {
+                                            match custom_item {
+                                                CustomType::Struct(struct_def) => {
+                                                    struct_fields.insert(
+                                                        field_name.to_string(),
+                                                        TypeDiscriminants::Struct(
+                                                            struct_def.clone(),
+                                                        ),
+                                                    );
+                                                }
+                                                CustomType::Enum(index_map) => {
+                                                    todo!()
+                                                }
+                                            }
+
+                                            // Increment the token index
+                                            token_idx += 4;
+
+                                            // Continue looping through, if the pattern doesnt match the syntax return an error
+                                            continue;
+                                        }
                                     }
-                                } else if let Token::Identifier(custom_type) =
-                                    &struct_slice[token_idx + 2]
-                                {
-                                    if let Some(custom_item) = custom_items.get(custom_type) {}
                                 }
                             }
                         }
@@ -280,7 +301,10 @@ pub fn create_signature_table(
                     }
 
                     // Save the custom item
-                    custom_items.insert(struct_name.to_string(), CustomType::Struct(struct_fields));
+                    custom_items.insert(
+                        struct_name.to_string(),
+                        CustomType::Struct((struct_name.clone(), struct_fields)),
+                    );
                 }
             } else {
                 return Err(
@@ -333,9 +357,9 @@ fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDisc
             // Match the colon from the signature, to ensure correct signaure
             if token_list[args_idx + 1] == Token::Colon {
                 // Get the type of the argument
-                if let Token::TypeDefinition(var_type) = token_list[args_idx + 2] {
+                if let Token::TypeDefinition(var_type) = &token_list[args_idx + 2] {
                     // Store the argument in the HashMap
-                    args.insert(var_name, var_type);
+                    args.insert(var_name, var_type.clone());
 
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {
@@ -431,25 +455,26 @@ fn parse_function_block(
                             selected_tokens,
                             function_signatures.clone(),
                             &variable_scope,
-                            var_type,
+                            var_type.clone(),
                             function_imports.clone(),
+                            custom_items.clone(),
                         )?;
 
                         parsed_tokens.push(ParsedToken::NewVariable(
                             var_name.clone(),
-                            var_type,
+                            var_type.clone(),
                             Box::new(parsed_value.clone()),
                         ));
 
-                        variable_scope.insert(var_name, var_type);
+                        variable_scope.insert(var_name, var_type.clone());
                     } else {
                         parsed_tokens.push(ParsedToken::NewVariable(
                             var_name.clone(),
-                            var_type,
-                            Box::new(ParsedToken::Literal(var_type.into())),
+                            var_type.clone(),
+                            Box::new(ParsedToken::Literal(var_type.clone().into())),
                         ));
 
-                        variable_scope.insert(var_name.clone(), var_type);
+                        variable_scope.insert(var_name.clone(), var_type.clone());
 
                         token_idx += 2;
                     }
@@ -497,8 +522,9 @@ fn parse_function_block(
                                 selected_tokens,
                                 function_signatures.clone(),
                                 &variable_scope,
-                                *variable_type,
+                                variable_type.clone(),
                                 function_imports.clone(),
+                                custom_items.clone(),
                             )?;
 
                             parsed_tokens.push(ParsedToken::SetValue(
@@ -517,6 +543,7 @@ fn parse_function_block(
                                 &ident_name,
                                 MathematicalSymbol::Addition,
                                 function_imports.clone(),
+                                custom_items.clone(),
                             )?;
                         }
                         Token::SetValueSubtraction => {
@@ -530,6 +557,7 @@ fn parse_function_block(
                                 &ident_name,
                                 MathematicalSymbol::Subtraction,
                                 function_imports.clone(),
+                                custom_items.clone(),
                             )?;
                         }
                         Token::SetValueDivision => {
@@ -543,6 +571,7 @@ fn parse_function_block(
                                 &ident_name,
                                 MathematicalSymbol::Division,
                                 function_imports.clone(),
+                                custom_items.clone(),
                             )?;
                         }
                         Token::SetValueMultiplication => {
@@ -556,6 +585,7 @@ fn parse_function_block(
                                 &ident_name,
                                 MathematicalSymbol::Multiplication,
                                 function_imports.clone(),
+                                custom_items.clone(),
                             )?;
                         }
                         Token::SetValueModulo => {
@@ -569,6 +599,7 @@ fn parse_function_block(
                                 &ident_name,
                                 MathematicalSymbol::Modulo,
                                 function_imports.clone(),
+                                custom_items.clone(),
                             )?;
                         }
                         _ => {}
@@ -592,6 +623,7 @@ fn parse_function_block(
                         function_sig.function_sig.args.clone(),
                         function_signatures.clone(),
                         function_imports.clone(),
+                        custom_items.clone(),
                     )?;
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
@@ -619,6 +651,7 @@ fn parse_function_block(
                         function_sig.args.clone(),
                         function_signatures.clone(),
                         function_imports.clone(),
+                        custom_items.clone(),
                     )?;
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
@@ -629,14 +662,45 @@ fn parse_function_block(
                     token_idx += jumped_idx;
                 } else if let Some(custom_type) = custom_items.get(&ident_name) {
                     match custom_type {
-                        CustomType::Struct(struct_fields) => {}
-                        CustomType::Enum(enum_types) => {}
-                        CustomType::Extend(_, _) => {
-                            return Err(ParserError::SyntaxError(
-                                super::error::SyntaxError::InvalidStructExtensionPlacement,
-                            )
-                            .into());
+                        CustomType::Struct(struct_instance) => {
+                            let variable_type = TypeDiscriminants::Struct(struct_instance.clone());
+                            token_idx += 1;
+
+                            if let Some(Token::Identifier(var_name)) = tokens.get(token_idx) {
+                                if let Some(Token::SetValue) = tokens.get(token_idx + 1) {
+                                    let line_break_idx = tokens
+                                    .iter()
+                                    .skip(token_idx)
+                                    .position(|token| *token == Token::LineBreak)
+                                    .ok_or({
+                                        ParserError::SyntaxError(
+                                            crate::app::parser::error::SyntaxError::MissingLineBreak,
+                                        )
+                                    })?
+                                    + token_idx;
+
+                                    let selected_tokens = &tokens[token_idx + 2..line_break_idx];
+
+                                    token_idx += selected_tokens.len() + 1;
+
+                                    let (parsed_token, _) = parse_value(
+                                        selected_tokens,
+                                        function_signatures.clone(),
+                                        &variable_scope,
+                                        variable_type.clone(),
+                                        function_imports.clone(),
+                                        custom_items.clone(),
+                                    )?;
+
+                                    parsed_tokens.push(ParsedToken::NewVariable(
+                                        var_name.clone(),
+                                        variable_type,
+                                        Box::new(parsed_token),
+                                    ));
+                                }
+                            }
                         }
+                        CustomType::Enum(enum_types) => {}
                     };
                 } else {
                     return Err(ParserError::VariableNotFound(ident_name).into());
@@ -648,7 +712,7 @@ fn parse_function_block(
 
                 let next_token = &tokens[token_idx];
 
-                if this_function_signature.return_type == TypeDiscriminants::Void {
+                if this_function_signature.return_type.clone() == TypeDiscriminants::Void {
                     if *next_token != Token::LineBreak {
                         return Err(ParserError::SyntaxError(
                             super::error::SyntaxError::InvalidStatementDefinition,
@@ -660,8 +724,9 @@ fn parse_function_block(
                         &tokens[token_idx..],
                         function_signatures.clone(),
                         &variable_scope,
-                        this_function_signature.return_type,
+                        this_function_signature.return_type.clone(),
                         function_imports.clone(),
+                        custom_items.clone(),
                     )?;
 
                     token_idx += jmp_idx;
@@ -694,6 +759,7 @@ fn set_value_math_expr(
     ident_name: &String,
     math_symbol: MathematicalSymbol,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
+    custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(), anyhow::Error> {
     *token_idx += 1;
 
@@ -705,10 +771,11 @@ fn set_value_math_expr(
         tokens,
         function_signatures,
         variable_scope,
-        *variable_type,
+        variable_type.clone(),
         token_idx,
         eval_token,
         standard_function_table,
+        custom_items.clone(),
     )?;
 
     parsed_tokens.push(ParsedToken::SetValue(
@@ -730,6 +797,7 @@ pub fn parse_function_call_args(
     mut this_function_args: IndexMap<String, TypeDiscriminants>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
+    custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(IndexMap<String, ParsedToken>, usize)> {
     let mut tokens_idx = 0;
     let args_list_len = tokens[tokens_idx..].len();
@@ -757,8 +825,9 @@ pub fn parse_function_call_args(
                     &tokens[tokens_idx..],
                     function_signatures.clone(),
                     variable_scope,
-                    *argument_type,
+                    argument_type.clone(),
                     standard_function_table.clone(),
+                    custom_items.clone(),
                 )?;
 
                 tokens_idx += jump_idx;
@@ -789,8 +858,9 @@ pub fn parse_function_call_args(
                             &token_buf,
                             function_signatures.clone(),
                             variable_scope,
-                            *fn_argument.get(),
+                            fn_argument.get().clone(),
                             standard_function_table.clone(),
+                            custom_items.clone(),
                         )?;
 
                         token_buf.clear();
@@ -835,8 +905,9 @@ pub fn parse_function_call_args(
                             &token_buf,
                             function_signatures.clone(),
                             variable_scope,
-                            *fn_argument.get(),
+                            fn_argument.get().clone(),
                             standard_function_table.clone(),
+                            custom_items.clone(),
                         )?;
 
                         token_buf.clear();

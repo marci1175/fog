@@ -1,9 +1,14 @@
+use std::path::PathBuf;
+
 use anyhow::Error;
 
 use super::error::CliParseError;
 
-pub fn parse_args(arg1: String, arg2: String) -> (CliCommand, String) {
-    (CliCommand::try_from(arg1).unwrap_or(CliCommand::Help), arg2)
+pub fn parse_args(arg1: String, arg2: String) -> (CliCommand, PathBuf) {
+    (
+        CliCommand::try_from(arg1).unwrap_or(CliCommand::Help),
+        PathBuf::from(arg2),
+    )
 }
 
 #[derive(Debug, strum_macros::VariantArray, strum_macros::Display, strum_macros::EnumMessage)]
