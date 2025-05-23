@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use strum::IntoDiscriminant;
 use strum_macros::Display;
 
-use crate::app::parser::{error::ParserError, types::CustomType};
+use crate::app::parser::error::ParserError;
 
 #[derive(Debug, Clone, PartialEq, Display, Default)]
 pub enum Type {
@@ -81,13 +81,13 @@ impl From<TypeDiscriminants> for Type {
 impl Display for TypeDiscriminants {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&match self {
-            TypeDiscriminants::I32 => format!("I32"),
-            TypeDiscriminants::F32 => format!("F32"),
-            TypeDiscriminants::U32 => format!("U32"),
-            TypeDiscriminants::U8 => format!("U8"),
-            TypeDiscriminants::String => format!("String"),
-            TypeDiscriminants::Boolean => format!("Boolean"),
-            TypeDiscriminants::Void => format!("Void"),
+            TypeDiscriminants::I32 => "I32".to_string(),
+            TypeDiscriminants::F32 => "F32".to_string(),
+            TypeDiscriminants::U32 => "U32".to_string(),
+            TypeDiscriminants::U8 => "U8".to_string(),
+            TypeDiscriminants::String => "String".to_string(),
+            TypeDiscriminants::Boolean => "Boolean".to_string(),
+            TypeDiscriminants::Void => "Void".to_string(),
             TypeDiscriminants::Struct((struct_name, _)) => format!("Struct({struct_name})"),
         })
     }

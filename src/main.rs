@@ -1,9 +1,6 @@
 use fog::ApplicationError;
 use fog::app::compiler::compiler::{CompilerConfig, CompilerState};
-use fog::app::{
-    cli_parser::cli_parser::{CliCommand, parse_args},
-    compiler,
-};
+use fog::app::cli_parser::cli_parser::{CliCommand, parse_args};
 pub use fog_lib;
 use std::{fs, path::PathBuf};
 use strum::{EnumMessage, VariantArray};
@@ -43,7 +40,7 @@ fn main() -> anyhow::Result<()> {
             let config_file = fs::read_to_string(&arg).map_err(ApplicationError::FileError)?;
 
             let parsed_config = toml::from_str::<CompilerConfig>(&config_file)
-                .map_err(|err| ApplicationError::ConfigError(err))?;
+                .map_err(ApplicationError::ConfigError)?;
 
             let path_to_out = PathBuf::from(args.next().unwrap_or_default());
 

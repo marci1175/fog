@@ -10,7 +10,6 @@ use crate::{
     },
 };
 
-use super::file_ingest::file_ingest;
 
 #[derive(Deserialize, Serialize)]
 pub struct CompilerConfig {

@@ -553,7 +553,7 @@ pub fn init_struct(
                 let (parsed_value, jump_idx) = parse_value(
                     selected_tokens,
                     function_signatures.clone(),
-                    &variable_scope,
+                    variable_scope,
                     this_struct_field
                         .get(field_name)
                         .ok_or(ParserError::SyntaxError(

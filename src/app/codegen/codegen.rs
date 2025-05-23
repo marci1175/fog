@@ -878,7 +878,7 @@ pub fn struct_field_to_ty_list<'a>(
     let mut type_list = Vec::new();
 
     for (_, ty) in struct_inner.iter() {
-        let basic_ty = ty_to_llvm_ty(ctx, &ty);
+        let basic_ty = ty_to_llvm_ty(ctx, ty);
 
         type_list.push(basic_ty);
     }
