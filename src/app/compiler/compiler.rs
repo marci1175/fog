@@ -10,8 +10,7 @@ use crate::{
     },
 };
 
-
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct CompilerConfig {
     pub name: String,
     pub is_library: bool,
@@ -26,8 +25,14 @@ impl Default for CompilerConfig {
     }
 }
 
+impl CompilerConfig {
+    pub fn new(name: String, is_library: bool) -> Self {
+        Self { name, is_library }
+    }
+}
+
 pub struct CompilerState {
-    config: CompilerConfig,
+    pub config: CompilerConfig,
 }
 
 impl CompilerState {

@@ -13,7 +13,7 @@ pub fn parse_args(arg1: String, arg2: String) -> (CliCommand, PathBuf) {
 
 #[derive(Debug, strum_macros::VariantArray, strum_macros::Display, strum_macros::EnumMessage)]
 pub enum CliCommand {
-    #[strum(message = "`c <path-to-file> <path-to-out> |release|` - Compile a file.")]
+    #[strum(message = "`c |release|` - Compile a file.")]
     Compile,
     #[strum(message = "`h` - Display this help screen.")]
     Help,
@@ -21,6 +21,8 @@ pub enum CliCommand {
     Version,
     #[strum(message = "`n <path-to-folder>` - Create a new Fog project.")]
     New,
+    #[strum(message = "`init` - Initalize a new Fog project.")]
+    Init,
 }
 
 impl TryFrom<String> for CliCommand {
@@ -32,6 +34,7 @@ impl TryFrom<String> for CliCommand {
             "h" => Ok(Self::Help),
             "v" => Ok(Self::Version),
             "n" => Ok(Self::New),
+            "init" => Ok(Self::Init),
 
             _ => Err(CliParseError::InvalidArg(value).into()),
         }

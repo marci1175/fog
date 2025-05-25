@@ -43,7 +43,7 @@ pub fn create_signature_table(
             if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
                 if tokens[token_idx + 2] == Token::OpenParentheses {
                     let (bracket_close_idx, args) =
-                        parse_function_argument_tokens(&tokens[token_idx + 3..])?;
+                        parse_signature_argument_tokens(&tokens[token_idx + 3..])?;
 
                     token_idx += bracket_close_idx + 3;
 
@@ -124,9 +124,9 @@ pub fn create_signature_table(
                         }
                     }
 
-                    return Err(ParserError::InvalidFunctionDefinition.into());
+                    return Err(ParserError::InvalidSignatureDefinition.into());
                 } else {
-                    return Err(ParserError::InvalidFunctionDefinition.into());
+                    return Err(ParserError::InvalidSignatureDefinition.into());
                 }
             } else {
                 return Err(ParserError::SyntaxError(
@@ -138,7 +138,7 @@ pub fn create_signature_table(
             if let Token::Identifier(identifier) = tokens[token_idx + 1].clone() {
                 if tokens[token_idx + 2] == Token::OpenParentheses {
                     let (bracket_close_idx, args) =
-                        parse_function_argument_tokens(&tokens[token_idx + 3..])?;
+                        parse_signature_argument_tokens(&tokens[token_idx + 3..])?;
 
                     token_idx += bracket_close_idx + 3;
 
@@ -324,22 +324,22 @@ pub fn create_signature_table(
     ))
 }
 
-fn parse_function_argument_tokens(
+fn parse_signature_argument_tokens(
     tokens: &[Token],
 ) -> Result<(usize, IndexMap<String, TypeDiscriminants>)> {
     let bracket_closing_idx =
-        find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidFunctionDefinition)?;
+        find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidSignatureDefinition)?;
 
     let mut args = IndexMap::new();
 
     if bracket_closing_idx != 0 {
-        args = parse_function_args(&tokens[..bracket_closing_idx])?;
+        args = parse_signature_args(&tokens[..bracket_closing_idx])?;
     }
 
     Ok((bracket_closing_idx, args))
 }
 
-fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDiscriminants>> {
+fn parse_signature_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDiscriminants>> {
     // Create a list of args which the function will take, we will return this later
     let mut args: IndexMap<String, TypeDiscriminants> = IndexMap::new();
 
@@ -375,7 +375,7 @@ fn parse_function_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDisc
         }
 
         // If the pattern didnt match the tokens return an error
-        return Err(ParserError::InvalidFunctionDefinition.into());
+        return Err(ParserError::InvalidSignatureDefinition.into());
     }
 
     Ok(args)

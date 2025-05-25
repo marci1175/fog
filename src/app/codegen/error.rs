@@ -20,4 +20,8 @@ pub enum CodeGenError {
     InternalOptimisationPassFailed,
     #[error("[INTERNAL ERROR] Failed to get TargetTriple for host.")]
     FaliedToAcquireTargetTriple,
+    #[error(
+        "The main entrypoint to the binary is not found. If you want to create a library, configure `config.toml` accordingly."
+    )]
+    NoMain,
 }
