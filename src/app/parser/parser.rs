@@ -53,7 +53,7 @@ impl ParserState {
         self.function_table = parse_functions(
             Arc::new(unparsed_functions),
             imports.clone(),
-            dbg!(custom_items.clone()),
+            custom_items.clone(),
         )?;
 
         // Extend function table with imported functions. (Imported from Fog source code)
@@ -228,7 +228,7 @@ pub fn parse_value(
             }
 
             Token::Comma | Token::CloseParentheses | Token::LineBreak => break,
-
+            
             _ => unimplemented!(),
         }
     }
@@ -470,9 +470,9 @@ pub fn parse_token_as_value(
                             let closing_idx = find_closing_braces(&tokens[*token_idx + 2..], 0)?;
 
                             let struct_init_slice =
-                                &tokens[*token_idx + 2..*token_idx + 2 + closing_idx - 1];
+                                &tokens[*token_idx + 2..*token_idx + 2 + closing_idx];
 
-                            let init_struct_token = init_struct(
+                            let (_jump_idx, init_struct_token) = init_struct(
                                 struct_init_slice,
                                 struct_inner,
                                 function_signatures.clone(),
@@ -480,6 +480,8 @@ pub fn parse_token_as_value(
                                 custom_items.clone(),
                                 variable_scope,
                             )?;
+
+                            *token_idx = *token_idx + 2 + closing_idx + 1;
 
                             return Ok(init_struct_token);
                         }
@@ -540,15 +542,15 @@ pub fn init_struct(
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
     variable_scope: &IndexMap<String, TypeDiscriminants>,
-) -> anyhow::Result<ParsedToken> {
+) -> anyhow::Result<(usize, ParsedToken)> {
     let mut struct_field_init_map: IndexMap<String, Box<ParsedToken>> = IndexMap::new();
 
-    let mut idx = 0;
+    let mut idx: usize = 0;
 
     while idx < struct_slice.len() {
         if let Some(Token::Identifier(field_name)) = struct_slice.get(idx) {
             if let Some(Token::Colon) = struct_slice.get(idx + 1) {
-                let selected_tokens = &struct_slice[idx + 3..];
+                let selected_tokens = &struct_slice[idx + 2..];
 
                 let (parsed_value, jump_idx) = parse_value(
                     selected_tokens,
@@ -564,13 +566,12 @@ pub fn init_struct(
                     custom_items.clone(),
                 )?;
 
-                idx += jump_idx + 1;
+                idx += jump_idx + 2;
 
                 struct_field_init_map.insert(field_name.to_string(), Box::new(parsed_value));
 
                 if let Some(Token::Comma) = struct_slice.get(idx) {
                     idx += 1;
-
                     continue;
                 }
             }
@@ -579,8 +580,8 @@ pub fn init_struct(
         return Err(ParserError::SyntaxError(SyntaxError::InvalidStructFieldDefinition).into());
     }
 
-    Ok(ParsedToken::InitalizeStruct(
-        this_struct_field.clone(),
-        struct_field_init_map,
+    Ok((
+        idx,
+        ParsedToken::InitalizeStruct(this_struct_field.clone(), struct_field_init_map),
     ))
 }

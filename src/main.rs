@@ -50,18 +50,17 @@ fn main() -> anyhow::Result<()> {
             let compiler_state = CompilerState::new(parsed_config.clone());
 
             let target_path = PathBuf::from(format!(
-                    "{}/output/{}.ll",
-                    current_working_dir.display(),
-                    parsed_config.name.clone()
-                ));
+                "{}/output/{}.ll",
+                current_working_dir.display(),
+                parsed_config.name.clone()
+            ));
 
             let release_flag = arg.display().to_string();
-            
+
             compiler_state.compilation_process(
                 source_file,
                 target_path.clone(),
-                release_flag == "release"
-                    || release_flag == "r",
+                release_flag == "release" || release_flag == "r",
             )?;
 
             println!(
@@ -77,12 +76,18 @@ fn main() -> anyhow::Result<()> {
             fs::create_dir_all(&working_folder).map_err(ApplicationError::FileError)?;
             fs::create_dir_all(format!("{working_folder}/src"))?;
 
-            fs::write(format!("{}/src/main.f", working_folder), include_str!("../defaults/default_code.f"))
-                .map_err(ApplicationError::FileError)?;
+            fs::write(
+                format!("{}/src/main.f", working_folder),
+                include_str!("../defaults/default_code.f"),
+            )
+            .map_err(ApplicationError::FileError)?;
 
             fs::write(
                 format!("{}/config.toml", working_folder),
-                toml::to_string(&CompilerConfig::new(arg.file_name().unwrap().to_string_lossy().to_string(), false))?,
+                toml::to_string(&CompilerConfig::new(
+                    arg.file_name().unwrap().to_string_lossy().to_string(),
+                    false,
+                ))?,
             )
             .map_err(ApplicationError::FileError)?;
 

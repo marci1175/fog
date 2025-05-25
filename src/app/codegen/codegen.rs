@@ -161,7 +161,7 @@ pub fn import_user_lib_functions<'a>(
                 TypeDiscriminants::Struct((_struct_name, struct_inner)) => {
                     let field_ty = struct_field_to_ty_list(ctx, struct_inner);
 
-                    BasicMetadataTypeEnum::StructType(ctx.struct_type(&field_ty, true))
+                    BasicMetadataTypeEnum::StructType(ctx.struct_type(&field_ty, false))
                 }
             };
 
@@ -206,7 +206,7 @@ pub fn import_user_lib_functions<'a>(
             }
             TypeDiscriminants::Struct((_struct_name, struct_inner)) => {
                 let return_type =
-                    ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), true);
+                    ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
 
                 return_type.fn_type(&args, false)
             }
@@ -319,6 +319,7 @@ pub fn create_ir_from_parsed_token<'a>(
                 if let ((orig_ptr, orig_ty), Some((ref_ptr, ref_ty))) = (
                     // The original variable we are going to modify
                     var_ref.1,
+                    // The referenced variable we are going to set the value of the orginal variable with
                     ref_variable_query,
                 ) {
                     if orig_ty != *ref_ty {
@@ -615,12 +616,44 @@ pub fn create_ir_from_parsed_token<'a>(
             };
         }
         ParsedToken::If(_) => todo!(),
-        ParsedToken::InitalizeStruct(struct_fields, init_struct) => {
-            let struct_fields = struct_field_to_ty_list(ctx, &struct_fields);
+        ParsedToken::InitalizeStruct(struct_tys, struct_fields) => {
+            if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
+                let pointee_struct_ty = var_ty.into_struct_type();
+                
+                let mut struct_vals = IndexMap::new();
 
-            let struct_type = ctx.struct_type(&struct_fields, true);
+                let mut struct_val_vec: Vec<Option<BasicValueEnum>> = vec![None; struct_tys.len()];
 
-            // struct_type.const_named_struct(&basic_val_from_struct(ctx, builder, init_struct)?);
+                for (field_idx, (field_name, field_ty)) in struct_tys.iter().enumerate() {
+                    let llvm_ty = ty_to_llvm_ty(ctx, field_ty);
+
+                    let (ptr, ty) = create_new_variable(ctx, builder, field_name.to_string(), field_ty.clone())?;
+                    
+                    create_ir_from_parsed_token(
+                        ctx,
+                        module,
+                        builder,
+                        *(struct_fields.get_index(field_idx as usize).unwrap().1.clone()),
+                        variable_map,
+                        Some((field_name.to_string(), (ptr, ty.into()))),
+                        fn_ret_ty.clone(),
+                    )?;
+
+                    let temp_val = builder.build_load(llvm_ty, ptr, &field_name)?;
+
+                    struct_vals.insert(field_name, temp_val);
+                }
+
+                for (struct_field_name, struct_field_val) in struct_vals {
+                    let struct_field_idx = struct_tys.get_full(struct_field_name).unwrap().0;
+
+                    struct_val_vec[struct_field_idx] = Some(struct_field_val);
+                }
+
+                let contructed_struct = pointee_struct_ty.const_named_struct(&struct_val_vec.iter().map(|item| item.unwrap()).collect::<Vec<BasicValueEnum>>());
+
+                builder.build_store(var_ptr, contructed_struct)?;
+            }
         }
     }
 
@@ -674,7 +707,10 @@ fn create_new_variable<'a, 'b>(
             unreachable!("Variables with a Void value shouldn't be created.");
         }
         TypeDiscriminants::Struct((struct_name, struct_inner)) => {
-            let struct_ty = ctx.struct_type(&struct_field_to_ty_list(ctx, &struct_inner), true);
+            let struct_ty = ctx.opaque_struct_type(&struct_name);
+            
+            struct_ty.set_body(&struct_field_to_ty_list(ctx, &struct_inner), false);
+            
             let v_ptr = builder.build_alloca(struct_ty, &var_name)?;
 
             (v_ptr, BasicMetadataTypeEnum::StructType(struct_ty))
@@ -708,7 +744,7 @@ pub fn create_fn_type_from_ty_disc(ctx: &Context, fn_sig: FunctionSignature) -> 
             .void_type()
             .fn_type(&get_args_from_sig(ctx, fn_sig), false),
         TypeDiscriminants::Struct((ref _struct_name, ref struct_inner)) => ctx
-            .struct_type(&struct_field_to_ty_list(ctx, struct_inner), true)
+            .struct_type(&struct_field_to_ty_list(ctx, struct_inner), false)
             .fn_type(&get_args_from_sig(ctx, fn_sig), false),
     }
 }
@@ -733,8 +769,8 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
             }
             TypeDiscriminants::Struct((struct_name, struct_inner)) => {
                 let struct_type =
-                    ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), true);
-
+                    ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
+                
                 BasicMetadataTypeEnum::StructType(struct_type)
             }
         };
@@ -804,18 +840,7 @@ pub fn set_value_of_ptr(
             unreachable!()
         }
         Type::Struct((struct_name, struct_inner)) => {
-            let struct_type = ctx.struct_type(
-                &struct_field_to_ty_list(ctx, &struct_field_to_discriminant(&struct_inner)),
-                true,
-            );
-
-            let init_val = struct_type.const_named_struct(&basic_val_from_struct(
-                ctx,
-                builder,
-                &struct_inner,
-            )?);
-
-            builder.build_store(v_ptr, init_val)?;
+            unreachable!()
         }
     }
 
@@ -859,10 +884,10 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminants) -> BasicTypeE
         TypeDiscriminants::String => BasicTypeEnum::PointerType(ptr_type),
         TypeDiscriminants::Boolean => BasicTypeEnum::IntType(i32_type),
         TypeDiscriminants::Void => {
-            unimplemented!();
+            unreachable!();
         }
         TypeDiscriminants::Struct((struct_name, struct_inner)) => {
-            let struct_type = ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), true);
+            let struct_type = ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
 
             BasicTypeEnum::StructType(struct_type)
         }
@@ -894,49 +919,4 @@ pub fn struct_field_to_discriminant(
             .iter()
             .map(|(a, b)| (a.clone(), b.discriminant())),
     )
-}
-
-pub fn basic_val_from_struct<'a>(
-    ctx: &'a Context,
-    builder: &'a Builder,
-    struct_inner: &IndexMap<String, Type>,
-) -> anyhow::Result<Vec<BasicValueEnum<'a>>> {
-    let mut struct_vals = Vec::new();
-    let i32_type = ctx.i32_type();
-    let i8_type = ctx.i8_type();
-    let f32_type = ctx.f32_type();
-
-    for (_, val) in struct_inner.iter() {
-        let basic_val = match val {
-            Type::I32(inner) => BasicValueEnum::IntValue(i32_type.const_int(*inner as u64, true)),
-            Type::F32(inner) => BasicValueEnum::FloatValue(f32_type.const_float(*inner as f64)),
-            Type::U32(inner) => BasicValueEnum::IntValue(i32_type.const_int(*inner as u64, false)),
-            Type::U8(inner) => BasicValueEnum::IntValue(i32_type.const_int(*inner as u64, false)),
-            Type::String(inner) => {
-                let buf_ptr = allocate_string(builder, i8_type, inner.clone())?;
-
-                BasicValueEnum::PointerValue(buf_ptr)
-            }
-            Type::Boolean(inner) => {
-                BasicValueEnum::IntValue(i32_type.const_int(*inner as u64, true))
-            }
-            Type::Void => unreachable!(),
-            Type::Struct((_struct_name, struct_inner)) => {
-                let struct_type = ctx.struct_type(
-                    &struct_field_to_ty_list(ctx, &struct_field_to_discriminant(struct_inner)),
-                    true,
-                );
-
-                BasicValueEnum::StructValue(struct_type.const_named_struct(&basic_val_from_struct(
-                    ctx,
-                    builder,
-                    struct_inner,
-                )?))
-            }
-        };
-
-        struct_vals.push(basic_val);
-    }
-
-    Ok(struct_vals)
 }
