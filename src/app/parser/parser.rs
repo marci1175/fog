@@ -228,7 +228,7 @@ pub fn parse_value(
             }
 
             Token::Comma | Token::CloseParentheses | Token::LineBreak => break,
-            
+
             _ => unimplemented!(),
         }
     }

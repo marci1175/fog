@@ -619,7 +619,7 @@ pub fn create_ir_from_parsed_token<'a>(
         ParsedToken::InitalizeStruct(struct_tys, struct_fields) => {
             if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
                 let pointee_struct_ty = var_ty.into_struct_type();
-                
+
                 let mut struct_vals = IndexMap::new();
 
                 let mut struct_val_vec: Vec<Option<BasicValueEnum>> = vec![None; struct_tys.len()];
@@ -627,19 +627,28 @@ pub fn create_ir_from_parsed_token<'a>(
                 for (field_idx, (field_name, field_ty)) in struct_tys.iter().enumerate() {
                     let llvm_ty = ty_to_llvm_ty(ctx, field_ty);
 
-                    let (ptr, ty) = create_new_variable(ctx, builder, field_name.to_string(), field_ty.clone())?;
-                    
+                    let (ptr, ty) = create_new_variable(
+                        ctx,
+                        builder,
+                        field_name.to_string(),
+                        field_ty.clone(),
+                    )?;
+
                     create_ir_from_parsed_token(
                         ctx,
                         module,
                         builder,
-                        *(struct_fields.get_index(field_idx as usize).unwrap().1.clone()),
+                        *(struct_fields
+                            .get_index(field_idx)
+                            .unwrap()
+                            .1
+                            .clone()),
                         variable_map,
-                        Some((field_name.to_string(), (ptr, ty.into()))),
+                        Some((field_name.to_string(), (ptr, ty))),
                         fn_ret_ty.clone(),
                     )?;
 
-                    let temp_val = builder.build_load(llvm_ty, ptr, &field_name)?;
+                    let temp_val = builder.build_load(llvm_ty, ptr, field_name)?;
 
                     struct_vals.insert(field_name, temp_val);
                 }
@@ -650,7 +659,12 @@ pub fn create_ir_from_parsed_token<'a>(
                     struct_val_vec[struct_field_idx] = Some(struct_field_val);
                 }
 
-                let contructed_struct = pointee_struct_ty.const_named_struct(&struct_val_vec.iter().map(|item| item.unwrap()).collect::<Vec<BasicValueEnum>>());
+                let contructed_struct = pointee_struct_ty.const_named_struct(
+                    &struct_val_vec
+                        .iter()
+                        .map(|item| item.unwrap())
+                        .collect::<Vec<BasicValueEnum>>(),
+                );
 
                 builder.build_store(var_ptr, contructed_struct)?;
             }
@@ -708,9 +722,9 @@ fn create_new_variable<'a, 'b>(
         }
         TypeDiscriminants::Struct((struct_name, struct_inner)) => {
             let struct_ty = ctx.opaque_struct_type(&struct_name);
-            
+
             struct_ty.set_body(&struct_field_to_ty_list(ctx, &struct_inner), false);
-            
+
             let v_ptr = builder.build_alloca(struct_ty, &var_name)?;
 
             (v_ptr, BasicMetadataTypeEnum::StructType(struct_ty))
@@ -770,7 +784,7 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
             TypeDiscriminants::Struct((struct_name, struct_inner)) => {
                 let struct_type =
                     ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
-                
+
                 BasicMetadataTypeEnum::StructType(struct_type)
             }
         };
