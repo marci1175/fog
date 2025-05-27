@@ -518,7 +518,7 @@ pub fn parse_token_as_value(
 
                             let (_jump_idx, init_struct_token) = init_struct(
                                 struct_init_slice,
-                                &struct_inner,
+                                struct_inner,
                                 function_signatures.clone(),
                                 function_imports,
                                 custom_items.clone(),

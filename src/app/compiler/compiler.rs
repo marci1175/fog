@@ -62,12 +62,10 @@ impl CompilerState {
             if !function_table.contains_key("main") {
                 return Err(CodeGenError::NoMain.into());
             }
-        } else {
-            if function_table.contains_key("main") {
-                println!(
-                    "A `main` function has been found, but the library flag is set to `true`."
-                );
-            }
+        } else if function_table.contains_key("main") {
+            println!(
+                "A `main` function has been found, but the library flag is set to `true`."
+            );
         }
 
         println!("LLVM-IR generation...");

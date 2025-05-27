@@ -3,7 +3,14 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    builder::Builder, context::Context, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue}, AddressSpace
+    AddressSpace,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    passes::PassBuilderOptions,
+    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
+    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue},
 };
 
 use crate::{
@@ -645,14 +652,21 @@ pub fn create_ir_from_parsed_token<'a>(
                     let temp_val = builder.build_load(llvm_ty, ptr, field_name)?;
 
                     // Get the struct's field gep
-                    let struct_field_ptr = builder.build_struct_gep(pointee_struct_ty, allocate_struct, field_idx as u32, "field_gep")?;
+                    let struct_field_ptr = builder.build_struct_gep(
+                        pointee_struct_ty,
+                        allocate_struct,
+                        field_idx as u32,
+                        "field_gep",
+                    )?;
 
                     // Store the temp value in the struct through the struct's field gep
                     builder.build_store(struct_field_ptr, temp_val)?;
                 }
 
                 // Load the allocated struct into memory
-                let constructed_struct = builder.build_load(pointee_struct_ty, allocate_struct, "")?.into_struct_value();
+                let constructed_struct = builder
+                    .build_load(pointee_struct_ty, allocate_struct, "")?
+                    .into_struct_value();
 
                 // Store the struct in the main variable
                 builder.build_store(var_ptr, constructed_struct)?;
@@ -678,8 +692,12 @@ pub fn create_ir_from_parsed_token<'a>(
                     {
                         // We can safely unwrap here and get the field of the struct.
                         let struct_field_ptr = struct_var.get_field_at_index(idx as u32).unwrap();
-                        
-                        let ret_val = builder.build_load(ty_to_llvm_ty(ctx, field_ty), struct_field_ptr.into_pointer_value(), &format!("{_field_name}_ref"))?;
+
+                        let ret_val = builder.build_load(
+                            ty_to_llvm_ty(ctx, field_ty),
+                            struct_field_ptr.into_pointer_value(),
+                            &format!("{_field_name}_ref"),
+                        )?;
 
                         // if ty_to_llvm_ty(ctx, field_ty) != var_ty {
                         //     return Err(CodeGenError::InternalTypeMismatch.into());
