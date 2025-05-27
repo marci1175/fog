@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use indexmap::IndexMap;
-use strum::IntoDiscriminant;
 use strum_macros::Display;
 
 use crate::app::parser::error::ParserError;

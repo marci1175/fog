@@ -60,6 +60,7 @@ pub enum Token {
     Comma,
     DoubleColon,
     Colon,
+    Dot,
 
     SetValue,
 
@@ -103,6 +104,12 @@ pub enum ParsedToken {
     NewVariable(String, TypeDiscriminants, Box<ParsedToken>),
 
     VariableReference(String),
+    /// Variable name, struct_type, field_name
+    StructFieldReference(
+        String,
+        (String, IndexMap<String, TypeDiscriminants>),
+        String,
+    ),
 
     Literal(Type),
 

@@ -35,32 +35,34 @@ fn main() -> anyhow::Result<()> {
 
             // Check for the main source file
             println!("Reading File...");
-            let source_file =
-                fs::read_to_string(format!("{}/src/main.f", current_working_dir.display()))
-                    .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
 
             // Read config file
             let config_file =
                 fs::read_to_string(format!("{}/config.toml", current_working_dir.display()))
-                    .map_err(ApplicationError::FileError)?;
+                    .map_err(|_| ApplicationError::ConfigNotFound(current_working_dir.clone()))?;
 
-            let parsed_config = toml::from_str::<CompilerConfig>(&config_file)
+            let source_file =
+                fs::read_to_string(format!("{}/src/main.f", current_working_dir.display()))
+                    .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
+
+            let compiler_config = toml::from_str::<CompilerConfig>(&config_file)
                 .map_err(ApplicationError::ConfigError)?;
 
-            let compiler_state = CompilerState::new(parsed_config.clone());
+            let compiler_state = CompilerState::new(compiler_config.clone());
 
             let target_path = PathBuf::from(format!(
                 "{}/output/{}.ll",
                 current_working_dir.display(),
-                parsed_config.name.clone()
+                compiler_config.name.clone()
             ));
 
             let release_flag = arg.display().to_string();
 
             compiler_state.compilation_process(
-                source_file,
+                &source_file,
                 target_path.clone(),
                 release_flag == "release" || release_flag == "r",
+                compiler_config.is_library,
             )?;
 
             println!(

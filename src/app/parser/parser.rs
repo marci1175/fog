@@ -131,7 +131,7 @@ pub fn find_closing_braces(
 pub fn parse_value(
     tokens: &[Token],
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
-    variable_scope: &IndexMap<String, TypeDiscriminants>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
     variable_type: TypeDiscriminants,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
@@ -249,9 +249,9 @@ pub fn parse_token_as_value(
     // Functions available
     function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     // Variables available
-    variable_scope: &IndexMap<String, TypeDiscriminants>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
     // The variable's type which we are parsing for
-    variable_type: TypeDiscriminants,
+    desired_variable_type: TypeDiscriminants,
     // Universal token_idx, this sets which token we are currently parsing
     token_idx: &mut usize,
     // The token we want to evaluate
@@ -288,8 +288,8 @@ pub fn parse_token_as_value(
                 }
             } else {
                 // If the literal's type doesn't match the variable's type return an error
-                if literal_type != variable_type {
-                    return Err(ParserError::TypeError(literal_type, variable_type).into());
+                if literal_type != desired_variable_type {
+                    return Err(ParserError::TypeError(literal_type, desired_variable_type).into());
                 }
 
                 // Push the ParsedToken to the list
@@ -303,7 +303,7 @@ pub fn parse_token_as_value(
             // Push the ParsedToken to the list
             let parsed_token = ParsedToken::Literal(unparsed_const_to_typed_literal_unsafe(
                 unparsed_literal.clone(),
-                variable_type.clone(),
+                desired_variable_type.clone(),
             )?);
 
             // Check if there is an `As` keyword after the variable
@@ -311,10 +311,12 @@ pub fn parse_token_as_value(
                 // If there isnt a TypeDefinition after the `As` keyword raise an error
                 if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
                     // Ezt lehet hogy késöbb ki kell majd venni
-                    if target_type.clone() != variable_type.clone() {
-                        return Err(
-                            ParserError::TypeError(target_type.clone(), variable_type).into()
-                        );
+                    if target_type.clone() != desired_variable_type.clone() {
+                        return Err(ParserError::TypeError(
+                            target_type.clone(),
+                            desired_variable_type,
+                        )
+                        .into());
                     }
 
                     // Increment the token index after checking target type
@@ -369,10 +371,10 @@ pub fn parse_token_as_value(
                     }
                 } else {
                     // If the function's return type doesn't match the variable's return type return an error
-                    if function.function_sig.return_type != variable_type {
+                    if function.function_sig.return_type != desired_variable_type {
                         return Err(ParserError::TypeError(
                             function.function_sig.return_type.clone(),
-                            variable_type,
+                            desired_variable_type,
                         )
                         .into());
                     }
@@ -381,7 +383,7 @@ pub fn parse_token_as_value(
                 }
             }
             // If the identifier could not be found in the function list search in the variable scope
-            else if let Some(variable) = variable_scope.get(identifier) {
+            else if let Some(variable_type) = variable_scope.get(identifier) {
                 let parsed_token = ParsedToken::VariableReference(identifier.clone());
 
                 *token_idx += 1;
@@ -389,10 +391,12 @@ pub fn parse_token_as_value(
                 if let Some(Token::As) = tokens.get(*token_idx) {
                     if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
                         // Ezt lehet hogy késöbb ki kell majd venni
-                        if *target_type != variable_type {
-                            return Err(
-                                ParserError::TypeError(target_type.clone(), variable_type).into()
-                            );
+                        if *target_type != desired_variable_type {
+                            return Err(ParserError::TypeError(
+                                target_type.clone(),
+                                desired_variable_type,
+                            )
+                            .into());
                         }
 
                         // Increment the token index after checking target type
@@ -410,11 +414,51 @@ pub fn parse_token_as_value(
                         )
                         .into());
                     }
+                } else if let Some(Token::Dot) = tokens.get(*token_idx) {
+                    *token_idx += 1;
+
+                    if let Some(Token::Identifier(struct_field_name)) = tokens.get(*token_idx) {
+                        if let TypeDiscriminants::Struct((struct_name, fields)) = variable_type {
+                            if let Some(field_type) = fields.get(struct_field_name) {
+                                if *field_type != desired_variable_type {
+                                    return Err(ParserError::TypeError(
+                                        field_type.clone(),
+                                        desired_variable_type.clone(),
+                                    )
+                                    .into());
+                                }
+
+                                *token_idx += 2;
+
+                                return Ok(ParsedToken::StructFieldReference(
+                                    identifier.clone(),
+                                    (struct_name.clone(), fields.clone()),
+                                    struct_field_name.clone(),
+                                ));
+                            } else {
+                                return Err(ParserError::SyntaxError(
+                                    SyntaxError::StructFieldNotFound(
+                                        struct_field_name.clone(),
+                                        (struct_name.clone(), fields.clone()),
+                                    ),
+                                )
+                                .into());
+                            }
+                        } else {
+                            return Err(
+                                ParserError::SyntaxError(SyntaxError::InvalidStructName).into()
+                            );
+                        }
+                    }
                 }
 
                 // If the variable's type doesnt match the one we want to modify throw an error.
-                if variable_type != *variable {
-                    return Err(ParserError::TypeError(variable.clone(), variable_type).into());
+                if desired_variable_type != *variable_type {
+                    return Err(ParserError::TypeError(
+                        variable_type.clone(),
+                        desired_variable_type,
+                    )
+                    .into());
                 }
 
                 // Return the VariableReference
@@ -453,10 +497,10 @@ pub fn parse_token_as_value(
                     }
                 } else {
                     // If the function's return type doesn't match the variable's return type return an error
-                    if function_sig.return_type != variable_type {
+                    if function_sig.return_type != desired_variable_type {
                         return Err(ParserError::TypeError(
                             function_sig.return_type.clone(),
-                            variable_type,
+                            desired_variable_type,
                         )
                         .into());
                     }
@@ -474,7 +518,7 @@ pub fn parse_token_as_value(
 
                             let (_jump_idx, init_struct_token) = init_struct(
                                 struct_init_slice,
-                                struct_inner,
+                                &struct_inner,
                                 function_signatures.clone(),
                                 function_imports,
                                 custom_items.clone(),
@@ -512,7 +556,7 @@ pub fn parse_token_as_value(
                 tokens_inside_block,
                 function_signatures.clone(),
                 variable_scope,
-                variable_type,
+                desired_variable_type,
                 function_imports,
                 custom_items.clone(),
             )?;
@@ -541,7 +585,7 @@ pub fn init_struct(
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-    variable_scope: &IndexMap<String, TypeDiscriminants>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
 ) -> anyhow::Result<(usize, ParsedToken)> {
     let mut struct_field_init_map: IndexMap<String, Box<ParsedToken>> = IndexMap::new();
 

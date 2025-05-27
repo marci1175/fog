@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use indexmap::IndexMap;
 use thiserror::Error;
 
 use crate::app::type_system::type_system::TypeDiscriminants;
@@ -72,6 +73,8 @@ pub enum SyntaxError {
     InvalidFunctionName,
     #[error("Invalid Struct name definition.")]
     InvalidStructName,
+    #[error("Struct field `{0}` was not found in Struct `{0}`.")]
+    StructFieldNotFound(String, (String, IndexMap<String, TypeDiscriminants>)),
     #[error("Invalid Struct field definition.")]
     InvalidStructFieldDefinition,
     #[error("Struct Extensions should be only placed on the top-most layer of code.")]

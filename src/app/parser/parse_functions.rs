@@ -5,7 +5,7 @@ use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 use crate::app::type_system::type_system::{Type, TypeDiscriminants};
 
 use super::{
-    error::ParserError,
+    error::{ParserError, SyntaxError},
     parser::{
         ParserState, find_closing_braces, find_closing_paren, parse_token_as_value, parse_value,
     },
@@ -203,7 +203,7 @@ pub fn create_signature_table(
                     .to_string();
 
                 // Tokenize the raw source file
-                let tokens = tokenize(file_contents)?;
+                let tokens = tokenize(&file_contents)?;
 
                 // Create a new Parser state
                 let mut parser_state = ParserState::new(tokens);
@@ -454,7 +454,7 @@ fn parse_function_block(
                         let (parsed_value, _) = parse_value(
                             selected_tokens,
                             function_signatures.clone(),
-                            &variable_scope,
+                            &mut variable_scope,
                             var_type.clone(),
                             function_imports.clone(),
                             custom_items.clone(),
@@ -497,7 +497,7 @@ fn parse_function_block(
                 }
             } else if let Token::Identifier(ident_name) = current_token {
                 // If the variable exists in the current scope
-                if let Some(variable_type) = variable_scope.get(&ident_name) {
+                if let Some(variable_type) = variable_scope.get(&ident_name).cloned() {
                     // Increment the token index
                     token_idx += 1;
 
@@ -521,7 +521,7 @@ fn parse_function_block(
                             let (parsed_token, _) = parse_value(
                                 selected_tokens,
                                 function_signatures.clone(),
-                                &variable_scope,
+                                &mut variable_scope,
                                 variable_type.clone(),
                                 function_imports.clone(),
                                 custom_items.clone(),
@@ -538,7 +538,7 @@ fn parse_function_block(
                                 &function_signatures,
                                 &mut token_idx,
                                 &mut parsed_tokens,
-                                &variable_scope,
+                                &mut variable_scope,
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Addition,
@@ -552,7 +552,7 @@ fn parse_function_block(
                                 &function_signatures,
                                 &mut token_idx,
                                 &mut parsed_tokens,
-                                &variable_scope,
+                                &mut variable_scope,
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Subtraction,
@@ -566,7 +566,7 @@ fn parse_function_block(
                                 &function_signatures,
                                 &mut token_idx,
                                 &mut parsed_tokens,
-                                &variable_scope,
+                                &mut variable_scope,
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Division,
@@ -580,7 +580,7 @@ fn parse_function_block(
                                 &function_signatures,
                                 &mut token_idx,
                                 &mut parsed_tokens,
-                                &variable_scope,
+                                &mut variable_scope,
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Multiplication,
@@ -594,7 +594,7 @@ fn parse_function_block(
                                 &function_signatures,
                                 &mut token_idx,
                                 &mut parsed_tokens,
-                                &variable_scope,
+                                &mut variable_scope,
                                 variable_type,
                                 &ident_name,
                                 MathematicalSymbol::Modulo,
@@ -602,7 +602,24 @@ fn parse_function_block(
                                 custom_items.clone(),
                             )?;
                         }
-                        _ => {}
+                        Token::Dot => {
+                            let token_slice = &tokens[token_idx + 1..];
+
+                            if let Some(idx) = token_slice
+                                .iter()
+                                .position(|token| *token == Token::LineBreak)
+                            {
+                                token_idx += idx;
+                            } else {
+                                return Err(ParserError::SyntaxError(
+                                    SyntaxError::MissingLineBreak,
+                                )
+                                .into());
+                            }
+                        }
+                        _ => {
+                            println!("[WARNING] Unimplemented token: {}", tokens[token_idx]);
+                        }
                     }
                 } else if let Some(function_sig) = function_signatures.get(&ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
@@ -619,7 +636,7 @@ fn parse_function_block(
 
                     let (variables_passed, jumped_idx) = parse_function_call_args(
                         &tokens[token_idx + 2..bracket_idx + 2],
-                        &variable_scope,
+                        &mut variable_scope,
                         function_sig.function_sig.args.clone(),
                         function_signatures.clone(),
                         function_imports.clone(),
@@ -647,7 +664,7 @@ fn parse_function_block(
 
                     let (variables_passed, jumped_idx) = parse_function_call_args(
                         &tokens[token_idx + 2..bracket_idx + 2],
-                        &variable_scope,
+                        &mut variable_scope,
                         function_sig.args.clone(),
                         function_signatures.clone(),
                         function_imports.clone(),
@@ -686,7 +703,7 @@ fn parse_function_block(
                                     let (parsed_token, _) = parse_value(
                                         selected_tokens,
                                         function_signatures.clone(),
-                                        &variable_scope,
+                                        &mut variable_scope,
                                         variable_type.clone(),
                                         function_imports.clone(),
                                         custom_items.clone(),
@@ -697,6 +714,11 @@ fn parse_function_block(
                                         variable_type,
                                         Box::new(parsed_token),
                                     ));
+
+                                    variable_scope.insert(
+                                        var_name.clone(),
+                                        TypeDiscriminants::Struct(struct_instance.clone()),
+                                    );
                                 }
                             }
                         }
@@ -723,7 +745,7 @@ fn parse_function_block(
                     let (returned_value, jmp_idx) = parse_value(
                         &tokens[token_idx..],
                         function_signatures.clone(),
-                        &variable_scope,
+                        &mut variable_scope,
                         this_function_signature.return_type.clone(),
                         function_imports.clone(),
                         custom_items.clone(),
@@ -754,8 +776,8 @@ fn set_value_math_expr(
     function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
     parsed_tokens: &mut Vec<ParsedToken>,
-    variable_scope: &IndexMap<String, TypeDiscriminants>,
-    variable_type: &TypeDiscriminants,
+    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
+    variable_type: TypeDiscriminants,
     ident_name: &String,
     math_symbol: MathematicalSymbol,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
@@ -793,7 +815,7 @@ fn set_value_math_expr(
 /// First token should be the first argument
 pub fn parse_function_call_args(
     tokens: &[Token],
-    variable_scope: &IndexMap<String, TypeDiscriminants>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
     mut this_function_args: IndexMap<String, TypeDiscriminants>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,

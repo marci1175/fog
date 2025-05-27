@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-
 use thiserror::Error;
 
 use crate::app::type_system::type_system::TypeDiscriminants;
@@ -24,4 +23,8 @@ pub enum CodeGenError {
         "The main entrypoint to the binary is not found. If you want to create a library, configure `config.toml` accordingly."
     )]
     NoMain,
+    #[error("[INTERNAL ERROR] A struct's field was not found at codegen.")]
+    InternalStructFieldNotFound,
+    #[error("[INTERNAL ERROR] A variable type mismatched has occured.")]
+    InternalTypeMismatch,
 }

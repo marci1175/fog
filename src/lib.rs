@@ -1,13 +1,16 @@
 pub mod app;
 
 use app::cli_parser::error::CliParseError;
-use std::io::Error;
+use std::{io::Error, path::PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ApplicationError {
     #[error("File could not be accessed: {0}")]
     FileError(Error),
+
+    #[error("Configuration file could not be found at `{0}`.")]
+    ConfigNotFound(PathBuf),
 
     #[error("The following error occured while parsing: {0}")]
     ParsingError(anyhow::Error),

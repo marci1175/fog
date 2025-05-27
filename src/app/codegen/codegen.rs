@@ -3,14 +3,7 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    AddressSpace,
-    builder::Builder,
-    context::Context,
-    module::Module,
-    passes::PassBuilderOptions,
-    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
+    builder::Builder, context::Context, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue}, AddressSpace
 };
 
 use crate::{
@@ -618,15 +611,18 @@ pub fn create_ir_from_parsed_token<'a>(
         ParsedToken::If(_) => todo!(),
         ParsedToken::InitalizeStruct(struct_tys, struct_fields) => {
             if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
+                // Get the struct pointer's ty
                 let pointee_struct_ty = var_ty.into_struct_type();
 
-                let mut struct_vals = IndexMap::new();
+                // Pre-Allocate a struct so that it can be accessed later
+                let allocate_struct = builder.build_alloca(pointee_struct_ty, "")?;
 
-                let mut struct_val_vec: Vec<Option<BasicValueEnum>> = vec![None; struct_tys.len()];
-
+                // Iterate over the struct's fields
                 for (field_idx, (field_name, field_ty)) in struct_tys.iter().enumerate() {
+                    // Convert to llvm type
                     let llvm_ty = ty_to_llvm_ty(ctx, field_ty);
 
+                    // Create a new temp variable according to the struct's field type
                     let (ptr, ty) = create_new_variable(
                         ctx,
                         builder,
@@ -634,39 +630,68 @@ pub fn create_ir_from_parsed_token<'a>(
                         field_ty.clone(),
                     )?;
 
+                    // Parse the value for the temp var
                     create_ir_from_parsed_token(
                         ctx,
                         module,
                         builder,
-                        *(struct_fields
-                            .get_index(field_idx)
-                            .unwrap()
-                            .1
-                            .clone()),
+                        *(struct_fields.get_index(field_idx).unwrap().1.clone()),
                         variable_map,
                         Some((field_name.to_string(), (ptr, ty))),
                         fn_ret_ty.clone(),
                     )?;
 
+                    // Load the temp value to memory and store it
                     let temp_val = builder.build_load(llvm_ty, ptr, field_name)?;
 
-                    struct_vals.insert(field_name, temp_val);
+                    // Get the struct's field gep
+                    let struct_field_ptr = builder.build_struct_gep(pointee_struct_ty, allocate_struct, field_idx as u32, "field_gep")?;
+
+                    // Store the temp value in the struct through the struct's field gep
+                    builder.build_store(struct_field_ptr, temp_val)?;
                 }
 
-                for (struct_field_name, struct_field_val) in struct_vals {
-                    let struct_field_idx = struct_tys.get_full(struct_field_name).unwrap().0;
+                // Load the allocated struct into memory
+                let constructed_struct = builder.build_load(pointee_struct_ty, allocate_struct, "")?.into_struct_value();
 
-                    struct_val_vec[struct_field_idx] = Some(struct_field_val);
+                // Store the struct in the main variable
+                builder.build_store(var_ptr, constructed_struct)?;
+            }
+        }
+        ParsedToken::StructFieldReference(
+            ref_var_name,
+            (struct_name, struct_fields),
+            field_name,
+        ) => {
+            if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
+                if let Some((ptr, ty)) = variable_map.get(&ref_var_name) {
+                    // Load the struct from the memory
+                    let struct_var = builder
+                        .build_load(
+                            ty.into_struct_type(),
+                            *ptr,
+                            &format!("{ref_var_name}_{field_name}"),
+                        )?
+                        .into_struct_value();
+
+                    if let Some((idx, _field_name, field_ty)) = struct_fields.get_full(&field_name)
+                    {
+                        // We can safely unwrap here and get the field of the struct.
+                        let struct_field_ptr = struct_var.get_field_at_index(idx as u32).unwrap();
+                        
+                        let ret_val = builder.build_load(ty_to_llvm_ty(ctx, field_ty), struct_field_ptr.into_pointer_value(), &format!("{_field_name}_ref"))?;
+
+                        // if ty_to_llvm_ty(ctx, field_ty) != var_ty {
+                        //     return Err(CodeGenError::InternalTypeMismatch.into());
+                        // }
+
+                        builder.build_store(var_ptr, dbg!(ret_val))?;
+                    } else {
+                        return Err(CodeGenError::InternalStructFieldNotFound.into());
+                    }
+                } else {
+                    return Err(CodeGenError::InternalVariableNotFound(ref_var_name).into());
                 }
-
-                let contructed_struct = pointee_struct_ty.const_named_struct(
-                    &struct_val_vec
-                        .iter()
-                        .map(|item| item.unwrap())
-                        .collect::<Vec<BasicValueEnum>>(),
-                );
-
-                builder.build_store(var_ptr, contructed_struct)?;
             }
         }
     }

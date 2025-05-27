@@ -3,6 +3,10 @@ name = "fog"
 version = "0.1.0"
 edition = "2024"
 
+[[test]]
+name = "compiler_tests"
+path = "src/test.rs"
+
 [dependencies]
 anyhow = {version = "1.0.98", features = ["backtrace"]}
 strum = "0.27.1"

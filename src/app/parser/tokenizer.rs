@@ -2,16 +2,16 @@ use crate::app::type_system::type_system::Type;
 
 use super::{error::ParserError, types::Token};
 
-pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
+pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
     let mut char_idx: usize = 0;
 
     let mut token_list: Vec<Token> = Vec::new();
 
-    let char_list = raw_string.chars().collect::<Vec<char>>();
+    let char_list = raw_input.chars().collect::<Vec<char>>();
 
     let mut string_buffer = String::new();
 
-    while char_idx < raw_string.len() {
+    while char_idx < raw_input.len() {
         let current_char = char_list[char_idx];
 
         let single_char = match current_char {
@@ -26,6 +26,7 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
             ';' => Some(Token::LineBreak),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
+            '.' => Some(Token::Dot),
 
             _ => None,
         };
@@ -277,7 +278,7 @@ pub fn tokenize(raw_string: String) -> Result<Vec<Token>, ParserError> {
         char_idx += 1;
     }
 
-    Ok(token_list)
+    dbg!(Ok(token_list))
 }
 
 fn match_multi_character_expression(string_buffer: String) -> Token {

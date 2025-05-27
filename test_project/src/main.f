@@ -1,14 +1,12 @@
-import print(msg: string): int;
-
 struct test {
-    name: string,
-    age: int,
-    igen: float,
-    misc: string,
+    field1: int,
+    field2: int,
 }
 
 function main(): int {
-    test marci = test { name: "Marci", age: 32, igen: 23.2, misc: "agh", };
- 
-    return 0;
+    test var1 = test { field1: 0, field2: 1, };
+    
+    var1.field1 = 2;
+
+    return var1.field1;
 }
