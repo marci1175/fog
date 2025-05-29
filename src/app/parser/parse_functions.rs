@@ -504,7 +504,7 @@ fn parse_function_block(
                     // Parse the variable's expression
                     parse_variable_expression(
                         &tokens,
-                        &current_token,
+                        &tokens[token_idx],
                         &mut token_idx,
                         function_signatures.clone(),
                         function_imports.clone(),
@@ -857,11 +857,12 @@ pub fn parse_variable_expression(
     variable_scope: &mut IndexMap<String, TypeDiscriminants>,
     variable_type: TypeDiscriminants,
     custom_items: Arc<IndexMap<String, CustomType>>,
-    ident_name: &str,
+    variable_name: &str,
     parsed_tokens: &mut Vec<ParsedToken>,
 ) -> anyhow::Result<()> {
     match &current_token {
         Token::SetValue => {
+            dbg!(&tokens);
             let line_break_idx = tokens
                 .iter()
                 .skip(*token_idx)
@@ -873,7 +874,7 @@ pub fn parse_variable_expression(
                 })?
                 + *token_idx;
 
-            let selected_tokens = &tokens[*token_idx + 1..line_break_idx];
+                let selected_tokens = dbg!(&tokens[*token_idx + 1..line_break_idx]);
 
             *token_idx += selected_tokens.len() + 1;
 
@@ -887,7 +888,7 @@ pub fn parse_variable_expression(
             )?;
 
             parsed_tokens.push(ParsedToken::SetValue(
-                ident_name.to_string(),
+                variable_name.to_string(),
                 Box::new(parsed_token),
             ));
         }
@@ -899,7 +900,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &ident_name,
+                &variable_name,
                 MathematicalSymbol::Addition,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -913,7 +914,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &ident_name,
+                &variable_name,
                 MathematicalSymbol::Subtraction,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -927,7 +928,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &ident_name,
+                &variable_name,
                 MathematicalSymbol::Division,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -941,7 +942,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &ident_name,
+                &variable_name,
                 MathematicalSymbol::Multiplication,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -955,22 +956,48 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &ident_name,
+                &variable_name,
                 MathematicalSymbol::Modulo,
                 function_imports.clone(),
                 custom_items.clone(),
             )?;
         }
         Token::Dot => {
-            let token_slice = &tokens[*token_idx + 1..];
+            let field_name = &tokens.get(*token_idx + 1);
 
-            if let Some(idx) = token_slice
+            if let TypeDiscriminants::Struct((struct_name, struct_def)) = variable_type {
+                if let Some(Token::Identifier(field_name)) = field_name {
+                    if let Some(struct_field_ty) = struct_def.get(field_name) {
+                        // *token_idx += 1;
+
+                        let mut tokens = tokens.to_vec();
+
+                        tokens[*token_idx + 1] = Token::Identifier(format!("{}.{}", variable_name, field_name)); 
+
+                        parse_variable_expression(&tokens, &tokens[*token_idx + 1 + 1], token_idx, function_signatures, function_imports, variable_scope, struct_field_ty.clone(), custom_items, &format!("{}.{}", variable_name, field_name), parsed_tokens)?;
+                    } else {
+                        return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
+                            field_name.to_string(),
+                            (struct_name, struct_def),
+                        ))
+                        .into());
+                    }
+                } else {
+                    return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
+                        format!("{field_name:?}"),
+                        (struct_name, struct_def),
+                    ))
+                    .into());
+                }
+            } else {
+                return Err(ParserError::SyntaxError(SyntaxError::InvalidDotPlacement).into());
+            }
+
+            if let Some(idx) = tokens
                 .iter()
+                .skip(*token_idx)
                 .position(|token| *token == Token::LineBreak)
             {
-                // Parse the slice of tokens
-                // parse_variable_expression(token_slice, dbg!(current_token), token_idx, function_signatures, function_imports, variable_scope, variable_type, custom_items, ident_name, parsed_tokens)?;
-                // Increment the index to the next item
                 *token_idx += idx;
             } else {
                 return Err(ParserError::SyntaxError(SyntaxError::MissingLineBreak).into());
