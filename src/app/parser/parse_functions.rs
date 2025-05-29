@@ -495,133 +495,26 @@ fn parse_function_block(
                     )
                     .into());
                 }
-            } else if let Token::Identifier(ident_name) = current_token {
+            } else if let Token::Identifier(ref ident_name) = current_token {
                 // If the variable exists in the current scope
-                if let Some(variable_type) = variable_scope.get(&ident_name).cloned() {
+                if let Some(variable_type) = variable_scope.get(ident_name).cloned() {
                     // Increment the token index
                     token_idx += 1;
 
-                    match &tokens[token_idx] {
-                        Token::SetValue => {
-                            let line_break_idx = tokens
-                                .iter()
-                                .skip(token_idx)
-                                .position(|token| *token == Token::LineBreak)
-                                .ok_or({
-                                    ParserError::SyntaxError(
-                                        crate::app::parser::error::SyntaxError::MissingLineBreak,
-                                    )
-                                })?
-                                + token_idx;
-
-                            let selected_tokens = &tokens[token_idx + 1..line_break_idx];
-
-                            token_idx += selected_tokens.len() + 1;
-
-                            let (parsed_token, _) = parse_value(
-                                selected_tokens,
-                                function_signatures.clone(),
-                                &mut variable_scope,
-                                variable_type.clone(),
-                                function_imports.clone(),
-                                custom_items.clone(),
-                            )?;
-
-                            parsed_tokens.push(ParsedToken::SetValue(
-                                ident_name.clone(),
-                                Box::new(parsed_token),
-                            ));
-                        }
-                        Token::SetValueAddition => {
-                            set_value_math_expr(
-                                &tokens,
-                                &function_signatures,
-                                &mut token_idx,
-                                &mut parsed_tokens,
-                                &mut variable_scope,
-                                variable_type,
-                                &ident_name,
-                                MathematicalSymbol::Addition,
-                                function_imports.clone(),
-                                custom_items.clone(),
-                            )?;
-                        }
-                        Token::SetValueSubtraction => {
-                            set_value_math_expr(
-                                &tokens,
-                                &function_signatures,
-                                &mut token_idx,
-                                &mut parsed_tokens,
-                                &mut variable_scope,
-                                variable_type,
-                                &ident_name,
-                                MathematicalSymbol::Subtraction,
-                                function_imports.clone(),
-                                custom_items.clone(),
-                            )?;
-                        }
-                        Token::SetValueDivision => {
-                            set_value_math_expr(
-                                &tokens,
-                                &function_signatures,
-                                &mut token_idx,
-                                &mut parsed_tokens,
-                                &mut variable_scope,
-                                variable_type,
-                                &ident_name,
-                                MathematicalSymbol::Division,
-                                function_imports.clone(),
-                                custom_items.clone(),
-                            )?;
-                        }
-                        Token::SetValueMultiplication => {
-                            set_value_math_expr(
-                                &tokens,
-                                &function_signatures,
-                                &mut token_idx,
-                                &mut parsed_tokens,
-                                &mut variable_scope,
-                                variable_type,
-                                &ident_name,
-                                MathematicalSymbol::Multiplication,
-                                function_imports.clone(),
-                                custom_items.clone(),
-                            )?;
-                        }
-                        Token::SetValueModulo => {
-                            set_value_math_expr(
-                                &tokens,
-                                &function_signatures,
-                                &mut token_idx,
-                                &mut parsed_tokens,
-                                &mut variable_scope,
-                                variable_type,
-                                &ident_name,
-                                MathematicalSymbol::Modulo,
-                                function_imports.clone(),
-                                custom_items.clone(),
-                            )?;
-                        }
-                        Token::Dot => {
-                            let token_slice = &tokens[token_idx + 1..];
-
-                            if let Some(idx) = token_slice
-                                .iter()
-                                .position(|token| *token == Token::LineBreak)
-                            {
-                                token_idx += idx;
-                            } else {
-                                return Err(ParserError::SyntaxError(
-                                    SyntaxError::MissingLineBreak,
-                                )
-                                .into());
-                            }
-                        }
-                        _ => {
-                            println!("[WARNING] Unimplemented token: {}", tokens[token_idx]);
-                        }
-                    }
-                } else if let Some(function_sig) = function_signatures.get(&ident_name) {
+                    // Parse the variable's expression
+                    parse_variable_expression(
+                        &tokens,
+                        &current_token,
+                        &mut token_idx,
+                        function_signatures.clone(),
+                        function_imports.clone(),
+                        &mut variable_scope,
+                        variable_type,
+                        custom_items.clone(),
+                        &ident_name,
+                        &mut parsed_tokens,
+                    )?;
+                } else if let Some(function_sig) = function_signatures.get(ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
                     if tokens[token_idx + 1] != Token::OpenParentheses {
                         return Err(ParserError::SyntaxError(
@@ -644,12 +537,12 @@ fn parse_function_block(
                     )?;
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
-                        (function_sig.function_sig.clone(), ident_name),
+                        (function_sig.function_sig.clone(), ident_name.clone()),
                         variables_passed,
                     ));
 
                     token_idx += jumped_idx;
-                } else if let Some(function_sig) = function_imports.get(&ident_name) {
+                } else if let Some(function_sig) = function_imports.get(ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
                     if tokens[token_idx + 1] != Token::OpenParentheses {
                         return Err(ParserError::SyntaxError(
@@ -672,12 +565,12 @@ fn parse_function_block(
                     )?;
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
-                        (function_sig.clone(), ident_name),
+                        (function_sig.clone(), ident_name.clone()),
                         variables_passed,
                     ));
 
                     token_idx += jumped_idx;
-                } else if let Some(custom_type) = custom_items.get(&ident_name) {
+                } else if let Some(custom_type) = custom_items.get(ident_name) {
                     match custom_type {
                         CustomType::Struct(struct_instance) => {
                             let variable_type = TypeDiscriminants::Struct(struct_instance.clone());
@@ -725,7 +618,7 @@ fn parse_function_block(
                         CustomType::Enum(enum_types) => {}
                     };
                 } else {
-                    return Err(ParserError::VariableNotFound(ident_name).into());
+                    return Err(ParserError::VariableNotFound(ident_name.clone()).into());
                 }
             } else if let Token::Return = current_token {
                 has_return = true;
@@ -772,13 +665,13 @@ fn parse_function_block(
 }
 
 fn set_value_math_expr(
-    tokens: &Vec<Token>,
-    function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+    tokens: &[Token],
+    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
     parsed_tokens: &mut Vec<ParsedToken>,
     variable_scope: &mut IndexMap<String, TypeDiscriminants>,
     variable_type: TypeDiscriminants,
-    ident_name: &String,
+    ident_name: &str,
     math_symbol: MathematicalSymbol,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
@@ -801,9 +694,9 @@ fn set_value_math_expr(
     )?;
 
     parsed_tokens.push(ParsedToken::SetValue(
-        ident_name.clone(),
+        ident_name.to_string(),
         Box::new(ParsedToken::MathematicalExpression(
-            Box::new(ParsedToken::VariableReference(ident_name.clone())),
+            Box::new(ParsedToken::VariableReference(ident_name.to_string())),
             math_symbol,
             Box::new(next_token),
         )),
@@ -953,4 +846,140 @@ pub fn parse_function_call_args(
     }
 
     Ok((arguments, tokens_idx))
+}
+
+pub fn parse_variable_expression(
+    tokens: &[Token],
+    current_token: &Token,
+    token_idx: &mut usize,
+    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_imports: Arc<HashMap<String, FunctionSignature>>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
+    variable_type: TypeDiscriminants,
+    custom_items: Arc<IndexMap<String, CustomType>>,
+    ident_name: &str,
+    parsed_tokens: &mut Vec<ParsedToken>,
+) -> anyhow::Result<()> {
+    match &current_token {
+        Token::SetValue => {
+            let line_break_idx = tokens
+                .iter()
+                .skip(*token_idx)
+                .position(|token| *token == Token::LineBreak)
+                .ok_or({
+                    ParserError::SyntaxError(
+                        crate::app::parser::error::SyntaxError::MissingLineBreak,
+                    )
+                })?
+                + *token_idx;
+
+            let selected_tokens = &tokens[*token_idx + 1..line_break_idx];
+
+            *token_idx += selected_tokens.len() + 1;
+
+            let (parsed_token, _) = parse_value(
+                selected_tokens,
+                function_signatures.clone(),
+                variable_scope,
+                variable_type.clone(),
+                function_imports.clone(),
+                custom_items.clone(),
+            )?;
+
+            parsed_tokens.push(ParsedToken::SetValue(
+                ident_name.to_string(),
+                Box::new(parsed_token),
+            ));
+        }
+        Token::SetValueAddition => {
+            set_value_math_expr(
+                &tokens,
+                function_signatures,
+                token_idx,
+                parsed_tokens,
+                variable_scope,
+                variable_type,
+                &ident_name,
+                MathematicalSymbol::Addition,
+                function_imports.clone(),
+                custom_items.clone(),
+            )?;
+        }
+        Token::SetValueSubtraction => {
+            set_value_math_expr(
+                &tokens,
+                function_signatures,
+                token_idx,
+                parsed_tokens,
+                variable_scope,
+                variable_type,
+                &ident_name,
+                MathematicalSymbol::Subtraction,
+                function_imports.clone(),
+                custom_items.clone(),
+            )?;
+        }
+        Token::SetValueDivision => {
+            set_value_math_expr(
+                &tokens,
+                function_signatures,
+                token_idx,
+                parsed_tokens,
+                variable_scope,
+                variable_type,
+                &ident_name,
+                MathematicalSymbol::Division,
+                function_imports.clone(),
+                custom_items.clone(),
+            )?;
+        }
+        Token::SetValueMultiplication => {
+            set_value_math_expr(
+                &tokens,
+                function_signatures,
+                token_idx,
+                parsed_tokens,
+                variable_scope,
+                variable_type,
+                &ident_name,
+                MathematicalSymbol::Multiplication,
+                function_imports.clone(),
+                custom_items.clone(),
+            )?;
+        }
+        Token::SetValueModulo => {
+            set_value_math_expr(
+                &tokens,
+                function_signatures,
+                token_idx,
+                parsed_tokens,
+                variable_scope,
+                variable_type,
+                &ident_name,
+                MathematicalSymbol::Modulo,
+                function_imports.clone(),
+                custom_items.clone(),
+            )?;
+        }
+        Token::Dot => {
+            let token_slice = &tokens[*token_idx + 1..];
+
+            if let Some(idx) = token_slice
+                .iter()
+                .position(|token| *token == Token::LineBreak)
+            {
+                // Parse the slice of tokens
+                // parse_variable_expression(token_slice, dbg!(current_token), token_idx, function_signatures, function_imports, variable_scope, variable_type, custom_items, ident_name, parsed_tokens)?;
+                // Increment the index to the next item
+                *token_idx += idx;
+            } else {
+                return Err(ParserError::SyntaxError(SyntaxError::MissingLineBreak).into());
+            }
+        }
+        _ => {
+            println!("[WARNING] Unimplemented token: {}", tokens[*token_idx]);
+        }
+    }
+
+    Ok(())
 }

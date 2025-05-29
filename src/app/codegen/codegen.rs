@@ -547,7 +547,7 @@ pub fn create_ir_from_parsed_token<'a>(
                 }
             }
         }
-        ParsedToken::SetValue(_, parsed_token) => todo!(),
+        ParsedToken::SetValue(variable, value) => todo!(),
         ParsedToken::MathematicalBlock(parsed_token) => todo!(),
         ParsedToken::ReturnValue(parsed_token) => {
             // Create a temporary variable to store the literal in
@@ -698,10 +698,6 @@ pub fn create_ir_from_parsed_token<'a>(
                             struct_field_ptr.into_pointer_value(),
                             &format!("{_field_name}_ref"),
                         )?;
-
-                        // if ty_to_llvm_ty(ctx, field_ty) != var_ty {
-                        //     return Err(CodeGenError::InternalTypeMismatch.into());
-                        // }
 
                         builder.build_store(var_ptr, dbg!(ret_val))?;
                     } else {

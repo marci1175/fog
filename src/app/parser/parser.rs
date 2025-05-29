@@ -4,7 +4,6 @@ use crate::app::type_system::type_system::{
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, sync::Arc};
-use strum::IntoDiscriminant;
 
 use super::{
     error::{ParserError, SyntaxError},
@@ -170,7 +169,7 @@ pub fn parse_value(
                         // Put the new item to the right side of the expr.
                         Box::new(parse_token_as_value(
                             tokens,
-                            &function_signatures,
+                            function_signatures.clone(),
                             variable_scope,
                             variable_type.clone(),
                             &mut token_idx,
@@ -192,7 +191,7 @@ pub fn parse_value(
             Token::UnparsedLiteral(_raw_string) => {
                 let parsed_value = parse_token_as_value(
                     tokens,
-                    &function_signatures,
+                    function_signatures.clone(),
                     variable_scope,
                     variable_type.clone(),
                     &mut token_idx,
@@ -212,7 +211,7 @@ pub fn parse_value(
             Token::Literal(_) | Token::Identifier(_) | Token::OpenParentheses => {
                 let parsed_value = parse_token_as_value(
                     tokens,
-                    &function_signatures,
+                    function_signatures.clone(),
                     variable_scope,
                     variable_type.clone(),
                     &mut token_idx,
@@ -247,7 +246,7 @@ pub fn parse_token_as_value(
     // This is used to parse the function call's arguments
     tokens: &[Token],
     // Functions available
-    function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     // Variables available
     variable_scope: &mut IndexMap<String, TypeDiscriminants>,
     // The variable's type which we are parsing for
