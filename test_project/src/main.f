@@ -4,7 +4,7 @@ struct test {
 }
 
 function main(): int {
-    test var1 = test { field1: 0, field2: 1, };
+    test var1 = test { field1: 0, field2: 69, };
     
     return var1.field2;
 }

@@ -679,30 +679,14 @@ pub fn create_ir_from_parsed_token<'a>(
         ) => {
             if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
                 if let Some((ptr, ty)) = variable_map.get(&ref_var_name) {
-                    // Load the struct from the memory
-                    let struct_var = builder
-                        .build_load(
-                            ty.into_struct_type(),
-                            *ptr,
-                            &format!("{ref_var_name}_{field_name}"),
-                        )?
-                        .into_struct_value();
-
                     if let Some((idx, _field_name, field_ty)) = struct_fields.get_full(&field_name)
                     {
-                        dbg!(idx);
-                        dbg!(&struct_var.get_fields());
-                        
                         // We can safely unwrap here and get the field of the struct.
-                        let struct_field_ptr = struct_var.get_field_at_index(idx as u32).unwrap();
+                        let gep_ptr = builder.build_struct_gep(ty.into_struct_type(), *ptr, idx as u32, &field_name)?;
 
-                        let ret_val = builder.build_load(
-                            ty_to_llvm_ty(ctx, field_ty),
-                            struct_field_ptr.into_pointer_value(),
-                            &format!("{_field_name}_ref"),
-                        )?;
-
-                        builder.build_store(var_ptr, dbg!(ret_val))?;
+                        let value = builder.build_load(ty_to_llvm_ty(ctx, field_ty), gep_ptr, "loaded_val")?;
+                        
+                        builder.build_store(var_ptr, value)?;
                     } else {
                         return Err(CodeGenError::InternalStructFieldNotFound.into());
                     }

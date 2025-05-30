@@ -1,6 +1,6 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use std::{collections::HashMap, env::current_exe, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use crate::app::type_system::type_system::{Type, TypeDiscriminants};
 
@@ -962,8 +962,50 @@ pub fn parse_variable_expression(
                 custom_items.clone(),
             )?;
         }
+        Token::Dot => {
+            let field_name = &tokens.get(*token_idx + 1);
 
-        _ => println!("UNIMPL TOK: {}", current_token),
+            if let TypeDiscriminants::Struct((struct_name, struct_def)) = variable_type {
+                if let Some(Token::Identifier(field_name)) = field_name {
+                    if let Some(struct_field_ty) = struct_def.get(field_name) {
+                        // *token_idx += 1;
+
+                        let mut tokens = tokens.to_vec();
+
+                        tokens[*token_idx + 1] = Token::Identifier(format!("{}.{}", variable_name, field_name)); 
+
+                        parse_variable_expression(&tokens, &tokens[*token_idx + 1 + 1], token_idx, function_signatures, function_imports, variable_scope, struct_field_ty.clone(), custom_items, &format!("{}.{}", variable_name, field_name), parsed_tokens)?;
+                    } else {
+                        return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
+                            field_name.to_string(),
+                            (struct_name, struct_def),
+                        ))
+                        .into());
+                    }
+                } else {
+                    return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
+                        format!("{field_name:?}"),
+                        (struct_name, struct_def),
+                    ))
+                    .into());
+                }
+            } else {
+                return Err(ParserError::SyntaxError(SyntaxError::InvalidDotPlacement).into());
+            }
+
+            if let Some(idx) = tokens
+                .iter()
+                .skip(*token_idx)
+                .position(|token| *token == Token::LineBreak)
+            {
+                *token_idx += idx;
+            } else {
+                return Err(ParserError::SyntaxError(SyntaxError::MissingLineBreak).into());
+            }
+        }
+        _ => {
+            println!("[WARNING] Unimplemented token: {}", tokens[*token_idx]);
+        }
     }
 
     Ok(())

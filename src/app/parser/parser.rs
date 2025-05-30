@@ -6,10 +6,12 @@ use indexmap::IndexMap;
 use std::{collections::HashMap, sync::Arc};
 
 use super::{
-    error::{ParserError, SyntaxError}, parse_functions::{self, create_signature_table, parse_functions}, tokenizer::eval_constant_definition, types::{
+    error::{ParserError, SyntaxError},
+    parse_functions::{self, create_signature_table, parse_functions},
+    types::{
         CustomType, FunctionDefinition, FunctionSignature, ParsedToken, Token,
         UnparsedFunctionDefinition,
-    }
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -414,8 +416,38 @@ pub fn parse_token_as_value(
                 } else if let Some(Token::Dot) = tokens.get(*token_idx) {
                     *token_idx += 1;
 
-                    if let Some(value) = get_struct_field_stack(tokens, &desired_variable_type, token_idx, identifier, variable_type) {
-                        return value;
+                    if let Some(Token::Identifier(struct_field_name)) = tokens.get(*token_idx) {
+                        if let TypeDiscriminants::Struct((struct_name, fields)) = variable_type {
+                            if let Some(field_type) = fields.get(struct_field_name) {
+                                if *field_type != desired_variable_type {
+                                    return Err(ParserError::TypeError(
+                                        field_type.clone(),
+                                        desired_variable_type.clone(),
+                                    )
+                                    .into());
+                                }
+
+                                *token_idx += 2;
+
+                                return Ok(ParsedToken::StructFieldReference(
+                                    identifier.clone(),
+                                    (struct_name.clone(), fields.clone()),
+                                    struct_field_name.clone(),
+                                ));
+                            } else {
+                                return Err(ParserError::SyntaxError(
+                                    SyntaxError::StructFieldNotFound(
+                                        struct_field_name.clone(),
+                                        (struct_name.clone(), fields.clone()),
+                                    ),
+                                )
+                                .into());
+                            }
+                        } else {
+                            return Err(
+                                ParserError::SyntaxError(SyntaxError::InvalidStructName).into()
+                            );
+                        }
                     }
                 }
 
@@ -544,45 +576,6 @@ pub fn parse_token_as_value(
         }
     };
     Ok(inner_value)
-}
-
-fn get_struct_field_stack(tokens: &[Token], desired_variable_type: &TypeDiscriminants, token_idx: &mut usize, identifier: &String, variable_type: &TypeDiscriminants) -> Option<std::result::Result<ParsedToken, anyhow::Error>> {
-    if let Some(Token::Identifier(struct_field_name)) = tokens.get(*token_idx) {
-        if let TypeDiscriminants::Struct((struct_name, fields)) = variable_type {
-            if let Some(field_type) = fields.get(struct_field_name) {
-                
-                if *field_type != *desired_variable_type {
-                    return Some(Err(ParserError::TypeError(
-                        field_type.clone(),
-                        desired_variable_type.clone(),
-                    )
-                    .into()));
-            }
-            
-            *token_idx += 2;
-                // *token_idx += 2;
-
-                return Some(Ok(ParsedToken::StructFieldReference(
-                    identifier.clone(),
-                    (struct_name.clone(), fields.clone()),
-                    struct_field_name.clone(),
-                )));
-            } else {
-                return Some(Err(ParserError::SyntaxError(
-                    SyntaxError::StructFieldNotFound(
-                        struct_field_name.clone(),
-                        (struct_name.clone(), fields.clone()),
-                    ),
-                )
-                .into()));
-            }
-        } else {
-            return Some(Err(
-                ParserError::SyntaxError(SyntaxError::InvalidStructName).into()
-            ));
-        }
-    }
-    None
 }
 
 pub fn init_struct(
