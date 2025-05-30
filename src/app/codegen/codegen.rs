@@ -690,6 +690,9 @@ pub fn create_ir_from_parsed_token<'a>(
 
                     if let Some((idx, _field_name, field_ty)) = struct_fields.get_full(&field_name)
                     {
+                        dbg!(idx);
+                        dbg!(&struct_var.get_fields());
+                        
                         // We can safely unwrap here and get the field of the struct.
                         let struct_field_ptr = struct_var.get_field_at_index(idx as u32).unwrap();
 
