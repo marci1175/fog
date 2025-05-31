@@ -14,3 +14,7 @@
 | Structs, custom types | In progress ⚠️ |
 | Dynamic memory allocation | Planned 🔵 |
 | Asnyc support | Planned 🔵 |
+
+**Documentation is available at https://marci1175.github.io/fog/book/**.
+
+⚠️Please note that the documentation is subject to frequent changes, and is currently in an unfinished state.
