@@ -1,7 +1,7 @@
-import print(msg: string): int;
+import puts(msg: string): int;
 
 function main(): int {
-    print("Hello World!");
+    puts("Hello World!");
     
     return 0;
 }

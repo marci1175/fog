@@ -3,7 +3,14 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter};
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    builder::Builder, context::Context, debug_info::DISubprogram, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue}, AddressSpace
+    AddressSpace,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    passes::PassBuilderOptions,
+    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue},
 };
 
 use crate::{

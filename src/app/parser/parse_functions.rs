@@ -269,11 +269,11 @@ pub fn create_signature_table(
                         let current_token = &struct_slice[token_idx];
 
                         // Pattern match the syntax
-                        if let Token::Identifier(field_name) = dbg!(current_token) {
+                        if let Token::Identifier(field_name) = current_token {
                             if let Token::Colon = struct_slice[token_idx + 1] {
-                                if let Some(Token::Comma) = dbg!(struct_slice.get(token_idx + 3)) {
+                                if let Some(Token::Comma) = struct_slice.get(token_idx + 3) {
                                     if let Token::TypeDefinition(field_type) =
-                                        dbg!(&struct_slice[token_idx + 2])
+                                        &struct_slice[token_idx + 2]
                                     {
                                         // Save the field's type and name
                                         struct_fields

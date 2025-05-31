@@ -80,7 +80,18 @@ fn main() -> anyhow::Result<()> {
 
             fs::write(
                 format!("{}/src/main.f", working_folder),
-                include_str!("../defaults/default_code.f"),
+                (|| {
+                    if let Some(argument) = args.next() {
+                        if argument == "demo" {
+                            return Ok(include_str!("../defaults/default_code.f"));
+                        }
+                        else {
+                            return Err(ApplicationError::CliParseError(fog::app::cli_parser::error::CliParseError::InvalidArg(argument)));                            
+                        }
+                    }
+
+                    Ok("")
+                })()?,
             )
             .map_err(ApplicationError::FileError)?;
 
