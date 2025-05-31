@@ -1,7 +1,7 @@
 import puts(msg: string): int;
 
 function main(): int {
-    puts("Hello World!");
+    puts("Hello Hack Club!!!!!!!!");
     
     return 0;
 }

@@ -36,7 +36,7 @@ pub fn codegen_main(
     // Import functions defined by the user via llvm
     import_user_lib_functions(&context, &module, imported_functions, parsed_functions);
 
-    // We stricly only want to iterate trough the function definitions' order, becuase then we will avoid functions not being generated before usage.
+    // We strictly only want to iterate trough the function definitions' order, because then we will avoid functions not being generated before usage.
     for (function_name, function_definition) in parsed_functions.iter() {
         // Create function signature
         let function = module.add_function(
@@ -224,7 +224,7 @@ pub fn create_ir(
     ctx: &Context,
     // The list of ParsedToken-s
     parsed_tokens: Vec<ParsedToken>,
-    // This argument is initalized with the HashMap of the arguments
+    // This argument is initialized with the HashMap of the arguments
     available_arguments: HashMap<String, BasicValueEnum>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminants,
@@ -614,7 +614,7 @@ pub fn create_ir_from_parsed_token<'a>(
             };
         }
         ParsedToken::If(_) => todo!(),
-        ParsedToken::InitalizeStruct(struct_tys, struct_fields) => {
+        ParsedToken::InitializeStruct(struct_tys, struct_fields) => {
             if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
                 // Get the struct pointer's ty
                 let pointee_struct_ty = var_ty.into_struct_type();
@@ -764,7 +764,7 @@ pub fn create_fn_type_from_ty_disc(ctx: &Context, fn_sig: FunctionSignature) -> 
     // Create an LLVM type
     let llvm_ty = ty_to_llvm_ty(ctx, &fn_sig.return_type);
 
-    // Create the actual function type and parse the funcion's arguments
+    // Create the actual function type and parse the function's arguments
     llvm_ty.fn_type(&get_args_from_sig(ctx, fn_sig), false)
 }
 
@@ -804,28 +804,28 @@ pub fn set_value_of_ptr(
 
     match value {
         Type::I32(inner) => {
-            // Initalize const value
+            // Initialize const value
             let init_val = i32_type.const_int(inner as u64, true);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         }
         Type::F32(inner) => {
-            // Initalize const value
+            // Initialize const value
             let init_val = f32_type.const_float(inner as f64);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         }
         Type::U32(inner) => {
-            // Initalize const value
+            // Initialize const value
             let init_val = i32_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         }
         Type::U8(inner) => {
-            // Initalize const value
+            // Initialize const value
             let init_val = i8_type.const_int(inner as u64, false);
 
             // Store const
@@ -838,7 +838,7 @@ pub fn set_value_of_ptr(
             builder.build_store(v_ptr, buffer_ptr)?;
         }
         Type::Boolean(inner) => {
-            // Initalize const value
+            // Initialize const value
             let init_val = bool_type.const_int(inner as u64, false);
 
             // Store const

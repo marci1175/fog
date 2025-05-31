@@ -278,7 +278,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
         char_idx += 1;
     }
 
-    dbg!(Ok(token_list))
+    Ok(token_list)
 }
 
 fn match_multi_character_expression(string_buffer: String) -> Token {

@@ -129,7 +129,7 @@ pub enum ParsedToken {
     // Const(TypeDiscriminants),
     If(If),
 
-    InitalizeStruct(
+    InitializeStruct(
         IndexMap<String, TypeDiscriminants>,
         IndexMap<String, Box<ParsedToken>>,
     ),

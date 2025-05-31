@@ -15,7 +15,7 @@ pub enum CodeGenError {
     InternalVariableNotFound(String),
     #[error("[INTERNAL ERROR] Variable {0} mismatches variable `{1}`'s type.")]
     InternalVariableTypeMismatch(String, String),
-    #[error("[INTERNAL ERROR] The automatic optimiser has failed after the code generation.")]
+    #[error("[INTERNAL ERROR] The automatic optimizer has failed after the code generation.")]
     InternalOptimisationPassFailed,
     #[error("[INTERNAL ERROR] Failed to get TargetTriple for host.")]
     FaliedToAcquireTargetTriple,
@@ -29,8 +29,8 @@ pub enum CodeGenError {
     InvalidMain,
     #[error("[INTERNAL ERROR] A struct's field was not found at codegen.")]
     InternalStructFieldNotFound,
-    #[error("[INTERNAL ERROR] A variable type mismatched has occured.")]
+    #[error("[INTERNAL ERROR] A variable type mismatched has occurred.")]
     InternalTypeMismatch,
-    #[error("[INTERNAL ERROR] A reference to an inexsiting struct has been provided.")]
+    #[error("[INTERNAL ERROR] A reference to an inexistent struct has been provided.")]
     InternalStructReference,
 }

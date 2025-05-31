@@ -670,6 +670,6 @@ pub fn init_struct(
 
     Ok((
         idx,
-        ParsedToken::InitalizeStruct(this_struct_field.clone(), struct_field_init_map),
+        ParsedToken::InitializeStruct(this_struct_field.clone(), struct_field_init_map),
     ))
 }

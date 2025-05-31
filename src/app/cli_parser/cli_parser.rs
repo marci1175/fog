@@ -21,7 +21,7 @@ pub enum CliCommand {
     Version,
     #[strum(message = "`n <path-to-folder>` - Create a new Fog project.")]
     New,
-    #[strum(message = "`init` - Initalize a new Fog project.")]
+    #[strum(message = "`init` - Initialize a new Fog project.")]
     Init,
 }
 

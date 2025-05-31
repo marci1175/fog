@@ -71,7 +71,7 @@ pub fn create_signature_table(
                         };
 
                         if tokens[token_idx + 3] == Token::OpenBraces {
-                            // Create a varable which stores the level of braces we are in
+                            // Create a variable which stores the level of braces we are in
                             let mut brace_layer_counter = 1;
 
                             // Get the slice of the list which may contain the braces' scope
