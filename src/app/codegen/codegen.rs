@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -683,7 +683,7 @@ pub fn create_ir_from_parsed_token<'a>(
                             builder,
                             &mut field_stack_iter,
                             &struct_fields,
-                            (ptr.clone(), ty.clone()),
+                            (*ptr, *ty),
                         )?;
 
                         if var_ty == basic_value.get_type().into() {
@@ -720,22 +720,22 @@ fn access_nested_field<'a>(
                     "deref_nested_strct",
                 )?;
 
-                return access_nested_field(
+                access_nested_field(
                     ctx,
                     builder,
                     field_stack_iter,
                     struct_def,
                     (struct_field_ptr, pointee_ty.into()),
-                );
+                )
             } else {
                 let pointee_ty = ty_to_llvm_ty(ctx, field_ty);
                 let deref_val =
-                    builder.build_load(pointee_ty, last_field_ptr.0.clone(), "deref_strct_val")?;
+                    builder.build_load(pointee_ty, last_field_ptr.0, "deref_strct_val")?;
 
-                return Ok(deref_val);
+                Ok(deref_val)
             }
         } else {
-            return Err(CodeGenError::InternalStructFieldNotFound.into());
+            Err(CodeGenError::InternalStructFieldNotFound.into())
         }
     } else {
         panic!()

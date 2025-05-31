@@ -512,7 +512,7 @@ fn parse_function_block(
                         &mut variable_scope,
                         variable_type,
                         custom_items.clone(),
-                        &ident_name,
+                        ident_name,
                         &mut parsed_tokens,
                     )?;
                 } else if let Some(function_sig) = function_signatures.get(ident_name) {
@@ -895,13 +895,13 @@ pub fn parse_variable_expression(
         }
         Token::SetValueAddition => {
             set_value_math_expr(
-                &tokens,
+                tokens,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &variable_name,
+                variable_name,
                 MathematicalSymbol::Addition,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -909,13 +909,13 @@ pub fn parse_variable_expression(
         }
         Token::SetValueSubtraction => {
             set_value_math_expr(
-                &tokens,
+                tokens,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &variable_name,
+                variable_name,
                 MathematicalSymbol::Subtraction,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -923,13 +923,13 @@ pub fn parse_variable_expression(
         }
         Token::SetValueDivision => {
             set_value_math_expr(
-                &tokens,
+                tokens,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &variable_name,
+                variable_name,
                 MathematicalSymbol::Division,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -937,13 +937,13 @@ pub fn parse_variable_expression(
         }
         Token::SetValueMultiplication => {
             set_value_math_expr(
-                &tokens,
+                tokens,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &variable_name,
+                variable_name,
                 MathematicalSymbol::Multiplication,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -951,13 +951,13 @@ pub fn parse_variable_expression(
         }
         Token::SetValueModulo => {
             set_value_math_expr(
-                &tokens,
+                tokens,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                &variable_name,
+                variable_name,
                 MathematicalSymbol::Modulo,
                 function_imports.clone(),
                 custom_items.clone(),

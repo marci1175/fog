@@ -140,6 +140,12 @@ pub struct StructFieldReference {
     pub field_stack: Vec<String>,
 }
 
+impl Default for StructFieldReference {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StructFieldReference {
     pub fn from_single_entry(field_name: String) -> Self {
         Self {

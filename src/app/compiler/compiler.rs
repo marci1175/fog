@@ -2,13 +2,10 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ApplicationError,
-    app::{
+use crate::app::{
         codegen::{codegen::codegen_main, error::CodeGenError},
         parser::{parser::ParserState, tokenizer::tokenize},
-    },
-};
+    };
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct CompilerConfig {

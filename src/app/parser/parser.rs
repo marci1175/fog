@@ -588,16 +588,16 @@ fn get_struct_field_stack(
             if let Some(Token::Dot) = tokens.get(*token_idx) {
                 *token_idx += 1;
 
-                return get_struct_field_stack(
+                get_struct_field_stack(
                     tokens,
                     desired_variable_type,
                     token_idx,
                     identifier,
                     struct_def,
                     struct_field_stack,
-                );
+                )
             } else {
-                return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
+                Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into())
             }
         } else if let Some(field_type) = struct_field_query {
             if field_type == desired_variable_type {
@@ -621,7 +621,7 @@ fn get_struct_field_stack(
             .into());
         }
     } else {
-        return Err(ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference).into());
+        Err(ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference).into())
     }
 }
 
