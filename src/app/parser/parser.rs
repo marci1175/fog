@@ -429,8 +429,6 @@ pub fn parse_token_as_value(
                             &mut struct_field_reference,
                         )?;
 
-                        dbg!(&struct_field_reference);
-
                         // If the variable's type doesnt match the one we want to modify throw an error.
                         if desired_variable_type != nested_var_type {
                             return Err(ParserError::TypeError(

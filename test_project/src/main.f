@@ -1,15 +1,25 @@
-struct ligma {
-    inner: int,
+struct a1 {
+    a: int,
 }
 
-struct test {
-    field1: int,
-    field2: int,
-    asd: ligma,
+struct c1 {
+    a: int,
+}
+
+struct b1 {
+    a: int,
+    sup: a1,
 }
 
 function main(): int {
-    test var1 = test { field1: 0, field2: 69, asd: ligma { inner: 420, }, };
-    
-    return var1.asd.inner;
+    a1 hello = a1 {
+        a: 92,
+    };
+
+    b1 hello = b1 {
+        a: 92,
+        sup: c1 {a: 2,},
+    };
+
+    return 0;
 }

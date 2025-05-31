@@ -23,6 +23,10 @@ pub enum CodeGenError {
         "The main entrypoint to the binary is not found. If you want to create a library, configure `config.toml` accordingly."
     )]
     NoMain,
+    #[error(
+        "The main entrypoint to the binary is found, but the signature is invalid. No arguments should be taken and `I32` is returned."
+    )]
+    InvalidMain,
     #[error("[INTERNAL ERROR] A struct's field was not found at codegen.")]
     InternalStructFieldNotFound,
     #[error("[INTERNAL ERROR] A variable type mismatched has occured.")]

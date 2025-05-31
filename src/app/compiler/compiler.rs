@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::app::{
-        codegen::{codegen::codegen_main, error::CodeGenError},
-        parser::{parser::ParserState, tokenizer::tokenize},
-    };
+    codegen::{codegen::codegen_main, error::CodeGenError},
+    parser::{parser::ParserState, tokenizer::tokenize}, type_system::type_system::TypeDiscriminants,
+};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct CompilerConfig {
@@ -56,7 +56,12 @@ impl CompilerState {
         let imported_functions = parser_state.imported_functions();
 
         if !is_lib {
-            if !function_table.contains_key("main") {
+            if let Some(fn_sig) = function_table.get("main") {
+                if fn_sig.function_sig.return_type != TypeDiscriminants::I32 || !fn_sig.function_sig.args.is_empty() {
+                    return Err(CodeGenError::InvalidMain.into());
+                }
+            }
+            else {
                 return Err(CodeGenError::NoMain.into());
             }
         } else if function_table.contains_key("main") {

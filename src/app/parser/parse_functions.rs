@@ -48,79 +48,99 @@ pub fn create_signature_table(
                     token_idx += bracket_close_idx + 3;
 
                     if tokens[token_idx + 1] == Token::Colon {
-                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone() {
-                            if tokens[token_idx + 3] == Token::OpenBraces {
-                                // Create a varable which stores the level of braces we are in
-                                let mut brace_layer_counter = 1;
-
-                                // Get the slice of the list which may contain the braces' scope
-                                let tokens_slice = &tokens[token_idx + 4..];
-
-                                // Create an index which indexes the tokens slice
-                                let mut token_braces_idx = 0;
-
-                                // Create a list which contains all the tokens inside the two braces
-                                let mut braces_contains: Vec<Token> = vec![];
-
-                                // Find the scope of this function
-                                loop {
-                                    // We have itered through the whole function and its still not found, it may be an open brace.
-                                    if tokens_slice.len() == token_braces_idx {
-                                        return Err(ParserError::SyntaxError(
-                                            crate::app::parser::error::SyntaxError::LeftOpenParentheses,
-                                        )
-                                        .into());
+                        let return_type = if let Token::TypeDefinition(return_type) =
+                            tokens[token_idx + 2].clone()
+                        {
+                            return_type
+                        } else if let Token::Identifier(identifier) = tokens[token_idx + 2].clone()
+                        {
+                            if let Some(custom_type) = custom_items.get(&identifier) {
+                                match custom_type {
+                                    CustomType::Struct(struct_def) => {
+                                        TypeDiscriminants::Struct(struct_def.clone())
                                     }
-
-                                    // If a bracket is closed the layer counter should be incremented
-                                    if tokens_slice[token_braces_idx] == Token::OpenBraces {
-                                        brace_layer_counter += 1;
+                                    CustomType::Enum(index_map) => {
+                                        unimplemented!()
                                     }
-                                    // If a bracket is closed the layer counter should be decreased
-                                    else if tokens_slice[token_braces_idx] == Token::CloseBraces {
-                                        brace_layer_counter -= 1;
-                                    }
-
-                                    // If we have arrived at the end of the braces this is when we know that this is the end of the function's scope
-                                    if brace_layer_counter == 0 {
-                                        break;
-                                    }
-
-                                    // Store the current item in the token buffer
-                                    braces_contains.push(tokens_slice[token_braces_idx].clone());
-
-                                    // Increment the index
-                                    token_braces_idx += 1;
                                 }
+                            } else {
+                                return Err(ParserError::InvalidSignatureDefinition.into());
+                            }
+                        } else {
+                            return Err(ParserError::InvalidSignatureDefinition.into());
+                        };
 
-                                let braces_contains_len = braces_contains.len();
+                        if tokens[token_idx + 3] == Token::OpenBraces {
+                            // Create a varable which stores the level of braces we are in
+                            let mut brace_layer_counter = 1;
 
-                                // Store the function
-                                let insertion = function_list.insert(
-                                    function_name.clone(),
-                                    UnparsedFunctionDefinition {
-                                        inner: braces_contains,
-                                        function_sig: FunctionSignature { args, return_type },
-                                    },
-                                );
+                            // Get the slice of the list which may contain the braces' scope
+                            let tokens_slice = &tokens[token_idx + 4..];
 
-                                // If a function with a similar name exists throw an error as there is no function overloading
-                                if let Some(overwritten_function) = insertion {
+                            // Create an index which indexes the tokens slice
+                            let mut token_braces_idx = 0;
+
+                            // Create a list which contains all the tokens inside the two braces
+                            let mut braces_contains: Vec<Token> = vec![];
+
+                            // Find the scope of this function
+                            loop {
+                                // We have itered through the whole function and its still not found, it may be an open brace.
+                                if tokens_slice.len() == token_braces_idx {
                                     return Err(ParserError::SyntaxError(
-                                        super::error::SyntaxError::DuplicateFunctions(
-                                            function_name,
-                                            overwritten_function.function_sig,
-                                        ),
+                                        crate::app::parser::error::SyntaxError::LeftOpenParentheses,
                                     )
                                     .into());
                                 }
 
-                                // Set the iterator index
-                                token_idx += braces_contains_len + 4;
+                                // If a bracket is closed the layer counter should be incremented
+                                if tokens_slice[token_braces_idx] == Token::OpenBraces {
+                                    brace_layer_counter += 1;
+                                }
+                                // If a bracket is closed the layer counter should be decreased
+                                else if tokens_slice[token_braces_idx] == Token::CloseBraces {
+                                    brace_layer_counter -= 1;
+                                }
 
-                                // Countinue with the loop
-                                continue;
+                                // If we have arrived at the end of the braces this is when we know that this is the end of the function's scope
+                                if brace_layer_counter == 0 {
+                                    break;
+                                }
+
+                                // Store the current item in the token buffer
+                                braces_contains.push(tokens_slice[token_braces_idx].clone());
+
+                                // Increment the index
+                                token_braces_idx += 1;
                             }
+
+                            let braces_contains_len = braces_contains.len();
+
+                            // Store the function
+                            let insertion = function_list.insert(
+                                function_name.clone(),
+                                UnparsedFunctionDefinition {
+                                    inner: braces_contains,
+                                    function_sig: FunctionSignature { args, return_type },
+                                },
+                            );
+
+                            // If a function with a similar name exists throw an error as there is no function overloading
+                            if let Some(overwritten_function) = insertion {
+                                return Err(ParserError::SyntaxError(
+                                    super::error::SyntaxError::DuplicateFunctions(
+                                        function_name,
+                                        overwritten_function.function_sig,
+                                    ),
+                                )
+                                .into());
+                            }
+
+                            // Set the iterator index
+                            token_idx += braces_contains_len + 4;
+
+                            // Countinue with the loop
+                            continue;
                         }
                     }
 
@@ -249,11 +269,11 @@ pub fn create_signature_table(
                         let current_token = &struct_slice[token_idx];
 
                         // Pattern match the syntax
-                        if let Token::Identifier(field_name) = current_token {
+                        if let Token::Identifier(field_name) = dbg!(current_token) {
                             if let Token::Colon = struct_slice[token_idx + 1] {
-                                if let Some(Token::Comma) = struct_slice.get(token_idx + 3) {
+                                if let Some(Token::Comma) = dbg!(struct_slice.get(token_idx + 3)) {
                                     if let Token::TypeDefinition(field_type) =
-                                        &struct_slice[token_idx + 2]
+                                        dbg!(&struct_slice[token_idx + 2])
                                     {
                                         // Save the field's type and name
                                         struct_fields

@@ -3,14 +3,7 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter};
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    AddressSpace,
-    builder::Builder,
-    context::Context,
-    module::Module,
-    passes::PassBuilderOptions,
-    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue},
+    builder::Builder, context::Context, debug_info::DISubprogram, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue}, AddressSpace
 };
 
 use crate::{
@@ -269,7 +262,7 @@ pub fn create_ir(
         variable_map.insert(arg_name, (v_ptr, ty));
     }
 
-    for token in dbg!(parsed_tokens) {
+    for token in parsed_tokens {
         create_ir_from_parsed_token(
             ctx,
             module,
@@ -598,11 +591,9 @@ pub fn create_ir_from_parsed_token<'a>(
                     )?))?;
                 }
                 BasicMetadataTypeEnum::StructType(struct_type) => {
-                    builder.build_return(Some(&builder.build_load(
-                        struct_type,
-                        ptr,
-                        "ret_tmp_var",
-                    )?))?;
+                    let loaded_struct = builder.build_load(struct_type, ptr, "ret_tmp_var")?;
+
+                    builder.build_return(Some(&loaded_struct))?;
                 }
                 BasicMetadataTypeEnum::VectorType(vector_type) => {
                     builder.build_return(Some(&builder.build_load(
@@ -622,7 +613,7 @@ pub fn create_ir_from_parsed_token<'a>(
                 let pointee_struct_ty = var_ty.into_struct_type();
 
                 // Pre-Allocate a struct so that it can be accessed later
-                let allocate_struct = builder.build_alloca(pointee_struct_ty, "")?;
+                let allocate_struct = builder.build_alloca(pointee_struct_ty, "strct_init")?;
 
                 // Iterate over the struct's fields
                 for (field_idx, (field_name, field_ty)) in struct_tys.iter().enumerate() {
@@ -665,7 +656,7 @@ pub fn create_ir_from_parsed_token<'a>(
 
                 // Load the allocated struct into memory
                 let constructed_struct = builder
-                    .build_load(pointee_struct_ty, allocate_struct, "")?
+                    .build_load(pointee_struct_ty, allocate_struct, "constructed_struct")?
                     .into_struct_value();
 
                 // Store the struct in the main variable
@@ -742,124 +733,52 @@ fn access_nested_field<'a>(
     }
 }
 
+/// Creates a new variable from a `TypeDiscriminant`.
+/// It is UB to access the value of the variable created here before initilazing it with actual data.
 fn create_new_variable<'a, 'b>(
     ctx: &'a Context,
     builder: &'a Builder<'_>,
     var_name: String,
     var_type: TypeDiscriminants,
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>), anyhow::Error> {
-    let bool_type = ctx.bool_type();
-    let i32_type = ctx.i32_type();
-    let i8_type = ctx.i8_type();
-    let f32_type = ctx.f32_type();
-    let pointer_type = ctx.ptr_type(AddressSpace::default());
+    // Turn a `TypeDiscriminant` into an LLVM type
+    let var_type = ty_to_llvm_ty(ctx, &var_type);
 
-    let (ptr, ptr_ty): (PointerValue, BasicMetadataTypeEnum) = match var_type {
-        TypeDiscriminants::I32 => {
-            let v_ptr = builder.build_alloca(i32_type, &var_name)?;
+    // Allocate an instance of the converted type
+    let v_ptr = builder.build_alloca(var_type, &var_name)?;
 
-            (v_ptr, BasicMetadataTypeEnum::IntType(i32_type))
-        }
-        TypeDiscriminants::F32 => {
-            let v_ptr = builder.build_alloca(f32_type, &var_name)?;
-
-            (v_ptr, BasicMetadataTypeEnum::FloatType(f32_type))
-        }
-        TypeDiscriminants::U32 => {
-            let v_ptr = builder.build_alloca(i32_type, &var_name)?;
-
-            (v_ptr, BasicMetadataTypeEnum::IntType(i32_type))
-        }
-        TypeDiscriminants::U8 => {
-            let v_ptr = builder.build_alloca(i8_type, &var_name)?;
-
-            (v_ptr, BasicMetadataTypeEnum::IntType(i8_type))
-        }
-        TypeDiscriminants::String => {
-            let v_ptr = builder.build_alloca(pointer_type, &var_name)?;
-
-            (v_ptr, BasicMetadataTypeEnum::PointerType(pointer_type))
-        }
-        TypeDiscriminants::Boolean => {
-            let v_ptr = builder.build_alloca(bool_type, &var_name)?;
-
-            (v_ptr, BasicMetadataTypeEnum::IntType(bool_type))
-        }
-        TypeDiscriminants::Void => {
-            unreachable!("Variables with a Void value shouldn't be created.");
-        }
-        TypeDiscriminants::Struct((struct_name, struct_inner)) => {
-            let struct_ty = ctx.opaque_struct_type(&struct_name);
-
-            struct_ty.set_body(&struct_field_to_ty_list(ctx, &struct_inner), false);
-
-            let v_ptr = builder.build_alloca(struct_ty, &var_name)?;
-
-            (v_ptr, BasicMetadataTypeEnum::StructType(struct_ty))
-        }
-    };
-
-    Ok((ptr, ptr_ty))
+    // Return the pointer of the allocation and the type
+    Ok((v_ptr, var_type.into()))
 }
 
+/// Creates a function type from a FunctionSignature.
+/// It uses the Function's return type and arguments to create a `FunctionType` which can be used later in llvm context.
 pub fn create_fn_type_from_ty_disc(ctx: &Context, fn_sig: FunctionSignature) -> FunctionType<'_> {
-    match fn_sig.return_type {
-        TypeDiscriminants::I32 => ctx
-            .i32_type()
-            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
-        TypeDiscriminants::F32 => ctx
-            .f32_type()
-            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
-        TypeDiscriminants::U32 => ctx
-            .i32_type()
-            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
-        TypeDiscriminants::U8 => ctx
-            .i8_type()
-            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
-        TypeDiscriminants::String => ctx
-            .ptr_type(AddressSpace::default())
-            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
-        TypeDiscriminants::Boolean => ctx
-            .bool_type()
-            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
-        TypeDiscriminants::Void => ctx
-            .void_type()
-            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
-        TypeDiscriminants::Struct((ref _struct_name, ref struct_inner)) => ctx
-            .struct_type(&struct_field_to_ty_list(ctx, struct_inner), false)
-            .fn_type(&get_args_from_sig(ctx, fn_sig), false),
-    }
+    // Create an LLVM type
+    let llvm_ty = ty_to_llvm_ty(ctx, &fn_sig.return_type);
+
+    // Create the actual function type and parse the funcion's arguments
+    llvm_ty.fn_type(&get_args_from_sig(ctx, fn_sig), false)
 }
 
+/// Fetches the arguments (and converts it into an LLVM type) from the function's signature
 pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicMetadataTypeEnum> {
+    // Create an iterator over the function's arguments
     let fn_args = fn_sig.args.iter();
 
+    // Create a list for all the arguments
     let mut arg_list: Vec<BasicMetadataTypeEnum> = vec![];
 
+    // Iter over all the arguments and store the converted variants of the argument types
     for (_arg_name, arg_ty) in fn_args {
-        let argument_sig = match arg_ty {
-            TypeDiscriminants::I32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-            TypeDiscriminants::F32 => BasicMetadataTypeEnum::FloatType(ctx.f32_type()),
-            TypeDiscriminants::U32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-            TypeDiscriminants::U8 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-            TypeDiscriminants::String => {
-                BasicMetadataTypeEnum::PointerType(ctx.ptr_type(AddressSpace::default()))
-            }
-            TypeDiscriminants::Boolean => BasicMetadataTypeEnum::IntType(ctx.bool_type()),
-            TypeDiscriminants::Void => {
-                panic!("Can't take a `Void` as an argument")
-            }
-            TypeDiscriminants::Struct((struct_name, struct_inner)) => {
-                let struct_type =
-                    ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
+        // Create an llvm ty
+        let argument_sig = ty_to_llvm_ty(ctx, arg_ty);
 
-                BasicMetadataTypeEnum::StructType(struct_type)
-            }
-        };
-
-        arg_list.push(argument_sig);
+        // Convert the type and store it
+        arg_list.push(argument_sig.into());
     }
 
+    // Return the list
     arg_list
 }
 
@@ -969,7 +888,15 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminants) -> BasicTypeE
             unreachable!();
         }
         TypeDiscriminants::Struct((struct_name, struct_inner)) => {
-            let struct_type = ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
+            let struct_type = if let Some(struct_type) = ctx.get_struct_type(&struct_name) {
+                struct_type
+            } else {
+                let op_struct_type = ctx.opaque_struct_type(&struct_name);
+
+                op_struct_type.set_body(&struct_field_to_ty_list(ctx, struct_inner), false);
+
+                op_struct_type
+            };
 
             BasicTypeEnum::StructType(struct_type)
         }
