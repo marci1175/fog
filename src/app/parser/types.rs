@@ -106,9 +106,8 @@ pub enum ParsedToken {
     VariableReference(String),
     /// Variable name, struct_type, field_name
     StructFieldReference(
-        String,
+        StructFieldReference,
         (String, IndexMap<String, TypeDiscriminants>),
-        String,
     ),
 
     Literal(Type),
@@ -134,6 +133,29 @@ pub enum ParsedToken {
         IndexMap<String, TypeDiscriminants>,
         IndexMap<String, Box<ParsedToken>>,
     ),
+}
+
+#[derive(Debug, Clone)]
+pub struct StructFieldReference {
+    pub field_stack: Vec<String>,
+}
+
+impl StructFieldReference {
+    pub fn from_single_entry(field_name: String) -> Self {
+        Self {
+            field_stack: vec![field_name],
+        }
+    }
+
+    pub fn from_stack(field_stack: Vec<String>) -> Self {
+        Self { field_stack }
+    }
+
+    pub fn new() -> Self {
+        Self {
+            field_stack: vec![],
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]

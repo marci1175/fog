@@ -307,9 +307,10 @@ pub fn create_signature_table(
                     );
                 }
             } else {
-                return Err(
-                    ParserError::SyntaxError(super::error::SyntaxError::InvalidStructName).into(),
-                );
+                return Err(ParserError::SyntaxError(
+                    super::error::SyntaxError::InvalidStructDefinition,
+                )
+                .into());
             }
         }
 
@@ -874,7 +875,7 @@ pub fn parse_variable_expression(
                 })?
                 + *token_idx;
 
-                let selected_tokens = dbg!(&tokens[*token_idx + 1..line_break_idx]);
+            let selected_tokens = dbg!(&tokens[*token_idx + 1..line_break_idx]);
 
             *token_idx += selected_tokens.len() + 1;
 
@@ -972,9 +973,21 @@ pub fn parse_variable_expression(
 
                         let mut tokens = tokens.to_vec();
 
-                        tokens[*token_idx + 1] = Token::Identifier(format!("{}.{}", variable_name, field_name)); 
+                        tokens[*token_idx + 1] =
+                            Token::Identifier(format!("{}.{}", variable_name, field_name));
 
-                        parse_variable_expression(&tokens, &tokens[*token_idx + 1 + 1], token_idx, function_signatures, function_imports, variable_scope, struct_field_ty.clone(), custom_items, &format!("{}.{}", variable_name, field_name), parsed_tokens)?;
+                        parse_variable_expression(
+                            &tokens,
+                            &tokens[*token_idx + 1 + 1],
+                            token_idx,
+                            function_signatures,
+                            function_imports,
+                            variable_scope,
+                            struct_field_ty.clone(),
+                            custom_items,
+                            &format!("{}.{}", variable_name, field_name),
+                            parsed_tokens,
+                        )?;
                     } else {
                         return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
                             field_name.to_string(),

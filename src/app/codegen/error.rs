@@ -27,4 +27,6 @@ pub enum CodeGenError {
     InternalStructFieldNotFound,
     #[error("[INTERNAL ERROR] A variable type mismatched has occured.")]
     InternalTypeMismatch,
+    #[error("[INTERNAL ERROR] A reference to an inexsiting struct has been provided.")]
+    InternalStructReference,
 }

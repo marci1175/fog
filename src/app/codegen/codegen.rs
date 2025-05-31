@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
+use std::{any::Any, collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -269,7 +269,7 @@ pub fn create_ir(
         variable_map.insert(arg_name, (v_ptr, ty));
     }
 
-    for token in parsed_tokens {
+    for token in dbg!(parsed_tokens) {
         create_ir_from_parsed_token(
             ctx,
             module,
@@ -322,7 +322,7 @@ pub fn create_ir_from_parsed_token<'a>(
                     // The referenced variable we are going to set the value of the orginal variable with
                     ref_variable_query,
                 ) {
-                    if orig_ty != *ref_ty {
+                    if dbg!(orig_ty) != dbg!(*ref_ty) {
                         return Err(CodeGenError::InternalVariableTypeMismatch(
                             var_ref.0.clone(),
                             ref_var_name.clone(),
@@ -672,32 +672,74 @@ pub fn create_ir_from_parsed_token<'a>(
                 builder.build_store(var_ptr, constructed_struct)?;
             }
         }
-        ParsedToken::StructFieldReference(
-            ref_var_name,
-            (struct_name, struct_fields),
-            field_name,
-        ) => {
+        ParsedToken::StructFieldReference(struct_field_stack, (struct_name, struct_fields)) => {
             if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
-                if let Some((ptr, ty)) = variable_map.get(&ref_var_name) {
-                    if let Some((idx, _field_name, field_ty)) = struct_fields.get_full(&field_name)
-                    {
-                        // We can safely unwrap here and get the field of the struct.
-                        let gep_ptr = builder.build_struct_gep(ty.into_struct_type(), *ptr, idx as u32, &field_name)?;
+                let mut field_stack_iter = struct_field_stack.field_stack.iter();
 
-                        let value = builder.build_load(ty_to_llvm_ty(ctx, field_ty), gep_ptr, "loaded_val")?;
-                        
-                        builder.build_store(var_ptr, value)?;
-                    } else {
-                        return Err(CodeGenError::InternalStructFieldNotFound.into());
+                if let Some(main_struct_var_name) = field_stack_iter.next() {
+                    if let Some((ptr, ty)) = variable_map.get(main_struct_var_name) {
+                        let basic_value = access_nested_field(
+                            ctx,
+                            builder,
+                            &mut field_stack_iter,
+                            &struct_fields,
+                            (ptr.clone(), ty.clone()),
+                        )?;
+
+                        if var_ty == basic_value.get_type().into() {
+                            builder.build_store(var_ptr, basic_value)?;
+                        } else {
+                            return Err(CodeGenError::InternalTypeMismatch.into());
+                        }
                     }
                 } else {
-                    return Err(CodeGenError::InternalVariableNotFound(ref_var_name).into());
+                    return Err(CodeGenError::InternalStructReference.into());
                 }
             }
         }
     }
 
     Ok(())
+}
+
+fn access_nested_field<'a>(
+    ctx: &'a Context,
+    builder: &'a Builder,
+    field_stack_iter: &mut Iter<String>,
+    struct_definition: &IndexMap<String, TypeDiscriminants>,
+    last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
+) -> Result<BasicValueEnum<'a>> {
+    if let Some(field_stack_entry) = field_stack_iter.next() {
+        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry) {
+            if let TypeDiscriminants::Struct((_, struct_def)) = field_ty {
+                let pointee_ty = last_field_ptr.1.into_struct_type();
+                let struct_field_ptr = builder.build_struct_gep(
+                    pointee_ty,
+                    last_field_ptr.0,
+                    field_idx as u32,
+                    "deref_nested_strct",
+                )?;
+
+                return access_nested_field(
+                    ctx,
+                    builder,
+                    field_stack_iter,
+                    struct_def,
+                    (struct_field_ptr, pointee_ty.into()),
+                );
+            } else {
+                let pointee_ty = ty_to_llvm_ty(ctx, field_ty);
+                let deref_val =
+                    builder.build_load(pointee_ty, last_field_ptr.0.clone(), "deref_strct_val")?;
+
+                return Ok(deref_val);
+            }
+        } else {
+            return Err(CodeGenError::InternalStructFieldNotFound.into());
+        }
+    } else {
+        panic!()
+    }
 }
 
 fn create_new_variable<'a, 'b>(

@@ -9,8 +9,8 @@ use super::{
     error::{ParserError, SyntaxError},
     parse_functions::{self, create_signature_table, parse_functions},
     types::{
-        CustomType, FunctionDefinition, FunctionSignature, ParsedToken, Token,
-        UnparsedFunctionDefinition,
+        CustomType, FunctionDefinition, FunctionSignature, ParsedToken, StructFieldReference,
+        Token, UnparsedFunctionDefinition,
     },
 };
 
@@ -414,50 +414,42 @@ pub fn parse_token_as_value(
                         .into());
                     }
                 } else if let Some(Token::Dot) = tokens.get(*token_idx) {
-                    *token_idx += 1;
+                    if let TypeDiscriminants::Struct(struct_def) = variable_type {
+                        *token_idx += 1;
 
-                    if let Some(Token::Identifier(struct_field_name)) = tokens.get(*token_idx) {
-                        if let TypeDiscriminants::Struct((struct_name, fields)) = variable_type {
-                            if let Some(field_type) = fields.get(struct_field_name) {
-                                if *field_type != desired_variable_type {
-                                    return Err(ParserError::TypeError(
-                                        field_type.clone(),
-                                        desired_variable_type.clone(),
-                                    )
-                                    .into());
-                                }
+                        let mut struct_field_reference =
+                            StructFieldReference::from_single_entry(identifier.clone());
 
-                                *token_idx += 2;
+                        let nested_var_type = get_struct_field_stack(
+                            tokens,
+                            &desired_variable_type,
+                            token_idx,
+                            identifier,
+                            struct_def,
+                            &mut struct_field_reference,
+                        )?;
 
-                                return Ok(ParsedToken::StructFieldReference(
-                                    identifier.clone(),
-                                    (struct_name.clone(), fields.clone()),
-                                    struct_field_name.clone(),
-                                ));
-                            } else {
-                                return Err(ParserError::SyntaxError(
-                                    SyntaxError::StructFieldNotFound(
-                                        struct_field_name.clone(),
-                                        (struct_name.clone(), fields.clone()),
-                                    ),
-                                )
-                                .into());
-                            }
-                        } else {
-                            return Err(
-                                ParserError::SyntaxError(SyntaxError::InvalidStructName).into()
-                            );
+                        dbg!(&struct_field_reference);
+
+                        // If the variable's type doesnt match the one we want to modify throw an error.
+                        if desired_variable_type != nested_var_type {
+                            return Err(ParserError::TypeError(
+                                variable_type.clone(),
+                                desired_variable_type,
+                            )
+                            .into());
                         }
-                    }
-                }
 
-                // If the variable's type doesnt match the one we want to modify throw an error.
-                if desired_variable_type != *variable_type {
-                    return Err(ParserError::TypeError(
-                        variable_type.clone(),
-                        desired_variable_type,
-                    )
-                    .into());
+                        return Ok(ParsedToken::StructFieldReference(
+                            struct_field_reference,
+                            struct_def.clone(),
+                        ));
+                    } else {
+                        return Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(
+                            identifier.clone(),
+                        ))
+                        .into());
+                    }
                 }
 
                 // Return the VariableReference
@@ -576,6 +568,61 @@ pub fn parse_token_as_value(
         }
     };
     Ok(inner_value)
+}
+
+fn get_struct_field_stack(
+    tokens: &[Token],
+    desired_variable_type: &TypeDiscriminants,
+    token_idx: &mut usize,
+    identifier: &String,
+    (struct_name, struct_fields): &(String, IndexMap<String, TypeDiscriminants>),
+    struct_field_stack: &mut StructFieldReference,
+) -> Result<TypeDiscriminants> {
+    if let Some(Token::Identifier(field_name)) = tokens.get(*token_idx) {
+        let struct_field_query = struct_fields.get(field_name);
+        if let Some(TypeDiscriminants::Struct(struct_def)) = struct_field_query {
+            *token_idx += 1;
+
+            struct_field_stack.field_stack.push(field_name.clone());
+
+            if let Some(Token::Dot) = tokens.get(*token_idx) {
+                *token_idx += 1;
+
+                return get_struct_field_stack(
+                    tokens,
+                    desired_variable_type,
+                    token_idx,
+                    identifier,
+                    struct_def,
+                    struct_field_stack,
+                );
+            } else {
+                return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
+            }
+        } else if let Some(field_type) = struct_field_query {
+            if field_type == desired_variable_type {
+                *token_idx += 1;
+
+                struct_field_stack.field_stack.push(field_name.clone());
+
+                return Ok(field_type.clone());
+            } else {
+                return Err(ParserError::TypeError(
+                    field_type.clone(),
+                    desired_variable_type.clone(),
+                )
+                .into());
+            }
+        } else {
+            return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
+                field_name.clone(),
+                (struct_name.clone(), struct_fields.clone()),
+            ))
+            .into());
+        }
+    } else {
+        return Err(ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference).into());
+    }
 }
 
 pub fn init_struct(

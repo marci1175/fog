@@ -72,8 +72,7 @@ impl CompilerState {
             target_path,
             optimization,
             imported_functions,
-        )
-        .map_err(ApplicationError::CodeGenError)?;
+        )?;
 
         Ok(())
     }

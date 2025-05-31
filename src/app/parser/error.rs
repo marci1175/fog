@@ -71,14 +71,18 @@ pub enum SyntaxError {
     InvalidImportDefinition,
     #[error("Invalid Function name definition.")]
     InvalidFunctionName,
-    #[error("Invalid Struct name definition.")]
-    InvalidStructName,
+    #[error("A valid struct has not been found with the name of `{0}`")]
+    InvalidStructName(String),
+    #[error("Invalid Struct Definition.")]
+    InvalidStructDefinition,
     #[error("Invalid Dot placement, variable cannot have fields.")]
     InvalidDotPlacement,
     #[error("Struct field `{0}` was not found in Struct `{0}`.")]
     StructFieldNotFound(String, (String, IndexMap<String, TypeDiscriminants>)),
     #[error("Invalid Struct field definition.")]
     InvalidStructFieldDefinition,
+    #[error("Invalid Struct field reference.")]
+    InvalidStructFieldReference,
     #[error("Struct Extensions should be only placed on the top-most layer of code.")]
     InvalidStructExtensionPlacement,
 }
