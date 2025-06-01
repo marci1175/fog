@@ -285,26 +285,24 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
     let trimmed_string = string_buffer.trim();
 
     match trimmed_string {
-        "int" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::I32)
-        }
+        "int" => Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32),
         "string" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::String)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::String)
         }
         "uint" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::U32)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::U32)
         }
         "float" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::F32)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::F32)
         }
         "uintsmall" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::U8)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::U8)
         }
         "void" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::Void)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::Void)
         }
         "bool" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminants::Boolean)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::Boolean)
         }
         "==" => Token::Equals,
         ">=" => Token::EqBigger,

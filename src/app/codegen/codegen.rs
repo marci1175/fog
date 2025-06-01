@@ -10,14 +10,14 @@ use inkwell::{
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue},
+    values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
 };
 
 use crate::{
     ApplicationError,
     app::{
         parser::types::{FunctionDefinition, FunctionSignature, ParsedToken},
-        type_system::type_system::{Type, TypeDiscriminants},
+        type_system::type_system::{Type, TypeDiscriminant},
     },
 };
 
@@ -147,18 +147,18 @@ pub fn import_user_lib_functions<'a>(
 
         for (_, arg_ty) in &import_sig.args {
             let argument_sig = match arg_ty {
-                TypeDiscriminants::I32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-                TypeDiscriminants::F32 => BasicMetadataTypeEnum::FloatType(ctx.f32_type()),
-                TypeDiscriminants::U32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-                TypeDiscriminants::U8 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-                TypeDiscriminants::String => {
+                TypeDiscriminant::I32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
+                TypeDiscriminant::F32 => BasicMetadataTypeEnum::FloatType(ctx.f32_type()),
+                TypeDiscriminant::U32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
+                TypeDiscriminant::U8 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
+                TypeDiscriminant::String => {
                     BasicMetadataTypeEnum::PointerType(ctx.ptr_type(AddressSpace::default()))
                 }
-                TypeDiscriminants::Boolean => BasicMetadataTypeEnum::IntType(ctx.bool_type()),
-                TypeDiscriminants::Void => {
+                TypeDiscriminant::Boolean => BasicMetadataTypeEnum::IntType(ctx.bool_type()),
+                TypeDiscriminant::Void => {
                     panic!("Can't take a `Void` as an argument")
                 }
-                TypeDiscriminants::Struct((_struct_name, struct_inner)) => {
+                TypeDiscriminant::Struct((_struct_name, struct_inner)) => {
                     let field_ty = struct_field_to_ty_list(ctx, struct_inner);
 
                     BasicMetadataTypeEnum::StructType(ctx.struct_type(&field_ty, false))
@@ -169,42 +169,42 @@ pub fn import_user_lib_functions<'a>(
         }
 
         let function_type = match &import_sig.return_type {
-            TypeDiscriminants::I32 => {
+            TypeDiscriminant::I32 => {
                 let return_type = ctx.i32_type();
 
                 return_type.fn_type(&args, false)
             }
-            TypeDiscriminants::F32 => {
+            TypeDiscriminant::F32 => {
                 let return_type = ctx.f32_type();
 
                 return_type.fn_type(&args, false)
             }
-            TypeDiscriminants::U32 => {
+            TypeDiscriminant::U32 => {
                 let return_type = ctx.i32_type();
 
                 return_type.fn_type(&args, false)
             }
-            TypeDiscriminants::U8 => {
+            TypeDiscriminant::U8 => {
                 let return_type = ctx.i32_type();
 
                 return_type.fn_type(&args, false)
             }
-            TypeDiscriminants::String => {
+            TypeDiscriminant::String => {
                 let return_type = ctx.ptr_type(AddressSpace::default());
 
                 return_type.fn_type(&args, false)
             }
-            TypeDiscriminants::Boolean => {
+            TypeDiscriminant::Boolean => {
                 let return_type = ctx.bool_type();
 
                 return_type.fn_type(&args, false)
             }
-            TypeDiscriminants::Void => {
+            TypeDiscriminant::Void => {
                 let return_type = ctx.void_type();
 
                 return_type.fn_type(&args, false)
             }
-            TypeDiscriminants::Struct((_struct_name, struct_inner)) => {
+            TypeDiscriminant::Struct((_struct_name, struct_inner)) => {
                 let return_type =
                     ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
 
@@ -227,7 +227,7 @@ pub fn create_ir(
     // This argument is initialized with the HashMap of the arguments
     available_arguments: HashMap<String, BasicValueEnum>,
     // Type returned type of the Function
-    fn_ret_ty: TypeDiscriminants,
+    fn_ret_ty: TypeDiscriminant,
 ) -> Result<()> {
     let mut variable_map: HashMap<String, (PointerValue, BasicMetadataTypeEnum)> = HashMap::new();
 
@@ -292,7 +292,7 @@ pub fn create_ir_from_parsed_token<'a>(
     variable_map: &mut HashMap<String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>)>,
     variable_reference: Option<(String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>))>,
     // Type returned type of the Function
-    fn_ret_ty: TypeDiscriminants,
+    fn_ret_ty: TypeDiscriminant,
 ) -> anyhow::Result<()> {
     match parsed_token {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
@@ -311,77 +311,117 @@ pub fn create_ir_from_parsed_token<'a>(
                 fn_ret_ty,
             )?;
         }
-        ParsedToken::VariableReference(ref_var_name) => {
-            if let Some(var_ref) = variable_reference {
-                // The referenced variable
-                let ref_variable_query = variable_map.get(&ref_var_name);
+        ParsedToken::VariableReference(var_ref_variant) => {
+            if let Some((var_ref_name, (var_ref_ptr, var_ref_ty))) = variable_reference {
+                match var_ref_variant {
+                    crate::app::parser::types::VariableReference::StructFieldReference(
+                        struct_field_stack,
+                        (struct_name, struct_fields),
+                    ) => {
+                        let mut field_stack_iter = struct_field_stack.field_stack.iter();
 
-                if let ((orig_ptr, orig_ty), Some((ref_ptr, ref_ty))) = (
-                    // The original variable we are going to modify
-                    var_ref.1,
-                    // The referenced variable we are going to set the value of the orginal variable with
-                    ref_variable_query,
-                ) {
-                    if dbg!(orig_ty) != dbg!(*ref_ty) {
-                        return Err(CodeGenError::InternalVariableTypeMismatch(
-                            var_ref.0.clone(),
-                            ref_var_name.clone(),
-                        )
-                        .into());
+                        if let Some(main_struct_var_name) = field_stack_iter.next() {
+                            if let Some((ptr, ty)) = variable_map.get(main_struct_var_name) {
+                                let (f_ptr, f_ty) = access_nested_field(
+                                    ctx,
+                                    builder,
+                                    &mut field_stack_iter,
+                                    &struct_fields,
+                                    (*ptr, *ty),
+                                )?;
+
+                                let basic_value = builder.build_load(f_ty, f_ptr, "deref_strct_val")?;
+
+                                if var_ref_ty.is_struct_type() && basic_value.is_struct_value() {
+                                    if var_ref_ty.into_struct_type().get_name()
+                                        != Some(basic_value.into_struct_value().get_name())
+                                    {
+                                        return Err(CodeGenError::InternalTypeMismatch.into());
+                                    }
+                                }
+
+                                if var_ref_ty == basic_value.get_type().into() {
+                                    builder.build_store(var_ref_ptr, basic_value)?;
+                                } else {
+                                    return Err(CodeGenError::InternalTypeMismatch.into());
+                                }
+                            }
+                        } else {
+                            return Err(CodeGenError::InternalStructReference.into());
+                        }
                     }
+                    crate::app::parser::types::VariableReference::BasicReference(var_name) => {
+                        // The referenced variable
+                        let ref_variable_query = variable_map.get(&var_name);
 
-                    match ref_ty {
-                        BasicMetadataTypeEnum::ArrayType(array_type) => {
-                            // Get the referenced variable's value
-                            let ref_var_val =
-                                builder.build_load(*array_type, *ref_ptr, "var_deref")?;
+                        if let ((orig_ptr, orig_ty), Some((ref_ptr, ref_ty))) = (
+                            // The original variable we are going to modify
+                            (var_ref_ptr, var_ref_ty),
+                            // The referenced variable we are going to set the value of the orginal variable with
+                            ref_variable_query,
+                        ) {
+                            if dbg!(orig_ty) != dbg!(*ref_ty) {
+                                return Err(CodeGenError::InternalVariableTypeMismatch(
+                                    var_ref_name.clone(),
+                                    var_name.clone(),
+                                )
+                                .into());
+                            }
 
-                            // Store the referenced variable's value in the original
-                            builder.build_store(orig_ptr, ref_var_val)?;
+                            match ref_ty {
+                                BasicMetadataTypeEnum::ArrayType(array_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*array_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                }
+                                BasicMetadataTypeEnum::FloatType(float_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*float_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                }
+                                BasicMetadataTypeEnum::IntType(int_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*int_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                }
+                                BasicMetadataTypeEnum::PointerType(pointer_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*pointer_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                }
+                                BasicMetadataTypeEnum::StructType(struct_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*struct_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                }
+                                BasicMetadataTypeEnum::VectorType(vector_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*vector_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                }
+
+                                _ => unimplemented!(),
+                            };
                         }
-                        BasicMetadataTypeEnum::FloatType(float_type) => {
-                            // Get the referenced variable's value
-                            let ref_var_val =
-                                builder.build_load(*float_type, *ref_ptr, "var_deref")?;
-
-                            // Store the referenced variable's value in the original
-                            builder.build_store(orig_ptr, ref_var_val)?;
-                        }
-                        BasicMetadataTypeEnum::IntType(int_type) => {
-                            // Get the referenced variable's value
-                            let ref_var_val =
-                                builder.build_load(*int_type, *ref_ptr, "var_deref")?;
-
-                            // Store the referenced variable's value in the original
-                            builder.build_store(orig_ptr, ref_var_val)?;
-                        }
-                        BasicMetadataTypeEnum::PointerType(pointer_type) => {
-                            // Get the referenced variable's value
-                            let ref_var_val =
-                                builder.build_load(*pointer_type, *ref_ptr, "var_deref")?;
-
-                            // Store the referenced variable's value in the original
-                            builder.build_store(orig_ptr, ref_var_val)?;
-                        }
-                        BasicMetadataTypeEnum::StructType(struct_type) => {
-                            // Get the referenced variable's value
-                            let ref_var_val =
-                                builder.build_load(*struct_type, *ref_ptr, "var_deref")?;
-
-                            // Store the referenced variable's value in the original
-                            builder.build_store(orig_ptr, ref_var_val)?;
-                        }
-                        BasicMetadataTypeEnum::VectorType(vector_type) => {
-                            // Get the referenced variable's value
-                            let ref_var_val =
-                                builder.build_load(*vector_type, *ref_ptr, "var_deref")?;
-
-                            // Store the referenced variable's value in the original
-                            builder.build_store(orig_ptr, ref_var_val)?;
-                        }
-
-                        _ => unimplemented!(),
-                    };
+                    }
                 }
             }
         }
@@ -414,7 +454,7 @@ pub fn create_ir_from_parsed_token<'a>(
             });
 
             // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
-            let fn_argument_list: IndexMap<String, (TypeDiscriminants, ParsedToken)> =
+            let fn_argument_list: IndexMap<String, (TypeDiscriminant, ParsedToken)> =
                 IndexMap::from_iter(sig_iter);
 
             // Keep the list of the arguments passed in
@@ -483,53 +523,53 @@ pub fn create_ir_from_parsed_token<'a>(
                 if let Some(variable_name) = variable_reference {
                     let (v_ptr, _var_ty) = variable_name.1;
                     match fn_sig.return_type {
-                        TypeDiscriminants::I32 => {
+                        TypeDiscriminant::I32 => {
                             // Get returned float value
                             let returned_int = returned.into_int_value();
 
                             // Store the const in the pointer
                             builder.build_store(v_ptr, returned_int)?;
                         }
-                        TypeDiscriminants::F32 => {
+                        TypeDiscriminant::F32 => {
                             // Get returned float value
                             let returned_float = returned.into_float_value();
 
                             // Store the const in the pointer
                             builder.build_store(v_ptr, returned_float)?;
                         }
-                        TypeDiscriminants::U32 => {
+                        TypeDiscriminant::U32 => {
                             // Get returned float value
                             let returned_float = returned.into_int_value();
 
                             // Store the const in the pointer
                             builder.build_store(v_ptr, returned_float)?;
                         }
-                        TypeDiscriminants::U8 => {
+                        TypeDiscriminant::U8 => {
                             // Get returned float value
                             let returned_smalint = returned.into_int_value();
 
                             // Store the const in the pointer
                             builder.build_store(v_ptr, returned_smalint)?;
                         }
-                        TypeDiscriminants::String => {
+                        TypeDiscriminant::String => {
                             // Get returned pointer value
                             let returned_ptr = returned.into_pointer_value();
 
                             // Store the const in the pointer
                             builder.build_store(v_ptr, returned_ptr)?;
                         }
-                        TypeDiscriminants::Boolean => {
+                        TypeDiscriminant::Boolean => {
                             // Get returned boolean value
                             let returned_bool = returned.into_int_value();
 
                             builder.build_store(v_ptr, returned_bool)?;
                         }
-                        TypeDiscriminants::Void => {
+                        TypeDiscriminant::Void => {
                             unreachable!(
                                 "A void can not be parsed, as a void functuion returns a `None`."
                             );
                         }
-                        TypeDiscriminants::Struct((struct_name, struct_inner)) => {
+                        TypeDiscriminant::Struct((struct_name, struct_inner)) => {
                             // Get returned pointer value
                             let returned_struct = returned.into_struct_value();
 
@@ -540,14 +580,37 @@ pub fn create_ir_from_parsed_token<'a>(
                 }
             } else {
                 // Ensure the return type was `Void` else raise an error
-                if fn_sig.return_type != TypeDiscriminants::Void {
+                if fn_sig.return_type != TypeDiscriminant::Void {
                     return Err(
                         CodeGenError::InternalFunctionReturnedVoid(fn_sig.return_type).into(),
                     );
                 }
             }
         }
-        ParsedToken::SetValue(variable, value) => todo!(),
+        ParsedToken::SetValue(var_ref_ty, value) => match var_ref_ty {
+            crate::app::parser::types::VariableReference::StructFieldReference(
+                struct_field_reference,
+                (struct_name, struct_def),
+            ) => {
+                let mut field_stack_iter = struct_field_reference.field_stack.iter();
+
+                if let Some(main_struct_var_name) = field_stack_iter.next() {
+                    if let Some((ptr, ty)) = variable_map.get(main_struct_var_name) {
+                        let (f_ptr, f_ty) = access_nested_field(ctx, builder, &mut field_stack_iter, &struct_def, (*ptr, *ty))?;
+
+                        create_ir_from_parsed_token(ctx, module, builder, *value, variable_map, Some((String::new(), (f_ptr, f_ty.into()))), fn_ret_ty)?;
+                    }
+                }
+            }
+            crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
+                let variable_query = variable_map.get(&variable_name);
+            
+                if let Some((ptr, ty)) = variable_query {
+                    // Set the value of the variable which was referenced
+                    create_ir_from_parsed_token(ctx, module, builder, *value, variable_map, Some((variable_name, (*ptr, *ty))), fn_ret_ty)?;
+                }
+            }
+        },
         ParsedToken::MathematicalBlock(parsed_token) => todo!(),
         ParsedToken::ReturnValue(parsed_token) => {
             // Create a temporary variable to store the literal in
@@ -670,31 +733,6 @@ pub fn create_ir_from_parsed_token<'a>(
                 builder.build_store(var_ptr, constructed_struct)?;
             }
         }
-        ParsedToken::StructFieldReference(struct_field_stack, (struct_name, struct_fields)) => {
-            if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
-                let mut field_stack_iter = struct_field_stack.field_stack.iter();
-
-                if let Some(main_struct_var_name) = field_stack_iter.next() {
-                    if let Some((ptr, ty)) = variable_map.get(main_struct_var_name) {
-                        let basic_value = access_nested_field(
-                            ctx,
-                            builder,
-                            &mut field_stack_iter,
-                            &struct_fields,
-                            (*ptr, *ty),
-                        )?;
-
-                        if var_ty == basic_value.get_type().into() {
-                            builder.build_store(var_ptr, basic_value)?;
-                        } else {
-                            return Err(CodeGenError::InternalTypeMismatch.into());
-                        }
-                    }
-                } else {
-                    return Err(CodeGenError::InternalStructReference.into());
-                }
-            }
-        }
     }
 
     Ok(())
@@ -704,12 +742,12 @@ fn access_nested_field<'a>(
     ctx: &'a Context,
     builder: &'a Builder,
     field_stack_iter: &mut Iter<String>,
-    struct_definition: &IndexMap<String, TypeDiscriminants>,
+    struct_definition: &IndexMap<String, TypeDiscriminant>,
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
-) -> Result<BasicValueEnum<'a>> {
+) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>)> {
     if let Some(field_stack_entry) = field_stack_iter.next() {
-        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry) {
-            if let TypeDiscriminants::Struct((_, struct_def)) = field_ty {
+        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(dbg!(field_stack_entry)) {
+            if let TypeDiscriminant::Struct((_, struct_def)) = field_ty {
                 let pointee_ty = last_field_ptr.1.into_struct_type();
                 let struct_field_ptr = builder.build_struct_gep(
                     pointee_ty,
@@ -727,10 +765,8 @@ fn access_nested_field<'a>(
                 )
             } else {
                 let pointee_ty = ty_to_llvm_ty(ctx, field_ty);
-                let deref_val =
-                    builder.build_load(pointee_ty, last_field_ptr.0, "deref_strct_val")?;
 
-                Ok(deref_val)
+                Ok((last_field_ptr.0, pointee_ty))
             }
         } else {
             Err(CodeGenError::InternalStructFieldNotFound.into())
@@ -746,7 +782,7 @@ fn create_new_variable<'a, 'b>(
     ctx: &'a Context,
     builder: &'a Builder<'_>,
     var_name: String,
-    var_type: TypeDiscriminants,
+    var_type: TypeDiscriminant,
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>), anyhow::Error> {
     // Turn a `TypeDiscriminant` into an LLVM type
     let var_type = ty_to_llvm_ty(ctx, &var_type);
@@ -789,7 +825,7 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
     arg_list
 }
 
-/// This function takes in the LLVM-IR creation variables, and the variable pointer which is dereferenced to set the variables value.
+/// This function takes in the variable pointer which is dereferenced to set the variable's value.
 /// Ensure that we are setting variable type `T` with value `T`
 pub fn set_value_of_ptr(
     ctx: &Context,
@@ -860,14 +896,25 @@ pub fn allocate_string<'a>(
     i8_type: inkwell::types::IntType<'a>,
     string_buffer: String,
 ) -> Result<PointerValue<'a>, anyhow::Error> {
+    // Create a buffer from the String
     let mut string_bytes = string_buffer.as_bytes().to_vec();
+
+    // If the last byte is not a null byte we automaticly add the null byte
     if let Some(last_byte) = string_bytes.last() {
+        // Check if the last byte is not a null byte
         if *last_byte != 0 {
+            // Push the \0 byte
             string_bytes.push(0);
         }
     }
-    let sized_array = i8_type.array_type(string_bytes.len() as u32);
-    let buffer_ptr = builder.build_alloca(sized_array, "string_buffer")?;
+
+    // Create a Sized array type with every element being an i8
+    let sized_array_ty = i8_type.array_type(string_bytes.len() as u32);
+
+    // Allocate the Array based on its type
+    let buffer_ptr = builder.build_alloca(sized_array_ty, "string_buffer")?;
+
+    // Create a String array from the byte values of the string and the array
     let str_array = i8_type.const_array(
         string_bytes
             .iter()
@@ -875,33 +922,46 @@ pub fn allocate_string<'a>(
             .collect::<Vec<IntValue>>()
             .as_slice(),
     );
+
+    // Store the array in the buffer ptr
     builder.build_store(buffer_ptr, str_array)?;
+
+    // Return the buffer's ptr
     Ok(buffer_ptr)
 }
 
-pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminants) -> BasicTypeEnum<'a> {
+/// Converts a `TypeDiscriminant` into a `BasicTypeEnum` which can be used by inkwell.
+pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEnum<'a> {
     let i32_type = ctx.i32_type();
     let f32_type = ctx.f32_type();
     let ptr_type = ctx.ptr_type(AddressSpace::default());
 
+    // Pattern match the type
     let field_ty = match ty {
-        TypeDiscriminants::I32 => BasicTypeEnum::IntType(i32_type),
-        TypeDiscriminants::F32 => BasicTypeEnum::FloatType(f32_type),
-        TypeDiscriminants::U32 => BasicTypeEnum::IntType(i32_type),
-        TypeDiscriminants::U8 => BasicTypeEnum::IntType(i32_type),
-        TypeDiscriminants::String => BasicTypeEnum::PointerType(ptr_type),
-        TypeDiscriminants::Boolean => BasicTypeEnum::IntType(i32_type),
-        TypeDiscriminants::Void => {
+        TypeDiscriminant::I32 => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminant::F32 => BasicTypeEnum::FloatType(f32_type),
+        TypeDiscriminant::U32 => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminant::U8 => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminant::String => BasicTypeEnum::PointerType(ptr_type),
+        TypeDiscriminant::Boolean => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminant::Void => {
             unreachable!();
         }
-        TypeDiscriminants::Struct((struct_name, struct_inner)) => {
-            let struct_type = if let Some(struct_type) = ctx.get_struct_type(&struct_name) {
+        TypeDiscriminant::Struct((struct_name, struct_inner)) => {
+            // If we are creating a new struct based on the TypeDiscriminant, we should first check if there is a struct created with the name
+            let struct_type = if let Some(struct_type) = ctx.get_struct_type(struct_name) {
+                // If we have already created a struct with this name, return the struct type
                 struct_type
-            } else {
-                let op_struct_type = ctx.opaque_struct_type(&struct_name);
+            }
+            // If there are no existing struct with this name, create a new named struct
+            else {
+                // Create a named struct
+                let op_struct_type = ctx.opaque_struct_type(struct_name);
 
+                // Set the body of the struct
                 op_struct_type.set_body(&struct_field_to_ty_list(ctx, struct_inner), false);
 
+                // Return the type of the struct
                 op_struct_type
             };
 
@@ -912,27 +972,23 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminants) -> BasicTypeE
     field_ty
 }
 
+/// This function takes the field of a struct, and returns the fields' [`BasicTypeEnum`] variant.
+/// The returned types are in order with the struct's fields
 pub fn struct_field_to_ty_list<'a>(
     ctx: &'a Context,
-    struct_inner: &IndexMap<String, TypeDiscriminants>,
+    struct_inner: &IndexMap<String, TypeDiscriminant>,
 ) -> Vec<BasicTypeEnum<'a>> {
+    // Allocate a new list for storing the types
     let mut type_list = Vec::new();
 
+    // Iterate over the struct's fields and convert the types into BasicTypeEnums
     for (_, ty) in struct_inner.iter() {
+        // Convert the ty
         let basic_ty = ty_to_llvm_ty(ctx, ty);
 
+        // Store the ty
         type_list.push(basic_ty);
     }
 
     type_list
-}
-
-pub fn struct_field_to_discriminant(
-    struct_inner: &IndexMap<String, Type>,
-) -> IndexMap<String, TypeDiscriminants> {
-    IndexMap::from_iter(
-        struct_inner
-            .iter()
-            .map(|(a, b)| (a.clone(), b.discriminant())),
-    )
 }

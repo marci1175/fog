@@ -2,7 +2,7 @@ use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
-use crate::app::type_system::type_system::{Type, TypeDiscriminants};
+use crate::app::type_system::type_system::{Type, TypeDiscriminant};
 
 use super::{
     error::{ParserError, SyntaxError},
@@ -11,8 +11,8 @@ use super::{
     },
     tokenizer::tokenize,
     types::{
-        CustomType, FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token,
-        UnparsedFunctionDefinition,
+        CustomType, FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken,
+        StructFieldReference, Token, UnparsedFunctionDefinition, VariableReference,
     },
 };
 
@@ -57,7 +57,7 @@ pub fn create_signature_table(
                             if let Some(custom_type) = custom_items.get(&identifier) {
                                 match custom_type {
                                     CustomType::Struct(struct_def) => {
-                                        TypeDiscriminants::Struct(struct_def.clone())
+                                        TypeDiscriminant::Struct(struct_def.clone())
                                     }
                                     CustomType::Enum(index_map) => {
                                         unimplemented!()
@@ -258,7 +258,7 @@ pub fn create_signature_table(
                     let struct_slice = tokens[token_idx + 3..braces_idx].to_vec();
 
                     // Create a list for the struct fields
-                    let mut struct_fields: IndexMap<String, TypeDiscriminants> = IndexMap::new();
+                    let mut struct_fields: IndexMap<String, TypeDiscriminant> = IndexMap::new();
 
                     // Store the idx
                     let mut token_idx = 0;
@@ -292,7 +292,7 @@ pub fn create_signature_table(
                                                 CustomType::Struct(struct_def) => {
                                                     struct_fields.insert(
                                                         field_name.to_string(),
-                                                        TypeDiscriminants::Struct(
+                                                        TypeDiscriminant::Struct(
                                                             struct_def.clone(),
                                                         ),
                                                     );
@@ -347,7 +347,7 @@ pub fn create_signature_table(
 
 fn parse_signature_argument_tokens(
     tokens: &[Token],
-) -> Result<(usize, IndexMap<String, TypeDiscriminants>)> {
+) -> Result<(usize, IndexMap<String, TypeDiscriminant>)> {
     let bracket_closing_idx =
         find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidSignatureDefinition)?;
 
@@ -360,9 +360,9 @@ fn parse_signature_argument_tokens(
     Ok((bracket_closing_idx, args))
 }
 
-fn parse_signature_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDiscriminants>> {
+fn parse_signature_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDiscriminant>> {
     // Create a list of args which the function will take, we will return this later
-    let mut args: IndexMap<String, TypeDiscriminants> = IndexMap::new();
+    let mut args: IndexMap<String, TypeDiscriminant> = IndexMap::new();
 
     // Create an index which will iterate through the tokens
     let mut args_idx = 0;
@@ -443,11 +443,11 @@ fn parse_function_block(
 
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
 
-    let mut variable_scope: IndexMap<String, TypeDiscriminants> =
+    let mut variable_scope: IndexMap<String, TypeDiscriminant> =
         this_function_signature.args.clone();
 
     let mut has_return = false;
-
+    dbg!(&tokens);
     if !tokens.is_empty() {
         while token_idx < tokens.len() {
             let current_token = tokens[token_idx].clone();
@@ -517,12 +517,16 @@ fn parse_function_block(
                     .into());
                 }
             } else if let Token::Identifier(ref ident_name) = current_token {
+                dbg!(ident_name);
                 // If the variable exists in the current scope
                 if let Some(variable_type) = variable_scope.get(ident_name).cloned() {
                     // Increment the token index
                     token_idx += 1;
 
                     // Parse the variable's expression
+                    let mut variable_ref =
+                        VariableReference::BasicReference(ident_name.to_string());
+
                     parse_variable_expression(
                         &tokens,
                         &tokens[token_idx],
@@ -532,7 +536,7 @@ fn parse_function_block(
                         &mut variable_scope,
                         variable_type,
                         custom_items.clone(),
-                        ident_name,
+                        &mut variable_ref,
                         &mut parsed_tokens,
                     )?;
                 } else if let Some(function_sig) = function_signatures.get(ident_name) {
@@ -594,7 +598,7 @@ fn parse_function_block(
                 } else if let Some(custom_type) = custom_items.get(ident_name) {
                     match custom_type {
                         CustomType::Struct(struct_instance) => {
-                            let variable_type = TypeDiscriminants::Struct(struct_instance.clone());
+                            let variable_type = TypeDiscriminant::Struct(struct_instance.clone());
                             token_idx += 1;
 
                             if let Some(Token::Identifier(var_name)) = tokens.get(token_idx) {
@@ -631,7 +635,7 @@ fn parse_function_block(
 
                                     variable_scope.insert(
                                         var_name.clone(),
-                                        TypeDiscriminants::Struct(struct_instance.clone()),
+                                        TypeDiscriminant::Struct(struct_instance.clone()),
                                     );
                                 }
                             }
@@ -648,7 +652,7 @@ fn parse_function_block(
 
                 let next_token = &tokens[token_idx];
 
-                if this_function_signature.return_type.clone() == TypeDiscriminants::Void {
+                if this_function_signature.return_type.clone() == TypeDiscriminant::Void {
                     if *next_token != Token::LineBreak {
                         return Err(ParserError::SyntaxError(
                             super::error::SyntaxError::InvalidStatementDefinition,
@@ -676,7 +680,7 @@ fn parse_function_block(
     }
 
     // If there isnt a returned value and the returned type isnt `Void` raise an error
-    if !has_return && this_function_signature.return_type != TypeDiscriminants::Void {
+    if !has_return && this_function_signature.return_type != TypeDiscriminant::Void {
         return Err(
             ParserError::SyntaxError(super::error::SyntaxError::FunctionRequiresReturn).into(),
         );
@@ -690,9 +694,9 @@ fn set_value_math_expr(
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
     parsed_tokens: &mut Vec<ParsedToken>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
-    variable_type: TypeDiscriminants,
-    ident_name: &str,
+    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    variable_type: TypeDiscriminant,
+    variable_reference: VariableReference,
     math_symbol: MathematicalSymbol,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
@@ -715,9 +719,9 @@ fn set_value_math_expr(
     )?;
 
     parsed_tokens.push(ParsedToken::SetValue(
-        ident_name.to_string(),
+        variable_reference.clone(),
         Box::new(ParsedToken::MathematicalExpression(
-            Box::new(ParsedToken::VariableReference(ident_name.to_string())),
+            Box::new(ParsedToken::VariableReference(variable_reference)),
             math_symbol,
             Box::new(next_token),
         )),
@@ -729,8 +733,8 @@ fn set_value_math_expr(
 /// First token should be the first argument
 pub fn parse_function_call_args(
     tokens: &[Token],
-    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
-    mut this_function_args: IndexMap<String, TypeDiscriminants>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    mut this_function_args: IndexMap<String, TypeDiscriminant>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
@@ -875,15 +879,14 @@ pub fn parse_variable_expression(
     token_idx: &mut usize,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
-    variable_type: TypeDiscriminants,
+    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    variable_type: TypeDiscriminant,
     custom_items: Arc<IndexMap<String, CustomType>>,
-    variable_name: &str,
+    variable_ref: &mut VariableReference,
     parsed_tokens: &mut Vec<ParsedToken>,
 ) -> anyhow::Result<()> {
     match &current_token {
         Token::SetValue => {
-            dbg!(&tokens);
             let line_break_idx = tokens
                 .iter()
                 .skip(*token_idx)
@@ -909,7 +912,7 @@ pub fn parse_variable_expression(
             )?;
 
             parsed_tokens.push(ParsedToken::SetValue(
-                variable_name.to_string(),
+                variable_ref.clone(),
                 Box::new(parsed_token),
             ));
         }
@@ -921,7 +924,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_name,
+                variable_ref.clone(),
                 MathematicalSymbol::Addition,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -935,7 +938,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_name,
+                variable_ref.clone(),
                 MathematicalSymbol::Subtraction,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -949,7 +952,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_name,
+                variable_ref.clone(),
                 MathematicalSymbol::Division,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -963,7 +966,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_name,
+                variable_ref.clone(),
                 MathematicalSymbol::Multiplication,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -977,7 +980,7 @@ pub fn parse_variable_expression(
                 parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_name,
+                variable_ref.clone(),
                 MathematicalSymbol::Modulo,
                 function_imports.clone(),
                 custom_items.clone(),
@@ -986,26 +989,41 @@ pub fn parse_variable_expression(
         Token::Dot => {
             let field_name = &tokens.get(*token_idx + 1);
 
-            if let TypeDiscriminants::Struct((struct_name, struct_def)) = variable_type {
+            if let TypeDiscriminant::Struct((struct_name, struct_def)) = variable_type {
                 if let Some(Token::Identifier(field_name)) = field_name {
                     if let Some(struct_field_ty) = struct_def.get(field_name) {
-                        // *token_idx += 1;
+                        match variable_ref {
+                            VariableReference::StructFieldReference(
+                                struct_field_reference,
+                                struct_ty,
+                            ) => {
+                                struct_field_reference
+                                    .field_stack
+                                    .push(field_name.to_string());
+                            }
+                            VariableReference::BasicReference(basic_ref) => {
+                                *variable_ref = VariableReference::StructFieldReference(
+                                    StructFieldReference::from_stack(vec![
+                                        basic_ref.to_string(),
+                                        field_name.to_string(),
+                                    ]),
+                                    (struct_name, struct_def.clone()),
+                                );
+                            }
+                        }
 
-                        let mut tokens = tokens.to_vec();
-
-                        tokens[*token_idx + 1] =
-                            Token::Identifier(format!("{}.{}", variable_name, field_name));
+                        *token_idx += 2;
 
                         parse_variable_expression(
                             &tokens,
-                            &tokens[*token_idx + 1 + 1],
+                            dbg!(&tokens[*token_idx]),
                             token_idx,
                             function_signatures,
                             function_imports,
                             variable_scope,
                             struct_field_ty.clone(),
                             custom_items,
-                            &format!("{}.{}", variable_name, field_name),
+                            variable_ref,
                             parsed_tokens,
                         )?;
                     } else {

@@ -1,5 +1,5 @@
 use crate::app::type_system::type_system::{
-    TypeDiscriminants, unparsed_const_to_typed_literal_unsafe,
+    TypeDiscriminant, unparsed_const_to_typed_literal_unsafe,
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -130,8 +130,8 @@ pub fn find_closing_braces(
 pub fn parse_value(
     tokens: &[Token],
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
-    variable_type: TypeDiscriminants,
+    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    variable_type: TypeDiscriminant,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(ParsedToken, usize)> {
@@ -248,9 +248,9 @@ pub fn parse_token_as_value(
     // Functions available
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     // Variables available
-    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     // The variable's type which we are parsing for
-    desired_variable_type: TypeDiscriminants,
+    desired_variable_type: TypeDiscriminant,
     // Universal token_idx, this sets which token we are currently parsing
     token_idx: &mut usize,
     // The token we want to evaluate
@@ -383,7 +383,9 @@ pub fn parse_token_as_value(
             }
             // If the identifier could not be found in the function list search in the variable scope
             else if let Some(variable_type) = variable_scope.get(identifier) {
-                let parsed_token = ParsedToken::VariableReference(identifier.clone());
+                let parsed_token = ParsedToken::VariableReference(
+                    super::types::VariableReference::BasicReference(identifier.clone()),
+                );
 
                 *token_idx += 1;
 
@@ -414,7 +416,7 @@ pub fn parse_token_as_value(
                         .into());
                     }
                 } else if let Some(Token::Dot) = tokens.get(*token_idx) {
-                    if let TypeDiscriminants::Struct(struct_def) = variable_type {
+                    if let TypeDiscriminant::Struct(struct_def) = variable_type {
                         *token_idx += 1;
 
                         let mut struct_field_reference =
@@ -438,9 +440,11 @@ pub fn parse_token_as_value(
                             .into());
                         }
 
-                        return Ok(ParsedToken::StructFieldReference(
-                            struct_field_reference,
-                            struct_def.clone(),
+                        return Ok(ParsedToken::VariableReference(
+                            super::types::VariableReference::StructFieldReference(
+                                struct_field_reference,
+                                struct_def.clone(),
+                            ),
                         ));
                     } else {
                         return Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(
@@ -570,15 +574,15 @@ pub fn parse_token_as_value(
 
 fn get_struct_field_stack(
     tokens: &[Token],
-    desired_variable_type: &TypeDiscriminants,
+    desired_variable_type: &TypeDiscriminant,
     token_idx: &mut usize,
     identifier: &String,
-    (struct_name, struct_fields): &(String, IndexMap<String, TypeDiscriminants>),
+    (struct_name, struct_fields): &(String, IndexMap<String, TypeDiscriminant>),
     struct_field_stack: &mut StructFieldReference,
-) -> Result<TypeDiscriminants> {
+) -> Result<TypeDiscriminant> {
     if let Some(Token::Identifier(field_name)) = tokens.get(*token_idx) {
         let struct_field_query = struct_fields.get(field_name);
-        if let Some(TypeDiscriminants::Struct(struct_def)) = struct_field_query {
+        if let Some(TypeDiscriminant::Struct(struct_def)) = struct_field_query {
             *token_idx += 1;
 
             struct_field_stack.field_stack.push(field_name.clone());
@@ -625,11 +629,11 @@ fn get_struct_field_stack(
 
 pub fn init_struct(
     struct_slice: &[Token],
-    this_struct_field: &IndexMap<String, TypeDiscriminants>,
+    this_struct_field: &IndexMap<String, TypeDiscriminant>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminants>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
 ) -> anyhow::Result<(usize, ParsedToken)> {
     let mut struct_field_init_map: IndexMap<String, Box<ParsedToken>> = IndexMap::new();
 

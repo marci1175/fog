@@ -7,7 +7,7 @@ use std::{
 use indexmap::IndexMap;
 use strum_macros::Display;
 
-use crate::app::type_system::type_system::{Type, TypeDiscriminants};
+use crate::app::type_system::type_system::{Type, TypeDiscriminant};
 
 use super::error::ParserError;
 
@@ -17,7 +17,7 @@ pub enum Token {
 
     UnparsedLiteral(String),
 
-    TypeDefinition(TypeDiscriminants),
+    TypeDefinition(TypeDiscriminant),
     As,
 
     Identifier(String),
@@ -101,26 +101,21 @@ impl TryInto<MathematicalSymbol> for Token {
 
 #[derive(Debug, Clone, Display)]
 pub enum ParsedToken {
-    NewVariable(String, TypeDiscriminants, Box<ParsedToken>),
+    NewVariable(String, TypeDiscriminant, Box<ParsedToken>),
 
-    VariableReference(String),
-    /// Variable name, struct_type, field_name
-    StructFieldReference(
-        StructFieldReference,
-        (String, IndexMap<String, TypeDiscriminants>),
-    ),
+    VariableReference(VariableReference),
 
     Literal(Type),
 
-    TypeCast(Box<ParsedToken>, TypeDiscriminants),
+    TypeCast(Box<ParsedToken>, TypeDiscriminant),
 
     MathematicalExpression(Box<ParsedToken>, MathematicalSymbol, Box<ParsedToken>),
 
-    Brackets(Vec<ParsedToken>, TypeDiscriminants),
+    Brackets(Vec<ParsedToken>, TypeDiscriminant),
 
     FunctionCall((FunctionSignature, String), IndexMap<String, ParsedToken>),
 
-    SetValue(String, Box<ParsedToken>),
+    SetValue(VariableReference, Box<ParsedToken>),
 
     MathematicalBlock(Box<ParsedToken>),
 
@@ -130,9 +125,19 @@ pub enum ParsedToken {
     If(If),
 
     InitializeStruct(
-        IndexMap<String, TypeDiscriminants>,
+        IndexMap<String, TypeDiscriminant>,
         IndexMap<String, Box<ParsedToken>>,
     ),
+}
+
+#[derive(Debug, Clone, Display)]
+pub enum VariableReference {
+    /// Variable name, struct_type, field_name
+    StructFieldReference(
+        StructFieldReference,
+        (String, IndexMap<String, TypeDiscriminant>),
+    ),
+    BasicReference(String),
 }
 
 #[derive(Debug, Clone)]
@@ -178,8 +183,8 @@ pub struct FunctionDefinition {
 
 #[derive(Debug, Clone, Default)]
 pub struct FunctionSignature {
-    pub args: indexmap::IndexMap<String, TypeDiscriminants>,
-    pub return_type: TypeDiscriminants,
+    pub args: indexmap::IndexMap<String, TypeDiscriminant>,
+    pub return_type: TypeDiscriminant,
 }
 
 impl Display for FunctionSignature {
@@ -194,8 +199,8 @@ impl Display for FunctionSignature {
 /// All of the custom types implemented by the User are defined here
 #[derive(Debug, Clone, PartialEq, Display)]
 pub enum CustomType {
-    Struct((String, IndexMap<String, TypeDiscriminants>)),
-    Enum(IndexMap<String, TypeDiscriminants>),
+    Struct((String, IndexMap<String, TypeDiscriminant>)),
+    Enum(IndexMap<String, TypeDiscriminant>),
     // First argument is the struct's name which the Extend extends
     // The second argument is the list of functions the stuct is being extended with
     // Extend(String, IndexMap<String, FunctionDefinition>),

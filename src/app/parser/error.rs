@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use indexmap::IndexMap;
 use thiserror::Error;
 
-use crate::app::type_system::type_system::TypeDiscriminants;
+use crate::app::type_system::type_system::TypeDiscriminant;
 
 use super::types::{FunctionSignature, Token};
 
@@ -14,11 +14,11 @@ pub enum ParserError {
     #[error("The function is called with the wrong types of arguments.")]
     InvalidFunctionCallArguments,
     #[error("Type `{0}` mismatches type `{1}`.")]
-    TypeError(TypeDiscriminants, TypeDiscriminants),
+    TypeError(TypeDiscriminant, TypeDiscriminant),
     #[error("Source code contains a Syntax Error: {0}")]
     SyntaxError(SyntaxError),
     #[error("Variable `{0}` with type `{1}` mismatches `{2}`.")]
-    VariableTypeMismatch(String, TypeDiscriminants, TypeDiscriminants),
+    VariableTypeMismatch(String, TypeDiscriminant, TypeDiscriminant),
     #[error("The variable named `{0}` has not been found in the current scope.")]
     VariableNotFound(String),
     #[error("The following argument was not found in the argument list: `{0}`.")]
@@ -36,7 +36,7 @@ pub enum ParserError {
     #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
     LinkedSourceFileMissing(PathBuf),
     #[error(r#"Type `{1}` cannot be constructed from String "{0}"."#)]
-    InvalidTypeCast(String, TypeDiscriminants),
+    InvalidTypeCast(String, TypeDiscriminant),
 }
 
 #[derive(Debug, Error)]
@@ -78,7 +78,7 @@ pub enum SyntaxError {
     #[error("Invalid Dot placement, variable cannot have fields.")]
     InvalidDotPlacement,
     #[error("Struct field `{0}` was not found in Struct `{0}`.")]
-    StructFieldNotFound(String, (String, IndexMap<String, TypeDiscriminants>)),
+    StructFieldNotFound(String, (String, IndexMap<String, TypeDiscriminant>)),
     #[error("Invalid Struct field definition.")]
     InvalidStructFieldDefinition,
     #[error("Invalid Struct field reference.")]

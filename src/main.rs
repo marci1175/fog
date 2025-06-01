@@ -84,9 +84,10 @@ fn main() -> anyhow::Result<()> {
                     if let Some(argument) = args.next() {
                         if argument == "demo" {
                             return Ok(include_str!("../defaults/default_code.f"));
-                        }
-                        else {
-                            return Err(ApplicationError::CliParseError(fog::app::cli_parser::error::CliParseError::InvalidArg(argument)));                            
+                        } else {
+                            return Err(ApplicationError::CliParseError(
+                                fog::app::cli_parser::error::CliParseError::InvalidArg(argument),
+                            ));
                         }
                     }
 

@@ -1,4 +1,2 @@
 #[cfg(test)]
-mod parsing_tests {
-
-}
+mod parsing_tests {}

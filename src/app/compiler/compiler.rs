@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::app::{
     codegen::{codegen::codegen_main, error::CodeGenError},
     parser::{parser::ParserState, tokenizer::tokenize},
-    type_system::type_system::TypeDiscriminants,
+    type_system::type_system::TypeDiscriminant,
 };
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -58,7 +58,7 @@ impl CompilerState {
 
         if !is_lib {
             if let Some(fn_sig) = function_table.get("main") {
-                if fn_sig.function_sig.return_type != TypeDiscriminants::I32
+                if fn_sig.function_sig.return_type != TypeDiscriminant::I32
                     || !fn_sig.function_sig.args.is_empty()
                 {
                     return Err(CodeGenError::InvalidMain.into());
