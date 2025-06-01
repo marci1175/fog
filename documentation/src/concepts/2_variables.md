@@ -19,8 +19,8 @@ Every field has to be manually initialized with their own default value.
 struct person {
     age: int,
     name: string,
-    is_male: bool
+    is_male: bool,
 }
 
-person somebody = person { age: 23, name: "marci", is_male: true};
+person somebody = person { age: 23, name: "marci", is_male: true, };
 ```
