@@ -2,6 +2,10 @@ use crate::app::type_system::type_system::Type;
 
 use super::{error::ParserError, types::Token};
 
+fn contains_non_digits(s: &str) -> bool {
+    s.chars().any(|c| !c.is_ascii_digit())
+}
+
 pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
     let mut char_idx: usize = 0;
 
@@ -25,7 +29,13 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             ';' => Some(Token::LineBreak),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
-            '.' => Some(Token::Dot),
+            '.' => {
+                if !contains_non_digits(&string_buffer) {
+                    None
+                } else {
+                    Some(Token::Dot)
+                }
+            }
 
             _ => None,
         };
@@ -248,8 +258,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
 
                     char_idx += 2;
                     continue;
-                }
-                else if *next_char == '=' {
+                } else if *next_char == '=' {
                     token_list.push(Token::EqBigger);
 
                     char_idx += 2;
@@ -267,8 +276,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                     char_idx += 2;
 
                     continue;
-                }
-                else if *next_char == '=' {
+                } else if *next_char == '=' {
                     token_list.push(Token::EqSmaller);
 
                     char_idx += 2;

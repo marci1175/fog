@@ -52,24 +52,26 @@ pub fn codegen_main(
         builder.position_at_end(basic_block);
 
         // Create a HashMap of the arguments the function takes
-        let mut arguments: HashMap<String, BasicValueEnum> = HashMap::new();
+        let mut arguments: HashMap<String, (BasicValueEnum, TypeDiscriminant)> = HashMap::new();
 
         // Get the arguments and store them in the HashMap
         for (idx, argument) in function.get_param_iter().enumerate() {
             // Get the name of the argument from the function signature's argument list
-            let argument_name = function_definition
+            let argument_entry = function_definition
                 .function_sig
                 .args
                 .get_index(idx)
                 .unwrap()
-                .0
                 .clone();
 
             // Set the name of the arguments so that it is easier to debug later
-            argument.set_name(&argument_name);
+            argument.set_name(&argument_entry.0);
 
             // Insert the entry
-            arguments.insert(argument_name, argument);
+            arguments.insert(
+                argument_entry.0.clone(),
+                (argument, argument_entry.1.clone()),
+            );
         }
 
         // Iterate through all the `ParsedToken`-s and create the LLVM-IR from the tokens
@@ -225,13 +227,16 @@ pub fn create_ir(
     // The list of ParsedToken-s
     parsed_tokens: Vec<ParsedToken>,
     // This argument is initialized with the HashMap of the arguments
-    available_arguments: HashMap<String, BasicValueEnum>,
+    available_arguments: HashMap<String, (BasicValueEnum, TypeDiscriminant)>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
 ) -> Result<()> {
-    let mut variable_map: HashMap<String, (PointerValue, BasicMetadataTypeEnum)> = HashMap::new();
+    let mut variable_map: HashMap<
+        String,
+        ((PointerValue, BasicMetadataTypeEnum), TypeDiscriminant),
+    > = HashMap::new();
 
-    for (arg_name, arg_val) in available_arguments {
+    for (arg_name, (arg_val, arg_ty)) in available_arguments {
         let (v_ptr, ty) = match arg_val {
             BasicValueEnum::ArrayValue(value) => {
                 let v_ptr = builder.build_alloca(value.get_type(), &arg_name)?;
@@ -266,7 +271,7 @@ pub fn create_ir(
             }
         };
 
-        variable_map.insert(arg_name, (v_ptr, ty));
+        variable_map.insert(arg_name, ((v_ptr, ty), arg_ty));
     }
 
     for token in parsed_tokens {
@@ -289,8 +294,18 @@ pub fn create_ir_from_parsed_token<'a>(
     module: &'a Module,
     builder: &'a Builder,
     parsed_token: ParsedToken,
-    variable_map: &mut HashMap<String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>)>,
-    variable_reference: Option<(String, (PointerValue<'a>, BasicMetadataTypeEnum<'a>))>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
+            TypeDiscriminant,
+        ),
+    >,
+    variable_reference: Option<(
+        String,
+        (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
+        TypeDiscriminant,
+    )>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
 ) -> anyhow::Result<()> {
@@ -298,7 +313,7 @@ pub fn create_ir_from_parsed_token<'a>(
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
-            variable_map.insert(var_name.clone(), (ptr, ptr_ty));
+            variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
 
             // Set the value of the newly created variable
             create_ir_from_parsed_token(
@@ -307,12 +322,14 @@ pub fn create_ir_from_parsed_token<'a>(
                 builder,
                 *var_set_val,
                 variable_map,
-                Some((var_name, (ptr, ptr_ty))),
+                Some((var_name, (ptr, ptr_ty), var_type)),
                 fn_ret_ty,
             )?;
         }
         ParsedToken::VariableReference(var_ref_variant) => {
-            if let Some((var_ref_name, (var_ref_ptr, var_ref_ty))) = variable_reference {
+            if let Some((var_ref_name, (var_ref_ptr, var_ref_ty), var_ref_ty_disc)) =
+                variable_reference
+            {
                 match var_ref_variant {
                     crate::app::parser::types::VariableReference::StructFieldReference(
                         struct_field_stack,
@@ -321,7 +338,9 @@ pub fn create_ir_from_parsed_token<'a>(
                         let mut field_stack_iter = struct_field_stack.field_stack.iter();
 
                         if let Some(main_struct_var_name) = field_stack_iter.next() {
-                            if let Some((ptr, ty)) = variable_map.get(main_struct_var_name) {
+                            if let Some(((ptr, ty), ty_disc)) =
+                                variable_map.get(main_struct_var_name)
+                            {
                                 let (f_ptr, f_ty) = access_nested_field(
                                     ctx,
                                     builder,
@@ -355,7 +374,7 @@ pub fn create_ir_from_parsed_token<'a>(
                         // The referenced variable
                         let ref_variable_query = variable_map.get(&var_name);
 
-                        if let ((orig_ptr, orig_ty), Some((ref_ptr, ref_ty))) = (
+                        if let ((orig_ptr, orig_ty), Some(((ref_ptr, ref_ty), ref_ty_disc))) = (
                             // The original variable we are going to modify
                             (var_ref_ptr, var_ref_ty),
                             // The referenced variable we are going to set the value of the orginal variable with
@@ -430,7 +449,7 @@ pub fn create_ir_from_parsed_token<'a>(
             // There this is None there is nothing we can do with this so just return
             if let Some(var_ref) = variable_reference {
                 let (ptr, _var_type) = var_ref.1;
-
+                dbg!(literal.discriminant());
                 set_value_of_ptr(ctx, builder, literal, ptr)?;
             }
         }
@@ -472,7 +491,7 @@ pub fn create_ir_from_parsed_token<'a>(
                     builder,
                     parsed_token.clone(),
                     variable_map,
-                    Some((arg_name.clone(), (ptr, ptr_ty))),
+                    Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
                     fn_ret_ty.clone(),
                 )?;
 
@@ -595,7 +614,7 @@ pub fn create_ir_from_parsed_token<'a>(
                 let mut field_stack_iter = struct_field_reference.field_stack.iter();
 
                 if let Some(main_struct_var_name) = field_stack_iter.next() {
-                    if let Some((ptr, ty)) = variable_map.get(main_struct_var_name) {
+                    if let Some(((ptr, ty), ty_disc)) = variable_map.get(main_struct_var_name) {
                         let (f_ptr, f_ty) = access_nested_field(
                             ctx,
                             builder,
@@ -610,7 +629,7 @@ pub fn create_ir_from_parsed_token<'a>(
                             builder,
                             *value,
                             variable_map,
-                            Some((String::new(), (f_ptr, f_ty.into()))),
+                            Some((String::new(), (f_ptr, f_ty.into()), ty_disc.clone())),
                             fn_ret_ty,
                         )?;
                     }
@@ -619,7 +638,7 @@ pub fn create_ir_from_parsed_token<'a>(
             crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
                 let variable_query = variable_map.get(&variable_name);
 
-                if let Some((ptr, ty)) = variable_query {
+                if let Some(((ptr, ty), ty_disc)) = variable_query {
                     // Set the value of the variable which was referenced
                     create_ir_from_parsed_token(
                         ctx,
@@ -627,7 +646,7 @@ pub fn create_ir_from_parsed_token<'a>(
                         builder,
                         *value,
                         variable_map,
-                        Some((variable_name, (*ptr, *ty))),
+                        Some((variable_name, (*ptr, *ty), ty_disc.clone())),
                         fn_ret_ty,
                     )?;
                 }
@@ -648,7 +667,7 @@ pub fn create_ir_from_parsed_token<'a>(
                 builder,
                 *parsed_token,
                 variable_map,
-                Some((var_name, (ptr, ptr_ty))),
+                Some((var_name, (ptr, ptr_ty), fn_ret_ty.clone())),
                 fn_ret_ty.clone(),
             )?;
 
@@ -699,7 +718,7 @@ pub fn create_ir_from_parsed_token<'a>(
         }
         ParsedToken::If(_) => todo!(),
         ParsedToken::InitializeStruct(struct_tys, struct_fields) => {
-            if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
+            if let Some((var_name, (var_ptr, var_ty), var_typedisc)) = variable_reference {
                 // Get the struct pointer's ty
                 let pointee_struct_ty = var_ty.into_struct_type();
 
@@ -721,7 +740,7 @@ pub fn create_ir_from_parsed_token<'a>(
                         builder,
                         *(struct_fields.get_index(field_idx).unwrap().1.clone()),
                         variable_map,
-                        Some((field_name.to_string(), (ptr, ty))),
+                        Some((field_name.to_string(), (ptr, ty), var_typedisc.clone())),
                         fn_ret_ty.clone(),
                     )?;
 
@@ -745,61 +764,73 @@ pub fn create_ir_from_parsed_token<'a>(
                     .build_load(pointee_struct_ty, allocate_struct, "constructed_struct")?
                     .into_struct_value();
 
-
                 // Store the struct in the main variable
                 builder.build_store(var_ptr, constructed_struct)?;
             }
         }
         ParsedToken::Comparison(lhs, order, rhs, val_tys) => {
-            if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
+            if let Some((var_name, (var_ptr, var_ty), var_type_disc)) = variable_reference {
                 let pointee_ty = ty_to_llvm_ty(ctx, &val_tys);
 
-            // Create a new temp variable of val_tys for both of the sides
-            let (lhs_ptr, lhs_ty) = create_new_variable(ctx, builder, "lhs_tmp", &val_tys)?;
-            let (rhs_ptr, rhs_ty) = create_new_variable(ctx, builder, "rhs_tmp", &val_tys)?;
+                // Create a new temp variable of val_tys for both of the sides
+                let (lhs_ptr, lhs_ty) = create_new_variable(ctx, builder, "lhs_tmp", &val_tys)?;
+                let (rhs_ptr, rhs_ty) = create_new_variable(ctx, builder, "rhs_tmp", &val_tys)?;
 
-            create_ir_from_parsed_token(
-                ctx,
-                module,
-                builder,
-                *lhs,
-                variable_map,
-                Some(("lhs_tmp".to_string(), ((lhs_ptr, lhs_ty)))),
-                fn_ret_ty.clone(),
-            )?;
-            create_ir_from_parsed_token(
-                ctx,
-                module,
-                builder,
-                *rhs,
-                variable_map,
-                Some(("rhs_tmp".to_string(), ((rhs_ptr, rhs_ty)))),
-                fn_ret_ty,
-            )?;
+                create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    *lhs,
+                    variable_map,
+                    Some((
+                        "lhs_tmp".to_string(),
+                        ((lhs_ptr, lhs_ty)),
+                        var_type_disc.clone(),
+                    )),
+                    fn_ret_ty.clone(),
+                )?;
+                create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    *rhs,
+                    variable_map,
+                    Some(("rhs_tmp".to_string(), ((rhs_ptr, rhs_ty)), var_type_disc)),
+                    fn_ret_ty,
+                )?;
 
-            let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
-            let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
+                let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
+                let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
 
-            let cmp_result = match val_tys {
-                TypeDiscriminant::I32 => {
-                    builder.build_int_compare(order.into_int_predicate(true), lhs_val.into_int_value(), rhs_val.into_int_value(), "cmp")?
-                }
-                TypeDiscriminant::F32 => {
-                    builder.build_float_compare(order.into_float_predicate(), lhs_val.into_float_value(), rhs_val.into_float_value(), "cmp")?
-                }
-                TypeDiscriminant::U8 | TypeDiscriminant::U32 | TypeDiscriminant::Boolean => {
-                    builder.build_int_compare(order.into_int_predicate(false), lhs_val.into_int_value(), rhs_val.into_int_value(), "cmp")?
-                }
-                TypeDiscriminant::String => {
-                    unimplemented!()
-                }
-                TypeDiscriminant::Void => {
-                    ctx.bool_type().const_int(1, false)
-                }
-                TypeDiscriminant::Struct(_) => {
-                    unimplemented!()
-                }
-            };
+                let cmp_result = match val_tys {
+                    TypeDiscriminant::I32 => builder.build_int_compare(
+                        order.into_int_predicate(true),
+                        lhs_val.into_int_value(),
+                        rhs_val.into_int_value(),
+                        "cmp",
+                    )?,
+                    TypeDiscriminant::F32 => builder.build_float_compare(
+                        order.into_float_predicate(),
+                        lhs_val.into_float_value(),
+                        rhs_val.into_float_value(),
+                        "cmp",
+                    )?,
+                    TypeDiscriminant::U8 | TypeDiscriminant::U32 | TypeDiscriminant::Boolean => {
+                        builder.build_int_compare(
+                            order.into_int_predicate(false),
+                            lhs_val.into_int_value(),
+                            rhs_val.into_int_value(),
+                            "cmp",
+                        )?
+                    }
+                    TypeDiscriminant::String => {
+                        unimplemented!()
+                    }
+                    TypeDiscriminant::Void => ctx.bool_type().const_int(1, false),
+                    TypeDiscriminant::Struct(_) => {
+                        unimplemented!()
+                    }
+                };
 
                 builder.build_store(var_ptr, cmp_result)?;
             }

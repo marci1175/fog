@@ -84,7 +84,7 @@ impl Display for TypeDiscriminant {
             TypeDiscriminant::F32 => "F32".to_string(),
             TypeDiscriminant::U32 => "U32".to_string(),
             TypeDiscriminant::U8 => "U8".to_string(),
-            TypeDiscriminant::String => "String".to_string(),
+            TypeDiscriminant::String => format!("String"),
             TypeDiscriminant::Boolean => "Boolean".to_string(),
             TypeDiscriminant::Void => "Void".to_string(),
             TypeDiscriminant::Struct((struct_name, _)) => format!("Struct({struct_name})"),
@@ -118,16 +118,47 @@ pub fn unparsed_const_to_typed_literal_unsafe(
         .map_err(|_| ParserError::InvalidTypeCast(raw_string.clone(), dest_type.clone()))?;
 
     let casted_var = match dest_type {
-        TypeDiscriminant::I32 => Type::I32(parsed_num as i32),
+        TypeDiscriminant::I32 => {
+            if parsed_num.floor() != parsed_num {
+                return Err(ParserError::InvalidTypeCast(parsed_num.to_string(), TypeDiscriminant::I32));
+            }
+            else {
+                Type::I32(parsed_num as i32)
+            }
+        },
         TypeDiscriminant::F32 => Type::F32(parsed_num as f32),
-        TypeDiscriminant::U32 => Type::U32(parsed_num as u32),
-        TypeDiscriminant::U8 => Type::U8(parsed_num as u8),
-        TypeDiscriminant::String => Type::String(parsed_num.to_string()),
+        TypeDiscriminant::U32 => {
+            if parsed_num.floor() != parsed_num {
+                return Err(ParserError::InvalidTypeCast(parsed_num.to_string(), TypeDiscriminant::U32));
+            }
+            else {
+                Type::U32(parsed_num as u32)
+            }
+        },
+        TypeDiscriminant::U8 => {
+            if parsed_num.floor() != parsed_num {
+                return Err(ParserError::InvalidTypeCast(parsed_num.to_string(), TypeDiscriminant::U32));
+            }
+            else {
+                Type::U8(parsed_num as u8)
+            }
+        },
+        TypeDiscriminant::String => {
+            return Err(ParserError::InvalidTypeCast(
+                parsed_num.to_string(),
+                TypeDiscriminant::String,
+            ));
+        }
         TypeDiscriminant::Boolean => {
             if parsed_num == 1.0 {
                 Type::Boolean(true)
-            } else {
+            } else if parsed_num == 0.0 {
                 Type::Boolean(false)
+            } else {
+                return Err(ParserError::InvalidTypeCast(
+                    raw_string.clone(),
+                    TypeDiscriminant::Boolean,
+                ));
             }
         }
         TypeDiscriminant::Void => Type::Void,
@@ -140,109 +171,4 @@ pub fn unparsed_const_to_typed_literal_unsafe(
     };
 
     Ok(casted_var)
-}
-
-pub fn convert_as(value: Type, dest_type: TypeDiscriminant) -> anyhow::Result<Type> {
-    if value.discriminant() == dest_type {
-        return Ok(value);
-    }
-
-    if dest_type == TypeDiscriminant::Void {
-        return Ok(Type::Void);
-    }
-
-    let return_val = match value {
-        Type::I32(inner) => match dest_type {
-            TypeDiscriminant::F32 => Type::F32(inner as f32),
-            TypeDiscriminant::U32 => Type::U32(inner as u32),
-            TypeDiscriminant::U8 => Type::U8(inner as u8),
-            TypeDiscriminant::String => Type::String(inner.to_string()),
-            TypeDiscriminant::Boolean => {
-                if inner == 1 {
-                    Type::Boolean(true)
-                } else {
-                    Type::Boolean(false)
-                }
-            }
-            TypeDiscriminant::I32 | TypeDiscriminant::Void | TypeDiscriminant::Struct(_) => {
-                unreachable!()
-            }
-        },
-        Type::F32(inner) => match dest_type {
-            TypeDiscriminant::I32 => Type::I32(inner as i32),
-            TypeDiscriminant::U32 => Type::U32(inner as u32),
-            TypeDiscriminant::U8 => Type::U8(inner as u8),
-            TypeDiscriminant::String => Type::String(inner.to_string()),
-            TypeDiscriminant::Boolean => {
-                if inner == 1.0 {
-                    Type::Boolean(true)
-                } else {
-                    Type::Boolean(false)
-                }
-            }
-
-            TypeDiscriminant::F32 | TypeDiscriminant::Void | TypeDiscriminant::Struct(_) => {
-                unreachable!()
-            }
-        },
-        Type::U32(inner) => match dest_type {
-            TypeDiscriminant::F32 => Type::F32(inner as f32),
-            TypeDiscriminant::I32 => Type::I32(inner as i32),
-            TypeDiscriminant::U8 => Type::U8(inner as u8),
-            TypeDiscriminant::String => Type::String(inner.to_string()),
-            TypeDiscriminant::Boolean => {
-                if inner == 1 {
-                    Type::Boolean(true)
-                } else {
-                    Type::Boolean(false)
-                }
-            }
-
-            TypeDiscriminant::U32 | TypeDiscriminant::Void | TypeDiscriminant::Struct(_) => {
-                unreachable!()
-            }
-        },
-        Type::U8(inner) => match dest_type {
-            TypeDiscriminant::F32 => Type::F32(inner as f32),
-            TypeDiscriminant::I32 => Type::I32(inner as i32),
-            TypeDiscriminant::U32 => Type::U32(inner as u32),
-            TypeDiscriminant::String => Type::String(inner.to_string()),
-            TypeDiscriminant::Boolean => {
-                if inner == 1 {
-                    Type::Boolean(true)
-                } else {
-                    Type::Boolean(false)
-                }
-            }
-
-            TypeDiscriminant::U8 | TypeDiscriminant::Void | TypeDiscriminant::Struct(_) => {
-                unreachable!()
-            }
-        },
-        Type::String(inner) => match dest_type {
-            TypeDiscriminant::I32 => Type::I32(inner.parse::<i32>()?),
-            TypeDiscriminant::F32 => Type::F32(inner.parse::<f32>()?),
-            TypeDiscriminant::U32 => Type::U32(inner.parse::<u32>()?),
-            TypeDiscriminant::U8 => Type::U8(inner.parse::<u8>()?),
-            TypeDiscriminant::Boolean => Type::Boolean(inner.parse::<bool>()?),
-
-            TypeDiscriminant::String | TypeDiscriminant::Void | TypeDiscriminant::Struct(_) => {
-                unreachable!()
-            }
-        },
-        Type::Boolean(inner) => match dest_type {
-            TypeDiscriminant::I32 => Type::I32(inner as i32),
-            TypeDiscriminant::F32 => Type::F32(inner as i32 as f32),
-            TypeDiscriminant::U32 => Type::U32(inner as u32),
-            TypeDiscriminant::U8 => Type::U8(inner as u8),
-            TypeDiscriminant::String => Type::String(inner.to_string()),
-
-            TypeDiscriminant::Boolean | TypeDiscriminant::Void | TypeDiscriminant::Struct(_) => {
-                unreachable!()
-            }
-        },
-        Type::Void | Type::Struct(_) => unreachable!(),
-    };
-
-    Ok(return_val)
 }

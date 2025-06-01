@@ -1,16 +1,17 @@
 import puts(msg: string): int;
 
+struct asd {
+    inner: float,
+}
+
+function test(): int {
+    return 10;
+}
+
 function main(): int {
-    puts("Hello World!");
-    
-    int rhs = 2;
-    int a = 1000;
-    int b = 1;
+    asd a = asd { inner: 23.2, };
 
-    bool a = true;
-    bool b = true;
-
-    bool eq = a == b;
+    bool eq = a.inner == 23.2;
 
     return eq;
 }

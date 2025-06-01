@@ -29,7 +29,7 @@ pub enum CodeGenError {
     InvalidMain,
     #[error("[INTERNAL ERROR] A struct's field was not found at codegen.")]
     InternalStructFieldNotFound,
-    #[error("[INTERNAL ERROR] A variable type mismatched has occurred.")]
+    #[error("[INTERNAL ERROR] A variable type mismatch has occurred.")]
     InternalTypeMismatch,
     #[error("[INTERNAL ERROR] A reference to an inexistent struct has been provided.")]
     InternalStructReference,

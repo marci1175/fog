@@ -447,7 +447,7 @@ fn parse_function_block(
         this_function_signature.args.clone();
 
     let mut has_return = false;
-    
+
     dbg!(&tokens);
 
     if !tokens.is_empty() {
@@ -724,7 +724,7 @@ fn set_value_math_expr(
         Box::new(ParsedToken::MathematicalExpression(
             Box::new(ParsedToken::VariableReference(variable_reference)),
             math_symbol,
-            Box::new(next_token),
+            Box::new(next_token.0),
         )),
     ));
 

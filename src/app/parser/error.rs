@@ -35,7 +35,7 @@ pub enum ParserError {
     DuplicateSignatureImports,
     #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
     LinkedSourceFileMissing(PathBuf),
-    #[error(r#"Type `{1}` cannot be constructed from String "{0}"."#)]
+    #[error(r#"Type `{1}` cannot be constructed from '{0}'."#)]
     InvalidTypeCast(String, TypeDiscriminant),
 }
 

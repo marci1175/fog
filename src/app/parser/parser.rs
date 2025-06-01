@@ -147,7 +147,7 @@ pub fn parse_value(
         })?;
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
-        match current_token {
+        match dbg!(current_token) {
             // If any mathematical expression is present in the tokens
             Token::Addition | Token::Subtraction | Token::Multiplication | Token::Division => {
                 // Grab the next token after the mathematical expression
@@ -161,23 +161,26 @@ pub fn parse_value(
                     token_idx += 1;
 
                     // Modify the parsed token
-                    *parsed_token = (ParsedToken::MathematicalExpression(
-                        // Move the token to the left side
-                        Box::new(parsed_token.clone().0),
-                        // Add the Mathematical symbol to the enum variant
-                        (*current_token).clone().try_into()?,
-                        // Put the new item to the right side of the expr.
-                        Box::new(parse_token_as_value(
-                            tokens,
-                            function_signatures.clone(),
-                            variable_scope,
-                            variable_type.clone(),
-                            &mut token_idx,
-                            next_token,
-                            function_imports.clone(),
-                            custom_items.clone(),
-                        )?),
-                    ), variable_type.clone());
+                    *parsed_token = (
+                        ParsedToken::MathematicalExpression(
+                            // Move the token to the left side
+                            Box::new(parsed_token.clone().0),
+                            // Add the Mathematical symbol to the enum variant
+                            (*current_token).clone().try_into()?,
+                            // Put the new item to the right side of the expr.
+                            Box::new(parse_token_as_value(
+                                tokens,
+                                function_signatures.clone(),
+                                variable_scope,
+                                variable_type.clone(),
+                                &mut token_idx,
+                                next_token,
+                                function_imports.clone(),
+                                custom_items.clone(),
+                            )?.0),
+                        ),
+                        variable_type.clone(),
+                    );
                 } else {
                     return Err(ParserError::SyntaxError(
                         super::error::SyntaxError::InvalidMathematicalExpressionDefinition,
@@ -202,7 +205,7 @@ pub fn parse_value(
 
                 // Initialize parsed token with a value.
                 if parsed_token.is_none() {
-                    parsed_token = Some((parsed_value.clone(), variable_type.clone()));
+                    parsed_token = Some(parsed_value);
                 }
             }
 
@@ -222,7 +225,7 @@ pub fn parse_value(
 
                 // Initialize parsed token with a value.
                 if parsed_token.is_none() {
-                    parsed_token = Some((parsed_value.clone(), variable_type.clone()));
+                    parsed_token = Some(parsed_value);
                 }
             }
 
@@ -240,7 +243,7 @@ pub fn parse_value(
 
                 // Initialize parsed token with a value.
                 if parsed_token.is_none() {
-                    parsed_token = Some((parsed_value.clone(), literal.discriminant()))
+                    parsed_token = Some(parsed_value)
                 }
             }
 
@@ -257,7 +260,7 @@ pub fn parse_value(
 
                     let next_token = &tokens[token_idx];
 
-                    let next_p_token = parse_token_as_value(
+                    let (next_p_token, token_type) = parse_token_as_value(
                         tokens,
                         function_signatures.clone(),
                         variable_scope,
@@ -268,12 +271,15 @@ pub fn parse_value(
                         custom_items.clone(),
                     )?;
 
-                    parsed_token = Some((ParsedToken::Comparison(
-                        Box::new(last_p_token.clone()),
-                        Order::from_token(current_token)?,
-                        Box::new(next_p_token),
-                        dbg!(last_ty.clone()),
-                    ), variable_type.clone()));
+                    parsed_token = Some((
+                        ParsedToken::Comparison(
+                            Box::new(last_p_token.clone()),
+                            Order::from_token(current_token)?,
+                            Box::new(next_p_token),
+                            dbg!(last_ty.clone()),
+                        ),
+                        variable_type.clone(),
+                    ));
                 }
             }
 
@@ -282,9 +288,11 @@ pub fn parse_value(
     }
 
     Ok((
-        parsed_token.ok_or(ParserError::SyntaxError(
-            super::error::SyntaxError::InvalidStatementDefinition,
-        ))?.0,
+        parsed_token
+            .ok_or(ParserError::SyntaxError(
+                super::error::SyntaxError::InvalidStatementDefinition,
+            ))?
+            .0,
         token_idx,
     ))
 }
@@ -306,12 +314,10 @@ pub fn parse_token_as_value(
     eval_token: &Token,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-) -> Result<ParsedToken> {
+) -> Result<(ParsedToken, TypeDiscriminant)> {
     // Match the token
     let inner_value = match eval_token {
         Token::Literal(literal) => {
-            let literal_type = literal.discriminant();
-
             // Increment the token_idx by the tokens we have analyzed
             *token_idx += 1;
 
@@ -453,10 +459,10 @@ pub fn parse_token_as_value(
                         *token_idx += 2;
 
                         // Return the type casted literal
-                        return Ok(ParsedToken::TypeCast(
+                        return Ok((ParsedToken::TypeCast(
                             Box::new(parsed_token),
                             target_type.clone(),
-                        ));
+                        ), target_type.clone()));
                     } else {
                         // Throw an error
                         return Err(ParserError::SyntaxError(
@@ -481,20 +487,20 @@ pub fn parse_token_as_value(
                         )?;
 
                         // If the variable's type doesnt match the one we want to modify throw an error.
-                        if desired_variable_type != nested_var_type {
-                            return Err(ParserError::TypeError(
-                                variable_type.clone(),
-                                desired_variable_type,
-                            )
-                            .into());
-                        }
+                        // if desired_variable_type != nested_var_type {
+                        //     return Err(ParserError::TypeError(
+                        //         variable_type.clone(),
+                        //         desired_variable_type,
+                        //     )
+                        //     .into());
+                        // }
 
-                        return Ok(ParsedToken::VariableReference(
+                        return Ok((ParsedToken::VariableReference(
                             super::types::VariableReference::StructFieldReference(
                                 struct_field_reference,
                                 struct_def.clone(),
                             ),
-                        ));
+                        ), nested_var_type));
                     } else {
                         return Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(
                             identifier.clone(),
@@ -552,7 +558,7 @@ pub fn parse_token_as_value(
             } else if let Some(custom_type) = custom_items.get(identifier) {
                 match custom_type {
                     CustomType::Struct((_struct_name, struct_inner)) => {
-                        if let Some(Token::OpenBraces) = dbg!(tokens.get(*token_idx + 1)) {
+                        if let Some(Token::OpenBraces) = tokens.get(*token_idx + 1) {
                             let closing_idx = find_closing_braces(&tokens[*token_idx + 2..], 0)?;
 
                             let struct_init_slice =
@@ -569,7 +575,7 @@ pub fn parse_token_as_value(
 
                             *token_idx = *token_idx + 2 + closing_idx + 1;
 
-                            return Ok(init_struct_token);
+                            return Ok((init_struct_token, TypeDiscriminant::Struct((_struct_name.clone(), struct_inner.clone()))));
                         }
 
                         return Err(ParserError::SyntaxError(
@@ -598,7 +604,7 @@ pub fn parse_token_as_value(
                 tokens_inside_block,
                 function_signatures.clone(),
                 variable_scope,
-                desired_variable_type,
+                desired_variable_type.clone(),
                 function_imports,
                 custom_items.clone(),
             )?;
@@ -619,7 +625,7 @@ pub fn parse_token_as_value(
         }
     };
 
-    Ok(inner_value)
+    Ok((inner_value, desired_variable_type))
 }
 
 fn get_struct_field_stack(
@@ -652,19 +658,11 @@ fn get_struct_field_stack(
                 Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into())
             }
         } else if let Some(field_type) = struct_field_query {
-            if field_type == desired_variable_type {
-                *token_idx += 1;
+            *token_idx += 1;
 
-                struct_field_stack.field_stack.push(field_name.clone());
+            struct_field_stack.field_stack.push(field_name.clone());
 
-                return Ok(field_type.clone());
-            } else {
-                return Err(ParserError::TypeError(
-                    field_type.clone(),
-                    desired_variable_type.clone(),
-                )
-                .into());
-            }
+            return Ok(field_type.clone());
         } else {
             return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
                 field_name.clone(),
