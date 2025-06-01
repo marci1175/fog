@@ -132,7 +132,8 @@ pub enum ParsedToken {
 
 #[derive(Debug, Clone, Display)]
 pub enum VariableReference {
-    /// Variable name, struct_type, field_name
+    /// Variable name, (struct_name, struct_type)
+    /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
     StructFieldReference(
         StructFieldReference,
         (String, IndexMap<String, TypeDiscriminant>),
@@ -140,8 +141,11 @@ pub enum VariableReference {
     BasicReference(String),
 }
 
+/// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
+/// The functions which take the iterator of the `field_stack` field should not be passed the first item of the iterator, since the first item is used to look up the name of the variable which stores the struct.
 #[derive(Debug, Clone)]
 pub struct StructFieldReference {
+    /// The name of the fields which get referenced
     pub field_stack: Vec<String>,
 }
 
@@ -152,16 +156,19 @@ impl Default for StructFieldReference {
 }
 
 impl StructFieldReference {
+    /// Creates an instnace from a single entry
     pub fn from_single_entry(field_name: String) -> Self {
         Self {
             field_stack: vec![field_name],
         }
     }
 
+    /// Initializes an instance from a list of field entries 
     pub fn from_stack(field_stack: Vec<String>) -> Self {
         Self { field_stack }
     }
 
+    /// Creates an instnace from an empty list
     pub fn new() -> Self {
         Self {
             field_stack: vec![],
