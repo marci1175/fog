@@ -296,7 +296,7 @@ pub fn create_ir_from_parsed_token<'a>(
 ) -> anyhow::Result<()> {
     match parsed_token {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
-            let (ptr, ptr_ty) = create_new_variable(ctx, builder, var_name.clone(), var_type)?;
+            let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
             variable_map.insert(var_name.clone(), (ptr, ptr_ty));
 
@@ -463,8 +463,7 @@ pub fn create_ir_from_parsed_token<'a>(
 
             for (arg_name, (arg_type, parsed_token)) in fn_argument_list.iter() {
                 // Create a temporary variable for the argument thats passed in
-                let (ptr, ptr_ty) =
-                    create_new_variable(ctx, builder, arg_name.clone(), arg_type.clone())?;
+                let (ptr, ptr_ty) = create_new_variable(ctx, builder, &arg_name, &arg_type)?;
 
                 // Set the value of the temp variable to the value the argument has
                 create_ir_from_parsed_token(
@@ -640,8 +639,7 @@ pub fn create_ir_from_parsed_token<'a>(
             // This temporary variable is used to return the value
             let var_name = String::from("ret_tmp_var");
 
-            let (ptr, ptr_ty) =
-                create_new_variable(ctx, builder, var_name.clone(), fn_ret_ty.clone())?;
+            let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &fn_ret_ty)?;
 
             // Set the value of the newly created variable
             create_ir_from_parsed_token(
@@ -714,12 +712,7 @@ pub fn create_ir_from_parsed_token<'a>(
                     let llvm_ty = ty_to_llvm_ty(ctx, field_ty);
 
                     // Create a new temp variable according to the struct's field type
-                    let (ptr, ty) = create_new_variable(
-                        ctx,
-                        builder,
-                        field_name.to_string(),
-                        field_ty.clone(),
-                    )?;
+                    let (ptr, ty) = create_new_variable(ctx, builder, &field_name, &field_ty)?;
 
                     // Parse the value for the temp var
                     create_ir_from_parsed_token(
@@ -752,10 +745,66 @@ pub fn create_ir_from_parsed_token<'a>(
                     .build_load(pointee_struct_ty, allocate_struct, "constructed_struct")?
                     .into_struct_value();
 
+
                 // Store the struct in the main variable
                 builder.build_store(var_ptr, constructed_struct)?;
             }
         }
+        ParsedToken::Comparison(lhs, order, rhs, val_tys) => {
+            if let Some((var_name, (var_ptr, var_ty))) = variable_reference {
+                let pointee_ty = ty_to_llvm_ty(ctx, &val_tys);
+
+            // Create a new temp variable of val_tys for both of the sides
+            let (lhs_ptr, lhs_ty) = create_new_variable(ctx, builder, "lhs_tmp", &val_tys)?;
+            let (rhs_ptr, rhs_ty) = create_new_variable(ctx, builder, "rhs_tmp", &val_tys)?;
+
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *lhs,
+                variable_map,
+                Some(("lhs_tmp".to_string(), ((lhs_ptr, lhs_ty)))),
+                fn_ret_ty.clone(),
+            )?;
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *rhs,
+                variable_map,
+                Some(("rhs_tmp".to_string(), ((rhs_ptr, rhs_ty)))),
+                fn_ret_ty,
+            )?;
+
+            let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
+            let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
+
+            let cmp_result = match val_tys {
+                TypeDiscriminant::I32 => {
+                    builder.build_int_compare(order.into_int_predicate(true), lhs_val.into_int_value(), rhs_val.into_int_value(), "cmp")?
+                }
+                TypeDiscriminant::F32 => {
+                    builder.build_float_compare(order.into_float_predicate(), lhs_val.into_float_value(), rhs_val.into_float_value(), "cmp")?
+                }
+                TypeDiscriminant::U8 | TypeDiscriminant::U32 | TypeDiscriminant::Boolean => {
+                    builder.build_int_compare(order.into_int_predicate(false), lhs_val.into_int_value(), rhs_val.into_int_value(), "cmp")?
+                }
+                TypeDiscriminant::String => {
+                    unimplemented!()
+                }
+                TypeDiscriminant::Void => {
+                    ctx.bool_type().const_int(1, false)
+                }
+                TypeDiscriminant::Struct(_) => {
+                    unimplemented!()
+                }
+            };
+
+                builder.build_store(var_ptr, cmp_result)?;
+            }
+        }
+        ParsedToken::CodeBlock(parsed_tokens) => todo!(),
     }
 
     Ok(())
@@ -769,8 +818,7 @@ fn access_nested_field<'a>(
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
 ) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>)> {
     if let Some(field_stack_entry) = field_stack_iter.next() {
-        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry)
-        {
+        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry) {
             if let TypeDiscriminant::Struct((_, struct_def)) = field_ty {
                 let pointee_ty = last_field_ptr.1.into_struct_type();
                 let struct_field_ptr = builder.build_struct_gep(
@@ -805,14 +853,14 @@ fn access_nested_field<'a>(
 fn create_new_variable<'a, 'b>(
     ctx: &'a Context,
     builder: &'a Builder<'_>,
-    var_name: String,
-    var_type: TypeDiscriminant,
+    var_name: &str,
+    var_type: &TypeDiscriminant,
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>), anyhow::Error> {
     // Turn a `TypeDiscriminant` into an LLVM type
-    let var_type = ty_to_llvm_ty(ctx, &var_type);
+    let var_type = ty_to_llvm_ty(ctx, var_type);
 
     // Allocate an instance of the converted type
-    let v_ptr = builder.build_alloca(var_type, &var_name)?;
+    let v_ptr = builder.build_alloca(var_type, var_name)?;
 
     // Return the pointer of the allocation and the type
     Ok((v_ptr, var_type.into()))

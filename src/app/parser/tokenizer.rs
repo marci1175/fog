@@ -22,7 +22,6 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             '(' => Some(Token::OpenParentheses),
             '}' => Some(Token::CloseBraces),
             '{' => Some(Token::OpenBraces),
-            '!' => Some(Token::Not),
             ';' => Some(Token::LineBreak),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
@@ -162,7 +161,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 match *next_char {
                     '=' => {
-                        token_list.push(Token::Equals);
+                        token_list.push(Token::Equal);
 
                         char_idx += 2;
                     }
@@ -231,12 +230,30 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::BitAnd);
+        } else if current_char == '!' {
+            if let Some(next_char) = char_list.get(char_idx + 1) {
+                if *next_char == '=' {
+                    token_list.push(Token::NotEqual);
+
+                    char_idx += 2;
+                    continue;
+                }
+            }
+
+            token_list.push(Token::Not);
         } else if current_char == '>' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '>' {
                     token_list.push(Token::BitRight);
 
                     char_idx += 2;
+                    continue;
+                }
+                else if *next_char == '=' {
+                    token_list.push(Token::EqBigger);
+
+                    char_idx += 2;
+
                     continue;
                 }
             }
@@ -246,6 +263,13 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '<' {
                     token_list.push(Token::BitLeft);
+
+                    char_idx += 2;
+
+                    continue;
+                }
+                else if *next_char == '=' {
+                    token_list.push(Token::EqSmaller);
 
                     char_idx += 2;
 
@@ -304,9 +328,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "bool" => {
             Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::Boolean)
         }
-        "==" => Token::Equals,
-        ">=" => Token::EqBigger,
-        "<=" => Token::EqSmaller,
+        "==" => Token::Equal,
         "&&" => Token::And,
         "||" => Token::Or,
         "if" => Token::If,

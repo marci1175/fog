@@ -81,8 +81,12 @@ pub enum SyntaxError {
     StructFieldNotFound(String, (String, IndexMap<String, TypeDiscriminant>)),
     #[error("Invalid Struct field definition.")]
     InvalidStructFieldDefinition,
+    #[error("Missing/Invalid Struct body definition.")]
+    MissingStructBody,
     #[error("Invalid Struct field reference.")]
     InvalidStructFieldReference,
     #[error("Struct Extensions should be only placed on the top-most layer of code.")]
     InvalidStructExtensionPlacement,
+    #[error("Token `{0}` cannot be used to comapre values.")]
+    InvalidTokenComparisonUsage(Token),
 }

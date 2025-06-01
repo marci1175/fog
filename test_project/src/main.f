@@ -1,22 +1,16 @@
 import puts(msg: string): int;
 
-struct asd {
-    asd: string,
-}
-
-struct test {
-    inner: int,
-    asd: asd,
-}
-
 function main(): int {
     puts("Hello World!");
+    
+    int rhs = 2;
+    int a = 1000;
+    int b = 1;
 
-    test a1 = test { inner: 32, asd: asd {asd: "Inner value of asd.", }, };
+    bool a = true;
+    bool b = true;
 
-    a1.inner = 23;
+    bool eq = a == b;
 
-    puts(a1.asd.asd);
-
-    return a1.inner;
+    return eq;
 }

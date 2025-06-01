@@ -13,7 +13,7 @@ pub enum CodeGenError {
     InternalFunctionReturnedVoid(TypeDiscriminant),
     #[error("[INTERNAL ERROR] Variable `{0}` was not found in Variable map.")]
     InternalVariableNotFound(String),
-    #[error("[INTERNAL ERROR] Variable {0} mismatches variable `{1}`'s type.")]
+    #[error("Variable `{0}` mismatches variable `{1}`'s type.")]
     InternalVariableTypeMismatch(String, String),
     #[error("[INTERNAL ERROR] The automatic optimizer has failed after the code generation.")]
     InternalOptimisationPassFailed,
@@ -33,4 +33,6 @@ pub enum CodeGenError {
     InternalTypeMismatch,
     #[error("[INTERNAL ERROR] A reference to an inexistent struct has been provided.")]
     InternalStructReference,
+    #[error("Comparsions are not implemented for type `{0}`.")]
+    ComparisonIncompatibility(TypeDiscriminant),
 }

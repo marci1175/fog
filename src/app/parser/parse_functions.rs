@@ -447,7 +447,9 @@ fn parse_function_block(
         this_function_signature.args.clone();
 
     let mut has_return = false;
+    
     dbg!(&tokens);
+
     if !tokens.is_empty() {
         while token_idx < tokens.len() {
             let current_token = tokens[token_idx].clone();
@@ -467,7 +469,7 @@ fn parse_function_block(
                             + token_idx
                             + 2;
 
-                        let selected_tokens = &tokens[token_idx + 3..line_break_idx];
+                        let selected_tokens = dbg!(&tokens[token_idx + 3..line_break_idx]);
 
                         // Set the new idx
                         token_idx = line_break_idx;
@@ -476,7 +478,7 @@ fn parse_function_block(
                             selected_tokens,
                             function_signatures.clone(),
                             &mut variable_scope,
-                            var_type.clone(),
+                            dbg!(var_type.clone()),
                             function_imports.clone(),
                             custom_items.clone(),
                         )?;
@@ -484,7 +486,7 @@ fn parse_function_block(
                         parsed_tokens.push(ParsedToken::NewVariable(
                             var_name.clone(),
                             var_type.clone(),
-                            Box::new(parsed_value.clone()),
+                            dbg!(Box::new(parsed_value.clone())),
                         ));
 
                         variable_scope.insert(var_name, var_type.clone());
@@ -905,7 +907,7 @@ pub fn parse_variable_expression(
                 selected_tokens,
                 function_signatures.clone(),
                 variable_scope,
-                variable_type.clone(),
+                dbg!(variable_type.clone()),
                 function_imports.clone(),
                 custom_items.clone(),
             )?;
