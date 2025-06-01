@@ -769,7 +769,7 @@ fn access_nested_field<'a>(
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
 ) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>)> {
     if let Some(field_stack_entry) = field_stack_iter.next() {
-        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(dbg!(field_stack_entry))
+        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry)
         {
             if let TypeDiscriminant::Struct((_, struct_def)) = field_ty {
                 let pointee_ty = last_field_ptr.1.into_struct_type();

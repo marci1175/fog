@@ -517,7 +517,6 @@ fn parse_function_block(
                     .into());
                 }
             } else if let Token::Identifier(ref ident_name) = current_token {
-                dbg!(ident_name);
                 // If the variable exists in the current scope
                 if let Some(variable_type) = variable_scope.get(ident_name).cloned() {
                     // Increment the token index
@@ -898,7 +897,7 @@ pub fn parse_variable_expression(
                 })?
                 + *token_idx;
 
-            let selected_tokens = dbg!(&tokens[*token_idx + 1..line_break_idx]);
+            let selected_tokens = &tokens[*token_idx + 1..line_break_idx];
 
             *token_idx += selected_tokens.len() + 1;
 
@@ -1016,7 +1015,7 @@ pub fn parse_variable_expression(
 
                         parse_variable_expression(
                             tokens,
-                            dbg!(&tokens[*token_idx]),
+                            &tokens[*token_idx],
                             token_idx,
                             function_signatures,
                             function_imports,
