@@ -5,6 +5,14 @@ source_filename = "main"
 
 declare i32 @puts(ptr)
 
+define float @test() {
+main_fn_entry:
+  %ret_tmp_var = alloca float, align 4
+  store float 0x402475C280000000, ptr %ret_tmp_var, align 4
+  %ret_tmp_var1 = load float, ptr %ret_tmp_var, align 4
+  ret float %ret_tmp_var1
+}
+
 define i32 @main() {
 main_fn_entry:
   %a = alloca %asd, align 8
@@ -16,9 +24,10 @@ main_fn_entry:
   store float %inner1, ptr %field_gep, align 4
   %constructed_struct = load %asd, ptr %strct_init, align 4
   store %asd %constructed_struct, ptr %a, align 4
-  %b = alloca i32, align 4
-  store i32 123, ptr %b, align 4
-  %eq = alloca i32, align 4
+  %b = alloca float, align 4
+  %function_call = call float @test()
+  store float %function_call, ptr %b, align 4
+  %eq = alloca i1, align 1
   %lhs_tmp = alloca float, align 4
   %rhs_tmp = alloca float, align 4
   %deref_strct_val = load float, ptr %a, align 4
@@ -29,8 +38,7 @@ main_fn_entry:
   %cmp = fcmp oeq float %lhs_tmp_val, %rhs_tmp_val
   store i1 %cmp, ptr %eq, align 1
   %ret_tmp_var = alloca i32, align 4
-  %var_deref = load i32, ptr %eq, align 4
-  store i32 %var_deref, ptr %ret_tmp_var, align 4
+  store i32 1, ptr %ret_tmp_var, align 4
   %ret_tmp_var2 = load i32, ptr %ret_tmp_var, align 4
   ret i32 %ret_tmp_var2
 }

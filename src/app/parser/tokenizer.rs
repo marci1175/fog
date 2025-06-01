@@ -318,24 +318,47 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
 
     match trimmed_string {
         "int" => Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32),
-        "string" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::String)
-        }
         "uint" => {
             Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::U32)
         }
         "float" => {
             Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::F32)
         }
+
+        "inthalf" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32)
+        }
+        "uinthalf" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::U32)
+        }
+        "floathalf" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::F32)
+        }
+
+        "intlong" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32)
+        }
+        "uintlong" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32)
+        }
+        "floatlong" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32)
+        }
+
         "uintsmall" => {
             Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::U8)
+        }
+
+        "bool" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::Boolean)
         }
         "void" => {
             Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::Void)
         }
-        "bool" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::Boolean)
+        "string" => {
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::String)
         }
+
         "==" => Token::Equal,
         "&&" => Token::And,
         "||" => Token::Or,

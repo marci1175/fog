@@ -7,9 +7,18 @@ use crate::app::parser::error::ParserError;
 
 #[derive(Debug, Clone, PartialEq, Display, Default)]
 pub enum Type {
+    I64(i64),
+    F64(f64),
+    U64(u64),
+
     I32(i32),
     F32(f32),
     U32(u32),
+
+    I16(i16),
+    F16(f16),
+    U16(u16),
+
     U8(u8),
 
     String(String),
@@ -24,9 +33,15 @@ pub enum Type {
 impl Type {
     pub fn discriminant(&self) -> TypeDiscriminant {
         match self {
+            Type::I64(_) => TypeDiscriminant::I64,
+            Type::F64(_) => TypeDiscriminant::F64,
+            Type::U64(_) => TypeDiscriminant::U64,
             Type::I32(_) => TypeDiscriminant::I32,
             Type::F32(_) => TypeDiscriminant::F32,
             Type::U32(_) => TypeDiscriminant::U32,
+            Type::I16(_) => TypeDiscriminant::I16,
+            Type::F16(_) => TypeDiscriminant::F16,
+            Type::U16(_) => TypeDiscriminant::U16,
             Type::U8(_) => TypeDiscriminant::U8,
             Type::String(_) => TypeDiscriminant::String,
             Type::Boolean(_) => TypeDiscriminant::Boolean,
@@ -46,9 +61,18 @@ impl Type {
 
 #[derive(Debug, Clone, PartialEq, Default, Eq)]
 pub enum TypeDiscriminant {
+    I64,
+    F64,
+    U64,
+
     I32,
     F32,
     U32,
+
+    I16,
+    F16,
+    U16,
+
     U8,
 
     String,
@@ -63,9 +87,15 @@ pub enum TypeDiscriminant {
 impl From<TypeDiscriminant> for Type {
     fn from(value: TypeDiscriminant) -> Self {
         match value {
+            TypeDiscriminant::I64 => Self::I64(0),
+            TypeDiscriminant::F64 => Self::F64(0.0),
+            TypeDiscriminant::U64 => Self::U64(0),
             TypeDiscriminant::I32 => Self::I32(0),
             TypeDiscriminant::F32 => Self::F32(0.0),
             TypeDiscriminant::U32 => Self::U32(0),
+            TypeDiscriminant::I16 => Self::I16(0),
+            TypeDiscriminant::F16 => Self::F16(0.0),
+            TypeDiscriminant::U16 => Self::U16(0),
             TypeDiscriminant::U8 => Self::U8(0),
             TypeDiscriminant::String => Self::String(String::new()),
             TypeDiscriminant::Boolean => Self::Boolean(false),
@@ -80,11 +110,17 @@ impl From<TypeDiscriminant> for Type {
 impl Display for TypeDiscriminant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&match self {
+            TypeDiscriminant::I64 => "I64".to_string(),
+            TypeDiscriminant::F64 => "F64".to_string(),
+            TypeDiscriminant::U64 => "U64".to_string(),
+            TypeDiscriminant::I16 => "I16".to_string(),
+            TypeDiscriminant::F16 => "F16".to_string(),
+            TypeDiscriminant::U16 => "U16".to_string(),
             TypeDiscriminant::I32 => "I32".to_string(),
             TypeDiscriminant::F32 => "F32".to_string(),
             TypeDiscriminant::U32 => "U32".to_string(),
             TypeDiscriminant::U8 => "U8".to_string(),
-            TypeDiscriminant::String => format!("String"),
+            TypeDiscriminant::String => "String".to_string(),
             TypeDiscriminant::Boolean => "Boolean".to_string(),
             TypeDiscriminant::Void => "Void".to_string(),
             TypeDiscriminant::Struct((struct_name, _)) => format!("Struct({struct_name})"),
@@ -118,31 +154,79 @@ pub fn unparsed_const_to_typed_literal_unsafe(
         .map_err(|_| ParserError::InvalidTypeCast(raw_string.clone(), dest_type.clone()))?;
 
     let casted_var = match dest_type {
+        TypeDiscriminant::I64 => {
+            if parsed_num.floor() != parsed_num {
+                return Err(ParserError::InvalidTypeCast(
+                    parsed_num.to_string(),
+                    TypeDiscriminant::I64,
+                ));
+            } else {
+                Type::I64(parsed_num as i64)
+            }
+        }
+        TypeDiscriminant::F64 => Type::F64(parsed_num),
+        TypeDiscriminant::U64 => {
+            if parsed_num.floor() != parsed_num {
+                return Err(ParserError::InvalidTypeCast(
+                    parsed_num.to_string(),
+                    TypeDiscriminant::U64,
+                ));
+            } else {
+                Type::U64(parsed_num as u64)
+            }
+        }
+        TypeDiscriminant::I16 => {
+            if parsed_num.floor() != parsed_num {
+                return Err(ParserError::InvalidTypeCast(
+                    parsed_num.to_string(),
+                    TypeDiscriminant::I16,
+                ));
+            } else {
+                Type::I16(parsed_num as i16)
+            }
+        }
+        TypeDiscriminant::F16 => Type::F16(parsed_num as f16),
+        TypeDiscriminant::U16 => {
+            if parsed_num.floor() != parsed_num {
+                return Err(ParserError::InvalidTypeCast(
+                    parsed_num.to_string(),
+                    TypeDiscriminant::U16,
+                ));
+            } else {
+                Type::U16(parsed_num as u16)
+            }
+        }
         TypeDiscriminant::I32 => {
             if parsed_num.floor() != parsed_num {
-                return Err(ParserError::InvalidTypeCast(parsed_num.to_string(), TypeDiscriminant::I32));
-            }
-            else {
+                return Err(ParserError::InvalidTypeCast(
+                    parsed_num.to_string(),
+                    TypeDiscriminant::I32,
+                ));
+            } else {
                 Type::I32(parsed_num as i32)
             }
-        },
+        }
         TypeDiscriminant::F32 => Type::F32(parsed_num as f32),
         TypeDiscriminant::U32 => {
             if parsed_num.floor() != parsed_num {
-                return Err(ParserError::InvalidTypeCast(parsed_num.to_string(), TypeDiscriminant::U32));
-            }
-            else {
+                return Err(ParserError::InvalidTypeCast(
+                    parsed_num.to_string(),
+                    TypeDiscriminant::U32,
+                ));
+            } else {
                 Type::U32(parsed_num as u32)
             }
-        },
+        }
         TypeDiscriminant::U8 => {
             if parsed_num.floor() != parsed_num {
-                return Err(ParserError::InvalidTypeCast(parsed_num.to_string(), TypeDiscriminant::U32));
-            }
-            else {
+                return Err(ParserError::InvalidTypeCast(
+                    parsed_num.to_string(),
+                    TypeDiscriminant::U32,
+                ));
+            } else {
                 Type::U8(parsed_num as u8)
             }
-        },
+        }
         TypeDiscriminant::String => {
             return Err(ParserError::InvalidTypeCast(
                 parsed_num.to_string(),

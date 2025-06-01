@@ -13,8 +13,8 @@ pub enum CodeGenError {
     InternalFunctionReturnedVoid(TypeDiscriminant),
     #[error("[INTERNAL ERROR] Variable `{0}` was not found in Variable map.")]
     InternalVariableNotFound(String),
-    #[error("Variable `{0}` mismatches variable `{1}`'s type.")]
-    InternalVariableTypeMismatch(String, String),
+    #[error("Type `{0}` mismatches type `{1}`.")]
+    InternalVariableTypeMismatch(TypeDiscriminant, TypeDiscriminant),
     #[error("[INTERNAL ERROR] The automatic optimizer has failed after the code generation.")]
     InternalOptimisationPassFailed,
     #[error("[INTERNAL ERROR] Failed to get TargetTriple for host.")]

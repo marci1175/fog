@@ -4,14 +4,16 @@ struct asd {
     inner: float,
 }
 
-function test(): int {
-    return 10;
+function test(): float {
+    return 10.23;
 }
 
 function main(): int {
     asd a = asd { inner: 23.2, };
 
+    float b = test();
+    
     bool eq = a.inner == 23.2;
 
-    return eq;
+    return 1;
 }

@@ -1,3 +1,5 @@
+#![feature(f16)]
+
 pub mod app;
 
 use app::cli_parser::error::CliParseError;

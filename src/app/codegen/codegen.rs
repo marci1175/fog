@@ -61,11 +61,10 @@ pub fn codegen_main(
                 .function_sig
                 .args
                 .get_index(idx)
-                .unwrap()
-                .clone();
+                .unwrap();
 
             // Set the name of the arguments so that it is easier to debug later
-            argument.set_name(&argument_entry.0);
+            argument.set_name(argument_entry.0);
 
             // Insert the entry
             arguments.insert(
@@ -165,6 +164,12 @@ pub fn import_user_lib_functions<'a>(
 
                     BasicMetadataTypeEnum::StructType(ctx.struct_type(&field_ty, false))
                 }
+                TypeDiscriminant::I64 => BasicMetadataTypeEnum::IntType(ctx.i64_type()),
+                TypeDiscriminant::F64 => BasicMetadataTypeEnum::FloatType(ctx.f64_type()),
+                TypeDiscriminant::U64 => BasicMetadataTypeEnum::IntType(ctx.i64_type()),
+                TypeDiscriminant::I16 => BasicMetadataTypeEnum::IntType(ctx.i16_type()),
+                TypeDiscriminant::F16 => BasicMetadataTypeEnum::FloatType(ctx.f16_type()),
+                TypeDiscriminant::U16 => BasicMetadataTypeEnum::IntType(ctx.i16_type()),
             };
 
             args.push(argument_sig);
@@ -209,6 +214,36 @@ pub fn import_user_lib_functions<'a>(
             TypeDiscriminant::Struct((_struct_name, struct_inner)) => {
                 let return_type =
                     ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
+
+                return_type.fn_type(&args, false)
+            }
+            TypeDiscriminant::I64 => {
+                let return_type = ctx.i64_type();
+
+                return_type.fn_type(&args, false)
+            }
+            TypeDiscriminant::F64 => {
+                let return_type = ctx.f32_type();
+
+                return_type.fn_type(&args, false)
+            }
+            TypeDiscriminant::U64 => {
+                let return_type = ctx.i64_type();
+
+                return_type.fn_type(&args, false)
+            }
+            TypeDiscriminant::I16 => {
+                let return_type = ctx.i16_type();
+
+                return_type.fn_type(&args, false)
+            }
+            TypeDiscriminant::F16 => {
+                let return_type = ctx.f16_type();
+
+                return_type.fn_type(&args, false)
+            }
+            TypeDiscriminant::U16 => {
+                let return_type = ctx.i16_type();
 
                 return_type.fn_type(&args, false)
             }
@@ -380,10 +415,10 @@ pub fn create_ir_from_parsed_token<'a>(
                             // The referenced variable we are going to set the value of the orginal variable with
                             ref_variable_query,
                         ) {
-                            if dbg!(orig_ty) != dbg!(*ref_ty) {
+                            if *ref_ty_disc != var_ref_ty_disc {
                                 return Err(CodeGenError::InternalVariableTypeMismatch(
-                                    var_ref_name.clone(),
-                                    var_name.clone(),
+                                    ref_ty_disc.clone(),
+                                    var_ref_ty_disc.clone(),
                                 )
                                 .into());
                             }
@@ -449,12 +484,25 @@ pub fn create_ir_from_parsed_token<'a>(
             // There this is None there is nothing we can do with this so just return
             if let Some(var_ref) = variable_reference {
                 let (ptr, _var_type) = var_ref.1;
-                dbg!(literal.discriminant());
+
                 set_value_of_ptr(ctx, builder, literal, ptr)?;
             }
         }
         ParsedToken::TypeCast(parsed_token, type_discriminants) => {
-            todo!()
+            if let Some((var_name, (ptr, ty), ty_disc)) = variable_reference {
+                let (v_ptr, v_ty) =
+                    create_new_variable(ctx, builder, &var_name, &type_discriminants)?;
+
+                create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    *parsed_token,
+                    variable_map,
+                    Some((var_name, (v_ptr, v_ty), ty_disc)),
+                    fn_ret_ty,
+                )?;
+            }
         }
         ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => {
             todo!()
@@ -482,7 +530,7 @@ pub fn create_ir_from_parsed_token<'a>(
 
             for (arg_name, (arg_type, parsed_token)) in fn_argument_list.iter() {
                 // Create a temporary variable for the argument thats passed in
-                let (ptr, ptr_ty) = create_new_variable(ctx, builder, &arg_name, &arg_type)?;
+                let (ptr, ptr_ty) = create_new_variable(ctx, builder, arg_name, arg_type)?;
 
                 // Set the value of the temp variable to the value the argument has
                 create_ir_from_parsed_token(
@@ -594,6 +642,36 @@ pub fn create_ir_from_parsed_token<'a>(
 
                             // Store the const in the pointer
                             builder.build_store(v_ptr, returned_struct)?;
+                        }
+                        TypeDiscriminant::I64 => {
+                            let returned_int = returned.into_int_value();
+
+                            builder.build_store(v_ptr, returned_int);
+                        }
+                        TypeDiscriminant::F64 => {
+                            let returned_float = returned.into_float_value();
+
+                            builder.build_store(v_ptr, returned_float);
+                        }
+                        TypeDiscriminant::U64 => {
+                            let returned_int = returned.into_int_value();
+
+                            builder.build_store(v_ptr, returned_int);
+                        }
+                        TypeDiscriminant::I16 => {
+                            let returned_int = returned.into_int_value();
+
+                            builder.build_store(v_ptr, returned_int);
+                        }
+                        TypeDiscriminant::F16 => {
+                            let returned_float = returned.into_float_value();
+
+                            builder.build_store(v_ptr, returned_float);
+                        }
+                        TypeDiscriminant::U16 => {
+                            let returned_int = returned.into_int_value();
+
+                            builder.build_store(v_ptr, returned_int);
                         }
                     };
                 }
@@ -731,7 +809,7 @@ pub fn create_ir_from_parsed_token<'a>(
                     let llvm_ty = ty_to_llvm_ty(ctx, field_ty);
 
                     // Create a new temp variable according to the struct's field type
-                    let (ptr, ty) = create_new_variable(ctx, builder, &field_name, &field_ty)?;
+                    let (ptr, ty) = create_new_variable(ctx, builder, field_name, field_ty)?;
 
                     // Parse the value for the temp var
                     create_ir_from_parsed_token(
@@ -770,6 +848,15 @@ pub fn create_ir_from_parsed_token<'a>(
         }
         ParsedToken::Comparison(lhs, order, rhs, val_tys) => {
             if let Some((var_name, (var_ptr, var_ty), var_type_disc)) = variable_reference {
+                // Make sure that the variable we are setting is of type `Boolean` as a comparison always returns a `Bool`.
+                if var_type_disc != TypeDiscriminant::Boolean {
+                    return Err(CodeGenError::InternalVariableTypeMismatch(
+                        var_type_disc,
+                        TypeDiscriminant::Boolean,
+                    )
+                    .into());
+                }
+
                 let pointee_ty = ty_to_llvm_ty(ctx, &val_tys);
 
                 // Create a new temp variable of val_tys for both of the sides
@@ -803,26 +890,32 @@ pub fn create_ir_from_parsed_token<'a>(
                 let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
 
                 let cmp_result = match val_tys {
-                    TypeDiscriminant::I32 => builder.build_int_compare(
-                        order.into_int_predicate(true),
-                        lhs_val.into_int_value(),
-                        rhs_val.into_int_value(),
-                        "cmp",
-                    )?,
-                    TypeDiscriminant::F32 => builder.build_float_compare(
-                        order.into_float_predicate(),
-                        lhs_val.into_float_value(),
-                        rhs_val.into_float_value(),
-                        "cmp",
-                    )?,
-                    TypeDiscriminant::U8 | TypeDiscriminant::U32 | TypeDiscriminant::Boolean => {
+                    TypeDiscriminant::I16 | TypeDiscriminant::I32 | TypeDiscriminant::I64 => {
                         builder.build_int_compare(
-                            order.into_int_predicate(false),
+                            order.into_int_predicate(true),
                             lhs_val.into_int_value(),
                             rhs_val.into_int_value(),
                             "cmp",
                         )?
                     }
+                    TypeDiscriminant::F16 | TypeDiscriminant::F32 | TypeDiscriminant::F64 => {
+                        builder.build_float_compare(
+                            order.into_float_predicate(),
+                            lhs_val.into_float_value(),
+                            rhs_val.into_float_value(),
+                            "cmp",
+                        )?
+                    }
+                    TypeDiscriminant::U8
+                    | TypeDiscriminant::U16
+                    | TypeDiscriminant::U32
+                    | TypeDiscriminant::U64
+                    | TypeDiscriminant::Boolean => builder.build_int_compare(
+                        order.into_int_predicate(false),
+                        lhs_val.into_int_value(),
+                        rhs_val.into_int_value(),
+                        "cmp",
+                    )?,
                     TypeDiscriminant::String => {
                         unimplemented!()
                     }
@@ -937,11 +1030,57 @@ pub fn set_value_of_ptr(
     v_ptr: PointerValue<'_>,
 ) -> anyhow::Result<()> {
     let bool_type = ctx.bool_type();
-    let i32_type = ctx.i32_type();
     let i8_type = ctx.i8_type();
+    let i32_type = ctx.i32_type();
     let f32_type = ctx.f32_type();
+    let f64_type = ctx.f64_type();
+    let i64_type = ctx.i64_type();
+    let i16_type = ctx.i16_type();
+    let f16_type = ctx.f16_type();
 
     match value {
+        Type::I64(inner) => {
+            // Initialize const value
+            let init_val = i64_type.const_int(inner as u64, true);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::F64(inner) => {
+            // Initialize const value
+            let init_val = f64_type.const_float(inner);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::U64(inner) => {
+            // Initialize const value
+            let init_val = i64_type.const_int(inner, false);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::I16(inner) => {
+            // Initialize const value
+            let init_val = i16_type.const_int(inner as u64, true);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::F16(inner) => {
+            // Initialize const value
+            let init_val = f16_type.const_float(inner as f64);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
+        Type::U16(inner) => {
+            // Initialize const value
+            let init_val = i16_type.const_int(inner as u64, false);
+
+            // Store const
+            builder.build_store(v_ptr, init_val)?;
+        }
         Type::I32(inner) => {
             // Initialize const value
             let init_val = i32_type.const_int(inner as u64, true);
@@ -1035,8 +1174,14 @@ pub fn allocate_string<'a>(
 
 /// Converts a `TypeDiscriminant` into a `BasicTypeEnum` which can be used by inkwell.
 pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEnum<'a> {
+    let bool_type = ctx.bool_type();
+    let i8_type = ctx.i8_type();
+    let i16_type = ctx.i16_type();
     let i32_type = ctx.i32_type();
+    let f16_type = ctx.f16_type();
     let f32_type = ctx.f32_type();
+    let i64_type = ctx.i64_type();
+    let f64_type = ctx.f64_type();
     let ptr_type = ctx.ptr_type(AddressSpace::default());
 
     // Pattern match the type
@@ -1044,9 +1189,9 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEn
         TypeDiscriminant::I32 => BasicTypeEnum::IntType(i32_type),
         TypeDiscriminant::F32 => BasicTypeEnum::FloatType(f32_type),
         TypeDiscriminant::U32 => BasicTypeEnum::IntType(i32_type),
-        TypeDiscriminant::U8 => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminant::U8 => BasicTypeEnum::IntType(i8_type),
         TypeDiscriminant::String => BasicTypeEnum::PointerType(ptr_type),
-        TypeDiscriminant::Boolean => BasicTypeEnum::IntType(i32_type),
+        TypeDiscriminant::Boolean => BasicTypeEnum::IntType(bool_type),
         TypeDiscriminant::Void => {
             unreachable!();
         }
@@ -1070,6 +1215,12 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEn
 
             BasicTypeEnum::StructType(struct_type)
         }
+        TypeDiscriminant::I64 => BasicTypeEnum::IntType(i64_type),
+        TypeDiscriminant::F64 => BasicTypeEnum::FloatType(f64_type),
+        TypeDiscriminant::U64 => BasicTypeEnum::IntType(i64_type),
+        TypeDiscriminant::I16 => BasicTypeEnum::IntType(i16_type),
+        TypeDiscriminant::F16 => BasicTypeEnum::FloatType(f16_type),
+        TypeDiscriminant::U16 => BasicTypeEnum::IntType(i16_type),
     };
 
     field_ty
