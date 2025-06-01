@@ -1015,7 +1015,7 @@ pub fn parse_variable_expression(
                         *token_idx += 2;
 
                         parse_variable_expression(
-                            &tokens,
+                            tokens,
                             dbg!(&tokens[*token_idx]),
                             token_idx,
                             function_signatures,

@@ -330,14 +330,15 @@ pub fn create_ir_from_parsed_token<'a>(
                                     (*ptr, *ty),
                                 )?;
 
-                                let basic_value = builder.build_load(f_ty, f_ptr, "deref_strct_val")?;
+                                let basic_value =
+                                    builder.build_load(f_ty, f_ptr, "deref_strct_val")?;
 
-                                if var_ref_ty.is_struct_type() && basic_value.is_struct_value() {
-                                    if var_ref_ty.into_struct_type().get_name()
+                                if var_ref_ty.is_struct_type()
+                                    && basic_value.is_struct_value()
+                                    && var_ref_ty.into_struct_type().get_name()
                                         != Some(basic_value.into_struct_value().get_name())
-                                    {
-                                        return Err(CodeGenError::InternalTypeMismatch.into());
-                                    }
+                                {
+                                    return Err(CodeGenError::InternalTypeMismatch.into());
                                 }
 
                                 if var_ref_ty == basic_value.get_type().into() {
@@ -596,18 +597,40 @@ pub fn create_ir_from_parsed_token<'a>(
 
                 if let Some(main_struct_var_name) = field_stack_iter.next() {
                     if let Some((ptr, ty)) = variable_map.get(main_struct_var_name) {
-                        let (f_ptr, f_ty) = access_nested_field(ctx, builder, &mut field_stack_iter, &struct_def, (*ptr, *ty))?;
+                        let (f_ptr, f_ty) = access_nested_field(
+                            ctx,
+                            builder,
+                            &mut field_stack_iter,
+                            &struct_def,
+                            (*ptr, *ty),
+                        )?;
 
-                        create_ir_from_parsed_token(ctx, module, builder, *value, variable_map, Some((String::new(), (f_ptr, f_ty.into()))), fn_ret_ty)?;
+                        create_ir_from_parsed_token(
+                            ctx,
+                            module,
+                            builder,
+                            *value,
+                            variable_map,
+                            Some((String::new(), (f_ptr, f_ty.into()))),
+                            fn_ret_ty,
+                        )?;
                     }
                 }
             }
             crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
                 let variable_query = variable_map.get(&variable_name);
-            
+
                 if let Some((ptr, ty)) = variable_query {
                     // Set the value of the variable which was referenced
-                    create_ir_from_parsed_token(ctx, module, builder, *value, variable_map, Some((variable_name, (*ptr, *ty))), fn_ret_ty)?;
+                    create_ir_from_parsed_token(
+                        ctx,
+                        module,
+                        builder,
+                        *value,
+                        variable_map,
+                        Some((variable_name, (*ptr, *ty))),
+                        fn_ret_ty,
+                    )?;
                 }
             }
         },
@@ -746,7 +769,8 @@ fn access_nested_field<'a>(
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
 ) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>)> {
     if let Some(field_stack_entry) = field_stack_iter.next() {
-        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(dbg!(field_stack_entry)) {
+        if let Some((field_idx, _, field_ty)) = struct_definition.get_full(dbg!(field_stack_entry))
+        {
             if let TypeDiscriminant::Struct((_, struct_def)) = field_ty {
                 let pointee_ty = last_field_ptr.1.into_struct_type();
                 let struct_field_ptr = builder.build_struct_gep(
