@@ -11,8 +11,6 @@ function test(): float {
 function main(): int {
     asd a = asd { inner: 23.2, };
 
-    float b = test();
-    
     bool eq = a.inner == 23.2;
 
     return 1;

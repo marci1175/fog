@@ -485,6 +485,15 @@ pub fn create_ir_from_parsed_token<'a>(
             if let Some(var_ref) = variable_reference {
                 let (ptr, _var_type) = var_ref.1;
 
+                // Check the type of the value, check for a type mismatch
+                if literal.discriminant() != var_ref.2 {
+                    return Err(CodeGenError::InternalVariableTypeMismatch(
+                        literal.discriminant(),
+                        var_ref.2,
+                    )
+                    .into());
+                }
+
                 set_value_of_ptr(ctx, builder, literal, ptr)?;
             }
         }
@@ -646,32 +655,32 @@ pub fn create_ir_from_parsed_token<'a>(
                         TypeDiscriminant::I64 => {
                             let returned_int = returned.into_int_value();
 
-                            builder.build_store(v_ptr, returned_int);
+                            builder.build_store(v_ptr, returned_int)?;
                         }
                         TypeDiscriminant::F64 => {
                             let returned_float = returned.into_float_value();
 
-                            builder.build_store(v_ptr, returned_float);
+                            builder.build_store(v_ptr, returned_float)?;
                         }
                         TypeDiscriminant::U64 => {
                             let returned_int = returned.into_int_value();
 
-                            builder.build_store(v_ptr, returned_int);
+                            builder.build_store(v_ptr, returned_int)?;
                         }
                         TypeDiscriminant::I16 => {
                             let returned_int = returned.into_int_value();
 
-                            builder.build_store(v_ptr, returned_int);
+                            builder.build_store(v_ptr, returned_int)?;
                         }
                         TypeDiscriminant::F16 => {
                             let returned_float = returned.into_float_value();
 
-                            builder.build_store(v_ptr, returned_float);
+                            builder.build_store(v_ptr, returned_float)?;
                         }
                         TypeDiscriminant::U16 => {
                             let returned_int = returned.into_int_value();
 
-                            builder.build_store(v_ptr, returned_int);
+                            builder.build_store(v_ptr, returned_int)?;
                         }
                     };
                 }
@@ -687,7 +696,7 @@ pub fn create_ir_from_parsed_token<'a>(
         ParsedToken::SetValue(var_ref_ty, value) => match var_ref_ty {
             crate::app::parser::types::VariableReference::StructFieldReference(
                 struct_field_reference,
-                (struct_name, struct_def),
+                (_struct_name, struct_def),
             ) => {
                 let mut field_stack_iter = struct_field_reference.field_stack.iter();
 
@@ -707,7 +716,7 @@ pub fn create_ir_from_parsed_token<'a>(
                             builder,
                             *value,
                             variable_map,
-                            Some((String::new(), (f_ptr, f_ty.into()), ty_disc.clone())),
+                            Some((String::new(), (f_ptr, f_ty.into()), dbg!(ty_disc.clone()))),
                             fn_ret_ty,
                         )?;
                     }
@@ -722,9 +731,9 @@ pub fn create_ir_from_parsed_token<'a>(
                         ctx,
                         module,
                         builder,
-                        *value,
+                        dbg!(*value),
                         variable_map,
-                        Some((variable_name, (*ptr, *ty), ty_disc.clone())),
+                        Some((dbg!(variable_name), (*ptr, *ty), dbg!(ty_disc.clone()))),
                         fn_ret_ty,
                     )?;
                 }
@@ -796,7 +805,7 @@ pub fn create_ir_from_parsed_token<'a>(
         }
         ParsedToken::If(_) => todo!(),
         ParsedToken::InitializeStruct(struct_tys, struct_fields) => {
-            if let Some((var_name, (var_ptr, var_ty), var_typedisc)) = variable_reference {
+            if let Some((var_name, (var_ptr, var_ty), var_ty_disc)) = variable_reference {
                 // Get the struct pointer's ty
                 let pointee_struct_ty = var_ty.into_struct_type();
 
@@ -818,7 +827,7 @@ pub fn create_ir_from_parsed_token<'a>(
                         builder,
                         *(struct_fields.get_index(field_idx).unwrap().1.clone()),
                         variable_map,
-                        Some((field_name.to_string(), (ptr, ty), var_typedisc.clone())),
+                        Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
                         fn_ret_ty.clone(),
                     )?;
 
@@ -846,22 +855,24 @@ pub fn create_ir_from_parsed_token<'a>(
                 builder.build_store(var_ptr, constructed_struct)?;
             }
         }
-        ParsedToken::Comparison(lhs, order, rhs, val_tys) => {
-            if let Some((var_name, (var_ptr, var_ty), var_type_disc)) = variable_reference {
+        ParsedToken::Comparison(lhs, order, rhs, comparison_hand_side_ty) => {
+            if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
                 // Make sure that the variable we are setting is of type `Boolean` as a comparison always returns a `Bool`.
-                if var_type_disc != TypeDiscriminant::Boolean {
+                if ref_var_ty_disc != TypeDiscriminant::Boolean {
                     return Err(CodeGenError::InternalVariableTypeMismatch(
-                        var_type_disc,
+                        ref_var_ty_disc,
                         TypeDiscriminant::Boolean,
                     )
                     .into());
                 }
 
-                let pointee_ty = ty_to_llvm_ty(ctx, &val_tys);
+                let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty);
 
                 // Create a new temp variable of val_tys for both of the sides
-                let (lhs_ptr, lhs_ty) = create_new_variable(ctx, builder, "lhs_tmp", &val_tys)?;
-                let (rhs_ptr, rhs_ty) = create_new_variable(ctx, builder, "rhs_tmp", &val_tys)?;
+                let (lhs_ptr, lhs_ty) =
+                    create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?;
+                let (rhs_ptr, rhs_ty) =
+                    create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?;
 
                 create_ir_from_parsed_token(
                     ctx,
@@ -872,7 +883,7 @@ pub fn create_ir_from_parsed_token<'a>(
                     Some((
                         "lhs_tmp".to_string(),
                         ((lhs_ptr, lhs_ty)),
-                        var_type_disc.clone(),
+                        comparison_hand_side_ty.clone(),
                     )),
                     fn_ret_ty.clone(),
                 )?;
@@ -882,14 +893,18 @@ pub fn create_ir_from_parsed_token<'a>(
                     builder,
                     *rhs,
                     variable_map,
-                    Some(("rhs_tmp".to_string(), ((rhs_ptr, rhs_ty)), var_type_disc)),
+                    Some((
+                        "rhs_tmp".to_string(),
+                        ((rhs_ptr, rhs_ty)),
+                        comparison_hand_side_ty.clone(),
+                    )),
                     fn_ret_ty,
                 )?;
 
                 let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
                 let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
 
-                let cmp_result = match val_tys {
+                let cmp_result = match comparison_hand_side_ty {
                     TypeDiscriminant::I16 | TypeDiscriminant::I32 | TypeDiscriminant::I64 => {
                         builder.build_int_compare(
                             order.into_int_predicate(true),
