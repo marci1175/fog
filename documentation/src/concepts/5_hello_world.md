@@ -1,28 +1,6 @@
 # Hello World!
 
-After installing the compiler we finally get to work on our first ever project!
-
-## Initializing a project
-
-There are multiple commands available for creating a new project.
-
-**You can the commands as following on Windows:**
-
-- For Initializing a project in a pre-existing folder:
-
-```console
-$ mkdir /%project-name%
-$ cd %project-name%
-$ fog init
-```
-
-- For creating a new folder specifically for the project:
-
-```console
-$ fog new %project-name%
-```
-
-### Writing the code for the project
+## Writing the code for the project
 
 Fog source files always end with the `.f` extension. A wide range of naming schemes can be used with fog support them all.
 
