@@ -36,7 +36,10 @@ impl TryFrom<String> for CliCommand {
             "n" => Ok(Self::New),
             "init" => Ok(Self::Init),
 
-            _ => Err(CliParseError::InvalidArg(value).into()),
+            _ => {
+                println!("Invalid Argument: `{value}`");
+                Err(CliParseError::InvalidArg(value).into())
+            },
         }
     }
 }

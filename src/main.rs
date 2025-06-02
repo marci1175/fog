@@ -8,8 +8,7 @@ use std::{fs, path::PathBuf};
 use strum::{EnumMessage, VariantArray};
 
 fn display_help_prompt() {
-    println!("Help:");
-    println!("Here is a list of commands you can use:");
+    println!("Commands available to use:");
 
     for (idx, command) in CliCommand::VARIANTS.iter().enumerate() {
         println!("{}. {}", idx + 1, command.get_message().unwrap())
