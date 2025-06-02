@@ -1,17 +1,12 @@
 import puts(msg: string): int;
-
-struct asd {
-    inner: float,
-}
-
-function test(): float {
-    return 10.23;
-}
+import gets(buf: string): int;
 
 function main(): int {
-    asd a = asd { inner: 23.2, };
+    string input = "asdasdasdasdasdasdasd";
+    
+    gets(input);
 
-    bool eq = a.inner == 23.2;
+    puts(input);
 
-    return 1;
+    return 0;
 }

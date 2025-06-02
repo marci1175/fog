@@ -1,24 +1,15 @@
 ; ModuleID = 'main'
 source_filename = "main"
 
-%asd = type { float }
-
 declare i32 @puts(ptr)
 
-define float @test() {
-main_fn_entry:
-  ret float 0x402475C280000000
-}
+declare i32 @gets(ptr)
 
 define i32 @main() {
 main_fn_entry:
-  %a = alloca %asd, align 8
-  %strct_init = alloca %asd, align 8
-  %field_gep = getelementptr inbounds %asd, ptr %strct_init, i32 0, i32 0
-  store float 0x4037333340000000, ptr %field_gep, align 4
-  %constructed_struct = load %asd, ptr %strct_init, align 4
-  store %asd %constructed_struct, ptr %a, align 4
-  %deref_strct_val = load float, ptr %a, align 4
-  %cmp = fcmp oeq float %deref_strct_val, 0x4037333340000000
-  ret i32 1
+  %string_buffer = alloca [22 x i8], align 1
+  store [22 x i8] c"asdasdasdasdasdasdasd\00", ptr %string_buffer, align 1
+  %function_call = call i32 @gets(ptr %string_buffer)
+  %function_call4 = call i32 @puts(ptr %string_buffer)
+  ret i32 0
 }
