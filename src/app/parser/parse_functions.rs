@@ -905,7 +905,7 @@ pub fn parse_variable_expression(
                 selected_tokens,
                 function_signatures.clone(),
                 variable_scope,
-                dbg!(variable_type.clone()),
+                variable_type.clone(),
                 function_imports.clone(),
                 custom_items.clone(),
             )?;
