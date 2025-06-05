@@ -6,10 +6,11 @@ use inkwell::{
     AddressSpace,
     builder::Builder,
     context::Context,
+    llvm_sys::orc2::LLVMOrcCreateNewThreadSafeContext,
     module::Module,
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, FunctionType, IntType},
     values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
 };
 
@@ -343,8 +344,14 @@ pub fn create_ir_from_parsed_token<'a>(
     )>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
-) -> anyhow::Result<()> {
-    match parsed_token {
+) -> anyhow::Result<
+    Option<(
+        PointerValue<'a>,
+        BasicMetadataTypeEnum<'a>,
+        TypeDiscriminant,
+    )>,
+> {
+    let created_var = match dbg!(parsed_token) {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
@@ -360,6 +367,9 @@ pub fn create_ir_from_parsed_token<'a>(
                 Some((var_name, (ptr, ptr_ty), var_type)),
                 fn_ret_ty,
             )?;
+
+            // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
+            None
         }
         ParsedToken::VariableReference(var_ref_variant) => {
             if let Some((var_ref_name, (var_ref_ptr, var_ref_ty), var_ref_ty_disc)) =
@@ -376,7 +386,7 @@ pub fn create_ir_from_parsed_token<'a>(
                             if let Some(((ptr, ty), ty_disc)) =
                                 variable_map.get(main_struct_var_name)
                             {
-                                let (f_ptr, f_ty) = access_nested_field(
+                                let (f_ptr, f_ty, ty_disc) = access_nested_field(
                                     ctx,
                                     builder,
                                     &mut field_stack_iter,
@@ -478,6 +488,47 @@ pub fn create_ir_from_parsed_token<'a>(
                         }
                     }
                 }
+
+                None
+            } else {
+                match var_ref_variant {
+                    crate::app::parser::types::VariableReference::StructFieldReference(
+                        struct_field_stack,
+                        (struct_name, struct_def),
+                    ) => {
+                        let mut field_stack_iter = struct_field_stack.field_stack.iter();
+
+                        if let Some(main_struct_var_name) = field_stack_iter.next() {
+                            if let Some(((ptr, ty), ty_disc)) =
+                                variable_map.get(main_struct_var_name)
+                            {
+                                let (f_ptr, f_ty, ty_disc) = access_nested_field(
+                                    ctx,
+                                    builder,
+                                    &mut field_stack_iter,
+                                    &struct_def,
+                                    (*ptr, *ty),
+                                )?;
+
+                                Some((f_ptr, ty_enum_to_metadata_ty_enum(f_ty.clone()), ty_disc))
+                            } else {
+                                return Err(CodeGenError::InternalVariableNotFound(
+                                    main_struct_var_name.clone(),
+                                )
+                                .into());
+                            }
+                        } else {
+                            return Err(CodeGenError::InternalStructReference.into());
+                        }
+                    }
+                    crate::app::parser::types::VariableReference::BasicReference(basic_ref) => {
+                        let ((ptr, ty), ty_disc) = variable_map
+                            .get(&basic_ref)
+                            .ok_or(CodeGenError::InternalVariableNotFound(basic_ref.clone()))?;
+
+                        Some((ptr.clone(), ty.clone(), ty_disc.clone()))
+                    }
+                }
             }
         }
         ParsedToken::Literal(literal) => {
@@ -495,23 +546,723 @@ pub fn create_ir_from_parsed_token<'a>(
                 }
 
                 set_value_of_ptr(ctx, builder, literal, ptr)?;
+
+                None
+            } else {
+                let ty_disc = literal.discriminant();
+
+                let (v_ptr, v_ty) = create_new_variable(ctx, builder, "", &ty_disc)?;
+
+                set_value_of_ptr(ctx, builder, literal, v_ptr)?;
+
+                Some((v_ptr, v_ty, ty_disc))
             }
         }
-        ParsedToken::TypeCast(parsed_token, type_discriminants) => {
-            if let Some((var_name, (ptr, ty), ty_disc)) = variable_reference {
-                let (v_ptr, v_ty) =
-                    create_new_variable(ctx, builder, &var_name, &type_discriminants)?;
-
-                create_ir_from_parsed_token(
+        ParsedToken::TypeCast(parsed_token, desired_type) => {
+            if let Some((var_name, (ref_ptr, ref_ty), ty_disc)) = variable_reference {
+                let created_var = create_ir_from_parsed_token(
                     ctx,
                     module,
                     builder,
                     *parsed_token,
                     variable_map,
-                    Some((var_name, (v_ptr, v_ty), ty_disc)),
+                    None,
                     fn_ret_ty,
                 )?;
+
+                if let Some((var_ptr, var_ty, ty_disc)) = created_var {
+                    match ty_disc {
+                        // This match implements turning an I64 into other types
+                        TypeDiscriminant::I64 | TypeDiscriminant::I32 | TypeDiscriminant::I16 => {
+                            match desired_type {
+                                TypeDiscriminant::I64 => {
+                                    builder.build_store(
+                                        ref_ptr,
+                                        builder.build_load(var_ty.into_int_type(), var_ptr, "")?,
+                                    )?;
+                                }
+                                TypeDiscriminant::F64 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = builder.build_signed_int_to_float(
+                                        value,
+                                        ctx.f64_type(),
+                                        "casted_value",
+                                    )?;
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::U64 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = ctx.i64_type().const_int(
+                                        value.get_sign_extended_constant().unwrap() as u64,
+                                        false,
+                                    );
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::I32 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = ctx.i32_type().const_int(
+                                        value.get_sign_extended_constant().unwrap() as u64,
+                                        true,
+                                    );
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::F32 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = builder.build_signed_int_to_float(
+                                        value,
+                                        ctx.f32_type(),
+                                        "casted_value",
+                                    )?;
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::U32 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = ctx.i32_type().const_int(
+                                        value.get_sign_extended_constant().unwrap() as u64,
+                                        false,
+                                    );
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::I16 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = ctx.i16_type().const_int(
+                                        value.get_sign_extended_constant().unwrap() as u64,
+                                        true,
+                                    );
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::F16 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = builder.build_signed_int_to_float(
+                                        value,
+                                        ctx.f16_type(),
+                                        "casted_value",
+                                    )?;
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::U16 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = ctx.i16_type().const_int(
+                                        value.get_sign_extended_constant().unwrap() as u64,
+                                        false,
+                                    );
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::U8 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let cast_res = ctx.i8_type().const_int(
+                                        value.get_sign_extended_constant().unwrap() as u64,
+                                        false,
+                                    );
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::String => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let raw_val = value.get_sign_extended_constant().unwrap();
+
+                                    let int_string = raw_val.to_string();
+
+                                    let buf_ptr =
+                                        allocate_string(builder, ctx.i8_type(), int_string)?;
+
+                                    builder.build_store(ref_ptr, buf_ptr)?;
+                                }
+                                TypeDiscriminant::Boolean => {
+                                    let value = builder
+                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                        .into_int_value();
+
+                                    let bool_ty = ctx.bool_type();
+
+                                    let bool_value =
+                                        if value.get_sign_extended_constant().unwrap() == 0 {
+                                            bool_ty.const_int(0, false)
+                                        } else {
+                                            bool_ty.const_int(1, false)
+                                        };
+
+                                    builder.build_store(ref_ptr, bool_value)?;
+                                }
+                                TypeDiscriminant::Void => {
+                                    return Err(CodeGenError::InvalidTypeCast(
+                                        ty_disc,
+                                        desired_type,
+                                    )
+                                    .into());
+                                }
+                                TypeDiscriminant::Struct(_) => {
+                                    return Err(CodeGenError::InvalidTypeCast(
+                                        ty_disc,
+                                        desired_type,
+                                    )
+                                    .into());
+                                }
+                            }
+                        }
+                        TypeDiscriminant::F64 | TypeDiscriminant::F32 | TypeDiscriminant::F16 => {
+                            match desired_type {
+                                TypeDiscriminant::I64 => {
+                                    let value = builder.build_float_to_signed_int(
+                                        builder
+                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                            .into_float_value(),
+                                        ctx.i64_type(),
+                                        "",
+                                    )?;
+                                    builder.build_store(ref_ptr, value)?;
+                                }
+                                TypeDiscriminant::F64 => {
+                                    builder.build_store(
+                                        ref_ptr,
+                                        builder.build_load(
+                                            var_ty.into_float_type(),
+                                            var_ptr,
+                                            "",
+                                        )?,
+                                    )?;
+                                }
+                                TypeDiscriminant::U64 => {
+                                    let value = builder.build_float_to_unsigned_int(
+                                        builder
+                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                            .into_float_value(),
+                                        ctx.i64_type(),
+                                        "",
+                                    )?;
+                                    builder.build_store(ref_ptr, value)?;
+                                }
+                                TypeDiscriminant::I32 => {
+                                    let value = builder.build_float_to_signed_int(
+                                        builder
+                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                            .into_float_value(),
+                                        ctx.i32_type(),
+                                        "",
+                                    )?;
+                                    builder.build_store(ref_ptr, value)?;
+                                }
+                                TypeDiscriminant::F32 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value();
+
+                                    let cast_res =
+                                        ctx.f32_type().const_float(value.get_constant().unwrap().0);
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::U32 => {
+                                    let value = builder.build_float_to_unsigned_int(
+                                        builder
+                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                            .into_float_value(),
+                                        ctx.i32_type(),
+                                        "",
+                                    )?;
+                                    builder.build_store(ref_ptr, value)?;
+                                }
+                                TypeDiscriminant::I16 => {
+                                    let value = builder.build_float_to_signed_int(
+                                        builder
+                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                            .into_float_value(),
+                                        ctx.i16_type(),
+                                        "",
+                                    )?;
+                                    builder.build_store(ref_ptr, value)?;
+                                }
+                                TypeDiscriminant::F16 => {
+                                    let value = builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value();
+
+                                    let cast_res =
+                                        ctx.f16_type().const_float(value.get_constant().unwrap().0);
+
+                                    builder.build_store(ref_ptr, cast_res)?;
+                                }
+                                TypeDiscriminant::U16 => {
+                                    let value = builder.build_float_to_unsigned_int(
+                                        builder
+                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                            .into_float_value(),
+                                        ctx.i16_type(),
+                                        "",
+                                    )?;
+                                    builder.build_store(ref_ptr, value)?;
+                                }
+                                TypeDiscriminant::U8 => {
+                                    let value = builder.build_float_to_unsigned_int(
+                                        builder
+                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                            .into_float_value(),
+                                        ctx.i8_type(),
+                                        "",
+                                    )?;
+                                    builder.build_store(ref_ptr, value)?;
+                                }
+                                TypeDiscriminant::String => {
+                                    let value = builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value();
+
+                                    let raw_val = value.get_constant().unwrap().0;
+
+                                    let int_string = raw_val.to_string();
+
+                                    let buf_ptr =
+                                        allocate_string(builder, ctx.i8_type(), int_string)?;
+
+                                    builder.build_store(ref_ptr, buf_ptr)?;
+                                }
+                                TypeDiscriminant::Boolean => {
+                                    let value = builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value();
+
+                                    let bool_ty = ctx.bool_type();
+
+                                    let bool_value = if value.get_constant().unwrap().0 == 0.0 {
+                                        bool_ty.const_int(0, false)
+                                    } else {
+                                        bool_ty.const_int(1, false)
+                                    };
+
+                                    builder.build_store(ref_ptr, bool_value)?;
+                                }
+                                TypeDiscriminant::Void => {
+                                    return Err(CodeGenError::InvalidTypeCast(
+                                        ty_disc,
+                                        desired_type,
+                                    )
+                                    .into());
+                                }
+                                TypeDiscriminant::Struct(_) => {
+                                    return Err(CodeGenError::InvalidTypeCast(
+                                        ty_disc,
+                                        desired_type,
+                                    )
+                                    .into());
+                                }
+                            }
+                        }
+                        TypeDiscriminant::U64
+                        | TypeDiscriminant::U32
+                        | TypeDiscriminant::U16
+                        | TypeDiscriminant::U8 => match desired_type {
+                            TypeDiscriminant::I64 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = ctx.i64_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    true,
+                                );
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::F64 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = builder.build_unsigned_int_to_float(
+                                    value,
+                                    ctx.f64_type(),
+                                    "casted_value",
+                                )?;
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::U64 => {
+                                builder.build_store(
+                                    ref_ptr,
+                                    builder.build_load(var_ty.into_int_type(), var_ptr, "")?,
+                                )?;
+                            }
+                            TypeDiscriminant::I32 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = ctx.i32_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    true,
+                                );
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::F32 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = builder.build_unsigned_int_to_float(
+                                    value,
+                                    ctx.f32_type(),
+                                    "casted_value",
+                                )?;
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::U32 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = ctx.i32_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    false,
+                                );
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::I16 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = ctx.i16_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    true,
+                                );
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::F16 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = builder.build_unsigned_int_to_float(
+                                    value,
+                                    ctx.f16_type(),
+                                    "casted_value",
+                                )?;
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::U16 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = ctx.i16_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    false,
+                                );
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::U8 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = ctx.i8_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    false,
+                                );
+
+                                builder.build_store(ref_ptr, cast_res)?;
+                            }
+                            TypeDiscriminant::String => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let raw_val = value.get_sign_extended_constant().unwrap();
+
+                                let int_string = raw_val.to_string();
+
+                                let buf_ptr = allocate_string(builder, ctx.i8_type(), int_string)?;
+
+                                builder.build_store(ref_ptr, buf_ptr)?;
+                            }
+                            TypeDiscriminant::Boolean => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let bool_ty = ctx.bool_type();
+
+                                let bool_value = if value.get_sign_extended_constant().unwrap() == 0
+                                {
+                                    bool_ty.const_int(0, false)
+                                } else {
+                                    bool_ty.const_int(1, false)
+                                };
+
+                                builder.build_store(ref_ptr, bool_value)?;
+                            }
+                            TypeDiscriminant::Void => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            }
+                            TypeDiscriminant::Struct(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            }
+                        },
+                        TypeDiscriminant::String => match desired_type {
+                            TypeDiscriminant::I64 => todo!(),
+                            TypeDiscriminant::F64 => todo!(),
+                            TypeDiscriminant::U64 => todo!(),
+                            TypeDiscriminant::I32 => todo!(),
+                            TypeDiscriminant::F32 => todo!(),
+                            TypeDiscriminant::U32 => todo!(),
+                            TypeDiscriminant::I16 => todo!(),
+                            TypeDiscriminant::F16 => todo!(),
+                            TypeDiscriminant::U16 => todo!(),
+                            TypeDiscriminant::U8 => todo!(),
+                            TypeDiscriminant::String => todo!(),
+                            TypeDiscriminant::Boolean => todo!(),
+                            TypeDiscriminant::Void => todo!(),
+                            TypeDiscriminant::Struct(_) => todo!(),
+                        },
+                        TypeDiscriminant::Boolean => match desired_type {
+                            TypeDiscriminant::I64 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.i64_type().const_int(0, true)
+                                } else {
+                                    ctx.i64_type().const_int(1, true)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::F64 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.f64_type().const_float(0.0)
+                                } else {
+                                    ctx.f64_type().const_float(1.0)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::U64 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.i64_type().const_int(0, false)
+                                } else {
+                                    ctx.i64_type().const_int(1, false)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::I32 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.i32_type().const_int(0, true)
+                                } else {
+                                    ctx.i32_type().const_int(1, true)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::F32 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.f32_type().const_float(0.0)
+                                } else {
+                                    ctx.f32_type().const_float(1.0)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::U32 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.i32_type().const_int(0, false)
+                                } else {
+                                    ctx.i32_type().const_int(1, false)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::I16 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.i16_type().const_int(0, true)
+                                } else {
+                                    ctx.i16_type().const_int(1, true)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::F16 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.f32_type().const_float(0.0)
+                                } else {
+                                    ctx.f32_type().const_float(1.0)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::U16 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.i16_type().const_int(0, false)
+                                } else {
+                                    ctx.i16_type().const_int(1, false)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::U8 => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    ctx.i8_type().const_int(0, false)
+                                } else {
+                                    ctx.i8_type().const_int(1, false)
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            }
+                            TypeDiscriminant::String => {
+                                let val = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
+                                    allocate_string(builder, ctx.i8_type(), "false".to_string())?
+                                }
+                                else {
+                                    allocate_string(builder, ctx.i8_type(), "true".to_string())?
+                                };
+
+                                builder.build_store(var_ptr, val)?;
+                            },
+                            TypeDiscriminant::Boolean => {
+                                builder.build_store(
+                                    ref_ptr,
+                                    builder.build_load(var_ty.into_int_type(), var_ptr, "")?,
+                                )?;
+                            },
+                            TypeDiscriminant::Void => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
+                            TypeDiscriminant::Struct(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
+                        },
+                        TypeDiscriminant::Void => match desired_type {
+                            TypeDiscriminant::I64 => todo!(),
+                            TypeDiscriminant::F64 => todo!(),
+                            TypeDiscriminant::U64 => todo!(),
+                            TypeDiscriminant::I32 => todo!(),
+                            TypeDiscriminant::F32 => todo!(),
+                            TypeDiscriminant::U32 => todo!(),
+                            TypeDiscriminant::I16 => todo!(),
+                            TypeDiscriminant::F16 => todo!(),
+                            TypeDiscriminant::U16 => todo!(),
+                            TypeDiscriminant::U8 => todo!(),
+                            TypeDiscriminant::String => todo!(),
+                            TypeDiscriminant::Boolean => todo!(),
+                            TypeDiscriminant::Void => todo!(),
+                            TypeDiscriminant::Struct(_) => todo!(),
+                        },
+                        TypeDiscriminant::Struct(_) => match desired_type {
+                            TypeDiscriminant::I64 => todo!(),
+                            TypeDiscriminant::F64 => todo!(),
+                            TypeDiscriminant::U64 => todo!(),
+                            TypeDiscriminant::I32 => todo!(),
+                            TypeDiscriminant::F32 => todo!(),
+                            TypeDiscriminant::U32 => todo!(),
+                            TypeDiscriminant::I16 => todo!(),
+                            TypeDiscriminant::F16 => todo!(),
+                            TypeDiscriminant::U16 => todo!(),
+                            TypeDiscriminant::U8 => todo!(),
+                            TypeDiscriminant::String => todo!(),
+                            TypeDiscriminant::Boolean => todo!(),
+                            TypeDiscriminant::Void => todo!(),
+                            TypeDiscriminant::Struct(_) => todo!(),
+                        },
+                    }
+                } else {
+                    return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                }
             }
+
+            None
         }
         ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => {
             todo!()
@@ -596,93 +1347,126 @@ pub fn create_ir_from_parsed_token<'a>(
             let returned_value = call.try_as_basic_value().left();
 
             if let Some(returned) = returned_value {
-                if let Some(variable_name) = variable_reference {
-                    let (v_ptr, _var_ty) = variable_name.1;
-                    match fn_sig.return_type {
-                        TypeDiscriminant::I32 => {
-                            // Get returned float value
-                            let returned_int = returned.into_int_value();
+                let (v_ptr, v_ty) = if let Some(ref variable_name) = variable_reference {
+                    let (v_ptr, var_ty) = variable_name.1;
 
-                            // Store the const in the pointer
-                            builder.build_store(v_ptr, returned_int)?;
-                        }
-                        TypeDiscriminant::F32 => {
-                            // Get returned float value
-                            let returned_float = returned.into_float_value();
+                    (v_ptr, var_ty)
+                } else {
+                    let (v_ptr, v_ty) = create_new_variable(ctx, builder, "", &fn_sig.return_type)?;
 
-                            // Store the const in the pointer
-                            builder.build_store(v_ptr, returned_float)?;
-                        }
-                        TypeDiscriminant::U32 => {
-                            // Get returned float value
-                            let returned_float = returned.into_int_value();
+                    (v_ptr, v_ty)
+                };
 
-                            // Store the const in the pointer
-                            builder.build_store(v_ptr, returned_float)?;
-                        }
-                        TypeDiscriminant::U8 => {
-                            // Get returned float value
-                            let returned_smalint = returned.into_int_value();
+                match fn_sig.return_type.clone() {
+                    TypeDiscriminant::I32 => {
+                        // Get returned float value
+                        let returned_int = returned.into_int_value();
 
-                            // Store the const in the pointer
-                            builder.build_store(v_ptr, returned_smalint)?;
-                        }
-                        TypeDiscriminant::String => {
-                            // Get returned pointer value
-                            let returned_ptr = returned.into_pointer_value();
+                        // Store the const in the pointer
+                        builder.build_store(v_ptr, returned_int)?;
+                    }
+                    TypeDiscriminant::F32 => {
+                        // Get returned float value
+                        let returned_float = returned.into_float_value();
 
-                            // Store the const in the pointer
-                            builder.build_store(v_ptr, returned_ptr)?;
-                        }
-                        TypeDiscriminant::Boolean => {
-                            // Get returned boolean value
-                            let returned_bool = returned.into_int_value();
+                        // Store the const in the pointer
+                        builder.build_store(v_ptr, returned_float)?;
+                    }
+                    TypeDiscriminant::U32 => {
+                        // Get returned float value
+                        let returned_float = returned.into_int_value();
 
-                            builder.build_store(v_ptr, returned_bool)?;
-                        }
-                        TypeDiscriminant::Void => {
-                            unreachable!(
-                                "A void can not be parsed, as a void functuion returns a `None`."
-                            );
-                        }
-                        TypeDiscriminant::Struct((struct_name, struct_inner)) => {
-                            // Get returned pointer value
-                            let returned_struct = returned.into_struct_value();
+                        // Store the const in the pointer
+                        builder.build_store(v_ptr, returned_float)?;
+                    }
+                    TypeDiscriminant::U8 => {
+                        // Get returned float value
+                        let returned_smalint = returned.into_int_value();
 
-                            // Store the const in the pointer
-                            builder.build_store(v_ptr, returned_struct)?;
-                        }
-                        TypeDiscriminant::I64 => {
-                            let returned_int = returned.into_int_value();
+                        // Store the const in the pointer
+                        builder.build_store(v_ptr, returned_smalint)?;
+                    }
+                    TypeDiscriminant::String => {
+                        // Get returned pointer value
+                        let returned_ptr = returned.into_pointer_value();
 
-                            builder.build_store(v_ptr, returned_int)?;
-                        }
-                        TypeDiscriminant::F64 => {
-                            let returned_float = returned.into_float_value();
+                        // Store the const in the pointer
+                        builder.build_store(v_ptr, returned_ptr)?;
+                    }
+                    TypeDiscriminant::Boolean => {
+                        // Get returned boolean value
+                        let returned_bool = returned.into_int_value();
 
-                            builder.build_store(v_ptr, returned_float)?;
-                        }
-                        TypeDiscriminant::U64 => {
-                            let returned_int = returned.into_int_value();
+                        builder.build_store(v_ptr, returned_bool)?;
+                    }
+                    TypeDiscriminant::Void => {
+                        unreachable!(
+                            "A void can not be parsed, as a void functuion returns a `None`."
+                        );
+                    }
+                    TypeDiscriminant::Struct((struct_name, struct_inner)) => {
+                        // Get returned pointer value
+                        let returned_struct = returned.into_struct_value();
 
-                            builder.build_store(v_ptr, returned_int)?;
-                        }
-                        TypeDiscriminant::I16 => {
-                            let returned_int = returned.into_int_value();
+                        // Store the const in the pointer
+                        builder.build_store(v_ptr, returned_struct)?;
+                    }
+                    TypeDiscriminant::I64 => {
+                        let returned_int = returned.into_int_value();
 
-                            builder.build_store(v_ptr, returned_int)?;
-                        }
-                        TypeDiscriminant::F16 => {
-                            let returned_float = returned.into_float_value();
+                        builder.build_store(v_ptr, returned_int)?;
+                    }
+                    TypeDiscriminant::F64 => {
+                        let returned_float = returned.into_float_value();
 
-                            builder.build_store(v_ptr, returned_float)?;
-                        }
-                        TypeDiscriminant::U16 => {
-                            let returned_int = returned.into_int_value();
+                        builder.build_store(v_ptr, returned_float)?;
+                    }
+                    TypeDiscriminant::U64 => {
+                        let returned_int = returned.into_int_value();
 
-                            builder.build_store(v_ptr, returned_int)?;
-                        }
-                    };
+                        builder.build_store(v_ptr, returned_int)?;
+                    }
+                    TypeDiscriminant::I16 => {
+                        let returned_int = returned.into_int_value();
+
+                        builder.build_store(v_ptr, returned_int)?;
+                    }
+                    TypeDiscriminant::F16 => {
+                        let returned_float = returned.into_float_value();
+
+                        builder.build_store(v_ptr, returned_float)?;
+                    }
+                    TypeDiscriminant::U16 => {
+                        let returned_int = returned.into_int_value();
+
+                        builder.build_store(v_ptr, returned_int)?;
+                    }
+                };
+
+                if let Some((variable_name, (var_ptr, var_ty), ty_disc)) = variable_reference {
+                    // Check for type mismatch
+                    if ty_disc != fn_sig.return_type {
+                        return Err(CodeGenError::InternalVariableTypeMismatch(
+                            ty_disc,
+                            fn_sig.return_type,
+                        )
+                        .into());
+                    }
+
+                    // Get what the function returned
+                    let function_result = builder.build_load(
+                        ty_to_llvm_ty(ctx, &fn_sig.return_type),
+                        v_ptr,
+                        &variable_name,
+                    )?;
+
+                    // Set the value of the pointer to whatever the function has returned
+                    builder.build_store(var_ptr, function_result)?;
+
+                    // We dont have to return a newly created variable reference here
+                    None
+                } else {
+                    Some((v_ptr, v_ty, fn_sig.return_type))
                 }
             } else {
                 // Ensure the return type was `Void` else raise an error
@@ -691,54 +1475,62 @@ pub fn create_ir_from_parsed_token<'a>(
                         CodeGenError::InternalFunctionReturnedVoid(fn_sig.return_type).into(),
                     );
                 }
+
+                let (v_ptr, v_ty) = create_new_variable(ctx, builder, "", &TypeDiscriminant::Void)?;
+
+                Some((v_ptr, v_ty, TypeDiscriminant::Void))
             }
         }
-        ParsedToken::SetValue(var_ref_ty, value) => match var_ref_ty {
-            crate::app::parser::types::VariableReference::StructFieldReference(
-                struct_field_reference,
-                (_struct_name, struct_def),
-            ) => {
-                let mut field_stack_iter = struct_field_reference.field_stack.iter();
+        ParsedToken::SetValue(var_ref_ty, value) => {
+            match var_ref_ty {
+                crate::app::parser::types::VariableReference::StructFieldReference(
+                    struct_field_reference,
+                    (_struct_name, struct_def),
+                ) => {
+                    let mut field_stack_iter = struct_field_reference.field_stack.iter();
 
-                if let Some(main_struct_var_name) = field_stack_iter.next() {
-                    if let Some(((ptr, ty), ty_disc)) = variable_map.get(main_struct_var_name) {
-                        let (f_ptr, f_ty) = access_nested_field(
-                            ctx,
-                            builder,
-                            &mut field_stack_iter,
-                            &struct_def,
-                            (*ptr, *ty),
-                        )?;
+                    if let Some(main_struct_var_name) = field_stack_iter.next() {
+                        if let Some(((ptr, ty), ty_disc)) = variable_map.get(main_struct_var_name) {
+                            let (f_ptr, f_ty, ty_disc) = access_nested_field(
+                                ctx,
+                                builder,
+                                &mut field_stack_iter,
+                                &struct_def,
+                                (*ptr, *ty),
+                            )?;
 
+                            create_ir_from_parsed_token(
+                                ctx,
+                                module,
+                                builder,
+                                *value,
+                                variable_map,
+                                Some((String::new(), (f_ptr, f_ty.into()), dbg!(ty_disc.clone()))),
+                                fn_ret_ty,
+                            )?;
+                        }
+                    }
+                }
+                crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
+                    let variable_query = variable_map.get(&variable_name);
+
+                    if let Some(((ptr, ty), ty_disc)) = variable_query {
+                        // Set the value of the variable which was referenced
                         create_ir_from_parsed_token(
                             ctx,
                             module,
                             builder,
-                            *value,
+                            dbg!(*value),
                             variable_map,
-                            Some((String::new(), (f_ptr, f_ty.into()), dbg!(ty_disc.clone()))),
+                            Some((dbg!(variable_name), (*ptr, *ty), dbg!(ty_disc.clone()))),
                             fn_ret_ty,
                         )?;
                     }
                 }
             }
-            crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
-                let variable_query = variable_map.get(&variable_name);
 
-                if let Some(((ptr, ty), ty_disc)) = variable_query {
-                    // Set the value of the variable which was referenced
-                    create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        dbg!(*value),
-                        variable_map,
-                        Some((dbg!(variable_name), (*ptr, *ty), dbg!(ty_disc.clone()))),
-                        fn_ret_ty,
-                    )?;
-                }
-            }
-        },
+            None
+        }
         ParsedToken::MathematicalBlock(parsed_token) => todo!(),
         ParsedToken::ReturnValue(parsed_token) => {
             // Create a temporary variable to store the literal in
@@ -802,6 +1594,8 @@ pub fn create_ir_from_parsed_token<'a>(
 
                 _ => unimplemented!(),
             };
+
+            None
         }
         ParsedToken::If(_) => todo!(),
         ParsedToken::InitializeStruct(struct_tys, struct_fields) => {
@@ -854,8 +1648,83 @@ pub fn create_ir_from_parsed_token<'a>(
                 // Store the struct in the main variable
                 builder.build_store(var_ptr, constructed_struct)?;
             }
+
+            // A struct will not be allocated without a variable storing it.
+            None
         }
         ParsedToken::Comparison(lhs, order, rhs, comparison_hand_side_ty) => {
+            let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty);
+
+            // Create a new temp variable of val_tys for both of the sides
+            let (lhs_ptr, lhs_ty) =
+                create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?;
+            let (rhs_ptr, rhs_ty) =
+                create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?;
+
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *lhs,
+                variable_map,
+                Some((
+                    "lhs_tmp".to_string(),
+                    ((lhs_ptr, lhs_ty)),
+                    comparison_hand_side_ty.clone(),
+                )),
+                fn_ret_ty.clone(),
+            )?;
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *rhs,
+                variable_map,
+                Some((
+                    "rhs_tmp".to_string(),
+                    ((rhs_ptr, rhs_ty)),
+                    comparison_hand_side_ty.clone(),
+                )),
+                fn_ret_ty,
+            )?;
+
+            let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
+            let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
+
+            let cmp_result = match comparison_hand_side_ty {
+                TypeDiscriminant::I16 | TypeDiscriminant::I32 | TypeDiscriminant::I64 => builder
+                    .build_int_compare(
+                        order.into_int_predicate(true),
+                        lhs_val.into_int_value(),
+                        rhs_val.into_int_value(),
+                        "cmp",
+                    )?,
+                TypeDiscriminant::F16 | TypeDiscriminant::F32 | TypeDiscriminant::F64 => builder
+                    .build_float_compare(
+                        order.into_float_predicate(),
+                        lhs_val.into_float_value(),
+                        rhs_val.into_float_value(),
+                        "cmp",
+                    )?,
+                TypeDiscriminant::U8
+                | TypeDiscriminant::U16
+                | TypeDiscriminant::U32
+                | TypeDiscriminant::U64
+                | TypeDiscriminant::Boolean => builder.build_int_compare(
+                    order.into_int_predicate(false),
+                    lhs_val.into_int_value(),
+                    rhs_val.into_int_value(),
+                    "cmp",
+                )?,
+                TypeDiscriminant::String => {
+                    unimplemented!()
+                }
+                TypeDiscriminant::Void => ctx.bool_type().const_int(1, false),
+                TypeDiscriminant::Struct(_) => {
+                    unimplemented!()
+                }
+            };
+
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
                 // Make sure that the variable we are setting is of type `Boolean` as a comparison always returns a `Bool`.
                 if ref_var_ty_disc != TypeDiscriminant::Boolean {
@@ -866,87 +1735,22 @@ pub fn create_ir_from_parsed_token<'a>(
                     .into());
                 }
 
-                let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty);
-
-                // Create a new temp variable of val_tys for both of the sides
-                let (lhs_ptr, lhs_ty) =
-                    create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?;
-                let (rhs_ptr, rhs_ty) =
-                    create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?;
-
-                create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    *lhs,
-                    variable_map,
-                    Some((
-                        "lhs_tmp".to_string(),
-                        ((lhs_ptr, lhs_ty)),
-                        comparison_hand_side_ty.clone(),
-                    )),
-                    fn_ret_ty.clone(),
-                )?;
-                create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    *rhs,
-                    variable_map,
-                    Some((
-                        "rhs_tmp".to_string(),
-                        ((rhs_ptr, rhs_ty)),
-                        comparison_hand_side_ty.clone(),
-                    )),
-                    fn_ret_ty,
-                )?;
-
-                let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
-                let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
-
-                let cmp_result = match comparison_hand_side_ty {
-                    TypeDiscriminant::I16 | TypeDiscriminant::I32 | TypeDiscriminant::I64 => {
-                        builder.build_int_compare(
-                            order.into_int_predicate(true),
-                            lhs_val.into_int_value(),
-                            rhs_val.into_int_value(),
-                            "cmp",
-                        )?
-                    }
-                    TypeDiscriminant::F16 | TypeDiscriminant::F32 | TypeDiscriminant::F64 => {
-                        builder.build_float_compare(
-                            order.into_float_predicate(),
-                            lhs_val.into_float_value(),
-                            rhs_val.into_float_value(),
-                            "cmp",
-                        )?
-                    }
-                    TypeDiscriminant::U8
-                    | TypeDiscriminant::U16
-                    | TypeDiscriminant::U32
-                    | TypeDiscriminant::U64
-                    | TypeDiscriminant::Boolean => builder.build_int_compare(
-                        order.into_int_predicate(false),
-                        lhs_val.into_int_value(),
-                        rhs_val.into_int_value(),
-                        "cmp",
-                    )?,
-                    TypeDiscriminant::String => {
-                        unimplemented!()
-                    }
-                    TypeDiscriminant::Void => ctx.bool_type().const_int(1, false),
-                    TypeDiscriminant::Struct(_) => {
-                        unimplemented!()
-                    }
-                };
-
                 builder.build_store(var_ptr, cmp_result)?;
+
+                None
+            } else {
+                let (v_ptr, v_ty) =
+                    create_new_variable(ctx, builder, "", &TypeDiscriminant::Boolean)?;
+
+                builder.build_store(v_ptr, cmp_result)?;
+
+                Some((v_ptr, v_ty, TypeDiscriminant::Boolean))
             }
         }
         ParsedToken::CodeBlock(parsed_tokens) => todo!(),
-    }
+    };
 
-    Ok(())
+    Ok(created_var)
 }
 
 fn access_nested_field<'a>(
@@ -955,7 +1759,7 @@ fn access_nested_field<'a>(
     field_stack_iter: &mut Iter<String>,
     struct_definition: &IndexMap<String, TypeDiscriminant>,
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
-) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>)> {
+) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, TypeDiscriminant)> {
     if let Some(field_stack_entry) = field_stack_iter.next() {
         if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry) {
             if let TypeDiscriminant::Struct((_, struct_def)) = field_ty {
@@ -977,7 +1781,7 @@ fn access_nested_field<'a>(
             } else {
                 let pointee_ty = ty_to_llvm_ty(ctx, field_ty);
 
-                Ok((last_field_ptr.0, pointee_ty))
+                Ok((last_field_ptr.0, pointee_ty, field_ty.clone()))
             }
         } else {
             Err(CodeGenError::InternalStructFieldNotFound.into())
@@ -1239,6 +2043,19 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEn
     };
 
     field_ty
+}
+
+pub fn ty_enum_to_metadata_ty_enum<'a>(ty_enum: BasicTypeEnum<'a>) -> BasicMetadataTypeEnum<'a> {
+    match ty_enum {
+        BasicTypeEnum::ArrayType(array_type) => BasicMetadataTypeEnum::ArrayType(array_type),
+        BasicTypeEnum::FloatType(float_type) => BasicMetadataTypeEnum::FloatType(float_type),
+        BasicTypeEnum::IntType(int_type) => BasicMetadataTypeEnum::IntType(int_type),
+        BasicTypeEnum::PointerType(pointer_type) => {
+            BasicMetadataTypeEnum::PointerType(pointer_type)
+        }
+        BasicTypeEnum::StructType(struct_type) => BasicMetadataTypeEnum::StructType(struct_type),
+        BasicTypeEnum::VectorType(vector_type) => BasicMetadataTypeEnum::VectorType(vector_type),
+    }
 }
 
 /// This function takes the field of a struct, and returns the fields' [`BasicTypeEnum`] variant.

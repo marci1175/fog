@@ -4,9 +4,10 @@ import gets(buf: string): int;
 function main(): int {
     string input = "asdasdasdasdasdasdasd";
     
-    gets(input);
+    float a = 5.0;
+    float b = 24.4;
 
-    puts(input);
+    bool q = 2.3 > 4.3;
 
-    return 0;
+    return q as int;
 }

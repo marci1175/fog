@@ -35,4 +35,6 @@ pub enum CodeGenError {
     InternalStructReference,
     #[error("Comparsions are not implemented for type `{0}`.")]
     ComparisonIncompatibility(TypeDiscriminant),
+    #[error("Type `{0}` cannot be casted to type `{1}`.")]
+    InvalidTypeCast(TypeDiscriminant, TypeDiscriminant),
 }

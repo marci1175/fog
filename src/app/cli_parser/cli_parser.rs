@@ -39,7 +39,7 @@ impl TryFrom<String> for CliCommand {
             _ => {
                 println!("Invalid Argument: `{value}`");
                 Err(CliParseError::InvalidArg(value).into())
-            },
+            }
         }
     }
 }

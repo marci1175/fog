@@ -1,5 +1,5 @@
 use crate::app::type_system::type_system::{
-    TypeDiscriminant, unparsed_const_to_typed_literal_unsafe,
+    unparsed_const_to_typed_literal_unsafe, Type, TypeDiscriminant
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -147,7 +147,7 @@ pub fn parse_value(
         })?;
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
-        match current_token {
+        match dbg!(current_token) {
             // If any mathematical expression is present in the tokens
             Token::Addition | Token::Subtraction | Token::Multiplication | Token::Division => {
                 // Grab the next token after the mathematical expression
@@ -208,7 +208,7 @@ pub fn parse_value(
 
                 // Initialize parsed token with a value.
                 if parsed_token.is_none() {
-                    parsed_token = Some(parsed_value);
+                    parsed_token = Some(dbg!(parsed_value));
                 }
             }
 
@@ -267,7 +267,7 @@ pub fn parse_value(
                         tokens,
                         function_signatures.clone(),
                         variable_scope,
-                        last_ty.clone(),
+                        dbg!(last_ty.clone()),
                         &mut token_idx,
                         next_token,
                         function_imports.clone(),
