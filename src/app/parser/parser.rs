@@ -1,5 +1,5 @@
 use crate::app::type_system::type_system::{
-    unparsed_const_to_typed_literal_unsafe, Type, TypeDiscriminant
+    TypeDiscriminant, unparsed_const_to_typed_literal_unsafe,
 };
 use anyhow::Result;
 use indexmap::IndexMap;

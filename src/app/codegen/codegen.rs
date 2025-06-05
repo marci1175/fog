@@ -6,11 +6,10 @@ use inkwell::{
     AddressSpace,
     builder::Builder,
     context::Context,
-    llvm_sys::orc2::LLVMOrcCreateNewThreadSafeContext,
     module::Module,
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, FunctionType, IntType},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
 };
 
@@ -510,7 +509,7 @@ pub fn create_ir_from_parsed_token<'a>(
                                     (*ptr, *ty),
                                 )?;
 
-                                Some((f_ptr, ty_enum_to_metadata_ty_enum(f_ty.clone()), ty_disc))
+                                Some((f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc))
                             } else {
                                 return Err(CodeGenError::InternalVariableNotFound(
                                     main_struct_var_name.clone(),
@@ -526,7 +525,7 @@ pub fn create_ir_from_parsed_token<'a>(
                             .get(&basic_ref)
                             .ok_or(CodeGenError::InternalVariableNotFound(basic_ref.clone()))?;
 
-                        Some((ptr.clone(), ty.clone(), ty_disc.clone()))
+                        Some((*ptr, *ty, ty_disc.clone()))
                     }
                 }
             }
@@ -1200,29 +1199,28 @@ pub fn create_ir_from_parsed_token<'a>(
 
                                 let val = if val.get_zero_extended_constant().unwrap() == 0 {
                                     allocate_string(builder, ctx.i8_type(), "false".to_string())?
-                                }
-                                else {
+                                } else {
                                     allocate_string(builder, ctx.i8_type(), "true".to_string())?
                                 };
 
                                 builder.build_store(var_ptr, val)?;
-                            },
+                            }
                             TypeDiscriminant::Boolean => {
                                 builder.build_store(
                                     ref_ptr,
                                     builder.build_load(var_ty.into_int_type(), var_ptr, "")?,
                                 )?;
-                            },
+                            }
                             TypeDiscriminant::Void => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
-                            },
+                            }
                             TypeDiscriminant::Struct(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
-                            },
+                            }
                         },
                         TypeDiscriminant::Void => match desired_type {
                             TypeDiscriminant::I64 => todo!(),
@@ -2045,7 +2043,7 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEn
     field_ty
 }
 
-pub fn ty_enum_to_metadata_ty_enum<'a>(ty_enum: BasicTypeEnum<'a>) -> BasicMetadataTypeEnum<'a> {
+pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataTypeEnum<'_> {
     match ty_enum {
         BasicTypeEnum::ArrayType(array_type) => BasicMetadataTypeEnum::ArrayType(array_type),
         BasicTypeEnum::FloatType(float_type) => BasicMetadataTypeEnum::FloatType(float_type),
