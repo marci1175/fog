@@ -706,11 +706,11 @@ fn set_value_math_expr(
         super::error::SyntaxError::InvalidStatementDefinition,
     ))?;
 
-    let next_token = parse_token_as_value(
+    let (next_token, ty) = parse_token_as_value(
         tokens,
         function_signatures,
         variable_scope,
-        variable_type.clone(),
+        Some(variable_type.clone()),
         token_idx,
         eval_token,
         standard_function_table,
@@ -722,7 +722,7 @@ fn set_value_math_expr(
         Box::new(ParsedToken::MathematicalExpression(
             Box::new(ParsedToken::VariableReference(variable_reference)),
             math_symbol,
-            Box::new(next_token.0),
+            Box::new(next_token),
         )),
     ));
 

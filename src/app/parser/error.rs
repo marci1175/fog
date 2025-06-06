@@ -31,12 +31,18 @@ pub enum ParserError {
         "[INTERNAL ERROR] Tried to parse an incompatible `Token` into `MathematicalExpression`."
     )]
     InternalMathParsingError,
+    #[error(
+        "[INTERNAL ERROR] A value could not be parsed because a desired type discriminant wasn't set, required for type checking something with known type."
+    )]
+    InternalDesiredTypeMissing,
     #[error("A function with this name/signature has been imported already.")]
     DuplicateSignatureImports,
     #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
     LinkedSourceFileMissing(PathBuf),
     #[error(r#"Type `{1}` cannot be constructed from '{0}'."#)]
     InvalidTypeCast(String, TypeDiscriminant),
+    #[error("The type of literal `{0}` could not be guessed.")]
+    ValueTypeUnknown(String),
 }
 
 #[derive(Debug, Error)]

@@ -147,112 +147,126 @@ impl StringReference {
 
 pub fn unparsed_const_to_typed_literal_unsafe(
     raw_string: String,
-    dest_type: TypeDiscriminant,
+    dest_type: Option<TypeDiscriminant>,
 ) -> Result<Type, ParserError> {
-    let parsed_num = raw_string
-        .parse::<f64>()
-        .map_err(|_| ParserError::InvalidTypeCast(raw_string.clone(), dest_type.clone()))?;
+    let parsed_val = if let Some(dest_type) = dest_type {
+        let parsed_num = raw_string
+            .parse::<f64>()
+            .map_err(|_| ParserError::InvalidTypeCast(raw_string.clone(), dest_type.clone()))?;
 
-    let casted_var = match dest_type {
-        TypeDiscriminant::I64 => {
-            if parsed_num.floor() != parsed_num {
+        let val = match dest_type {
+            TypeDiscriminant::I64 => {
+                if parsed_num.floor() != parsed_num {
+                    return Err(ParserError::InvalidTypeCast(
+                        parsed_num.to_string(),
+                        TypeDiscriminant::I64,
+                    ));
+                } else {
+                    Type::I64(parsed_num as i64)
+                }
+            }
+            TypeDiscriminant::F64 => Type::F64(parsed_num),
+            TypeDiscriminant::U64 => {
+                if parsed_num.floor() != parsed_num {
+                    return Err(ParserError::InvalidTypeCast(
+                        parsed_num.to_string(),
+                        TypeDiscriminant::U64,
+                    ));
+                } else {
+                    Type::U64(parsed_num as u64)
+                }
+            }
+            TypeDiscriminant::I16 => {
+                if parsed_num.floor() != parsed_num {
+                    return Err(ParserError::InvalidTypeCast(
+                        parsed_num.to_string(),
+                        TypeDiscriminant::I16,
+                    ));
+                } else {
+                    Type::I16(parsed_num as i16)
+                }
+            }
+            TypeDiscriminant::F16 => Type::F16(parsed_num as f16),
+            TypeDiscriminant::U16 => {
+                if parsed_num.floor() != parsed_num {
+                    return Err(ParserError::InvalidTypeCast(
+                        parsed_num.to_string(),
+                        TypeDiscriminant::U16,
+                    ));
+                } else {
+                    Type::U16(parsed_num as u16)
+                }
+            }
+            TypeDiscriminant::I32 => {
+                if parsed_num.floor() != parsed_num {
+                    return Err(ParserError::InvalidTypeCast(
+                        parsed_num.to_string(),
+                        TypeDiscriminant::I32,
+                    ));
+                } else {
+                    Type::I32(parsed_num as i32)
+                }
+            }
+            TypeDiscriminant::F32 => Type::F32(parsed_num as f32),
+            TypeDiscriminant::U32 => {
+                if parsed_num.floor() != parsed_num {
+                    return Err(ParserError::InvalidTypeCast(
+                        parsed_num.to_string(),
+                        TypeDiscriminant::U32,
+                    ));
+                } else {
+                    Type::U32(parsed_num as u32)
+                }
+            }
+            TypeDiscriminant::U8 => {
+                if parsed_num.floor() != parsed_num {
+                    return Err(ParserError::InvalidTypeCast(
+                        parsed_num.to_string(),
+                        TypeDiscriminant::U32,
+                    ));
+                } else {
+                    Type::U8(parsed_num as u8)
+                }
+            }
+            TypeDiscriminant::String => {
                 return Err(ParserError::InvalidTypeCast(
                     parsed_num.to_string(),
-                    TypeDiscriminant::I64,
+                    TypeDiscriminant::String,
                 ));
-            } else {
-                Type::I64(parsed_num as i64)
             }
-        }
-        TypeDiscriminant::F64 => Type::F64(parsed_num),
-        TypeDiscriminant::U64 => {
-            if parsed_num.floor() != parsed_num {
+            TypeDiscriminant::Boolean => {
+                if parsed_num == 1.0 {
+                    Type::Boolean(true)
+                } else if parsed_num == 0.0 {
+                    Type::Boolean(false)
+                } else {
+                    return Err(ParserError::InvalidTypeCast(
+                        raw_string.clone(),
+                        TypeDiscriminant::Boolean,
+                    ));
+                }
+            }
+            TypeDiscriminant::Void => Type::Void,
+            TypeDiscriminant::Struct(inner) => {
                 return Err(ParserError::InvalidTypeCast(
-                    parsed_num.to_string(),
-                    TypeDiscriminant::U64,
-                ));
-            } else {
-                Type::U64(parsed_num as u64)
-            }
-        }
-        TypeDiscriminant::I16 => {
-            if parsed_num.floor() != parsed_num {
-                return Err(ParserError::InvalidTypeCast(
-                    parsed_num.to_string(),
-                    TypeDiscriminant::I16,
-                ));
-            } else {
-                Type::I16(parsed_num as i16)
-            }
-        }
-        TypeDiscriminant::F16 => Type::F16(parsed_num as f16),
-        TypeDiscriminant::U16 => {
-            if parsed_num.floor() != parsed_num {
-                return Err(ParserError::InvalidTypeCast(
-                    parsed_num.to_string(),
-                    TypeDiscriminant::U16,
-                ));
-            } else {
-                Type::U16(parsed_num as u16)
-            }
-        }
-        TypeDiscriminant::I32 => {
-            if parsed_num.floor() != parsed_num {
-                return Err(ParserError::InvalidTypeCast(
-                    parsed_num.to_string(),
-                    TypeDiscriminant::I32,
-                ));
-            } else {
-                Type::I32(parsed_num as i32)
-            }
-        }
-        TypeDiscriminant::F32 => Type::F32(parsed_num as f32),
-        TypeDiscriminant::U32 => {
-            if parsed_num.floor() != parsed_num {
-                return Err(ParserError::InvalidTypeCast(
-                    parsed_num.to_string(),
-                    TypeDiscriminant::U32,
-                ));
-            } else {
-                Type::U32(parsed_num as u32)
-            }
-        }
-        TypeDiscriminant::U8 => {
-            if parsed_num.floor() != parsed_num {
-                return Err(ParserError::InvalidTypeCast(
-                    parsed_num.to_string(),
-                    TypeDiscriminant::U32,
-                ));
-            } else {
-                Type::U8(parsed_num as u8)
-            }
-        }
-        TypeDiscriminant::String => {
-            return Err(ParserError::InvalidTypeCast(
-                parsed_num.to_string(),
-                TypeDiscriminant::String,
-            ));
-        }
-        TypeDiscriminant::Boolean => {
-            if parsed_num == 1.0 {
-                Type::Boolean(true)
-            } else if parsed_num == 0.0 {
-                Type::Boolean(false)
-            } else {
-                return Err(ParserError::InvalidTypeCast(
-                    raw_string.clone(),
-                    TypeDiscriminant::Boolean,
+                    raw_string,
+                    TypeDiscriminant::Struct(inner),
                 ));
             }
-        }
-        TypeDiscriminant::Void => Type::Void,
-        TypeDiscriminant::Struct(inner) => {
-            return Err(ParserError::InvalidTypeCast(
-                raw_string,
-                TypeDiscriminant::Struct(inner),
-            ));
+        };
+
+        val
+    } else {
+        let parsed_num = raw_string
+            .parse::<f64>()
+            .map_err(|_| ParserError::ValueTypeUnknown(raw_string.clone()))?;
+
+        if raw_string.contains('.') {
+            Type::F64(parsed_num)
+        } else {
+            Type::I64(parsed_num as i64)
         }
     };
 
-    Ok(casted_var)
+    Ok(parsed_val)
 }

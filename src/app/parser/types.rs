@@ -101,7 +101,7 @@ impl TryInto<MathematicalSymbol> for Token {
     }
 }
 
-#[derive(Debug, Clone, Display)]
+#[derive(Debug, Clone, Display, strum_macros::EnumTryAs)]
 pub enum ParsedToken {
     NewVariable(String, TypeDiscriminant, Box<ParsedToken>),
 
@@ -124,6 +124,7 @@ pub enum ParsedToken {
     ReturnValue(Box<ParsedToken>),
 
     Comparison(Box<ParsedToken>, Order, Box<ParsedToken>, TypeDiscriminant),
+
     If(If),
 
     InitializeStruct(

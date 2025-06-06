@@ -1,10 +1,10 @@
-use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
 
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
     AddressSpace,
-    builder::Builder,
+    builder::{self, Builder},
     context::Context,
     module::Module,
     passes::PassBuilderOptions,
@@ -30,59 +30,13 @@ pub fn codegen_main(
     imported_functions: &HashMap<String, FunctionSignature>,
 ) -> Result<()> {
     let context = Context::create();
-    let module = context.create_module("main");
     let builder = context.create_builder();
+    let module = context.create_module("main");
 
     // Import functions defined by the user via llvm
     import_user_lib_functions(&context, &module, imported_functions, parsed_functions);
 
-    // We strictly only want to iterate trough the function definitions' order, because then we will avoid functions not being generated before usage.
-    for (function_name, function_definition) in parsed_functions.iter() {
-        // Create function signature
-        let function = module.add_function(
-            function_name,
-            create_fn_type_from_ty_disc(&context, function_definition.function_sig.clone()),
-            None,
-        );
-
-        // Create a BasicBlock
-        let basic_block = context.append_basic_block(function, "main_fn_entry");
-
-        // Insert the BasicBlock at the end
-        builder.position_at_end(basic_block);
-
-        // Create a HashMap of the arguments the function takes
-        let mut arguments: HashMap<String, (BasicValueEnum, TypeDiscriminant)> = HashMap::new();
-
-        // Get the arguments and store them in the HashMap
-        for (idx, argument) in function.get_param_iter().enumerate() {
-            // Get the name of the argument from the function signature's argument list
-            let argument_entry = function_definition
-                .function_sig
-                .args
-                .get_index(idx)
-                .unwrap();
-
-            // Set the name of the arguments so that it is easier to debug later
-            argument.set_name(argument_entry.0);
-
-            // Insert the entry
-            arguments.insert(
-                argument_entry.0.clone(),
-                (argument, argument_entry.1.clone()),
-            );
-        }
-
-        // Iterate through all the `ParsedToken`-s and create the LLVM-IR from the tokens
-        create_ir(
-            &module,
-            &builder,
-            &context,
-            function_definition.inner.clone(),
-            arguments,
-            function_definition.function_sig.return_type.clone(),
-        )?;
-    }
+    generate_ir(parsed_functions, &context, &module, &builder)?;
 
     // Init target
     Target::initialize_x86(&InitializationConfig::default());
@@ -131,9 +85,66 @@ pub fn codegen_main(
     Ok(())
 }
 
-pub fn import_user_lib_functions<'a>(
+fn generate_ir<'ctx>(
+    parsed_functions: &IndexMap<String, FunctionDefinition>,
+    context: &'ctx Context,
+    module: &Module<'ctx>,
+    builder: &'ctx Builder<'ctx>,
+) -> Result<(), anyhow::Error>
+{
+    for (function_name, function_definition) in parsed_functions.iter() {
+        // Create function signature
+        let function = module.add_function(
+            function_name,
+            create_fn_type_from_ty_disc(&context, function_definition.function_sig.clone()),
+            None,
+        );
+
+        // Create a BasicBlock
+        let basic_block = context.append_basic_block(function, "main_fn_entry");
+
+        // Insert the BasicBlock at the end
+        builder.position_at_end(basic_block);
+
+        // Create a HashMap of the arguments the function takes
+        let mut arguments: HashMap<String, (BasicValueEnum, TypeDiscriminant)> = HashMap::new();
+
+        // Get the arguments and store them in the HashMap
+        for (idx, argument) in function.get_param_iter().enumerate() {
+            // Get the name of the argument from the function signature's argument list
+            let argument_entry = function_definition
+                .function_sig
+                .args
+                .get_index(idx)
+                .unwrap();
+
+            // Set the name of the arguments so that it is easier to debug later
+            argument.set_name(argument_entry.0);
+
+            // Insert the entry
+            arguments.insert(
+                argument_entry.0.clone(),
+                (argument, argument_entry.1.clone()),
+            );
+        }
+
+        // Iterate through all the `ParsedToken`-s and create the LLVM-IR from the tokens
+        create_ir(
+            module,
+            builder,
+            &context,
+            function_definition.inner.clone(),
+            arguments,
+            function_definition.function_sig.return_type.clone(),
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn import_user_lib_functions<'a, 'b>(
     ctx: &'a Context,
-    module: &Module<'a>,
+    module: &'b Module<'a>,
     imported_functions: &'a HashMap<String, FunctionSignature>,
     parsed_functions: &IndexMap<String, FunctionDefinition>,
 ) {
@@ -253,19 +264,22 @@ pub fn import_user_lib_functions<'a>(
     }
 }
 
-pub fn create_ir(
-    module: &Module,
+pub fn create_ir<'main, 'ctx>(
+    module: &Module<'ctx>,
     // Inkwell IR builder
-    builder: &Builder,
+    builder: &'ctx Builder<'ctx>,
     // Inkwell Context
-    ctx: &Context,
+    ctx: &'main Context,
     // The list of ParsedToken-s
     parsed_tokens: Vec<ParsedToken>,
     // This argument is initialized with the HashMap of the arguments
-    available_arguments: HashMap<String, (BasicValueEnum, TypeDiscriminant)>,
+    available_arguments: HashMap<String, (BasicValueEnum<'ctx>, TypeDiscriminant)>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
-) -> Result<()> {
+) -> Result<()>
+where
+    'main: 'ctx,
+{
     let mut variable_map: HashMap<
         String,
         ((PointerValue, BasicMetadataTypeEnum), TypeDiscriminant),
@@ -324,32 +338,35 @@ pub fn create_ir(
     Ok(())
 }
 
-pub fn create_ir_from_parsed_token<'a>(
-    ctx: &'a Context,
-    module: &'a Module,
-    builder: &'a Builder,
+pub fn create_ir_from_parsed_token<'main, 'ctx>(
+    ctx: &'main Context,
+    module: &Module<'ctx>,
+    builder: &'ctx Builder<'ctx>,
     parsed_token: ParsedToken,
     variable_map: &mut HashMap<
         String,
         (
-            (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
             TypeDiscriminant,
         ),
     >,
     variable_reference: Option<(
         String,
-        (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
+        (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
         TypeDiscriminant,
     )>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
 ) -> anyhow::Result<
     Option<(
-        PointerValue<'a>,
-        BasicMetadataTypeEnum<'a>,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,
     )>,
-> {
+>
+where
+    'main: 'ctx,
+{
     let created_var = match dbg!(parsed_token) {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
@@ -1106,11 +1123,40 @@ pub fn create_ir_from_parsed_token<'a>(
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let val = if val.get_zero_extended_constant().unwrap() == 0 {
-                                    ctx.i32_type().const_int(0, true)
-                                } else {
-                                    ctx.i32_type().const_int(1, true)
-                                };
+                                let ty_cast_cmp = builder.build_int_compare(
+                                    inkwell::IntPredicate::EQ,
+                                    val,
+                                    ctx.i32_type().const_int(0, true),
+                                    "ty_cast_check",
+                                )?;
+
+                                let is_true = ctx.bool_type().fn_type(&[], false);
+
+                                let function = module.add_function("ty_cmp_check", is_true, None);
+
+                                let true_block =
+                                    ctx.append_basic_block(function, "ty_cast_val_check");
+
+                                builder.position_at_end(true_block);
+
+                                builder.build_return(Some(&ctx.bool_type().const_int(1, false)));
+
+                                let is_false = ctx.bool_type().fn_type(&[], false);
+
+                                let function = module.add_function("ty_cmp_check", is_false, None);
+
+                                let false_block =
+                                    ctx.append_basic_block(function, "ty_cast_val_check");
+
+                                builder.position_at_end(false_block);
+
+                                builder.build_return(Some(&ctx.bool_type().const_int(0, false)));
+
+                                builder.build_conditional_branch(
+                                    ty_cast_cmp,
+                                    true_block,
+                                    false_block,
+                                );
 
                                 builder.build_store(var_ptr, val)?;
                             }
