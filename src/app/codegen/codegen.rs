@@ -3,14 +3,7 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync:
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    AddressSpace,
-    builder::{self, Builder},
-    context::Context,
-    module::Module,
-    passes::PassBuilderOptions,
-    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
+    basic_block::BasicBlock, builder::{self, Builder}, context::Context, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue}, AddressSpace
 };
 
 use crate::{
@@ -102,7 +95,7 @@ fn generate_ir<'ctx>(
 
         // Create a BasicBlock
         let basic_block = context.append_basic_block(function, "main_fn_entry");
-
+        
         // Insert the BasicBlock at the end
         builder.position_at_end(basic_block);
 
@@ -136,6 +129,7 @@ fn generate_ir<'ctx>(
             function_definition.inner.clone(),
             arguments,
             function_definition.function_sig.return_type.clone(),
+            basic_block.clone()
         )?;
     }
 
@@ -276,6 +270,7 @@ pub fn create_ir<'main, 'ctx>(
     available_arguments: HashMap<String, (BasicValueEnum<'ctx>, TypeDiscriminant)>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
 ) -> Result<()>
 where
     'main: 'ctx,
@@ -332,6 +327,7 @@ where
             &mut variable_map,
             None,
             fn_ret_ty.clone(),
+            this_fn_block.clone(),
         )?;
     }
 
@@ -357,6 +353,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     )>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
 ) -> anyhow::Result<
     Option<(
         PointerValue<'ctx>,
@@ -382,6 +379,7 @@ where
                 variable_map,
                 Some((var_name, (ptr, ptr_ty), var_type)),
                 fn_ret_ty,
+                this_fn_block.clone()
             )?;
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
@@ -584,6 +582,7 @@ where
                     variable_map,
                     None,
                     fn_ret_ty,
+                    this_fn_block.clone()
                 )?;
 
                 if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -1123,42 +1122,9 @@ where
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let ty_cast_cmp = builder.build_int_compare(
-                                    inkwell::IntPredicate::EQ,
-                                    val,
-                                    ctx.i32_type().const_int(0, true),
-                                    "ty_cast_check",
-                                )?;
+                                let i32_val = builder.build_int_z_extend(val, ctx.i32_type(), "bool_to_i32")?;
 
-                                let is_true = ctx.bool_type().fn_type(&[], false);
-
-                                let function = module.add_function("ty_cmp_check", is_true, None);
-
-                                let true_block =
-                                    ctx.append_basic_block(function, "ty_cast_val_check");
-
-                                builder.position_at_end(true_block);
-
-                                builder.build_return(Some(&ctx.bool_type().const_int(1, false)));
-
-                                let is_false = ctx.bool_type().fn_type(&[], false);
-
-                                let function = module.add_function("ty_cmp_check", is_false, None);
-
-                                let false_block =
-                                    ctx.append_basic_block(function, "ty_cast_val_check");
-
-                                builder.position_at_end(false_block);
-
-                                builder.build_return(Some(&ctx.bool_type().const_int(0, false)));
-
-                                builder.build_conditional_branch(
-                                    ty_cast_cmp,
-                                    true_block,
-                                    false_block,
-                                );
-
-                                builder.build_store(var_ptr, val)?;
+                                builder.build_store(ref_ptr, i32_val)?;
                             }
                             TypeDiscriminant::F32 => {
                                 let val = builder
@@ -1345,6 +1311,7 @@ where
                     variable_map,
                     Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
                     fn_ret_ty.clone(),
+                    this_fn_block.clone()
                 )?;
 
                 // Push the argument to the list of arguments
@@ -1551,6 +1518,7 @@ where
                                 variable_map,
                                 Some((String::new(), (f_ptr, f_ty.into()), dbg!(ty_disc.clone()))),
                                 fn_ret_ty,
+                                this_fn_block.clone(),
                             )?;
                         }
                     }
@@ -1568,6 +1536,7 @@ where
                             variable_map,
                             Some((dbg!(variable_name), (*ptr, *ty), dbg!(ty_disc.clone()))),
                             fn_ret_ty,
+                                this_fn_block.clone(),
                         )?;
                     }
                 }
@@ -1592,6 +1561,7 @@ where
                 variable_map,
                 Some((var_name, (ptr, ptr_ty), fn_ret_ty.clone())),
                 fn_ret_ty.clone(),
+                                this_fn_block.clone(),
             )?;
 
             match ptr_ty {
@@ -1667,6 +1637,7 @@ where
                         variable_map,
                         Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
                         fn_ret_ty.clone(),
+                                this_fn_block.clone(),
                     )?;
 
                     // Load the temp value to memory and store it
@@ -1717,6 +1688,7 @@ where
                     comparison_hand_side_ty.clone(),
                 )),
                 fn_ret_ty.clone(),
+                                this_fn_block.clone(),
             )?;
             create_ir_from_parsed_token(
                 ctx,
@@ -1730,6 +1702,7 @@ where
                     comparison_hand_side_ty.clone(),
                 )),
                 fn_ret_ty,
+                                this_fn_block.clone(),
             )?;
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
