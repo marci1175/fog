@@ -1,9 +1,17 @@
-use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter};
 
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    basic_block::BasicBlock, builder::{self, Builder}, context::Context, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue}, AddressSpace
+    AddressSpace,
+    basic_block::BasicBlock,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    passes::PassBuilderOptions,
+    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue},
 };
 
 use crate::{
@@ -83,19 +91,18 @@ fn generate_ir<'ctx>(
     context: &'ctx Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-) -> Result<(), anyhow::Error>
-{
+) -> Result<(), anyhow::Error> {
     for (function_name, function_definition) in parsed_functions.iter() {
         // Create function signature
         let function = module.add_function(
             function_name,
-            create_fn_type_from_ty_disc(&context, function_definition.function_sig.clone()),
+            create_fn_type_from_ty_disc(context, function_definition.function_sig.clone()),
             None,
         );
 
         // Create a BasicBlock
         let basic_block = context.append_basic_block(function, "main_fn_entry");
-        
+
         // Insert the BasicBlock at the end
         builder.position_at_end(basic_block);
 
@@ -125,20 +132,20 @@ fn generate_ir<'ctx>(
         create_ir(
             module,
             builder,
-            &context,
+            context,
             function_definition.inner.clone(),
             arguments,
             function_definition.function_sig.return_type.clone(),
-            basic_block.clone()
+            basic_block,
         )?;
     }
 
     Ok(())
 }
 
-pub fn import_user_lib_functions<'a, 'b>(
+pub fn import_user_lib_functions<'a>(
     ctx: &'a Context,
-    module: &'b Module<'a>,
+    module: &Module<'a>,
     imported_functions: &'a HashMap<String, FunctionSignature>,
     parsed_functions: &IndexMap<String, FunctionDefinition>,
 ) {
@@ -327,7 +334,7 @@ where
             &mut variable_map,
             None,
             fn_ret_ty.clone(),
-            this_fn_block.clone(),
+            this_fn_block,
         )?;
     }
 
@@ -379,7 +386,7 @@ where
                 variable_map,
                 Some((var_name, (ptr, ptr_ty), var_type)),
                 fn_ret_ty,
-                this_fn_block.clone()
+                this_fn_block,
             )?;
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
@@ -582,7 +589,7 @@ where
                     variable_map,
                     None,
                     fn_ret_ty,
-                    this_fn_block.clone()
+                    this_fn_block,
                 )?;
 
                 if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -1122,7 +1129,11 @@ where
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let i32_val = builder.build_int_z_extend(val, ctx.i32_type(), "bool_to_i32")?;
+                                let i32_val = builder.build_int_z_extend(
+                                    val,
+                                    ctx.i32_type(),
+                                    "bool_to_i32",
+                                )?;
 
                                 builder.build_store(ref_ptr, i32_val)?;
                             }
@@ -1311,7 +1322,7 @@ where
                     variable_map,
                     Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
                     fn_ret_ty.clone(),
-                    this_fn_block.clone()
+                    this_fn_block,
                 )?;
 
                 // Push the argument to the list of arguments
@@ -1518,7 +1529,7 @@ where
                                 variable_map,
                                 Some((String::new(), (f_ptr, f_ty.into()), dbg!(ty_disc.clone()))),
                                 fn_ret_ty,
-                                this_fn_block.clone(),
+                                this_fn_block,
                             )?;
                         }
                     }
@@ -1536,7 +1547,7 @@ where
                             variable_map,
                             Some((dbg!(variable_name), (*ptr, *ty), dbg!(ty_disc.clone()))),
                             fn_ret_ty,
-                                this_fn_block.clone(),
+                            this_fn_block,
                         )?;
                     }
                 }
@@ -1561,7 +1572,7 @@ where
                 variable_map,
                 Some((var_name, (ptr, ptr_ty), fn_ret_ty.clone())),
                 fn_ret_ty.clone(),
-                                this_fn_block.clone(),
+                this_fn_block,
             )?;
 
             match ptr_ty {
@@ -1637,7 +1648,7 @@ where
                         variable_map,
                         Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
                         fn_ret_ty.clone(),
-                                this_fn_block.clone(),
+                        this_fn_block,
                     )?;
 
                     // Load the temp value to memory and store it
@@ -1688,7 +1699,7 @@ where
                     comparison_hand_side_ty.clone(),
                 )),
                 fn_ret_ty.clone(),
-                                this_fn_block.clone(),
+                this_fn_block,
             )?;
             create_ir_from_parsed_token(
                 ctx,
@@ -1702,7 +1713,7 @@ where
                     comparison_hand_side_ty.clone(),
                 )),
                 fn_ret_ty,
-                                this_fn_block.clone(),
+                this_fn_block,
             )?;
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;

@@ -154,7 +154,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             .parse::<f64>()
             .map_err(|_| ParserError::InvalidTypeCast(raw_string.clone(), dest_type.clone()))?;
 
-        let val = match dest_type {
+        match dest_type {
             TypeDiscriminant::I64 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
@@ -253,9 +253,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                     TypeDiscriminant::Struct(inner),
                 ));
             }
-        };
-
-        val
+        }
     } else {
         let parsed_num = raw_string
             .parse::<f64>()
