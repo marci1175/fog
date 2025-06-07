@@ -371,7 +371,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    let created_var = match dbg!(parsed_token) {
+    let created_var = match parsed_token {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
@@ -621,22 +621,24 @@ where
                                         .build_load(var_ty.into_int_type(), var_ptr, "")?
                                         .into_int_value();
 
-                                    let cast_res = ctx.i64_type().const_int(
-                                        value.get_sign_extended_constant().unwrap() as u64,
-                                        false,
-                                    );
+                                    let cast_res = builder.build_int_cast(
+                                        value,
+                                        ctx.i64_type(),
+                                        "i64_to_u64",
+                                    )?;
 
                                     builder.build_store(ref_ptr, cast_res)?;
                                 }
-                                TypeDiscriminant::I32 => {
+                                TypeDiscriminant::I32 | TypeDiscriminant::U32 => {
                                     let value = builder
                                         .build_load(var_ty.into_int_type(), var_ptr, "")?
                                         .into_int_value();
 
-                                    let cast_res = ctx.i32_type().const_int(
-                                        value.get_sign_extended_constant().unwrap() as u64,
-                                        true,
-                                    );
+                                    let cast_res = builder.build_int_truncate(
+                                        value,
+                                        ctx.i32_type(),
+                                        "i64_to_i32",
+                                    )?;
 
                                     builder.build_store(ref_ptr, cast_res)?;
                                 }
@@ -653,27 +655,16 @@ where
 
                                     builder.build_store(ref_ptr, cast_res)?;
                                 }
-                                TypeDiscriminant::U32 => {
+                                TypeDiscriminant::I16 | TypeDiscriminant::U16 => {
                                     let value = builder
                                         .build_load(var_ty.into_int_type(), var_ptr, "")?
                                         .into_int_value();
 
-                                    let cast_res = ctx.i32_type().const_int(
-                                        value.get_sign_extended_constant().unwrap() as u64,
-                                        false,
-                                    );
-
-                                    builder.build_store(ref_ptr, cast_res)?;
-                                }
-                                TypeDiscriminant::I16 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = ctx.i16_type().const_int(
-                                        value.get_sign_extended_constant().unwrap() as u64,
-                                        true,
-                                    );
+                                    let cast_res = builder.build_int_truncate(
+                                        value,
+                                        ctx.i16_type(),
+                                        "i64_to_i32",
+                                    )?;
 
                                     builder.build_store(ref_ptr, cast_res)?;
                                 }
@@ -690,27 +681,16 @@ where
 
                                     builder.build_store(ref_ptr, cast_res)?;
                                 }
-                                TypeDiscriminant::U16 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = ctx.i16_type().const_int(
-                                        value.get_sign_extended_constant().unwrap() as u64,
-                                        false,
-                                    );
-
-                                    builder.build_store(ref_ptr, cast_res)?;
-                                }
                                 TypeDiscriminant::U8 => {
                                     let value = builder
                                         .build_load(var_ty.into_int_type(), var_ptr, "")?
                                         .into_int_value();
 
-                                    let cast_res = ctx.i8_type().const_int(
-                                        value.get_sign_extended_constant().unwrap() as u64,
-                                        false,
-                                    );
+                                    let cast_res = builder.build_int_truncate(
+                                        value,
+                                        ctx.i8_type(),
+                                        "i64_to_i32",
+                                    )?;
 
                                     builder.build_store(ref_ptr, cast_res)?;
                                 }
@@ -1294,6 +1274,8 @@ where
             let function_value = module
                 .get_function(&fn_name)
                 .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
+
+            dbg!(&parsed_tokens);
 
             let sig_iter = fn_sig.args.iter().map(|(key, value)| {
                 (

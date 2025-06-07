@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![no_main]
 
-use libc::putchar;
+use libc::{c_char, c_int, putchar};
 
 #[cfg(not(any(test, feature = "std")))]
 #[panic_handler]

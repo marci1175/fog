@@ -163,7 +163,7 @@ pub fn parse_value(
         }
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
-        match dbg!(current_token) {
+        match current_token {
             // If any mathematical expression is present in the tokens
             Token::Addition | Token::Subtraction | Token::Multiplication | Token::Division => {
                 // Grab the next token after the mathematical expression
@@ -221,7 +221,7 @@ pub fn parse_value(
 
                 // Initialize parsed token with a value.
                 if parsed_token.is_none() {
-                    parsed_token = Some(dbg!(parsed_value));
+                    parsed_token = Some(parsed_value);
 
                     comparison_other_side_ty = Some(ty);
                 }
@@ -244,7 +244,6 @@ pub fn parse_value(
                 // Initialize parsed token with a value.
                 if parsed_token.is_none() {
                     parsed_token = Some(parsed_value);
-
                     comparison_other_side_ty = Some(ty);
                 }
             }
@@ -269,7 +268,11 @@ pub fn parse_value(
                 }
             }
 
-            Token::Comma | Token::CloseParentheses | Token::LineBreak => break,
+            Token::Comma | Token::CloseParentheses | Token::LineBreak => {
+                println!("asd");
+
+                break
+            },
 
             Token::Equal
             | Token::NotEqual
@@ -464,7 +467,7 @@ pub fn parse_token_as_value(
                         .into());
                     }
 
-                    (parsed_token, desired_variable_type)
+                    (dbg!(parsed_token), desired_variable_type)
                 }
             }
             // If the identifier could not be found in the function list search in the variable scope
@@ -520,6 +523,30 @@ pub fn parse_token_as_value(
                             struct_def,
                             &mut struct_field_reference,
                         )?;
+
+                        if let Some(Token::As) = tokens.get(*token_idx) {
+                            if let Some(Token::TypeDefinition(target_type)) =
+                                tokens.get(*token_idx + 1)
+                            {
+                                *token_idx += 2;
+
+                                return Ok((ParsedToken::TypeCast(
+                                    Box::new(ParsedToken::VariableReference(
+                                        super::types::VariableReference::StructFieldReference(
+                                            struct_field_reference,
+                                            struct_def.clone(),
+                                        ),
+                                    )),
+                                    target_type.clone(),
+                                ), target_type.clone()));
+                            } else {
+                                // Throw an error
+                                return Err(ParserError::SyntaxError(
+                                    super::error::SyntaxError::AsRequiresTypeDef,
+                                )
+                                .into());
+                            }
+                        }
 
                         return Ok((
                             ParsedToken::VariableReference(
@@ -732,6 +759,8 @@ pub fn init_struct(
 
     let mut idx: usize = 0;
 
+    let mut nth_field: usize = 0;
+
     while idx < struct_slice.len() {
         if let Some(Token::Identifier(field_name)) = struct_slice.get(idx) {
             if let Some(Token::Colon) = struct_slice.get(idx + 1) {
@@ -756,6 +785,11 @@ pub fn init_struct(
                 struct_field_init_map.insert(field_name.to_string(), Box::new(parsed_value));
 
                 if let Some(Token::Comma) = struct_slice.get(idx) {
+                    nth_field += 1;
+                    idx += 1;
+                    continue;
+                } else if nth_field + 1 == this_struct_field.len() {
+                    nth_field += 1;
                     idx += 1;
                     continue;
                 }

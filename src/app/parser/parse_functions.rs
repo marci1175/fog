@@ -776,8 +776,8 @@ pub fn parse_function_call_args(
 
                 arguments.insert(arg_name.clone(), parsed_argument);
             } else {
-                let args_list_len = tokens[tokens_idx..].len();
-
+                let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
+                
                 let mut token_buf = Vec::new();
 
                 // We should start by finding the comma and parsing the tokens in between the current idx and the comma
@@ -793,8 +793,8 @@ pub fn parse_function_call_args(
                         // We can safely unwrap here
                         let fn_argument = this_function_args.first_entry().unwrap();
 
-                        let (parsed_argument, _jump_idx) = parse_value(
-                            &token_buf,
+                        let (parsed_argument, jump_idx) = parse_value(
+                            dbg!(&token_buf),
                             function_signatures.clone(),
                             variable_scope,
                             fn_argument.get().clone(),
@@ -802,10 +802,12 @@ pub fn parse_function_call_args(
                             custom_items.clone(),
                         )?;
 
+                        tokens_idx += 2;
+
                         token_buf.clear();
 
-                        arguments.insert(fn_argument.key().clone(), parsed_argument);
-
+                        arguments.insert(fn_argument.key().clone(), dbg!(parsed_argument));
+                        
                         // Remove the argument from the argument list
                         fn_argument.swap_remove();
 
@@ -835,10 +837,11 @@ pub fn parse_function_call_args(
                     if tokens_idx == args_list_len - 1 {
                         token_buf.push(token.clone());
                     }
+                    
+                    dbg!(&this_function_args);
 
                     // We can safely unwrap here
                     let fn_argument = this_function_args.first_entry();
-
                     if let Some(fn_argument) = fn_argument {
                         let (parsed_argument, _jump_idx) = parse_value(
                             &token_buf,
@@ -854,7 +857,7 @@ pub fn parse_function_call_args(
                         arguments.insert(fn_argument.key().clone(), parsed_argument);
 
                         // Remove the argument from the argument list
-                        fn_argument.swap_remove();
+                        fn_argument.shift_remove();
                     } else {
                         return Ok((arguments, tokens_idx));
                     }
