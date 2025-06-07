@@ -271,8 +271,8 @@ pub fn parse_value(
             Token::Comma | Token::CloseParentheses | Token::LineBreak => {
                 println!("asd");
 
-                break
-            },
+                break;
+            }
 
             Token::Equal
             | Token::NotEqual
@@ -530,15 +530,18 @@ pub fn parse_token_as_value(
                             {
                                 *token_idx += 2;
 
-                                return Ok((ParsedToken::TypeCast(
-                                    Box::new(ParsedToken::VariableReference(
-                                        super::types::VariableReference::StructFieldReference(
-                                            struct_field_reference,
-                                            struct_def.clone(),
-                                        ),
-                                    )),
+                                return Ok((
+                                    ParsedToken::TypeCast(
+                                        Box::new(ParsedToken::VariableReference(
+                                            super::types::VariableReference::StructFieldReference(
+                                                struct_field_reference,
+                                                struct_def.clone(),
+                                            ),
+                                        )),
+                                        target_type.clone(),
+                                    ),
                                     target_type.clone(),
-                                ), target_type.clone()));
+                                ));
                             } else {
                                 // Throw an error
                                 return Err(ParserError::SyntaxError(

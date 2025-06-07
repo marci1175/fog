@@ -13,6 +13,8 @@ pub enum ParserError {
     InvalidSignatureDefinition,
     #[error("The function is called with the wrong types of arguments.")]
     InvalidFunctionCallArguments,
+    #[error("Function has been called with the wrong amount of arguments.")]
+    InvalidFunctionArgumentCount,
     #[error("Type `{0}` mismatches type `{1}`.")]
     TypeError(TypeDiscriminant, TypeDiscriminant),
     #[error("Source code contains a Syntax Error: {0}")]

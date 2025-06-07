@@ -451,7 +451,7 @@ fn parse_function_block(
     if !tokens.is_empty() {
         while token_idx < tokens.len() {
             let current_token = tokens[token_idx].clone();
-
+            dbg!(&tokens[token_idx..]);
             if let Token::TypeDefinition(var_type) = current_token {
                 if let Token::Identifier(var_name) = tokens[token_idx + 1].clone() {
                     if tokens[token_idx + 2] == Token::SetValue {
@@ -593,7 +593,7 @@ fn parse_function_block(
                         variables_passed,
                     ));
 
-                    token_idx += jumped_idx;
+                    token_idx += jumped_idx + 2;
                 } else if let Some(custom_type) = custom_items.get(ident_name) {
                     match custom_type {
                         CustomType::Struct(struct_instance) => {
@@ -739,7 +739,7 @@ pub fn parse_function_call_args(
     custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(IndexMap<String, ParsedToken>, usize)> {
     let mut tokens_idx = 0;
-    let args_list_len = tokens[tokens_idx..].len();
+    let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
 
     // Arguments which will passed in to the function
     let mut arguments: IndexMap<String, ParsedToken> = IndexMap::new();
@@ -751,7 +751,7 @@ pub fn parse_function_call_args(
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
-
+        dbg!(&current_token);
         if let Token::Identifier(arg_name) = current_token.clone() {
             if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
                 let argument_type = this_function_args
@@ -776,8 +776,8 @@ pub fn parse_function_call_args(
 
                 arguments.insert(arg_name.clone(), parsed_argument);
             } else {
-                let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
-                
+                let args_list_len = dbg!(&tokens[tokens_idx..]).len() + tokens_idx;
+
                 let mut token_buf = Vec::new();
 
                 // We should start by finding the comma and parsing the tokens in between the current idx and the comma
@@ -790,26 +790,32 @@ pub fn parse_function_call_args(
                             token_buf.push(token.clone());
                         }
 
+                        dbg!(&token_buf);
+
                         // We can safely unwrap here
-                        let fn_argument = this_function_args.first_entry().unwrap();
+                        let fn_argument_query = this_function_args.first_entry();
 
-                        let (parsed_argument, jump_idx) = parse_value(
-                            dbg!(&token_buf),
-                            function_signatures.clone(),
-                            variable_scope,
-                            fn_argument.get().clone(),
-                            standard_function_table.clone(),
-                            custom_items.clone(),
-                        )?;
+                        dbg!(&fn_argument_query);
 
-                        tokens_idx += 2;
+                        if let Some(fn_argument) = fn_argument_query {
+                            let (parsed_argument, _jump_idx) = parse_value(
+                                &token_buf,
+                                function_signatures.clone(),
+                                variable_scope,
+                                fn_argument.get().clone(),
+                                standard_function_table.clone(),
+                                custom_items.clone(),
+                            )?;
 
-                        token_buf.clear();
+                            tokens_idx += 1;
 
-                        arguments.insert(fn_argument.key().clone(), dbg!(parsed_argument));
-                        
-                        // Remove the argument from the argument list
-                        fn_argument.swap_remove();
+                            token_buf.clear();
+
+                            arguments.insert(fn_argument.key().clone(), parsed_argument);
+
+                            // Remove the argument from the argument list
+                            fn_argument.shift_remove();
+                        }
 
                         break;
                     } else {
@@ -818,8 +824,6 @@ pub fn parse_function_call_args(
 
                     tokens_idx += 1;
                 }
-
-                return Ok((arguments, tokens_idx));
             }
         } else if Token::CloseParentheses == current_token {
             break;
@@ -837,12 +841,11 @@ pub fn parse_function_call_args(
                     if tokens_idx == args_list_len - 1 {
                         token_buf.push(token.clone());
                     }
-                    
-                    dbg!(&this_function_args);
 
                     // We can safely unwrap here
                     let fn_argument = this_function_args.first_entry();
-                    if let Some(fn_argument) = fn_argument {
+
+                    if let Some(fn_argument) = dbg!(fn_argument) {
                         let (parsed_argument, _jump_idx) = parse_value(
                             &token_buf,
                             function_signatures.clone(),
@@ -851,6 +854,8 @@ pub fn parse_function_call_args(
                             standard_function_table.clone(),
                             custom_items.clone(),
                         )?;
+
+                        tokens_idx += token_buf.len();
 
                         token_buf.clear();
 
@@ -870,6 +875,11 @@ pub fn parse_function_call_args(
                 tokens_idx += 1;
             }
         }
+    }
+
+    if !this_function_args.is_empty() {
+        dbg!(&this_function_args);
+        return Err(ParserError::InvalidFunctionArgumentCount.into());
     }
 
     Ok((arguments, tokens_idx))
