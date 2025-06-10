@@ -102,6 +102,25 @@ pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) 
     Err(ParserError::SyntaxError(super::error::SyntaxError::LeftOpenParentheses).into())
 }
 
+pub fn find_closing_comma(slice: &[Token]) -> Result<usize> {
+    let mut paren_level = 0;
+
+    for (idx, item) in slice.iter().enumerate() {
+        if *item == Token::OpenParentheses {
+            paren_level += 1;
+        }
+        else if *item == Token::CloseParentheses {
+            paren_level -= 1;
+        }
+
+        if *item == Token::Comma && paren_level == 0 || slice.len() - 1 == idx {
+            return Ok(idx);
+        }
+    }
+
+    Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionArgument).into())
+}
+
 /// Pass in 0 for the `open_braces_count` if you're searching for the very next closing token on the same level.
 pub fn find_closing_braces(
     braces_start_slice: &[Token],
@@ -269,10 +288,8 @@ pub fn parse_value(
             }
 
             Token::Comma | Token::CloseParentheses | Token::LineBreak => {
-                println!("asd");
-
                 break;
-            }
+            },
 
             Token::Equal
             | Token::NotEqual
@@ -467,7 +484,7 @@ pub fn parse_token_as_value(
                         .into());
                     }
 
-                    (dbg!(parsed_token), desired_variable_type)
+                    (parsed_token, desired_variable_type)
                 }
             }
             // If the identifier could not be found in the function list search in the variable scope
@@ -512,9 +529,6 @@ pub fn parse_token_as_value(
 
                         let mut struct_field_reference =
                             StructFieldReference::from_single_entry(identifier.clone());
-
-                        let desired_variable_type =
-                            desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
 
                         let field_type = get_struct_field_stack(
                             tokens,

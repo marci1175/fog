@@ -11,7 +11,7 @@ use inkwell::{
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, PointerValue},
+    values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
 };
 
 use crate::{
@@ -1274,8 +1274,6 @@ where
             let function_value = module
                 .get_function(&fn_name)
                 .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
-
-            dbg!(&parsed_tokens);
 
             let sig_iter = fn_sig.args.iter().map(|(key, value)| {
                 (

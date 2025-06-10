@@ -61,6 +61,8 @@ pub enum SyntaxError {
     InvalidStatementDefinition,
     #[error("The code contains an invalid function definition.")]
     InvalidFunctionDefinition,
+    #[error("The code contains an invalid function argument.")]
+    InvalidFunctionArgument,
     #[error("An invalid mathematical expression is present in the code.")]
     InvalidMathematicalExpressionDefinition,
     #[error("An invalid `SetValue` definition is present for '{0}'.")]
