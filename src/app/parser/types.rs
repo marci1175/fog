@@ -239,7 +239,7 @@ impl Deref for Imports {
 
 #[derive(Debug, Clone)]
 pub struct If {
-    pub condition: Box<ParsedToken>,
+    pub condition: Vec<ParsedToken>,
 
     pub body: Vec<ParsedToken>,
 }

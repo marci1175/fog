@@ -118,7 +118,7 @@ pub fn find_closing_comma(slice: &[Token]) -> Result<usize> {
         }
     }
 
-    Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionArgument).into())
+    Err(ParserError::InvalidFunctionCallArguments.into())
 }
 
 /// Pass in 0 for the `open_braces_count` if you're searching for the very next closing token on the same level.

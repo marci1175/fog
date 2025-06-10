@@ -1,4 +1,4 @@
-import printf(str: string, val: int, val3: string, val4: string): int;
+import printf(str: string): int;
 
 struct kg {
     inner: float,
@@ -13,7 +13,11 @@ function asd(a: int, b: float): int {
 }
 
 function main(): int {
-    printf("value: %d, %s, %s", asd(a = 23, b = 23.4), val3 = "szia", "udv");
+    if {
+        return 0 == 2;
+    } {
+        printf("Hello");
+    }
 
     return 0;
 }

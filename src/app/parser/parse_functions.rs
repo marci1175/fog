@@ -2,7 +2,7 @@ use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
-use crate::app::{parser::parser::find_closing_comma, type_system::type_system::{Type, TypeDiscriminant}};
+use crate::app::{parser::{parser::find_closing_comma, types::If}, type_system::type_system::{Type, TypeDiscriminant}};
 
 use super::{
     error::{ParserError, SyntaxError},
@@ -418,6 +418,7 @@ pub fn parse_functions(
                 unparsed_function.function_sig.clone(),
                 function_imports.clone(),
                 custom_items.clone(),
+                unparsed_function.function_sig.args.clone()
             )?,
         };
 
@@ -438,19 +439,18 @@ fn parse_function_block(
     this_function_signature: FunctionSignature,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
+    mut variable_scope: IndexMap<String, TypeDiscriminant>,
 ) -> Result<Vec<ParsedToken>> {
     let mut token_idx = 0;
 
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
-
-    let mut variable_scope: IndexMap<String, TypeDiscriminant> =
-        this_function_signature.args.clone();
 
     let mut has_return = false;
 
     if !tokens.is_empty() {
         while token_idx < tokens.len() {
             let current_token = tokens[token_idx].clone();
+            
             if let Token::TypeDefinition(var_type) = current_token {
                 if let Token::Identifier(var_name) = tokens[token_idx + 1].clone() {
                     if tokens[token_idx + 2] == Token::SetValue {
@@ -643,7 +643,7 @@ fn parse_function_block(
                 } else {
                     return Err(ParserError::VariableNotFound(ident_name.clone()).into());
                 }
-            } else if let Token::Return = current_token {
+            } else if Token::Return == current_token {
                 has_return = true;
 
                 token_idx += 1;
@@ -671,6 +671,39 @@ fn parse_function_block(
 
                     parsed_tokens.push(ParsedToken::ReturnValue(Box::new(returned_value)));
                 }
+            }
+            else if Token::If == current_token {
+                token_idx += 1;
+
+                if let Token::OpenBraces = tokens[token_idx] {
+                    token_idx += 1;
+                    let paren_close_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+
+                    // This is what we have to evaulate in order to execute the appropriate branch of the if statement
+                    let cond_slice = tokens[token_idx..paren_close_idx].to_vec();
+
+                    let condition = parse_function_block(cond_slice, function_signatures.clone(), FunctionSignature { args: IndexMap::new(), return_type:TypeDiscriminant::Boolean }, function_imports.clone(), custom_items.clone(), variable_scope.clone())?;
+                    
+                    token_idx = paren_close_idx + 1;
+
+                    if Token::OpenBraces == tokens[token_idx] {
+                        token_idx += 1;
+
+                        let paren_close_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+
+                        let true_block_slice = tokens[token_idx..paren_close_idx].to_vec();
+
+                        let true_block = parse_function_block(true_block_slice, function_signatures.clone(), FunctionSignature { args: IndexMap::new(), return_type:TypeDiscriminant::Void }, function_imports.clone(), custom_items.clone(), variable_scope.clone())?;
+                        
+                        parsed_tokens.push(ParsedToken::If(If { condition: condition, body: true_block }));
+
+                        token_idx = paren_close_idx + 1;
+
+                        continue;
+                    }
+                }
+
+                return Err(ParserError::SyntaxError(SyntaxError::InvalidIfConditionDefinition).into());
             }
 
             token_idx += 1;

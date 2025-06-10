@@ -61,8 +61,6 @@ pub enum SyntaxError {
     InvalidStatementDefinition,
     #[error("The code contains an invalid function definition.")]
     InvalidFunctionDefinition,
-    #[error("The code contains an invalid function argument.")]
-    InvalidFunctionArgument,
     #[error("An invalid mathematical expression is present in the code.")]
     InvalidMathematicalExpressionDefinition,
     #[error("An invalid `SetValue` definition is present for '{0}'.")]
@@ -99,4 +97,6 @@ pub enum SyntaxError {
     InvalidStructExtensionPlacement,
     #[error("Token `{0}` cannot be used to comapre values.")]
     InvalidTokenComparisonUsage(Token),
+    #[error(r#"The condition should be surrounded by braces. ie: `if {{x > 3}} {{}}`"#)]
+    InvalidIfConditionDefinition,
 }
