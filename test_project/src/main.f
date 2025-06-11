@@ -9,8 +9,6 @@ function main(): int {
 
     if (suly.inner > 30.0) {
         printf("Hello");
-    } else {
-        printf("Not Hello");
     }
 
     return 0;

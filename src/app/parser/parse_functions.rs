@@ -685,7 +685,7 @@ fn parse_function_block(
                     let cond_slice = &tokens[token_idx..paren_close_idx];
 
                     let (condition, idx) = parse_value(
-                        &cond_slice,
+                        cond_slice,
                         function_signatures.clone(),
                         &mut variable_scope,
                         TypeDiscriminant::Boolean,
