@@ -4,19 +4,13 @@ struct kg {
     inner: float,
 }
 
-struct marci {
-    suly: kg,
-}
-
-function asd(a: int, b: float): int {
-    return 2;
-}
-
 function main(): int {
-    if {
-        return 0 == 2;
-    } {
+    kg suly = kg { inner: 103.12 };
+
+    if (suly.inner > 30.0) {
         printf("Hello");
+    } else {
+        printf("Not Hello");
     }
 
     return 0;

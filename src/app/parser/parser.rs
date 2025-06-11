@@ -108,8 +108,7 @@ pub fn find_closing_comma(slice: &[Token]) -> Result<usize> {
     for (idx, item) in slice.iter().enumerate() {
         if *item == Token::OpenParentheses {
             paren_level += 1;
-        }
-        else if *item == Token::CloseParentheses {
+        } else if *item == Token::CloseParentheses {
             paren_level -= 1;
         }
 
@@ -289,7 +288,7 @@ pub fn parse_value(
 
             Token::Comma | Token::CloseParentheses | Token::LineBreak => {
                 break;
-            },
+            }
 
             Token::Equal
             | Token::NotEqual
@@ -322,7 +321,11 @@ pub fn parse_value(
                 }
             }
 
-            _ => unimplemented!(),
+            _ => {
+                dbg!(current_token);
+
+                unimplemented!()
+            }
         }
     }
 
@@ -347,7 +350,7 @@ pub fn parse_token_as_value(
     desired_variable_type: Option<TypeDiscriminant>,
     // Universal token_idx, this sets which token we are currently parsing
     token_idx: &mut usize,
-    // The token we want to evaluate
+    // The token we want to evaluate, this is the first token of the slice most of the time
     eval_token: &Token,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,

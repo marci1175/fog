@@ -1,54 +1,47 @@
 ; ModuleID = 'main'
 source_filename = "main"
 
-declare i32 @printf(ptr, i32, ptr, ptr)
+%kg = type { float }
 
-define i32 @asd(i32 %a, float %b) {
-main_fn_entry:
-  %a1 = alloca i32, align 4
-  store i32 %a, ptr %a1, align 4
-  %b2 = alloca float, align 4
-  store float %b, ptr %b2, align 4
-  %ret_tmp_var = alloca i32, align 4
-  store i32 2, ptr %ret_tmp_var, align 4
-  %ret_tmp_var3 = load i32, ptr %ret_tmp_var, align 4
-  ret i32 %ret_tmp_var3
-}
+declare i32 @printf(ptr)
 
 define i32 @main() {
 main_fn_entry:
+  %suly = alloca %kg, align 8
+  %strct_init = alloca %kg, align 8
+  %field_gep = getelementptr inbounds %kg, ptr %strct_init, i32 0, i32 0
+  store float 0x4059C7AE20000000, ptr %field_gep, align 4
+  %constructed_struct = load %kg, ptr %strct_init, align 4
+  store %kg %constructed_struct, ptr %suly, align 4
+  %deref_strct_val = load float, ptr %suly, align 4
+  %cmp = fcmp ogt float %deref_strct_val, 3.000000e+01
+  br i1 %cmp, label %cond_branch_true, label %cond_branch_false
+
+cond_branch_true:                                 ; preds = %main_fn_entry
   %str = alloca ptr, align 8
-  %string_buffer = alloca [18 x i8], align 1
-  store [18 x i8] c"value: %d, %s, %s\00", ptr %string_buffer, align 1
+  %string_buffer = alloca [6 x i8], align 1
+  store [6 x i8] c"Hello\00", ptr %string_buffer, align 1
   store ptr %string_buffer, ptr %str, align 8
-  %str1 = load ptr, ptr %str, align 8
-  %val = alloca i32, align 4
-  %a = alloca i32, align 4
-  store i32 23, ptr %a, align 4
-  %a2 = load i32, ptr %a, align 4
-  %b = alloca float, align 4
-  store float 0x4037666660000000, ptr %b, align 4
-  %b3 = load float, ptr %b, align 4
-  %function_call = call i32 @asd(i32 %a2, float %b3)
-  store i32 %function_call, ptr %val, align 4
-  %val4 = load i32, ptr %val, align 4
-  store i32 %val4, ptr %val, align 4
-  %val5 = load i32, ptr %val, align 4
-  %val3 = alloca ptr, align 8
-  %string_buffer6 = alloca [5 x i8], align 1
-  store [5 x i8] c"szia\00", ptr %string_buffer6, align 1
-  store ptr %string_buffer6, ptr %val3, align 8
-  %val37 = load ptr, ptr %val3, align 8
-  %val48 = alloca ptr, align 8
-  %string_buffer9 = alloca [4 x i8], align 1
-  store [4 x i8] c"udv\00", ptr %string_buffer9, align 1
-  store ptr %string_buffer9, ptr %val48, align 8
-  %val410 = load ptr, ptr %val48, align 8
-  %function_call11 = call i32 @printf(ptr %str1, i32 %val5, ptr %val37, ptr %val410)
+  %str2 = load ptr, ptr %str, align 8
+  %function_call = call i32 @printf(ptr %str2)
   %0 = alloca i32, align 4
-  store i32 %function_call11, ptr %0, align 4
+  store i32 %function_call, ptr %0, align 4
+  br label %cond_branch_uncond
+
+cond_branch_false:                                ; preds = %main_fn_entry
+  %str3 = alloca ptr, align 8
+  %string_buffer4 = alloca [10 x i8], align 1
+  store [10 x i8] c"Not Hello\00", ptr %string_buffer4, align 1
+  store ptr %string_buffer4, ptr %str3, align 8
+  %str5 = load ptr, ptr %str3, align 8
+  %function_call6 = call i32 @printf(ptr %str5)
+  %1 = alloca i32, align 4
+  store i32 %function_call6, ptr %1, align 4
+  br label %cond_branch_uncond
+
+cond_branch_uncond:                               ; preds = %cond_branch_false, %cond_branch_true
   %ret_tmp_var = alloca i32, align 4
   store i32 0, ptr %ret_tmp_var, align 4
-  %ret_tmp_var12 = load i32, ptr %ret_tmp_var, align 4
-  ret i32 %ret_tmp_var12
+  %ret_tmp_var7 = load i32, ptr %ret_tmp_var, align 4
+  ret i32 %ret_tmp_var7
 }

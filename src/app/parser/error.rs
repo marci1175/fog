@@ -97,6 +97,6 @@ pub enum SyntaxError {
     InvalidStructExtensionPlacement,
     #[error("Token `{0}` cannot be used to comapre values.")]
     InvalidTokenComparisonUsage(Token),
-    #[error(r#"The condition should be surrounded by braces. ie: `if {{x > 3}} {{}}`"#)]
+    #[error(r#"The condition should be surrounded by parentheses. ie: `if (x > 3) {{}}`"#)]
     InvalidIfConditionDefinition,
 }

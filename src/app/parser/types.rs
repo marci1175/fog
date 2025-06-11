@@ -45,6 +45,7 @@ pub enum Token {
     Not,
 
     If,
+    Else,
 
     Equal,
     NotEqual,
@@ -239,9 +240,10 @@ impl Deref for Imports {
 
 #[derive(Debug, Clone)]
 pub struct If {
-    pub condition: Vec<ParsedToken>,
+    pub condition: Box<ParsedToken>,
 
-    pub body: Vec<ParsedToken>,
+    pub complete_body: Vec<ParsedToken>,
+    pub incomplete_body: Vec<ParsedToken>,
 }
 
 #[derive(Debug, Clone, Display)]

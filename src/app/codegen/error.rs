@@ -37,4 +37,8 @@ pub enum CodeGenError {
     ComparisonIncompatibility(TypeDiscriminant),
     #[error("Type `{0}` cannot be casted to type `{1}`.")]
     InvalidTypeCast(TypeDiscriminant, TypeDiscriminant),
+    #[error(
+        "The if statement contains an invalid condition. The condition has to return a boolean value."
+    )]
+    InvalidIfCondition,
 }

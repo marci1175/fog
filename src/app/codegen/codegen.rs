@@ -11,7 +11,7 @@ use inkwell::{
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue},
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
 use crate::{
@@ -133,10 +133,11 @@ fn generate_ir<'ctx>(
             module,
             builder,
             context,
-            function_definition.inner.clone(),
+            dbg!(function_definition.inner.clone()),
             arguments,
             function_definition.function_sig.return_type.clone(),
             basic_block,
+            function,
         )?;
     }
 
@@ -278,6 +279,7 @@ pub fn create_ir<'main, 'ctx>(
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
+    this_fn: FunctionValue<'ctx>,
 ) -> Result<()>
 where
     'main: 'ctx,
@@ -325,16 +327,54 @@ where
         variable_map.insert(arg_name, ((v_ptr, ty), arg_ty));
     }
 
+    create_ir_from_parsed_token_list(
+        module,
+        builder,
+        ctx,
+        parsed_tokens,
+        fn_ret_ty,
+        this_fn_block,
+        &mut variable_map,
+        this_fn,
+    )?;
+
+    Ok(())
+}
+
+fn create_ir_from_parsed_token_list<'main, 'ctx>(
+    module: &Module<'ctx>,
+    // Inkwell IR builder
+    builder: &'ctx Builder<'ctx>,
+    // Inkwell Context
+    ctx: &'main Context,
+    // The list of ParsedToken-s
+    parsed_tokens: Vec<ParsedToken>,
+    // Type returned type of the Function
+    fn_ret_ty: TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            TypeDiscriminant,
+        ),
+    >,
+    this_fn: FunctionValue<'ctx>,
+) -> Result<(), anyhow::Error>
+where
+    'main: 'ctx,
+{
     for token in parsed_tokens {
         create_ir_from_parsed_token(
             ctx,
             module,
             builder,
             token,
-            &mut variable_map,
+            variable_map,
             None,
             fn_ret_ty.clone(),
             this_fn_block,
+            this_fn,
         )?;
     }
 
@@ -361,6 +401,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
+    this_fn: FunctionValue<'ctx>,
 ) -> anyhow::Result<
     Option<(
         PointerValue<'ctx>,
@@ -387,6 +428,7 @@ where
                 Some((var_name, (ptr, ptr_ty), var_type)),
                 fn_ret_ty,
                 this_fn_block,
+                this_fn,
             )?;
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
@@ -590,6 +632,7 @@ where
                     None,
                     fn_ret_ty,
                     this_fn_block,
+                    this_fn,
                 )?;
 
                 if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -1303,6 +1346,7 @@ where
                     Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
                     fn_ret_ty.clone(),
                     this_fn_block,
+                    this_fn,
                 )?;
 
                 // Push the argument to the list of arguments
@@ -1510,6 +1554,7 @@ where
                                 Some((String::new(), (f_ptr, f_ty.into()), dbg!(ty_disc.clone()))),
                                 fn_ret_ty,
                                 this_fn_block,
+                                this_fn,
                             )?;
                         }
                     }
@@ -1528,6 +1573,7 @@ where
                             Some((dbg!(variable_name), (*ptr, *ty), dbg!(ty_disc.clone()))),
                             fn_ret_ty,
                             this_fn_block,
+                            this_fn,
                         )?;
                     }
                 }
@@ -1550,42 +1596,31 @@ where
                 builder,
                 *parsed_token,
                 variable_map,
-                Some((var_name, (ptr, ptr_ty), fn_ret_ty.clone())),
+                Some((var_name.clone(), (ptr, ptr_ty), fn_ret_ty.clone())),
                 fn_ret_ty.clone(),
                 this_fn_block,
+                this_fn,
             )?;
 
             match ptr_ty {
                 BasicMetadataTypeEnum::ArrayType(array_type) => {
-                    builder.build_return(Some(&builder.build_load(
-                        array_type,
-                        ptr,
-                        "ret_tmp_var",
-                    )?))?;
+                    builder.build_return(Some(&builder.build_load(array_type, ptr, &var_name)?))?;
                 }
                 BasicMetadataTypeEnum::FloatType(float_type) => {
-                    builder.build_return(Some(&builder.build_load(
-                        float_type,
-                        ptr,
-                        "ret_tmp_var",
-                    )?))?;
+                    builder.build_return(Some(&builder.build_load(float_type, ptr, &var_name)?))?;
                 }
                 BasicMetadataTypeEnum::IntType(int_type) => {
-                    builder.build_return(Some(&builder.build_load(
-                        int_type,
-                        ptr,
-                        "ret_tmp_var",
-                    )?))?;
+                    builder.build_return(Some(&builder.build_load(int_type, ptr, &var_name)?))?;
                 }
                 BasicMetadataTypeEnum::PointerType(pointer_type) => {
                     builder.build_return(Some(&builder.build_load(
                         pointer_type,
                         ptr,
-                        "ret_tmp_var",
+                        &var_name,
                     )?))?;
                 }
                 BasicMetadataTypeEnum::StructType(struct_type) => {
-                    let loaded_struct = builder.build_load(struct_type, ptr, "ret_tmp_var")?;
+                    let loaded_struct = builder.build_load(struct_type, ptr, &var_name)?;
 
                     builder.build_return(Some(&loaded_struct))?;
                 }
@@ -1593,7 +1628,7 @@ where
                     builder.build_return(Some(&builder.build_load(
                         vector_type,
                         ptr,
-                        "ret_tmp_var",
+                        &var_name,
                     )?))?;
                 }
 
@@ -1602,7 +1637,72 @@ where
 
             None
         }
-        ParsedToken::If(_) => todo!(),
+        ParsedToken::If(if_definition) => {
+            // Solve condition, this will contain whether the condition completes or not.
+            let created_var = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *if_definition.condition,
+                variable_map,
+                variable_reference,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+            )?;
+
+            if let Some((cond_ptr, cond_ty, ty_disc)) = created_var {
+                let branch_compl = ctx.append_basic_block(this_fn, "cond_branch_true");
+                let branch_incompl = ctx.append_basic_block(this_fn, "cond_branch_false");
+                let branch_uncond = ctx.append_basic_block(this_fn, "cond_branch_uncond");
+
+                builder.build_conditional_branch(
+                    builder
+                        .build_load(cond_ty.into_int_type(), cond_ptr, "condition")?
+                        .into_int_value(),
+                    branch_compl,
+                    branch_incompl,
+                )?;
+
+                builder.position_at_end(branch_compl);
+
+                create_ir_from_parsed_token_list(
+                    module,
+                    builder,
+                    ctx,
+                    if_definition.complete_body,
+                    TypeDiscriminant::Void,
+                    branch_compl,
+                    variable_map,
+                    this_fn,
+                )?;
+
+                builder.build_unconditional_branch(branch_uncond)?;
+
+                builder.position_at_end(branch_incompl);
+
+                // Parse the tokens from the incomplete branch
+                create_ir_from_parsed_token_list(
+                    module,
+                    builder,
+                    ctx,
+                    if_definition.incomplete_body,
+                    TypeDiscriminant::Void,
+                    branch_incompl,
+                    variable_map,
+                    this_fn,
+                )?;
+
+                // Position the builder at the original position
+                builder.build_unconditional_branch(branch_uncond)?;
+
+                builder.position_at_end(branch_uncond);
+            } else {
+                return Err(CodeGenError::InvalidIfCondition.into());
+            }
+
+            None
+        }
         ParsedToken::InitializeStruct(struct_tys, struct_fields) => {
             if let Some((var_name, (var_ptr, var_ty), var_ty_disc)) = variable_reference {
                 // Get the struct pointer's ty
@@ -1629,6 +1729,7 @@ where
                         Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
                         fn_ret_ty.clone(),
                         this_fn_block,
+                        this_fn,
                     )?;
 
                     // Load the temp value to memory and store it
@@ -1680,6 +1781,7 @@ where
                 )),
                 fn_ret_ty.clone(),
                 this_fn_block,
+                this_fn,
             )?;
             create_ir_from_parsed_token(
                 ctx,
@@ -1694,6 +1796,7 @@ where
                 )),
                 fn_ret_ty,
                 this_fn_block,
+                this_fn,
             )?;
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;

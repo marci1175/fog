@@ -2,7 +2,10 @@ use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
-use crate::app::{parser::{parser::find_closing_comma, types::If}, type_system::type_system::{Type, TypeDiscriminant}};
+use crate::app::{
+    parser::{parser::find_closing_comma, types::If},
+    type_system::type_system::{Type, TypeDiscriminant},
+};
 
 use super::{
     error::{ParserError, SyntaxError},
@@ -418,7 +421,7 @@ pub fn parse_functions(
                 unparsed_function.function_sig.clone(),
                 function_imports.clone(),
                 custom_items.clone(),
-                unparsed_function.function_sig.args.clone()
+                unparsed_function.function_sig.args.clone(),
             )?,
         };
 
@@ -450,7 +453,7 @@ fn parse_function_block(
     if !tokens.is_empty() {
         while token_idx < tokens.len() {
             let current_token = tokens[token_idx].clone();
-            
+
             if let Token::TypeDefinition(var_type) = current_token {
                 if let Token::Identifier(var_name) = tokens[token_idx + 1].clone() {
                     if tokens[token_idx + 2] == Token::SetValue {
@@ -671,39 +674,91 @@ fn parse_function_block(
 
                     parsed_tokens.push(ParsedToken::ReturnValue(Box::new(returned_value)));
                 }
-            }
-            else if Token::If == current_token {
+            } else if Token::If == current_token {
                 token_idx += 1;
 
-                if let Token::OpenBraces = tokens[token_idx] {
+                if let Token::OpenParentheses = tokens[token_idx] {
                     token_idx += 1;
-                    let paren_close_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+                    let paren_close_idx = find_closing_paren(&tokens[token_idx..], 0)? + token_idx;
 
                     // This is what we have to evaulate in order to execute the appropriate branch of the if statement
-                    let cond_slice = tokens[token_idx..paren_close_idx].to_vec();
+                    let cond_slice = &tokens[token_idx..paren_close_idx];
 
-                    let condition = parse_function_block(cond_slice, function_signatures.clone(), FunctionSignature { args: IndexMap::new(), return_type:TypeDiscriminant::Boolean }, function_imports.clone(), custom_items.clone(), variable_scope.clone())?;
-                    
+                    let (condition, idx) = parse_value(
+                        &cond_slice,
+                        function_signatures.clone(),
+                        &mut variable_scope,
+                        TypeDiscriminant::Boolean,
+                        function_imports.clone(),
+                        custom_items.clone(),
+                    )?;
+
                     token_idx = paren_close_idx + 1;
 
                     if Token::OpenBraces == tokens[token_idx] {
                         token_idx += 1;
 
-                        let paren_close_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+                        let paren_close_idx =
+                            find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
 
                         let true_block_slice = tokens[token_idx..paren_close_idx].to_vec();
 
-                        let true_block = parse_function_block(true_block_slice, function_signatures.clone(), FunctionSignature { args: IndexMap::new(), return_type:TypeDiscriminant::Void }, function_imports.clone(), custom_items.clone(), variable_scope.clone())?;
-                        
-                        parsed_tokens.push(ParsedToken::If(If { condition: condition, body: true_block }));
+                        let true_condition_block = parse_function_block(
+                            true_block_slice,
+                            function_signatures.clone(),
+                            FunctionSignature {
+                                args: IndexMap::new(),
+                                return_type: TypeDiscriminant::Void,
+                            },
+                            function_imports.clone(),
+                            custom_items.clone(),
+                            variable_scope.clone(),
+                        )?;
+
+                        let mut else_condition_branch = Vec::new();
 
                         token_idx = paren_close_idx + 1;
+
+                        if Token::Else == tokens[token_idx] {
+                            token_idx += 1;
+
+                            if Token::OpenBraces == tokens[token_idx] {
+                                token_idx += 1;
+
+                                let paren_close_idx =
+                                    find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+
+                                let false_block_slice = tokens[token_idx..paren_close_idx].to_vec();
+
+                                else_condition_branch = parse_function_block(
+                                    false_block_slice,
+                                    function_signatures.clone(),
+                                    FunctionSignature {
+                                        args: IndexMap::new(),
+                                        return_type: TypeDiscriminant::Void,
+                                    },
+                                    function_imports.clone(),
+                                    custom_items.clone(),
+                                    variable_scope.clone(),
+                                )?;
+
+                                token_idx = paren_close_idx + 1;
+                            }
+                        }
+
+                        parsed_tokens.push(ParsedToken::If(If {
+                            condition: Box::new(condition),
+                            complete_body: true_condition_block,
+                            incomplete_body: else_condition_branch,
+                        }));
 
                         continue;
                     }
                 }
 
-                return Err(ParserError::SyntaxError(SyntaxError::InvalidIfConditionDefinition).into());
+                return Err(
+                    ParserError::SyntaxError(SyntaxError::InvalidIfConditionDefinition).into(),
+                );
             }
 
             token_idx += 1;
@@ -822,13 +877,14 @@ pub fn parse_function_call_args(
 
                     if *token == Token::OpenParentheses {
                         bracket_counter += 1;
-                    }
-                    else if *token == Token::CloseParentheses {
+                    } else if *token == Token::CloseParentheses {
                         bracket_counter -= 1;
                     }
 
                     // If a comma is found parse the tokens from the slice
-                    if (*token == Token::Comma && bracket_counter == 0) || tokens_idx == args_list_len - 1 {
+                    if (*token == Token::Comma && bracket_counter == 0)
+                        || tokens_idx == args_list_len - 1
+                    {
                         if tokens_idx == args_list_len - 1 {
                             token_buf.push(token.clone());
                         }
@@ -875,16 +931,17 @@ pub fn parse_function_call_args(
             // We should start by finding the comma and parsing the tokens in between the current idx and the comma
             while tokens_idx < args_list_len {
                 let token = &tokens[tokens_idx];
-                
+
                 if *token == Token::OpenParentheses {
                     bracket_counter += 1;
-                }
-                else if *token == Token::CloseParentheses {
+                } else if *token == Token::CloseParentheses {
                     bracket_counter -= 1;
                 }
 
                 // If a comma is found parse the tokens from the slice
-                if (*token == Token::Comma && bracket_counter == 0) || tokens_idx == args_list_len - 1 {
+                if (*token == Token::Comma && bracket_counter == 0)
+                    || tokens_idx == args_list_len - 1
+                {
                     if tokens_idx == args_list_len - 1 {
                         token_buf.push(token.clone());
                     }
