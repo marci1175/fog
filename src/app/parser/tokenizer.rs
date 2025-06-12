@@ -377,6 +377,8 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "extend" => Token::Extend,
         "struct" => Token::Struct,
         "else" => Token::Else,
+        "loop" => Token::Loop,
+        "for" => Token::For,
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }

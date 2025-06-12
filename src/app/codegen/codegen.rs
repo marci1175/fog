@@ -1859,6 +1859,19 @@ where
             }
         }
         ParsedToken::CodeBlock(parsed_tokens) => todo!(),
+        ParsedToken::Loop(parsed_tokens) => {
+            let code_block = ctx.append_basic_block(this_fn, "loop_body");
+
+            builder.build_unconditional_branch(code_block)?;
+
+            builder.position_at_end(code_block);
+
+            create_ir_from_parsed_token_list(module, builder, ctx, parsed_tokens, TypeDiscriminant::Void, code_block, variable_map, this_fn)?;
+
+            builder.build_unconditional_branch(code_block)?;
+
+            None
+        },
     };
 
     Ok(created_var)

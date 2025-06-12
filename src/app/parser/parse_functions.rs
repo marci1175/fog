@@ -1,6 +1,6 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, env::current_exe, fs, path::PathBuf, sync::Arc};
 
 use crate::app::{
     parser::{parser::find_closing_comma, types::If},
@@ -759,8 +759,38 @@ fn parse_function_block(
                 return Err(
                     ParserError::SyntaxError(SyntaxError::InvalidIfConditionDefinition).into(),
                 );
-            }
+            } else if Token::Loop == current_token {
+                token_idx += 1;
 
+                if let Token::OpenBraces = tokens[token_idx] {
+                    token_idx += 1;
+
+                    let paren_close_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+
+                    // This is what we have to evaulate in order to execute the appropriate branch of the if statement
+                    let loop_body_tokens = &tokens[token_idx..paren_close_idx];
+
+                    let loop_body = parse_function_block(
+                        loop_body_tokens.to_vec(),
+                        function_signatures.clone(),
+                        FunctionSignature {
+                            args: IndexMap::new(),
+                            return_type: TypeDiscriminant::Void,
+                        },
+                        function_imports.clone(),
+                        custom_items.clone(),
+                        variable_scope.clone(),
+                    )?;
+
+                    token_idx = paren_close_idx + 1;
+
+                    parsed_tokens.push(ParsedToken::Loop(loop_body));
+
+                    continue;
+                }
+
+                return Err(ParserError::SyntaxError(SyntaxError::InvalidLoopBody).into());
+            }
             token_idx += 1;
         }
     }

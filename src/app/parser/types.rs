@@ -73,6 +73,9 @@ pub enum Token {
     BitRight,
 
     Import,
+
+    Loop,
+    For,
 }
 
 #[derive(Debug, Clone)]
@@ -134,6 +137,8 @@ pub enum ParsedToken {
     ),
 
     CodeBlock(Vec<ParsedToken>),
+
+    Loop(Vec<ParsedToken>),
 }
 
 #[derive(Debug, Clone, Display)]

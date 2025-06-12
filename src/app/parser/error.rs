@@ -99,4 +99,6 @@ pub enum SyntaxError {
     InvalidTokenComparisonUsage(Token),
     #[error(r#"The condition should be surrounded by parentheses. ie: `if (x > 3) {{}}`"#)]
     InvalidIfConditionDefinition,
+    #[error("Loop bodies are defined via brackets surrounding the code we would like to repeat.")]
+    InvalidLoopBody,
 }
