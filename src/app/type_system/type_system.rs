@@ -1,22 +1,23 @@
-use std::fmt::Display;
+use std::{fmt::{Debug, Display}, hash::Hash, ops::{Deref, DerefMut}};
 
 use indexmap::IndexMap;
+use num::Float;
 use strum_macros::Display;
 
 use crate::app::parser::error::ParserError;
 
-#[derive(Debug, Clone, PartialEq, Display, Default)]
+#[derive(Debug, Clone, Display, Default, PartialEq, Eq, Hash)]
 pub enum Type {
     I64(i64),
-    F64(f64),
+    F64(NotNan<f64>),
     U64(u64),
 
     I32(i32),
-    F32(f32),
+    F32(NotNan<f32>),
     U32(u32),
 
     I16(i16),
-    F16(f16),
+    F16(NotNan<f16>),
     U16(u16),
 
     U8(u8),
@@ -27,8 +28,99 @@ pub enum Type {
     #[default]
     Void,
 
-    Struct((String, IndexMap<String, Type>)),
+    Struct((String, OrdMap<String, Type>)),
 }
+
+#[derive(Debug, Clone)]
+pub struct NotNan<T>(T);
+
+impl<T: Float> NotNan<T> {
+    pub fn new(inner: T) -> Result<Self, ParserError> {
+        if inner.is_nan() {
+            return Err(ParserError::FloatIsNAN);
+        }
+        
+        Ok(Self(inner))
+    }
+}
+
+impl NotNan<f16> {
+    pub fn new_f16(inner: f16) -> Result<Self, ParserError> {
+        if inner.is_nan() {
+            return Err(ParserError::FloatIsNAN);
+        }
+        
+        Ok(Self(inner))
+    }
+}
+
+impl<T: Debug + PartialEq> PartialEq for NotNan<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T> Deref for NotNan<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for NotNan<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<f64> for NotNan<f64> {
+    fn from(value: f64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<f32> for NotNan<f32> {
+    fn from(value: f32) -> Self {
+        Self(value)
+    }
+}
+
+impl From<f16> for NotNan<f16> {
+    fn from(value: f16) -> Self {
+        Self(value)
+    }
+}
+
+impl<T: FloatBits> Hash for NotNan<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_u64(self.0.to_bits());
+    }
+}
+
+trait FloatBits {
+    fn to_bits(&self) -> u64;
+}
+
+impl FloatBits for f16 {
+    fn to_bits(&self) -> u64 {
+        f16::to_bits(*self) as u64
+    }
+}
+
+impl FloatBits for f32 {
+    fn to_bits(&self) -> u64 {
+        f32::to_bits(*self) as u64
+    }
+}
+
+impl FloatBits for f64 {
+    fn to_bits(&self) -> u64 {
+        f64::to_bits(*self)
+    }
+}
+
+impl<T: PartialEq + Debug> Eq for NotNan<T> {}
 
 impl Type {
     pub fn discriminant(&self) -> TypeDiscriminant {
@@ -47,7 +139,7 @@ impl Type {
             Type::Boolean(_) => TypeDiscriminant::Boolean,
             Type::Void => TypeDiscriminant::Void,
             Type::Struct((struct_name, struct_fields)) => {
-                let mut struct_field_ty_list = IndexMap::new();
+                let mut struct_field_ty_list = OrdMap::new();
 
                 for (name, ty) in struct_fields.iter() {
                     struct_field_ty_list.insert(name.clone(), ty.discriminant());
@@ -59,7 +151,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Eq)]
+#[derive(Debug, Clone, PartialEq, Default, Eq, Hash)]
 pub enum TypeDiscriminant {
     I64,
     F64,
@@ -81,20 +173,20 @@ pub enum TypeDiscriminant {
     #[default]
     Void,
 
-    Struct((String, IndexMap<String, TypeDiscriminant>)),
+    Struct((String, OrdMap<String, TypeDiscriminant>)),
 }
 
 impl From<TypeDiscriminant> for Type {
     fn from(value: TypeDiscriminant) -> Self {
         match value {
             TypeDiscriminant::I64 => Self::I64(0),
-            TypeDiscriminant::F64 => Self::F64(0.0),
+            TypeDiscriminant::F64 => Self::F64(NotNan::new(0.0).unwrap()),
             TypeDiscriminant::U64 => Self::U64(0),
             TypeDiscriminant::I32 => Self::I32(0),
-            TypeDiscriminant::F32 => Self::F32(0.0),
+            TypeDiscriminant::F32 => Self::F32(NotNan::new(0.0).unwrap()),
             TypeDiscriminant::U32 => Self::U32(0),
             TypeDiscriminant::I16 => Self::I16(0),
-            TypeDiscriminant::F16 => Self::F16(0.0),
+            TypeDiscriminant::F16 => Self::F16(NotNan::new_f16(0.0).unwrap()),
             TypeDiscriminant::U16 => Self::U16(0),
             TypeDiscriminant::U8 => Self::U8(0),
             TypeDiscriminant::String => Self::String(String::new()),
@@ -128,23 +220,6 @@ impl Display for TypeDiscriminant {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct StringReference {
-    pub ref_idx: usize,
-}
-
-impl Default for StringReference {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl StringReference {
-    pub fn new() -> Self {
-        Self { ref_idx: 0 }
-    }
-}
-
 pub fn unparsed_const_to_typed_literal_unsafe(
     raw_string: String,
     dest_type: Option<TypeDiscriminant>,
@@ -165,7 +240,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                     Type::I64(parsed_num as i64)
                 }
             }
-            TypeDiscriminant::F64 => Type::F64(parsed_num),
+            TypeDiscriminant::F64 => Type::F64(parsed_num.into()),
             TypeDiscriminant::U64 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
@@ -186,7 +261,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                     Type::I16(parsed_num as i16)
                 }
             }
-            TypeDiscriminant::F16 => Type::F16(parsed_num as f16),
+            TypeDiscriminant::F16 => Type::F16(NotNan::new_f16(parsed_num as f16)?),
             TypeDiscriminant::U16 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
@@ -207,7 +282,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                     Type::I32(parsed_num as i32)
                 }
             }
-            TypeDiscriminant::F32 => Type::F32(parsed_num as f32),
+            TypeDiscriminant::F32 => Type::F32(NotNan::new(parsed_num as f32)?),
             TypeDiscriminant::U32 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
@@ -260,11 +335,63 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             .map_err(|_| ParserError::ValueTypeUnknown(raw_string.clone()))?;
 
         if raw_string.contains('.') {
-            Type::F64(parsed_num)
+            Type::F64(parsed_num.into())
         } else {
             Type::I64(parsed_num as i64)
         }
     };
 
     Ok(parsed_val)
+}
+
+/// This custom wrapper type is for implementing [`Hash`] for [`IndexMap`].
+/// The type implements its own custom [`PartialEq`] in which the order of the items matter. Therefor, two maps with the same items with a different order will not be equal.
+#[derive(Debug, Clone, Default)]
+pub struct OrdMap<K, V>(IndexMap<K, V>);
+
+impl<K, V> Deref for OrdMap<K, V> {
+    type Target = IndexMap<K, V>;
+    
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<K, V> DerefMut for OrdMap<K, V> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// Implement PartialEq for the wrapper type so that it can be used in the hash implementation later.
+impl<K: PartialEq + Hash, V: PartialEq> PartialEq for OrdMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.iter().enumerate().all(|(idx, (k, v))| {
+            other.get_index(idx) == Some((k, v))
+        })
+    }
+}
+
+/// Implement hashing for the wrapper type.
+impl<K: Hash, V: Hash> Hash for OrdMap<K, V> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for (k, v) in &self.0 {
+            k.hash(state);
+            v.hash(state);
+        }
+    }
+}
+
+impl<K: PartialEq + Hash, V: PartialEq> Eq for OrdMap<K, V> {}
+
+impl<K, V> OrdMap<K, V> {
+    pub fn new() -> Self {
+        OrdMap(IndexMap::new())
+    }
+}
+
+impl<K, V> From<IndexMap<K, V>> for OrdMap<K, V> {
+    fn from(value: IndexMap<K, V>) -> Self {
+        Self(value)
+    }
 }

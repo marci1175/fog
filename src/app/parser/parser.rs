@@ -1,5 +1,5 @@
 use crate::app::type_system::type_system::{
-    TypeDiscriminant, unparsed_const_to_typed_literal_unsafe,
+    unparsed_const_to_typed_literal_unsafe, OrdMap, TypeDiscriminant
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -453,7 +453,7 @@ pub fn parse_token_as_value(
                 // Return the function call
                 let parsed_token: ParsedToken = ParsedToken::FunctionCall(
                     (function.function_sig.clone(), identifier.clone()),
-                    call_arguments,
+                    call_arguments.into(),
                 );
 
                 // Increment the token index, and add the offset
@@ -601,7 +601,7 @@ pub fn parse_token_as_value(
                 // Return the function call
                 let parsed_token: ParsedToken = ParsedToken::FunctionCall(
                     (function_sig.clone(), identifier.clone()),
-                    call_arguments,
+                    call_arguments.into(),
                 );
 
                 // Increment the token index, and add the offset
@@ -726,7 +726,7 @@ fn get_struct_field_stack(
     tokens: &[Token],
     token_idx: &mut usize,
     identifier: &String,
-    (struct_name, struct_fields): &(String, IndexMap<String, TypeDiscriminant>),
+    (struct_name, struct_fields): &(String, OrdMap<String, TypeDiscriminant>),
     struct_field_stack: &mut StructFieldReference,
 ) -> Result<TypeDiscriminant> {
     if let Some(Token::Identifier(field_name)) = tokens.get(*token_idx) {
@@ -821,6 +821,6 @@ pub fn init_struct(
 
     Ok((
         idx,
-        ParsedToken::InitializeStruct(this_struct_field.clone(), struct_field_init_map),
+        ParsedToken::InitializeStruct(this_struct_field.clone().into(), struct_field_init_map.into()),
     ))
 }

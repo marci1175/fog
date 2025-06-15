@@ -4,11 +4,10 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use indexmap::IndexMap;
 use inkwell::{FloatPredicate, IntPredicate};
 use strum_macros::Display;
 
-use crate::app::type_system::type_system::{Type, TypeDiscriminant};
+use crate::app::type_system::type_system::{OrdMap, Type, TypeDiscriminant};
 
 use super::error::{ParserError, SyntaxError};
 
@@ -78,7 +77,7 @@ pub enum Token {
     For,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MathematicalSymbol {
     Addition,
     Subtraction,
@@ -105,7 +104,7 @@ impl TryInto<MathematicalSymbol> for Token {
     }
 }
 
-#[derive(Debug, Clone, Display, strum_macros::EnumTryAs)]
+#[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum ParsedToken {
     NewVariable(String, TypeDiscriminant, Box<ParsedToken>),
 
@@ -119,7 +118,7 @@ pub enum ParsedToken {
 
     Brackets(Vec<ParsedToken>, TypeDiscriminant),
 
-    FunctionCall((FunctionSignature, String), IndexMap<String, ParsedToken>),
+    FunctionCall((FunctionSignature, String), OrdMap<String, ParsedToken>),
 
     SetValue(VariableReference, Box<ParsedToken>),
 
@@ -132,8 +131,8 @@ pub enum ParsedToken {
     If(If),
 
     InitializeStruct(
-        IndexMap<String, TypeDiscriminant>,
-        IndexMap<String, Box<ParsedToken>>,
+        OrdMap<String, TypeDiscriminant>,
+        OrdMap<String, Box<ParsedToken>>,
     ),
 
     CodeBlock(Vec<ParsedToken>),
@@ -141,20 +140,20 @@ pub enum ParsedToken {
     Loop(Vec<ParsedToken>),
 }
 
-#[derive(Debug, Clone, Display)]
+#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
 pub enum VariableReference {
     /// Variable name, (struct_name, struct_type)
     /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
     StructFieldReference(
         StructFieldReference,
-        (String, IndexMap<String, TypeDiscriminant>),
+        (String, OrdMap<String, TypeDiscriminant>),
     ),
     BasicReference(String),
 }
 
 /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
 /// The functions which take the iterator of the `field_stack` field should not be passed the first item of the iterator, since the first item is used to look up the name of the variable which stores the struct.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructFieldReference {
     /// The name of the fields which get referenced
     pub field_stack: Vec<String>,
@@ -199,9 +198,9 @@ pub struct FunctionDefinition {
     pub inner: Vec<ParsedToken>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionSignature {
-    pub args: indexmap::IndexMap<String, TypeDiscriminant>,
+    pub args: OrdMap<String, TypeDiscriminant>,
     pub return_type: TypeDiscriminant,
 }
 
@@ -217,8 +216,8 @@ impl Display for FunctionSignature {
 /// All of the custom types implemented by the User are defined here
 #[derive(Debug, Clone, PartialEq, Display)]
 pub enum CustomType {
-    Struct((String, IndexMap<String, TypeDiscriminant>)),
-    Enum(IndexMap<String, TypeDiscriminant>),
+    Struct((String, OrdMap<String, TypeDiscriminant>)),
+    Enum(OrdMap<String, TypeDiscriminant>),
     // First argument is the struct's name which the Extend extends
     // The second argument is the list of functions the stuct is being extended with
     // Extend(String, IndexMap<String, FunctionDefinition>),
@@ -243,7 +242,7 @@ impl Deref for Imports {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct If {
     pub condition: Box<ParsedToken>,
 
@@ -251,7 +250,7 @@ pub struct If {
     pub incomplete_body: Vec<ParsedToken>,
 }
 
-#[derive(Debug, Clone, Display)]
+#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
 pub enum Order {
     Equal,
     NotEqual,

@@ -1,10 +1,10 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use std::{collections::HashMap, env::current_exe, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use crate::app::{
     parser::{parser::find_closing_comma, types::If},
-    type_system::type_system::{Type, TypeDiscriminant},
+    type_system::type_system::{OrdMap, Type, TypeDiscriminant},
 };
 
 use super::{
@@ -124,7 +124,7 @@ pub fn create_signature_table(
                                 function_name.clone(),
                                 UnparsedFunctionDefinition {
                                     inner: braces_contains,
-                                    function_sig: FunctionSignature { args, return_type },
+                                    function_sig: FunctionSignature { args: args.into(), return_type },
                                 },
                             );
 
@@ -175,7 +175,7 @@ pub fn create_signature_table(
                                 }
 
                                 external_imports
-                                    .insert(identifier, FunctionSignature { args, return_type });
+                                    .insert(identifier, FunctionSignature { args: args.into(), return_type });
 
                                 continue;
                             }
@@ -326,7 +326,7 @@ pub fn create_signature_table(
                     // Save the custom item
                     custom_items.insert(
                         struct_name.to_string(),
-                        CustomType::Struct((struct_name.clone(), struct_fields)),
+                        CustomType::Struct((struct_name.clone(), struct_fields.into())),
                     );
                 }
             } else {
@@ -442,7 +442,7 @@ fn parse_function_block(
     this_function_signature: FunctionSignature,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-    mut variable_scope: IndexMap<String, TypeDiscriminant>,
+    mut variable_scope: OrdMap<String, TypeDiscriminant>,
 ) -> Result<Vec<ParsedToken>> {
     let mut token_idx = 0;
 
@@ -564,7 +564,7 @@ fn parse_function_block(
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
                         (function_sig.function_sig.clone(), ident_name.clone()),
-                        variables_passed,
+                        variables_passed.into(),
                     ));
 
                     token_idx += jumped_idx + 2;
@@ -592,7 +592,7 @@ fn parse_function_block(
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
                         (function_sig.clone(), ident_name.clone()),
-                        variables_passed,
+                        variables_passed.into(),
                     ));
 
                     token_idx += jumped_idx + 2;
@@ -707,7 +707,7 @@ fn parse_function_block(
                             true_block_slice,
                             function_signatures.clone(),
                             FunctionSignature {
-                                args: IndexMap::new(),
+                                args: OrdMap::new(),
                                 return_type: TypeDiscriminant::Void,
                             },
                             function_imports.clone(),
@@ -734,7 +734,7 @@ fn parse_function_block(
                                     false_block_slice,
                                     function_signatures.clone(),
                                     FunctionSignature {
-                                        args: IndexMap::new(),
+                                        args: OrdMap::new(),
                                         return_type: TypeDiscriminant::Void,
                                     },
                                     function_imports.clone(),
@@ -774,7 +774,7 @@ fn parse_function_block(
                         loop_body_tokens.to_vec(),
                         function_signatures.clone(),
                         FunctionSignature {
-                            args: IndexMap::new(),
+                            args: OrdMap::new(),
                             return_type: TypeDiscriminant::Void,
                         },
                         function_imports.clone(),
@@ -850,7 +850,7 @@ fn set_value_math_expr(
 pub fn parse_function_call_args(
     tokens: &[Token],
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
-    mut this_function_args: IndexMap<String, TypeDiscriminant>,
+    mut this_function_args: OrdMap<String, TypeDiscriminant>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,

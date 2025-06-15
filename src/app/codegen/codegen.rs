@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -159,7 +159,7 @@ pub fn import_user_lib_functions<'a>(
 
         let mut args = Vec::new();
 
-        for (_, arg_ty) in &import_sig.args {
+        for (_, arg_ty) in import_sig.args.iter() {
             let argument_sig = match arg_ty {
                 TypeDiscriminant::I32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
                 TypeDiscriminant::F32 => BasicMetadataTypeEnum::FloatType(ctx.f32_type()),
@@ -336,6 +336,7 @@ where
         this_fn_block,
         &mut variable_map,
         this_fn,
+        None,
     )?;
 
     Ok(())
@@ -360,6 +361,13 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
         ),
     >,
     this_fn: FunctionValue<'ctx>,
+    // Allocation tables are used when the ParsedTokens run in a loop
+    // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow
+    // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
+    // If the code we are running is not in a loop we can pass in `None`.
+    alloca_table: Option<
+        Arc<HashMap<ParsedToken, (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>>,
+    >,
 ) -> Result<(), anyhow::Error>
 where
     'main: 'ctx,
@@ -369,16 +377,83 @@ where
             ctx,
             module,
             builder,
-            token,
+            token.clone(),
             variable_map,
             None,
             fn_ret_ty.clone(),
             this_fn_block,
             this_fn,
+            alloca_table.clone(),
         )?;
+
+        // If the token we have parsed was a loop token that means any code from now becomes inaccessible, therefor we can stop parsing it.
+        if let ParsedToken::Loop(_) = token {
+            break;
+        }
     }
 
     Ok(())
+}
+
+pub fn create_alloca_table<'main, 'ctx>(
+    module: &Module<'ctx>,
+    // Inkwell IR builder
+    builder: &'ctx Builder<'ctx>,
+    // Inkwell Context
+    ctx: &'main Context,
+    // The list of ParsedToken-s
+    parsed_tokens: Vec<ParsedToken>,
+    // Type returned type of the Function
+    fn_ret_ty: TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            TypeDiscriminant,
+        ),
+    >,
+    this_fn: FunctionValue<'ctx>,
+) -> Result<
+    HashMap<
+        ParsedToken,
+        (
+            PointerValue<'ctx>,
+            BasicMetadataTypeEnum<'ctx>,
+            TypeDiscriminant,
+        ),
+    >,
+    anyhow::Error,
+>
+where
+    'main: 'ctx,
+{
+    let mut alloc_table: HashMap<ParsedToken, (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)> =
+        HashMap::new();
+
+    for token in parsed_tokens {
+        let allocated_val = fetch_alloca_ptr(
+            ctx,
+            module,
+            builder,
+            token.clone(),
+            variable_map,
+            fn_ret_ty.clone(),
+            this_fn_block,
+            this_fn,
+        )?;
+
+        if let Some((token, ptr, ty, _disc)) = allocated_val {
+            alloc_table.insert(token, (ptr, ty, _disc));
+        }
+
+        // If the token we have parsed was a loop token that means any code from now becomes inaccessible, therefor we can stop parsing it.
+        if let ParsedToken::Loop(_) = token {
+            break;
+        }
+    }
+
+    Ok(alloc_table)
 }
 
 pub fn create_ir_from_parsed_token<'main, 'ctx>(
@@ -402,34 +477,47 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
+    alloca_table: Option<
+        Arc<HashMap<ParsedToken, (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>>,
+    >,
 ) -> anyhow::Result<
+    // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
+    // The return value is None if the `variable_reference` of the function is `Some`, as the variable will have its value set to the value of the returned value.
     Option<(
+        // Pointer to the referenced variable
         PointerValue<'ctx>,
+        // Type of the variable
         BasicMetadataTypeEnum<'ctx>,
+        // TypeDiscriminant of the variable
         TypeDiscriminant,
     )>,
 >
 where
     'main: 'ctx,
 {
-    let created_var = match parsed_token {
+    let created_var = match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
-            let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
+            if let Some(alloca_t) = alloca_table.clone() {
+                if !alloca_t.contains_key(&parsed_token) {
+                    let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
-            variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
+                    variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
 
-            // Set the value of the newly created variable
-            create_ir_from_parsed_token(
-                ctx,
-                module,
-                builder,
-                *var_set_val,
-                variable_map,
-                Some((var_name, (ptr, ptr_ty), var_type)),
-                fn_ret_ty,
-                this_fn_block,
-                this_fn,
-            )?;
+                    // Set the value of the newly created variable
+                    create_ir_from_parsed_token(
+                        ctx,
+                        module,
+                        builder,
+                        *var_set_val,
+                        variable_map,
+                        Some((var_name, (ptr, ptr_ty), var_type)),
+                        fn_ret_ty,
+                        this_fn_block,
+                        this_fn,
+                        alloca_table.clone(),
+                    )?;
+                }
+            }
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
             None
@@ -633,6 +721,7 @@ where
                     fn_ret_ty,
                     this_fn_block,
                     this_fn,
+                    alloca_table,
                 )?;
 
                 if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -1347,6 +1436,7 @@ where
                     fn_ret_ty.clone(),
                     this_fn_block,
                     this_fn,
+                    alloca_table.clone(),
                 )?;
 
                 // Push the argument to the list of arguments
@@ -1555,6 +1645,7 @@ where
                                 fn_ret_ty,
                                 this_fn_block,
                                 this_fn,
+                                alloca_table,
                             )?;
                         }
                     }
@@ -1574,6 +1665,7 @@ where
                             fn_ret_ty,
                             this_fn_block,
                             this_fn,
+                            alloca_table,
                         )?;
                     }
                 }
@@ -1600,6 +1692,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
+                alloca_table,
             )?;
 
             match ptr_ty {
@@ -1649,6 +1742,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
+                alloca_table.clone(),
             )?;
 
             if let Some((cond_ptr, cond_ty, ty_disc)) = created_var {
@@ -1675,6 +1769,7 @@ where
                     branch_compl,
                     variable_map,
                     this_fn,
+                    alloca_table.clone(),
                 )?;
 
                 builder.build_unconditional_branch(branch_uncond)?;
@@ -1691,6 +1786,7 @@ where
                     branch_incompl,
                     variable_map,
                     this_fn,
+                    alloca_table.clone(),
                 )?;
 
                 // Position the builder at the original position
@@ -1730,6 +1826,7 @@ where
                         fn_ret_ty.clone(),
                         this_fn_block,
                         this_fn,
+                        alloca_table.clone(),
                     )?;
 
                     // Load the temp value to memory and store it
@@ -1782,6 +1879,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
+                alloca_table.clone(),
             )?;
             create_ir_from_parsed_token(
                 ctx,
@@ -1797,6 +1895,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
+                alloca_table,
             )?;
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
@@ -1862,19 +1961,106 @@ where
         ParsedToken::Loop(parsed_tokens) => {
             let code_block = ctx.append_basic_block(this_fn, "loop_body");
 
+            let alloca_table = create_alloca_table(
+                module,
+                builder,
+                ctx,
+                parsed_tokens.clone(),
+                fn_ret_ty,
+                this_fn_block,
+                variable_map,
+                this_fn,
+            )?;
+
             builder.build_unconditional_branch(code_block)?;
 
             builder.position_at_end(code_block);
 
-            create_ir_from_parsed_token_list(module, builder, ctx, parsed_tokens, TypeDiscriminant::Void, code_block, variable_map, this_fn)?;
+            create_ir_from_parsed_token_list(
+                module,
+                builder,
+                ctx,
+                parsed_tokens,
+                TypeDiscriminant::Void,
+                code_block,
+                variable_map,
+                this_fn,
+                Some(Arc::new(alloca_table)),
+            )?;
 
             builder.build_unconditional_branch(code_block)?;
 
             None
-        },
+        }
     };
 
     Ok(created_var)
+}
+
+pub fn fetch_alloca_ptr<'main, 'ctx>(
+    ctx: &'main Context,
+    module: &Module<'ctx>,
+    builder: &'ctx Builder<'ctx>,
+    parsed_token: ParsedToken,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            TypeDiscriminant,
+        ),
+    >,
+    // Type returned type of the Function
+    fn_ret_ty: TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
+    this_fn: FunctionValue<'ctx>,
+) -> anyhow::Result<
+    Option<(
+        ParsedToken,
+        // Pointer to the referenced variable
+        PointerValue<'ctx>,
+        // Type of the variable
+        BasicMetadataTypeEnum<'ctx>,
+        // TypeDiscriminant of the variable
+        TypeDiscriminant,
+    )>,
+>
+where
+    'main: 'ctx,
+{
+    let alloca_entry = match parsed_token.clone() {
+        ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
+            let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
+
+            variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
+
+            // Set the value of the newly created variable
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *var_set_val,
+                variable_map,
+                Some((var_name.clone(), (ptr, ptr_ty), var_type.clone())),
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                None,
+            )?;
+            
+            // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
+            Some((ptr, ptr_ty, var_type))
+        }
+        _ => unimplemented!(),
+    };
+
+    let alloca_table_entry = if let Some((ptr, ty, ty_disc)) = alloca_entry {
+        Some((parsed_token, ptr, ty, ty_disc))
+    }
+    else {
+        None
+    };
+
+    Ok(alloca_table_entry)
 }
 
 fn access_nested_field<'a>(
@@ -1991,7 +2177,7 @@ pub fn set_value_of_ptr(
         }
         Type::F64(inner) => {
             // Initialize const value
-            let init_val = f64_type.const_float(inner);
+            let init_val = f64_type.const_float(*inner);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
@@ -2012,7 +2198,7 @@ pub fn set_value_of_ptr(
         }
         Type::F16(inner) => {
             // Initialize const value
-            let init_val = f16_type.const_float(inner as f64);
+            let init_val = f16_type.const_float(*inner as f64);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
@@ -2033,7 +2219,7 @@ pub fn set_value_of_ptr(
         }
         Type::F32(inner) => {
             // Initialize const value
-            let init_val = f32_type.const_float(inner as f64);
+            let init_val = f32_type.const_float(*inner as f64);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;

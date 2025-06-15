@@ -8,8 +8,10 @@ function main(): int {
     srand(time(0));
 
     loop {
-        printf("Random number: %i\n", rand());
+        int a = 34;
+
+        printf("%i", a);
     }
 
     return 0;
-} 
+}

@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
-use indexmap::IndexMap;
 use thiserror::Error;
 
-use crate::app::type_system::type_system::TypeDiscriminant;
+use crate::app::type_system::type_system::{OrdMap, TypeDiscriminant};
 
 use super::types::{FunctionSignature, Token};
 
@@ -45,6 +44,8 @@ pub enum ParserError {
     InvalidTypeCast(String, TypeDiscriminant),
     #[error("The type of literal `{0}` could not be guessed.")]
     ValueTypeUnknown(String),
+    #[error("Floats cannot be created with a value of NaN.")]
+    FloatIsNAN,
 }
 
 #[derive(Debug, Error)]
@@ -86,7 +87,7 @@ pub enum SyntaxError {
     #[error("Invalid Dot placement, variable cannot have fields.")]
     InvalidDotPlacement,
     #[error("Struct field `{0}` was not found in Struct `{0}`.")]
-    StructFieldNotFound(String, (String, IndexMap<String, TypeDiscriminant>)),
+    StructFieldNotFound(String, (String, OrdMap<String, TypeDiscriminant>)),
     #[error("Invalid Struct field definition.")]
     InvalidStructFieldDefinition,
     #[error("Missing/Invalid Struct body definition.")]
