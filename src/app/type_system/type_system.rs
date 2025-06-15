@@ -1,4 +1,8 @@
-use std::{fmt::{Debug, Display}, hash::Hash, ops::{Deref, DerefMut}};
+use std::{
+    fmt::{Debug, Display},
+    hash::Hash,
+    ops::{Deref, DerefMut},
+};
 
 use indexmap::IndexMap;
 use num::Float;
@@ -39,7 +43,7 @@ impl<T: Float> NotNan<T> {
         if inner.is_nan() {
             return Err(ParserError::FloatIsNAN);
         }
-        
+
         Ok(Self(inner))
     }
 }
@@ -49,7 +53,7 @@ impl NotNan<f16> {
         if inner.is_nan() {
             return Err(ParserError::FloatIsNAN);
         }
-        
+
         Ok(Self(inner))
     }
 }
@@ -351,7 +355,7 @@ pub struct OrdMap<K, V>(IndexMap<K, V>);
 
 impl<K, V> Deref for OrdMap<K, V> {
     type Target = IndexMap<K, V>;
-    
+
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -366,9 +370,9 @@ impl<K, V> DerefMut for OrdMap<K, V> {
 /// Implement PartialEq for the wrapper type so that it can be used in the hash implementation later.
 impl<K: PartialEq + Hash, V: PartialEq> PartialEq for OrdMap<K, V> {
     fn eq(&self, other: &Self) -> bool {
-        self.iter().enumerate().all(|(idx, (k, v))| {
-            other.get_index(idx) == Some((k, v))
-        })
+        self.iter()
+            .enumerate()
+            .all(|(idx, (k, v))| other.get_index(idx) == Some((k, v)))
     }
 }
 

@@ -124,7 +124,10 @@ pub fn create_signature_table(
                                 function_name.clone(),
                                 UnparsedFunctionDefinition {
                                     inner: braces_contains,
-                                    function_sig: FunctionSignature { args: args.into(), return_type },
+                                    function_sig: FunctionSignature {
+                                        args: args.into(),
+                                        return_type,
+                                    },
                                 },
                             );
 
@@ -174,8 +177,13 @@ pub fn create_signature_table(
                                     return Err(ParserError::DuplicateSignatureImports.into());
                                 }
 
-                                external_imports
-                                    .insert(identifier, FunctionSignature { args: args.into(), return_type });
+                                external_imports.insert(
+                                    identifier,
+                                    FunctionSignature {
+                                        args: args.into(),
+                                        return_type,
+                                    },
+                                );
 
                                 continue;
                             }

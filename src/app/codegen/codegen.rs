@@ -428,8 +428,10 @@ pub fn create_alloca_table<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    let mut alloc_table: HashMap<ParsedToken, (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)> =
-        HashMap::new();
+    let mut alloc_table: HashMap<
+        ParsedToken,
+        (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant),
+    > = HashMap::new();
 
     for token in parsed_tokens {
         let allocated_val = fetch_alloca_ptr(
@@ -2046,7 +2048,7 @@ where
                 this_fn,
                 None,
             )?;
-            
+
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
             Some((ptr, ptr_ty, var_type))
         }
@@ -2055,8 +2057,7 @@ where
 
     let alloca_table_entry = if let Some((ptr, ty, ty_disc)) = alloca_entry {
         Some((parsed_token, ptr, ty, ty_disc))
-    }
-    else {
+    } else {
         None
     };
 

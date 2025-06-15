@@ -1,5 +1,5 @@
 use crate::app::type_system::type_system::{
-    unparsed_const_to_typed_literal_unsafe, OrdMap, TypeDiscriminant
+    OrdMap, TypeDiscriminant, unparsed_const_to_typed_literal_unsafe,
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -821,6 +821,9 @@ pub fn init_struct(
 
     Ok((
         idx,
-        ParsedToken::InitializeStruct(this_struct_field.clone().into(), struct_field_init_map.into()),
+        ParsedToken::InitializeStruct(
+            this_struct_field.clone().into(),
+            struct_field_init_map.into(),
+        ),
     ))
 }
