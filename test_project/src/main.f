@@ -1,4 +1,4 @@
-import printf(str: string, inp: int): int;
+import printf(str: string, inp: float): int;
 import srand(seed: int): int;
 import time(since: int): int;
 import rand(): int;
@@ -7,10 +7,10 @@ import gets(): int;
 function main(): int {
     srand(time(0));
 
-    loop {
-        int a = 34;
+    int asd = 23423;
 
-        printf("%i", a);
+    loop {
+        printf("a: %f", 2320 as float);
     }
 
     return 0;

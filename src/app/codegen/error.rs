@@ -41,4 +41,6 @@ pub enum CodeGenError {
         "The if statement contains an invalid condition. The condition has to return a boolean value."
     )]
     InvalidIfCondition,
+    #[error("Codegen has encountered a parsing error.")]
+    InternalParsingError,
 }
