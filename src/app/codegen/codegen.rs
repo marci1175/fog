@@ -3,7 +3,15 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync:
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    basic_block::BasicBlock, builder::Builder, context::Context, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue}, AddressSpace
+    AddressSpace,
+    basic_block::BasicBlock,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    passes::PassBuilderOptions,
+    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
+    types::{ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
 use crate::{
@@ -54,7 +62,7 @@ pub fn codegen_main(
         .unwrap();
 
     // Create opt passes list
-    let passes = ["sink", "mem2reg"].join(",");
+    let passes = ["globaldce", "sink", "mem2reg"].join(",");
 
     // Run optimization passes if the user prompted to
     if optimization {
@@ -359,7 +367,16 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
     // If the code we are running is not in a loop we can pass in `None`.
     alloca_table: Option<
-        Arc<HashMap<ParsedToken, (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>>,
+        Arc<
+            HashMap<
+                ParsedToken,
+                Vec<(
+                    PointerValue<'ctx>,
+                    BasicMetadataTypeEnum<'ctx>,
+                    TypeDiscriminant,
+                )>,
+            >,
+        >,
     >,
 ) -> Result<(), anyhow::Error>
 where
@@ -410,11 +427,11 @@ pub fn create_alloca_table<'main, 'ctx>(
 ) -> Result<
     HashMap<
         ParsedToken,
-        (
+        Vec<(
             PointerValue<'ctx>,
             BasicMetadataTypeEnum<'ctx>,
             TypeDiscriminant,
-        ),
+        )>,
     >,
     anyhow::Error,
 >
@@ -423,11 +440,11 @@ where
 {
     let mut alloc_table: HashMap<
         ParsedToken,
-        (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant),
+        Vec<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>,
     > = HashMap::new();
 
     for token in parsed_tokens {
-        let allocated_val = fetch_alloca_ptr(
+        let (token, allocations) = fetch_alloca_ptr(
             ctx,
             module,
             builder,
@@ -438,9 +455,7 @@ where
             this_fn,
         )?;
 
-        if let Some((token, ptr, ty, _disc)) = allocated_val {
-            alloc_table.insert(token, (ptr, ty, _disc));
-        }
+        alloc_table.insert(token.clone(), allocations);
 
         // If the token we have parsed was a loop token that means any code from now becomes inaccessible, therefor we can stop parsing it.
         if let ParsedToken::Loop(_) = token {
@@ -473,7 +488,16 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     alloca_table: Option<
-        Arc<HashMap<ParsedToken, (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>>,
+        Arc<
+            HashMap<
+                ParsedToken,
+                Vec<(
+                    PointerValue<'ctx>,
+                    BasicMetadataTypeEnum<'ctx>,
+                    TypeDiscriminant,
+                )>,
+            >,
+        >,
     >,
 ) -> anyhow::Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
@@ -490,29 +514,44 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
 where
     'main: 'ctx,
 {
+    let mut allocation_list: Option<Vec<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> =
+        alloca_table
+            .as_ref()
+            .and_then(|table| table.get(&parsed_token).cloned());
+
     let created_var = match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
-            if let Some(alloca_t) = alloca_table.clone() {
-                if !alloca_t.contains_key(&parsed_token) {
-                    let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
+            // Check if the function has been called with an allocation table
+            let (ptr, ty) = if let Some(mut alloca_t) = allocation_list {
+                let (ptr, ptr_ty, ty) = alloca_t.remove(0);
 
-                    variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
-
-                    // Set the value of the newly created variable
-                    create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        *var_set_val,
-                        variable_map,
-                        Some((var_name, (ptr, ptr_ty), var_type)),
-                        fn_ret_ty,
-                        this_fn_block,
-                        this_fn,
-                        alloca_table.clone(),
-                    )?;
+                if ty == var_type {
+                    (ptr, ptr_ty)
+                } else {
+                    return Err(CodeGenError::InvalidPreAllocation.into());
                 }
             }
+            else {
+                let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
+
+                variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
+
+                (ptr, ptr_ty)
+            };
+
+            // Set the value of the newly created variable
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *var_set_val,
+                variable_map,
+                Some((var_name, (ptr, ty), var_type)),
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                alloca_table.clone(),
+            )?;
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
             None
@@ -668,6 +707,7 @@ where
                         }
                     }
                     crate::app::parser::types::VariableReference::BasicReference(basic_ref) => {
+                        dbg!(&variable_map);
                         let ((ptr, ty), ty_disc) = variable_map
                             .get(&basic_ref)
                             .ok_or(CodeGenError::InternalVariableNotFound(basic_ref.clone()))?;
@@ -1144,7 +1184,8 @@ where
 
                                 let int_string = raw_val.to_string();
 
-                                let (buf_ptr, buf_ty) = allocate_string(builder, ctx.i8_type(), int_string)?;
+                                let (buf_ptr, buf_ty) =
+                                    allocate_string(builder, ctx.i8_type(), int_string)?;
 
                                 builder.build_store(ref_ptr, buf_ptr)?;
                             }
@@ -1327,7 +1368,9 @@ where
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let (buf, buf_ty) = if val.get_zero_extended_constant().unwrap() == 0 {
+                                let (buf, buf_ty) = if val.get_zero_extended_constant().unwrap()
+                                    == 0
+                                {
                                     allocate_string(builder, ctx.i8_type(), "false".to_string())?
                                 } else {
                                     allocate_string(builder, ctx.i8_type(), "true".to_string())?
@@ -1416,23 +1459,34 @@ where
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (arg_name, (arg_type, parsed_token)) in fn_argument_list.iter() {
-                // Create a temporary variable for the argument thats passed in
-                let (ptr, ptr_ty) = create_new_variable(ctx, builder, arg_name, arg_type)?;
+            for (idx, (arg_name, (arg_type, parsed_arg_token))) in
+                fn_argument_list.iter().enumerate()
+            {
+                // Check if the function has been called with an allocation table
+                let (ptr, ptr_ty) = if let Some(ref mut allocations) = allocation_list {
+                    let (ptr, ty, _disc) = allocations.remove(0);
 
-                // Set the value of the temp variable to the value the argument has
-                create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    parsed_token.clone(),
-                    variable_map,
-                    Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
-                    fn_ret_ty.clone(),
-                    this_fn_block,
-                    this_fn,
-                    alloca_table.clone(),
-                )?;
+                    (ptr, ty)
+                } else {
+                    // Create a temporary variable for the argument thats passed in
+                    let (ptr, ptr_ty) = create_new_variable(ctx, builder, arg_name, arg_type)?;
+
+                    // Set the value of the temp variable to the value the argument has
+                    create_ir_from_parsed_token(
+                        ctx,
+                        module,
+                        builder,
+                        parsed_arg_token.clone(),
+                        variable_map,
+                        Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
+                        fn_ret_ty.clone(),
+                        this_fn_block,
+                        this_fn,
+                        alloca_table.clone(),
+                    )?;
+
+                    (ptr, ptr_ty)
+                };
 
                 // Push the argument to the list of arguments
                 match ptr_ty {
@@ -1483,7 +1537,15 @@ where
 
                     (v_ptr, var_ty)
                 } else {
-                    let (v_ptr, v_ty) = create_new_variable(ctx, builder, "", &fn_sig.return_type)?;
+                    let (v_ptr, v_ty) = if let Some(allocations) = allocation_list {
+                        if let Some((ptr, ty, _disc)) = allocations.last() {
+                            (*ptr, *ty)
+                        } else {
+                            return Err(CodeGenError::InvalidPreAllocation.into());
+                        }
+                    } else {
+                        create_new_variable(ctx, builder, "", &fn_sig.return_type)?
+                    };
 
                     (v_ptr, v_ty)
                 };
@@ -1636,7 +1698,7 @@ where
                                 builder,
                                 *value,
                                 variable_map,
-                                Some((String::new(), (f_ptr, f_ty.into()), dbg!(ty_disc.clone()))),
+                                Some((String::new(), (f_ptr, f_ty.into()), ty_disc.clone())),
                                 fn_ret_ty,
                                 this_fn_block,
                                 this_fn,
@@ -1992,6 +2054,9 @@ where
     Ok(created_var)
 }
 
+/// This function returns a pointer to the allocation made by according to the specific [`ParsedToken`] which had been passed in.
+/// It serves as a way to make allocations before entering a loop, to avoid stack overflows.
+/// If no allocation had been made the function will return [`None`].
 pub fn fetch_alloca_ptr<'main, 'ctx>(
     ctx: &'main Context,
     module: &Module<'ctx>,
@@ -2008,9 +2073,9 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-) -> anyhow::Result<
-    Option<(
-        ParsedToken,
+) -> anyhow::Result<(
+    ParsedToken,
+    Vec<(
         // Pointer to the referenced variable
         PointerValue<'ctx>,
         // Type of the variable
@@ -2018,15 +2083,24 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
         // TypeDiscriminant of the variable
         TypeDiscriminant,
     )>,
->
+)>
 where
     'main: 'ctx,
 {
-    let alloca_entry = match parsed_token.clone() {
-        ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
-            let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
+    let mut allocations = Vec::new();
 
-            variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
+    match parsed_token.clone() {
+        ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
+            let (ptr, ty) = if let Some(((ptr, ty), _)) = variable_map.get(&var_name) {
+                (ptr.clone(), ty.clone())
+            }
+            else {
+                let (ptr, ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
+
+                variable_map.insert(var_name.clone(), ((ptr, ty), var_type.clone()));
+
+                (ptr, ty)
+            };
 
             // Set the value of the newly created variable
             create_ir_from_parsed_token(
@@ -2035,7 +2109,7 @@ where
                 builder,
                 *var_set_val,
                 variable_map,
-                Some((var_name.clone(), (ptr, ptr_ty), var_type.clone())),
+                Some((var_name.clone(), (ptr, ty), var_type.clone())),
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
@@ -2043,543 +2117,222 @@ where
             )?;
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
-            Some((ptr, ptr_ty, var_type))
+            allocations.push((ptr, ty, var_type));
         }
         // We do not need to store references from a VariableReference as it doesn't allocate anything on the stack and reuses already existing pointers
-        ParsedToken::VariableReference(_) => None,
+        ParsedToken::VariableReference(var_ref) => match var_ref {
+            crate::app::parser::types::VariableReference::StructFieldReference(
+                struct_field_stack,
+                (struct_name, struct_def),
+            ) => {
+                let mut field_stack_iter = struct_field_stack.field_stack.iter();
+
+                if let Some(main_struct_var_name) = field_stack_iter.next() {
+                    if let Some(((ptr, ty), _)) = variable_map.get(main_struct_var_name) {
+                        let (f_ptr, f_ty, ty_disc) = access_nested_field(
+                            ctx,
+                            builder,
+                            &mut field_stack_iter,
+                            &struct_def,
+                            (*ptr, *ty),
+                        )?;
+
+                        allocations.push((f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc));
+                    } else {
+                        return Err(CodeGenError::InternalVariableNotFound(
+                            main_struct_var_name.clone(),
+                        )
+                        .into());
+                    }
+                } else {
+                    return Err(CodeGenError::InternalStructReference.into());
+                }
+            }
+            crate::app::parser::types::VariableReference::BasicReference(name) => {
+                if let Some(((ptr, ty), disc)) = variable_map.get(&name) {
+                    allocations.push((*ptr, *ty, disc.clone()));
+                }
+            }
+        },
         ParsedToken::Literal(literal) => {
             let ty_disc = literal.discriminant();
 
-            let (v_ptr, v_ty) = create_new_variable(ctx, builder, "", &ty_disc)?;
+            let (ptr, ty) = create_new_variable(ctx, builder, "", &ty_disc)?;
 
-            set_value_of_ptr(ctx, builder, literal, v_ptr)?;
+            set_value_of_ptr(ctx, builder, literal, ptr)?;
 
-            Some((v_ptr, v_ty, ty_disc))
+            allocations.push((ptr, ty, ty_disc));
         }
         ParsedToken::TypeCast(parsed_token, desired_type) => {
-                let created_var = create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    *parsed_token,
-                    variable_map,
-                    None,
-                    fn_ret_ty,
-                    this_fn_block,
-                    this_fn,
-                    None,
-                )?;
+            let created_var = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *parsed_token,
+                variable_map,
+                None,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                None,
+            )?;
 
-                if let Some((var_ptr, var_ty, ty_disc)) = created_var {
-                    let returned_alloca = match ty_disc {
-                        // This match implements turning an I64 into other types
-                        TypeDiscriminant::I64 | TypeDiscriminant::I32 | TypeDiscriminant::I16 => {
-                            match desired_type {
-                                TypeDiscriminant::I64 => {
-                                    Some((var_ptr, var_ty, TypeDiscriminant::I64))
-                                }
-                                TypeDiscriminant::F64 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = builder.build_signed_int_to_float(
-                                        value,
-                                        ctx.f64_type(),
-                                        "casted_value",
-                                    )?;
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::FloatType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::U64 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = builder.build_int_cast(
-                                        value,
-                                        ctx.i64_type(),
-                                        "i64_to_u64",
-                                    )?;
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::I32 | TypeDiscriminant::U32 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = builder.build_int_truncate(
-                                        value,
-                                        ctx.i32_type(),
-                                        "i64_to_i32",
-                                    )?;
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::F32 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = builder.build_signed_int_to_float(
-                                        value,
-                                        ctx.f32_type(),
-                                        "casted_value",
-                                    )?;
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::FloatType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::I16 | TypeDiscriminant::U16 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = builder.build_int_truncate(
-                                        value,
-                                        ctx.i16_type(),
-                                        "i64_to_i32",
-                                    )?;
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::F16 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = builder.build_signed_int_to_float(
-                                        value,
-                                        ctx.f16_type(),
-                                        "casted_value",
-                                    )?;
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::FloatType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::U8 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let cast_res = builder.build_int_truncate(
-                                        value,
-                                        ctx.i8_type(),
-                                        "i64_to_i32",
-                                    )?;
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::String => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let raw_val = value.get_sign_extended_constant().unwrap();
-
-                                    let int_string = raw_val.to_string();
-
-                                    let (buf_ptr, buf_ty) = allocate_string(builder, ctx.i8_type(), int_string)?;
-
-                                    Some((buf_ptr, BasicMetadataTypeEnum::ArrayType(buf_ty), desired_type))
-                                }
-                                TypeDiscriminant::Boolean => {
-                                    let value = builder
-                                        .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                        .into_int_value();
-
-                                    let bool_ty = ctx.bool_type();
-
-                                    let bool_value =
-                                        if value.get_sign_extended_constant().unwrap() == 0 {
-                                            bool_ty.const_int(0, false)
-                                        } else {
-                                            bool_ty.const_int(1, false)
-                                        };
-
-                                    let allocation = builder.build_alloca(bool_value.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, bool_value)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(bool_value.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::Void => {
-                                    return Err(CodeGenError::InvalidTypeCast(
-                                        ty_disc,
-                                        desired_type,
-                                    )
-                                    .into());
-                                }
-                                TypeDiscriminant::Struct(_) => {
-                                    return Err(CodeGenError::InvalidTypeCast(
-                                        ty_disc,
-                                        desired_type,
-                                    )
-                                    .into());
-                                }
-                            }
-                        }
-                        TypeDiscriminant::F64 | TypeDiscriminant::F32 | TypeDiscriminant::F16 => {
-                            match desired_type {
-                                TypeDiscriminant::I64 => {
-                                    let cast_res = builder.build_float_to_signed_int(
-                                        builder
-                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                            .into_float_value(),
-                                        ctx.i64_type(),
-                                        "",
-                                    )?;
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::F64 => {
-                                    Some((var_ptr, var_ty, TypeDiscriminant::F64))
-                                }
-                                TypeDiscriminant::U64 => {
-                                    let cast_res = builder.build_float_to_unsigned_int(
-                                        builder
-                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                            .into_float_value(),
-                                        ctx.i64_type(),
-                                        "",
-                                    )?;
-
-                                   let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::I32 => {
-                                    let cast_res = builder.build_float_to_signed_int(
-                                        builder
-                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                            .into_float_value(),
-                                        ctx.i32_type(),
-                                        "",
-                                    )?;
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::F32 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                        .into_float_value();
-
-                                    let cast_res =
-                                        ctx.f32_type().const_float(value.get_constant().unwrap().0);
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::FloatType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::U32 => {
-                                    let cast_res = builder.build_float_to_unsigned_int(
-                                        builder
-                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                            .into_float_value(),
-                                        ctx.i32_type(),
-                                        "",
-                                    )?;
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::I16 => {
-                                    let cast_res = builder.build_float_to_signed_int(
-                                        builder
-                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                            .into_float_value(),
-                                        ctx.i16_type(),
-                                        "",
-                                    )?;
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::F16 => {
-                                    let value = builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                        .into_float_value();
-
-                                    let cast_res =
-                                        ctx.f16_type().const_float(value.get_constant().unwrap().0);
-
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::FloatType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::U16 => {
-                                    let cast_res = builder.build_float_to_unsigned_int(
-                                        builder
-                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                            .into_float_value(),
-                                        ctx.i16_type(),
-                                        "",
-                                    )?;
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::U8 => {
-                                    let cast_res = builder.build_float_to_unsigned_int(
-                                        builder
-                                            .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                            .into_float_value(),
-                                        ctx.i8_type(),
-                                        "",
-                                    )?;
-                                    let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::String => {
-                                    let value = builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                        .into_float_value();
-
-                                    let raw_val = value.get_constant().unwrap().0;
-
-                                    let int_string = raw_val.to_string();
-
-                                    let (buf_ptr, buf_ty) = allocate_string(builder, ctx.i8_type(), int_string)?;
-
-                                    Some((buf_ptr, BasicMetadataTypeEnum::ArrayType(buf_ty), desired_type))
-                                }
-                                TypeDiscriminant::Boolean => {
-                                    let value = builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
-                                        .into_float_value();
-
-                                    let bool_ty = ctx.bool_type();
-
-                                    let bool_value = if value.get_constant().unwrap().0 == 0.0 {
-                                        bool_ty.const_int(0, false)
-                                    } else {
-                                        bool_ty.const_int(1, false)
-                                    };
-
-                                    let allocation = builder.build_alloca(bool_value.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, bool_value)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(bool_value.get_type()), desired_type))
-                                }
-                                TypeDiscriminant::Void => {
-                                    return Err(CodeGenError::InvalidTypeCast(
-                                        ty_disc,
-                                        desired_type,
-                                    )
-                                    .into());
-                                }
-                                TypeDiscriminant::Struct(_) => {
-                                    return Err(CodeGenError::InvalidTypeCast(
-                                        ty_disc,
-                                        desired_type,
-                                    )
-                                    .into());
-                                }
-                            }
-                        }
-                        TypeDiscriminant::U64
-                        | TypeDiscriminant::U32
-                        | TypeDiscriminant::U16
-                        | TypeDiscriminant::U8 => match desired_type {
-                            TypeDiscriminant::I64 => {
-                                let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                    .into_int_value();
-
-                                let cast_res = ctx.i64_type().const_int(
-                                    value.get_sign_extended_constant().unwrap() as u64,
-                                    true,
-                                );
-
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                            }
+            if let Some((var_ptr, var_ty, ty_disc)) = created_var {
+                let returned_alloca = match ty_disc {
+                    // This match implements turning an I64 into other types
+                    TypeDiscriminant::I64 | TypeDiscriminant::I32 | TypeDiscriminant::I16 => {
+                        match desired_type {
+                            TypeDiscriminant::I64 => Some((var_ptr, var_ty, TypeDiscriminant::I64)),
                             TypeDiscriminant::F64 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let cast_res = builder.build_unsigned_int_to_float(
+                                let cast_res = builder.build_signed_int_to_float(
                                     value,
                                     ctx.f64_type(),
                                     "casted_value",
                                 )?;
 
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                                    Some((allocation, BasicMetadataTypeEnum::FloatType(cast_res.get_type()), desired_type))
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                    desired_type,
+                                ))
                             }
                             TypeDiscriminant::U64 => {
-                                Some((var_ptr, var_ty, TypeDiscriminant::U64))
-                            }
-                            TypeDiscriminant::I32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let cast_res = ctx.i32_type().const_int(
-                                    value.get_sign_extended_constant().unwrap() as u64,
-                                    true,
-                                );
+                                let cast_res =
+                                    builder.build_int_cast(value, ctx.i64_type(), "i64_to_u64")?;
 
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::I32 | TypeDiscriminant::U32 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
+
+                                let cast_res = builder.build_int_truncate(
+                                    value,
+                                    ctx.i32_type(),
+                                    "i64_to_i32",
+                                )?;
+
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
                             }
                             TypeDiscriminant::F32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let cast_res = builder.build_unsigned_int_to_float(
+                                let cast_res = builder.build_signed_int_to_float(
                                     value,
                                     ctx.f32_type(),
                                     "casted_value",
                                 )?;
 
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                                    Some((allocation, BasicMetadataTypeEnum::FloatType(cast_res.get_type()), desired_type))
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                    desired_type,
+                                ))
                             }
-                            TypeDiscriminant::U32 => {
+                            TypeDiscriminant::I16 | TypeDiscriminant::U16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let cast_res = ctx.i32_type().const_int(
-                                    value.get_sign_extended_constant().unwrap() as u64,
-                                    false,
-                                );
+                                let cast_res = builder.build_int_truncate(
+                                    value,
+                                    ctx.i16_type(),
+                                    "i64_to_i32",
+                                )?;
 
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
-                            }
-                            TypeDiscriminant::I16 => {
-                                let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                    .into_int_value();
+                                builder.build_store(allocation, cast_res)?;
 
-                                let cast_res = ctx.i16_type().const_int(
-                                    value.get_sign_extended_constant().unwrap() as u64,
-                                    true,
-                                );
-
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
                             }
                             TypeDiscriminant::F16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let cast_res = builder.build_unsigned_int_to_float(
+                                let cast_res = builder.build_signed_int_to_float(
                                     value,
                                     ctx.f16_type(),
                                     "casted_value",
                                 )?;
 
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                                    Some((allocation, BasicMetadataTypeEnum::FloatType(cast_res.get_type()), desired_type))
-                            }
-                            TypeDiscriminant::U16 => {
-                                let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                    .into_int_value();
+                                builder.build_store(allocation, cast_res)?;
 
-                                let cast_res = ctx.i16_type().const_int(
-                                    value.get_sign_extended_constant().unwrap() as u64,
-                                    false,
-                                );
-
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
-
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                    desired_type,
+                                ))
                             }
                             TypeDiscriminant::U8 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let cast_res = ctx.i8_type().const_int(
-                                    value.get_sign_extended_constant().unwrap() as u64,
-                                    false,
-                                );
+                                let cast_res = builder.build_int_truncate(
+                                    value,
+                                    ctx.i8_type(),
+                                    "i64_to_i32",
+                                )?;
 
-                                let allocation = builder.build_alloca(cast_res.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, cast_res)?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(cast_res.get_type()), desired_type))
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
                             }
                             TypeDiscriminant::String => {
                                 let value = builder
@@ -2590,9 +2343,14 @@ where
 
                                 let int_string = raw_val.to_string();
 
-                                let (buf_ptr, buf_ty) = allocate_string(builder, ctx.i8_type(), int_string)?;
+                                let (buf_ptr, buf_ty) =
+                                    allocate_string(builder, ctx.i8_type(), int_string)?;
 
-                                Some((buf_ptr, BasicMetadataTypeEnum::ArrayType(buf_ty), desired_type))
+                                Some((
+                                    buf_ptr,
+                                    BasicMetadataTypeEnum::ArrayType(buf_ty),
+                                    desired_type,
+                                ))
                             }
                             TypeDiscriminant::Boolean => {
                                 let value = builder
@@ -2608,11 +2366,16 @@ where
                                     bool_ty.const_int(1, false)
                                 };
 
-                                let allocation = builder.build_alloca(bool_value.get_type(), "cast_result")?;
-                                    
-                                    builder.build_store(allocation, bool_value)?;
+                                let allocation =
+                                    builder.build_alloca(bool_value.get_type(), "cast_result")?;
 
-                                    Some((allocation, BasicMetadataTypeEnum::IntType(bool_value.get_type()), desired_type))
+                                builder.build_store(allocation, bool_value)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(bool_value.get_type()),
+                                    desired_type,
+                                ))
                             }
                             TypeDiscriminant::Void => {
                                 return Err(
@@ -2624,96 +2387,582 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             }
-                        },
-                        TypeDiscriminant::String => match desired_type {
-                            TypeDiscriminant::I64 => todo!(),
-                            TypeDiscriminant::F64 => todo!(),
-                            TypeDiscriminant::U64 => todo!(),
-                            TypeDiscriminant::I32 => todo!(),
-                            TypeDiscriminant::F32 => todo!(),
-                            TypeDiscriminant::U32 => todo!(),
-                            TypeDiscriminant::I16 => todo!(),
-                            TypeDiscriminant::F16 => todo!(),
-                            TypeDiscriminant::U16 => todo!(),
-                            TypeDiscriminant::U8 => todo!(),
-                            TypeDiscriminant::String => todo!(),
-                            TypeDiscriminant::Boolean => todo!(),
-                            TypeDiscriminant::Void => todo!(),
-                            TypeDiscriminant::Struct(_) => todo!(),
-                        },
-                        TypeDiscriminant::Boolean => match desired_type {
-                            TypeDiscriminant::I64 => todo!(),
-                            TypeDiscriminant::F64 => todo!(),
-                            TypeDiscriminant::U64 => todo!(),
-                            TypeDiscriminant::I32 => todo!(),
-                            TypeDiscriminant::F32 => todo!(),
-                            TypeDiscriminant::U32 => todo!(),
-                            TypeDiscriminant::I16 => todo!(),
-                            TypeDiscriminant::F16 => todo!(),
-                            TypeDiscriminant::U16 => todo!(),
-                            TypeDiscriminant::U8 => todo!(),
-                            TypeDiscriminant::String => todo!(),
-                            TypeDiscriminant::Boolean => todo!(),
-                            TypeDiscriminant::Void => todo!(),
-                            TypeDiscriminant::Struct(_) => todo!(),
-                        },
-                        TypeDiscriminant::Void => match desired_type {
-                            TypeDiscriminant::I64 => todo!(),
-                            TypeDiscriminant::F64 => todo!(),
-                            TypeDiscriminant::U64 => todo!(),
-                            TypeDiscriminant::I32 => todo!(),
-                            TypeDiscriminant::F32 => todo!(),
-                            TypeDiscriminant::U32 => todo!(),
-                            TypeDiscriminant::I16 => todo!(),
-                            TypeDiscriminant::F16 => todo!(),
-                            TypeDiscriminant::U16 => todo!(),
-                            TypeDiscriminant::U8 => todo!(),
-                            TypeDiscriminant::String => todo!(),
-                            TypeDiscriminant::Boolean => todo!(),
-                            TypeDiscriminant::Void => todo!(),
-                            TypeDiscriminant::Struct(_) => todo!(),
-                        },
-                        TypeDiscriminant::Struct(_) => match desired_type {
-                            TypeDiscriminant::I64 => todo!(),
-                            TypeDiscriminant::F64 => todo!(),
-                            TypeDiscriminant::U64 => todo!(),
-                            TypeDiscriminant::I32 => todo!(),
-                            TypeDiscriminant::F32 => todo!(),
-                            TypeDiscriminant::U32 => todo!(),
-                            TypeDiscriminant::I16 => todo!(),
-                            TypeDiscriminant::F16 => todo!(),
-                            TypeDiscriminant::U16 => todo!(),
-                            TypeDiscriminant::U8 => todo!(),
-                            TypeDiscriminant::String => todo!(),
-                            TypeDiscriminant::Boolean => todo!(),
-                            TypeDiscriminant::Void => todo!(),
-                            TypeDiscriminant::Struct(_) => todo!(),
-                        },
-                    };
-                    
-                    if let Some((a, b, c)) = returned_alloca {
-                        Some((a, b, c))
+                        }
                     }
-                    else {
-                        None
+                    TypeDiscriminant::F64 | TypeDiscriminant::F32 | TypeDiscriminant::F16 => {
+                        match desired_type {
+                            TypeDiscriminant::I64 => {
+                                let cast_res = builder.build_float_to_signed_int(
+                                    builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value(),
+                                    ctx.i64_type(),
+                                    "",
+                                )?;
+
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::F64 => Some((var_ptr, var_ty, TypeDiscriminant::F64)),
+                            TypeDiscriminant::U64 => {
+                                let cast_res = builder.build_float_to_unsigned_int(
+                                    builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value(),
+                                    ctx.i64_type(),
+                                    "",
+                                )?;
+
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::I32 => {
+                                let cast_res = builder.build_float_to_signed_int(
+                                    builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value(),
+                                    ctx.i32_type(),
+                                    "",
+                                )?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::F32 => {
+                                let value = builder
+                                    .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                    .into_float_value();
+
+                                let cast_res =
+                                    ctx.f32_type().const_float(value.get_constant().unwrap().0);
+
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::U32 => {
+                                let cast_res = builder.build_float_to_unsigned_int(
+                                    builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value(),
+                                    ctx.i32_type(),
+                                    "",
+                                )?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::I16 => {
+                                let cast_res = builder.build_float_to_signed_int(
+                                    builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value(),
+                                    ctx.i16_type(),
+                                    "",
+                                )?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::F16 => {
+                                let value = builder
+                                    .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                    .into_float_value();
+
+                                let cast_res =
+                                    ctx.f16_type().const_float(value.get_constant().unwrap().0);
+
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::U16 => {
+                                let cast_res = builder.build_float_to_unsigned_int(
+                                    builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value(),
+                                    ctx.i16_type(),
+                                    "",
+                                )?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::U8 => {
+                                let cast_res = builder.build_float_to_unsigned_int(
+                                    builder
+                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .into_float_value(),
+                                    ctx.i8_type(),
+                                    "",
+                                )?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, cast_res)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::String => {
+                                let value = builder
+                                    .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                    .into_float_value();
+
+                                let raw_val = value.get_constant().unwrap().0;
+
+                                let int_string = raw_val.to_string();
+
+                                let (buf_ptr, buf_ty) =
+                                    allocate_string(builder, ctx.i8_type(), int_string)?;
+
+                                Some((
+                                    buf_ptr,
+                                    BasicMetadataTypeEnum::ArrayType(buf_ty),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::Boolean => {
+                                let value = builder
+                                    .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                    .into_float_value();
+
+                                let bool_ty = ctx.bool_type();
+
+                                let bool_value = if value.get_constant().unwrap().0 == 0.0 {
+                                    bool_ty.const_int(0, false)
+                                } else {
+                                    bool_ty.const_int(1, false)
+                                };
+
+                                let allocation =
+                                    builder.build_alloca(bool_value.get_type(), "cast_result")?;
+
+                                builder.build_store(allocation, bool_value)?;
+
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(bool_value.get_type()),
+                                    desired_type,
+                                ))
+                            }
+                            TypeDiscriminant::Void => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            }
+                            TypeDiscriminant::Struct(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            }
+                        }
                     }
-                } else {
-                    return Err(CodeGenError::InternalParsingError.into());
+                    TypeDiscriminant::U64
+                    | TypeDiscriminant::U32
+                    | TypeDiscriminant::U16
+                    | TypeDiscriminant::U8 => match desired_type {
+                        TypeDiscriminant::I64 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = ctx.i64_type().const_int(
+                                value.get_sign_extended_constant().unwrap() as u64,
+                                true,
+                            );
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::F64 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = builder.build_unsigned_int_to_float(
+                                value,
+                                ctx.f64_type(),
+                                "casted_value",
+                            )?;
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::U64 => Some((var_ptr, var_ty, TypeDiscriminant::U64)),
+                        TypeDiscriminant::I32 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = ctx.i32_type().const_int(
+                                value.get_sign_extended_constant().unwrap() as u64,
+                                true,
+                            );
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::F32 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = builder.build_unsigned_int_to_float(
+                                value,
+                                ctx.f32_type(),
+                                "casted_value",
+                            )?;
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::U32 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = ctx.i32_type().const_int(
+                                value.get_sign_extended_constant().unwrap() as u64,
+                                false,
+                            );
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::I16 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = ctx.i16_type().const_int(
+                                value.get_sign_extended_constant().unwrap() as u64,
+                                true,
+                            );
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::F16 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = builder.build_unsigned_int_to_float(
+                                value,
+                                ctx.f16_type(),
+                                "casted_value",
+                            )?;
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::U16 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = ctx.i16_type().const_int(
+                                value.get_sign_extended_constant().unwrap() as u64,
+                                false,
+                            );
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::U8 => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let cast_res = ctx.i8_type().const_int(
+                                value.get_sign_extended_constant().unwrap() as u64,
+                                false,
+                            );
+
+                            let allocation =
+                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, cast_res)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::String => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let raw_val = value.get_sign_extended_constant().unwrap();
+
+                            let int_string = raw_val.to_string();
+
+                            let (buf_ptr, buf_ty) =
+                                allocate_string(builder, ctx.i8_type(), int_string)?;
+
+                            Some((
+                                buf_ptr,
+                                BasicMetadataTypeEnum::ArrayType(buf_ty),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::Boolean => {
+                            let value = builder
+                                .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                .into_int_value();
+
+                            let bool_ty = ctx.bool_type();
+
+                            let bool_value = if value.get_sign_extended_constant().unwrap() == 0 {
+                                bool_ty.const_int(0, false)
+                            } else {
+                                bool_ty.const_int(1, false)
+                            };
+
+                            let allocation =
+                                builder.build_alloca(bool_value.get_type(), "cast_result")?;
+
+                            builder.build_store(allocation, bool_value)?;
+
+                            Some((
+                                allocation,
+                                BasicMetadataTypeEnum::IntType(bool_value.get_type()),
+                                desired_type,
+                            ))
+                        }
+                        TypeDiscriminant::Void => {
+                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                        }
+                        TypeDiscriminant::Struct(_) => {
+                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                        }
+                    },
+                    TypeDiscriminant::String => match desired_type {
+                        TypeDiscriminant::I64 => todo!(),
+                        TypeDiscriminant::F64 => todo!(),
+                        TypeDiscriminant::U64 => todo!(),
+                        TypeDiscriminant::I32 => todo!(),
+                        TypeDiscriminant::F32 => todo!(),
+                        TypeDiscriminant::U32 => todo!(),
+                        TypeDiscriminant::I16 => todo!(),
+                        TypeDiscriminant::F16 => todo!(),
+                        TypeDiscriminant::U16 => todo!(),
+                        TypeDiscriminant::U8 => todo!(),
+                        TypeDiscriminant::String => todo!(),
+                        TypeDiscriminant::Boolean => todo!(),
+                        TypeDiscriminant::Void => todo!(),
+                        TypeDiscriminant::Struct(_) => todo!(),
+                    },
+                    TypeDiscriminant::Boolean => match desired_type {
+                        TypeDiscriminant::I64 => todo!(),
+                        TypeDiscriminant::F64 => todo!(),
+                        TypeDiscriminant::U64 => todo!(),
+                        TypeDiscriminant::I32 => todo!(),
+                        TypeDiscriminant::F32 => todo!(),
+                        TypeDiscriminant::U32 => todo!(),
+                        TypeDiscriminant::I16 => todo!(),
+                        TypeDiscriminant::F16 => todo!(),
+                        TypeDiscriminant::U16 => todo!(),
+                        TypeDiscriminant::U8 => todo!(),
+                        TypeDiscriminant::String => todo!(),
+                        TypeDiscriminant::Boolean => todo!(),
+                        TypeDiscriminant::Void => todo!(),
+                        TypeDiscriminant::Struct(_) => todo!(),
+                    },
+                    TypeDiscriminant::Void => match desired_type {
+                        TypeDiscriminant::I64 => todo!(),
+                        TypeDiscriminant::F64 => todo!(),
+                        TypeDiscriminant::U64 => todo!(),
+                        TypeDiscriminant::I32 => todo!(),
+                        TypeDiscriminant::F32 => todo!(),
+                        TypeDiscriminant::U32 => todo!(),
+                        TypeDiscriminant::I16 => todo!(),
+                        TypeDiscriminant::F16 => todo!(),
+                        TypeDiscriminant::U16 => todo!(),
+                        TypeDiscriminant::U8 => todo!(),
+                        TypeDiscriminant::String => todo!(),
+                        TypeDiscriminant::Boolean => todo!(),
+                        TypeDiscriminant::Void => todo!(),
+                        TypeDiscriminant::Struct(_) => todo!(),
+                    },
+                    TypeDiscriminant::Struct(_) => match desired_type {
+                        TypeDiscriminant::I64 => todo!(),
+                        TypeDiscriminant::F64 => todo!(),
+                        TypeDiscriminant::U64 => todo!(),
+                        TypeDiscriminant::I32 => todo!(),
+                        TypeDiscriminant::F32 => todo!(),
+                        TypeDiscriminant::U32 => todo!(),
+                        TypeDiscriminant::I16 => todo!(),
+                        TypeDiscriminant::F16 => todo!(),
+                        TypeDiscriminant::U16 => todo!(),
+                        TypeDiscriminant::U8 => todo!(),
+                        TypeDiscriminant::String => todo!(),
+                        TypeDiscriminant::Boolean => todo!(),
+                        TypeDiscriminant::Void => todo!(),
+                        TypeDiscriminant::Struct(_) => todo!(),
+                    },
+                };
+
+                if let Some((ptr, ptr_ty, var_type)) = returned_alloca {
+                    allocations.push((ptr, ptr_ty, var_type));
                 }
+            } else {
+                return Err(CodeGenError::InternalParsingError.into());
+            }
         }
         ParsedToken::FunctionCall((fn_sig, fn_name), arguments) => {
-            None
+            for (_arg_name, arg) in arguments.iter() {
+                let (_token, arg_allocs) = fetch_alloca_ptr(
+                    ctx,
+                    module,
+                    builder,
+                    arg.clone(),
+                    variable_map,
+                    fn_ret_ty.clone(),
+                    this_fn_block,
+                    this_fn,
+                )?;
+
+                allocations.extend(arg_allocs);
+            }
+
+            let (ptr, ty) = create_new_variable(ctx, builder, "", &fn_sig.return_type)?;
+
+            allocations.push((ptr, ty, fn_sig.return_type.clone()));
         }
+        ParsedToken::SetValue(var_ref, value) => (),
         _ => unimplemented!(),
     };
 
-    let alloca_table_entry = if let Some((ptr, ty, ty_disc)) = alloca_entry {
-        Some((parsed_token, ptr, ty, ty_disc))
-    } else {
-        None
-    };
-
-    Ok(alloca_table_entry)
+    Ok((parsed_token.clone(), allocations))
 }
 
 fn access_nested_field<'a>(
@@ -2893,9 +3142,21 @@ pub fn set_value_of_ptr(
         }
         Type::String(inner) => {
             let (buffer_ptr, buffer_ty) = allocate_string(builder, i8_type, inner)?;
+            
+            let input_ptr = unsafe {
+                builder.build_gep(
+                    buffer_ty,
+                    buffer_ptr,
+                    &[
+                        ctx.i32_type().const_zero(),
+                        ctx.i32_type().const_zero(),
+                    ],
+                    "buf_ptr",
+                )
+            }?;
 
             // Store const
-            builder.build_store(v_ptr, buffer_ptr)?;
+            builder.build_store(v_ptr, input_ptr)?;
         }
         Type::Boolean(inner) => {
             // Initialize const value

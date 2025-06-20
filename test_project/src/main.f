@@ -1,16 +1,17 @@
-import printf(str: string, inp: float): int;
-import srand(seed: int): int;
-import time(since: int): int;
-import rand(): int;
-import gets(): int;
+import printf(str: string, res: int): int;
+import getchar(): int;
+import gets(buf: string): int;
 
 function main(): int {
-    srand(time(0));
-
-    int asd = 23423;
+    string buf = "0000000000000000000";
 
     loop {
-        printf("a: %f", 2320 as float);
+        int a = 0;
+        a = 23;
+        int a = 2;
+        a = 3;
+
+        printf("User input: %i\n", a);
     }
 
     return 0;

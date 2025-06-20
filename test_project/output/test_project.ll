@@ -1,32 +1,16 @@
 ; ModuleID = 'main'
 source_filename = "main"
 
-declare i32 @srand(i32)
-
-declare i32 @time(i32)
-
-declare i32 @gets()
-
-declare i32 @rand()
-
 declare i32 @printf(ptr, i32)
 
 define i32 @main() {
 main_fn_entry:
-  %seed = alloca i32, align 4
-  %since = alloca i32, align 4
-  store i32 0, ptr %since, align 4
-  %since1 = load i32, ptr %since, align 4
-  %function_call = call i32 @time(i32 %since1)
-  store i32 %function_call, ptr %seed, align 4
-  %seed2 = load i32, ptr %seed, align 4
-  store i32 %seed2, ptr %seed, align 4
-  %seed3 = load i32, ptr %seed, align 4
-  %function_call4 = call i32 @srand(i32 %seed3)
-  %0 = alloca i32, align 4
-  store i32 %function_call4, ptr %0, align 4
+  %string_buffer1 = alloca [16 x i8], align 1
+  store [16 x i8] c"User input: %i\0A\00", ptr %string_buffer1, align 1
+  %buf_ptr2 = getelementptr [16 x i8], ptr %string_buffer1, i32 0, i32 0
   br label %loop_body
 
 loop_body:                                        ; preds = %loop_body, %main_fn_entry
+  %function_call = call i32 @printf(ptr %buf_ptr2, i32 3)
   br label %loop_body
 }

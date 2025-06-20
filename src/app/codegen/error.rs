@@ -43,4 +43,6 @@ pub enum CodeGenError {
     InvalidIfCondition,
     #[error("Codegen has encountered a parsing error.")]
     InternalParsingError,
+    #[error("The codegen encountered a missing or an invalid PreAllocation in `allocation_map`.")]
+    InvalidPreAllocation,
 }
