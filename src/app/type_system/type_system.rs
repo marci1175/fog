@@ -180,6 +180,22 @@ pub enum TypeDiscriminant {
     Struct((String, OrdMap<String, TypeDiscriminant>)),
 }
 
+impl TypeDiscriminant {
+    pub fn is_float(&self) -> bool {
+        match self {
+            Self::F64 | Self::F32 | Self::F16 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_int(&self) -> bool {
+        match self {
+            Self::I64 | Self::I32 | Self::I16 | Self::U64 | Self::U32 | Self::U16 | Self::U8 => true,
+            _ => false,
+        }
+    }
+}
+
 impl From<TypeDiscriminant> for Type {
     fn from(value: TypeDiscriminant) -> Self {
         match value {

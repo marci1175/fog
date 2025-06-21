@@ -530,8 +530,7 @@ where
                 } else {
                     return Err(CodeGenError::InvalidPreAllocation.into());
                 }
-            }
-            else {
+            } else {
                 let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
                 variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
@@ -1435,8 +1434,168 @@ where
 
             None
         }
-        ParsedToken::MathematicalExpression(parsed_token, mathematical_symbol, parsed_token1) => {
-            todo!()
+        ParsedToken::MathematicalExpression(lhs, mathematical_symbol, rhs) => {
+            if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference {
+                let parsed_lhs = create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    *lhs,
+                    variable_map,
+                    None,
+                    fn_ret_ty.clone(),
+                    this_fn_block,
+                    this_fn,
+                    alloca_table.clone(),
+                )?;
+                let parsed_rhs = create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    *rhs,
+                    variable_map,
+                    None,
+                    fn_ret_ty.clone(),
+                    this_fn_block,
+                    this_fn,
+                    alloca_table.clone(),
+                )?;
+
+                // Check if both sides return a valid variable reference
+                if let (Some((lhs_ptr, lhs_ty, l_ty_disc)), Some((rhs_ptr, rhs_ty, r_ty_disc))) =
+                    (parsed_lhs, parsed_rhs)
+                {
+                    if l_ty_disc.is_float() && r_ty_disc.is_float() {
+                        let add_res = match mathematical_symbol {
+                            crate::app::parser::types::MathematicalSymbol::Addition => {
+                                builder.build_float_add(
+                                    builder
+                                        .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
+                                        .into_float_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
+                                        .into_float_value(),
+                                    "float_add_float",
+                                )?
+                            }
+                            crate::app::parser::types::MathematicalSymbol::Subtraction => {
+                                builder.build_float_sub(
+                                    builder
+                                        .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
+                                        .into_float_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
+                                        .into_float_value(),
+                                    "float_sub_float",
+                                )?
+                            }
+                            crate::app::parser::types::MathematicalSymbol::Division => {
+                                builder.build_float_div(
+                                    builder
+                                        .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
+                                        .into_float_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
+                                        .into_float_value(),
+                                    "float_add_float",
+                                )?
+                            }
+                            crate::app::parser::types::MathematicalSymbol::Multiplication => {
+                                builder.build_float_mul(
+                                    builder
+                                        .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
+                                        .into_float_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
+                                        .into_float_value(),
+                                    "float_add_float",
+                                )?
+                            }
+                            crate::app::parser::types::MathematicalSymbol::Modulo => {
+                                builder.build_float_rem(
+                                    builder
+                                        .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
+                                        .into_float_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
+                                        .into_float_value(),
+                                    "float_add_float",
+                                )?
+                            }
+                        };
+
+                        builder.build_store(var_ptr, add_res)?;
+                    } else if l_ty_disc.is_int() && r_ty_disc.is_int() {
+                        let add_res = match mathematical_symbol {
+                            crate::app::parser::types::MathematicalSymbol::Addition => {
+                                builder.build_int_add(
+                                    builder
+                                        .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
+                                        .into_int_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
+                                        .into_int_value(),
+                                    "int_add_int",
+                                )?
+                            }
+                            crate::app::parser::types::MathematicalSymbol::Subtraction => {
+                                builder.build_int_sub(
+                                    builder
+                                        .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
+                                        .into_int_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
+                                        .into_int_value(),
+                                    "int_sub_int",
+                                )?
+                            }
+                            crate::app::parser::types::MathematicalSymbol::Division => {
+                                builder.build_int_signed_div(
+                                    builder
+                                        .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
+                                        .into_int_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
+                                        .into_int_value(),
+                                    "int_add_int",
+                                )?
+                            }
+                            crate::app::parser::types::MathematicalSymbol::Multiplication => {
+                                builder.build_int_mul(
+                                    builder
+                                        .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
+                                        .into_int_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
+                                        .into_int_value(),
+                                    "int_add_int",
+                                )?
+                            }
+                            crate::app::parser::types::MathematicalSymbol::Modulo => {
+                                builder.build_int_signed_rem(
+                                    builder
+                                        .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
+                                        .into_int_value(),
+                                    builder
+                                        .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
+                                        .into_int_value(),
+                                    "int_rem_int",
+                                )?
+                            }
+                        };
+
+                        builder.build_store(var_ptr, add_res)?;
+                    } else {
+                        return Err(CodeGenError::InternalTypeMismatch.into());
+                    }
+                }
+                // If either didn't that means that either side contained a parsed token which couldnt be referenced as a variable. Ie it is not a value in any way.
+                else {
+                    return Err(CodeGenError::InternalParsingError.into());
+                }
+            }
+
+            None
         }
         ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
         ParsedToken::FunctionCall((fn_sig, fn_name), parsed_tokens) => {
@@ -1459,9 +1618,7 @@ where
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (idx, (arg_name, (arg_type, parsed_arg_token))) in
-                fn_argument_list.iter().enumerate()
-            {
+            for (arg_name, (arg_type, parsed_arg_token)) in fn_argument_list.iter() {
                 // Check if the function has been called with an allocation table
                 let (ptr, ptr_ty) = if let Some(ref mut allocations) = allocation_list {
                     let (ptr, ty, _disc) = allocations.remove(0);
@@ -1636,7 +1793,7 @@ where
                     }
                 };
 
-                if let Some((variable_name, (var_ptr, var_ty), ty_disc)) = variable_reference {
+                if let Some((variable_name, (var_ptr, _), ty_disc)) = variable_reference {
                     // Check for type mismatch
                     if ty_disc != fn_sig.return_type {
                         return Err(CodeGenError::InternalVariableTypeMismatch(
@@ -2093,8 +2250,7 @@ where
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             let (ptr, ty) = if let Some(((ptr, ty), _)) = variable_map.get(&var_name) {
                 (ptr.clone(), ty.clone())
-            }
-            else {
+            } else {
                 let (ptr, ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
                 variable_map.insert(var_name.clone(), ((ptr, ty), var_type.clone()));
@@ -2959,7 +3115,12 @@ where
             allocations.push((ptr, ty, fn_sig.return_type.clone()));
         }
         ParsedToken::SetValue(var_ref, value) => (),
-        _ => unimplemented!(),
+        ParsedToken::MathematicalExpression(_, _, _) => (),
+        _ => {
+            dbg!(&parsed_token);
+
+            unimplemented!()
+        }
     };
 
     Ok((parsed_token.clone(), allocations))
@@ -3142,15 +3303,12 @@ pub fn set_value_of_ptr(
         }
         Type::String(inner) => {
             let (buffer_ptr, buffer_ty) = allocate_string(builder, i8_type, inner)?;
-            
+
             let input_ptr = unsafe {
                 builder.build_gep(
                     buffer_ty,
                     buffer_ptr,
-                    &[
-                        ctx.i32_type().const_zero(),
-                        ctx.i32_type().const_zero(),
-                    ],
+                    &[ctx.i32_type().const_zero(), ctx.i32_type().const_zero()],
                     "buf_ptr",
                 )
             }?;
