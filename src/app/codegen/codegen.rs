@@ -1,4 +1,7 @@
-use std::{any::Any, collections::HashMap, hash::Hash, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
+use std::{
+    collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter,
+    sync::Arc,
+};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -537,7 +540,7 @@ where
                 if let Some(alloca_t) = &allocation_scope {
                     if let Some((ptr, ptr_ty, ty)) = alloca_t.get(&var_set_val) {
                         if *ty == var_type {
-                            return Ok((ptr.clone(), ptr_ty.clone()));
+                            return Ok((*ptr, *ptr_ty));
                         } else {
                             return Err(CodeGenError::InvalidPreAllocation.into());
                         }
@@ -1644,14 +1647,14 @@ where
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                     if let Some(ref mut allocations) = allocation_scope {
                         if let Some((ptr, ty, _disc)) = dbg!(allocations.get(dbg!(arg_token))) {
-                            return Ok((ptr.clone(), ty.clone()));
+                            return Ok((*ptr, *ty));
                         }
                     }
 
                     // Create a temporary variable for the argument thats passed in
                     let (ptr, ptr_ty) = create_new_variable(ctx, builder, arg_name, arg_type)?;
 
-                    return Ok((ptr, ptr_ty));
+                    Ok((ptr, ptr_ty))
                 })()?;
 
                 // Set the value of the temp variable to the value the argument has
@@ -2286,7 +2289,7 @@ where
     match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             let (ptr, ty) = if let Some(((ptr, ty), _)) = variable_map.get(&var_name) {
-                (ptr.clone(), ty.clone())
+                (*ptr, *ty)
             } else {
                 let (ptr, ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
@@ -3149,8 +3152,8 @@ where
                 )?;
 
                 let argument_type = fn_sig.args.get_index(arg_idx).unwrap().1;
-                
-                let (ptr, ty) = create_new_variable(ctx, builder, &_arg_name, argument_type)?;
+
+                let (ptr, ty) = create_new_variable(ctx, builder, _arg_name, argument_type)?;
 
                 allocations.insert(arg.clone(), (ptr, ty, argument_type.clone()));
 
@@ -3405,14 +3408,15 @@ pub fn set_value_of_ptr<'ctx>(
         }
         Type::String(inner) => {
             let string_bytes = inner.as_bytes();
-            
-            let char_array = ctx.const_string(string_bytes, Some(0) == string_bytes.last().copied());
-            
+
+            let char_array =
+                ctx.const_string(string_bytes, Some(0) == string_bytes.last().copied());
+
             let global_string_handle = if let Some(global_string) = module.get_global(&inner) {
                 global_string
-            }
-            else {
-                let handle = module.add_global(char_array.get_type(), Some(AddressSpace::default()), &inner);
+            } else {
+                let handle =
+                    module.add_global(char_array.get_type(), Some(AddressSpace::default()), &inner);
 
                 handle.set_initializer(&char_array);
                 handle.set_constant(true);
