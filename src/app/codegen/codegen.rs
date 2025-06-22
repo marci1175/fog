@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
+use std::{any::Any, collections::HashMap, hash::Hash, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -134,7 +134,7 @@ fn generate_ir<'ctx>(
             module,
             builder,
             context,
-            dbg!(function_definition.inner.clone()),
+            function_definition.inner.clone(),
             arguments,
             function_definition.function_sig.return_type.clone(),
             basic_block,
@@ -337,7 +337,7 @@ where
         this_fn_block,
         &mut variable_map,
         this_fn,
-        None,
+        Arc::new(HashMap::new()),
     )?;
 
     Ok(())
@@ -366,15 +366,16 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow
     // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
     // If the code we are running is not in a loop we can pass in `None`.
-    alloca_table: Option<
-        Arc<
+    alloca_table: Arc<
+        HashMap<
+            ParsedToken,
             HashMap<
                 ParsedToken,
-                Vec<(
+                (
                     PointerValue<'ctx>,
                     BasicMetadataTypeEnum<'ctx>,
                     TypeDiscriminant,
-                )>,
+                ),
             >,
         >,
     >,
@@ -394,6 +395,7 @@ where
             this_fn_block,
             this_fn,
             alloca_table.clone(),
+            alloca_table.get(&token).cloned(),
         )?;
 
         // If the token we have parsed was a loop token that means any code from now becomes inaccessible, therefor we can stop parsing it.
@@ -427,11 +429,14 @@ pub fn create_alloca_table<'main, 'ctx>(
 ) -> Result<
     HashMap<
         ParsedToken,
-        Vec<(
-            PointerValue<'ctx>,
-            BasicMetadataTypeEnum<'ctx>,
-            TypeDiscriminant,
-        )>,
+        HashMap<
+            ParsedToken,
+            (
+                PointerValue<'ctx>,
+                BasicMetadataTypeEnum<'ctx>,
+                TypeDiscriminant,
+            ),
+        >,
     >,
     anyhow::Error,
 >
@@ -440,7 +445,7 @@ where
 {
     let mut alloc_table: HashMap<
         ParsedToken,
-        Vec<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>,
+        HashMap<ParsedToken, (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>,
     > = HashMap::new();
 
     for token in parsed_tokens {
@@ -487,16 +492,27 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-    alloca_table: Option<
-        Arc<
+    allocation_list: Arc<
+        HashMap<
+            ParsedToken,
             HashMap<
                 ParsedToken,
-                Vec<(
+                (
                     PointerValue<'ctx>,
                     BasicMetadataTypeEnum<'ctx>,
                     TypeDiscriminant,
-                )>,
+                ),
             >,
+        >,
+    >,
+    mut allocation_scope: Option<
+        HashMap<
+            ParsedToken,
+            (
+                PointerValue<'ctx>,
+                BasicMetadataTypeEnum<'ctx>,
+                TypeDiscriminant,
+            ),
         >,
     >,
 ) -> anyhow::Result<
@@ -514,29 +530,25 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    let mut allocation_list: Option<Vec<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> =
-        alloca_table
-            .as_ref()
-            .and_then(|table| table.get(&parsed_token).cloned());
-
     let created_var = match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             // Check if the function has been called with an allocation table
-            let (ptr, ty) = if let Some(mut alloca_t) = allocation_list {
-                let (ptr, ptr_ty, ty) = alloca_t.remove(0);
-
-                if ty == var_type {
-                    (ptr, ptr_ty)
-                } else {
-                    return Err(CodeGenError::InvalidPreAllocation.into());
+            let (ptr, ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
+                if let Some(alloca_t) = &allocation_scope {
+                    if let Some((ptr, ptr_ty, ty)) = alloca_t.get(&var_set_val) {
+                        if *ty == var_type {
+                            return Ok((ptr.clone(), ptr_ty.clone()));
+                        } else {
+                            return Err(CodeGenError::InvalidPreAllocation.into());
+                        }
+                    }
                 }
-            } else {
                 let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
                 variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
 
-                (ptr, ptr_ty)
-            };
+                Ok((ptr, ptr_ty))
+            })()?;
 
             // Set the value of the newly created variable
             create_ir_from_parsed_token(
@@ -549,7 +561,8 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                alloca_table.clone(),
+                allocation_list.clone(),
+                allocation_scope.clone(),
             )?;
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
@@ -706,7 +719,6 @@ where
                         }
                     }
                     crate::app::parser::types::VariableReference::BasicReference(basic_ref) => {
-                        dbg!(&variable_map);
                         let ((ptr, ty), ty_disc) = variable_map
                             .get(&basic_ref)
                             .ok_or(CodeGenError::InternalVariableNotFound(basic_ref.clone()))?;
@@ -730,7 +742,7 @@ where
                     .into());
                 }
 
-                set_value_of_ptr(ctx, builder, literal, ptr)?;
+                set_value_of_ptr(ctx, builder, module, literal, ptr)?;
 
                 None
             } else {
@@ -738,7 +750,7 @@ where
 
                 let (v_ptr, v_ty) = create_new_variable(ctx, builder, "", &ty_disc)?;
 
-                set_value_of_ptr(ctx, builder, literal, v_ptr)?;
+                set_value_of_ptr(ctx, builder, module, literal, v_ptr)?;
 
                 Some((v_ptr, v_ty, ty_disc))
             }
@@ -749,13 +761,14 @@ where
                     ctx,
                     module,
                     builder,
-                    *parsed_token,
+                    *parsed_token.clone(),
                     variable_map,
                     None,
                     fn_ret_ty,
                     this_fn_block,
                     this_fn,
-                    alloca_table,
+                    allocation_list.clone(),
+                    allocation_list.get(&parsed_token).cloned(),
                 )?;
 
                 if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -1436,30 +1449,47 @@ where
         }
         ParsedToken::MathematicalExpression(lhs, mathematical_symbol, rhs) => {
             if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference {
-                let parsed_lhs = create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    *lhs,
-                    variable_map,
-                    None,
-                    fn_ret_ty.clone(),
-                    this_fn_block,
-                    this_fn,
-                    alloca_table.clone(),
-                )?;
-                let parsed_rhs = create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    *rhs,
-                    variable_map,
-                    None,
-                    fn_ret_ty.clone(),
-                    this_fn_block,
-                    this_fn,
-                    alloca_table.clone(),
-                )?;
+                // Allocate memory on the stack for the value stored in the lhs
+                let parsed_lhs = {
+                    if let Some(allocations) = &allocation_scope {
+                        allocations.get(&lhs).cloned()
+                    } else {
+                        create_ir_from_parsed_token(
+                            ctx,
+                            module,
+                            builder,
+                            *lhs,
+                            variable_map,
+                            None,
+                            fn_ret_ty.clone(),
+                            this_fn_block,
+                            this_fn,
+                            allocation_list.clone(),
+                            allocation_list.get(&parsed_token).cloned(),
+                        )?
+                    }
+                };
+
+                // Allocate memory on the stack for the value stored in the rhs
+                let parsed_rhs = {
+                    if let Some(ref allocations) = allocation_scope {
+                        allocations.get(&rhs).cloned()
+                    } else {
+                        create_ir_from_parsed_token(
+                            ctx,
+                            module,
+                            builder,
+                            *rhs,
+                            variable_map,
+                            None,
+                            fn_ret_ty.clone(),
+                            this_fn_block,
+                            this_fn,
+                            allocation_list.clone(),
+                            allocation_list.get(&parsed_token).cloned(),
+                        )?
+                    }
+                };
 
                 // Check if both sides return a valid variable reference
                 if let (Some((lhs_ptr, lhs_ty, l_ty_disc)), Some((rhs_ptr, rhs_ty, r_ty_disc))) =
@@ -1467,8 +1497,8 @@ where
                 {
                     if l_ty_disc.is_float() && r_ty_disc.is_float() {
                         let add_res = match mathematical_symbol {
-                            crate::app::parser::types::MathematicalSymbol::Addition => {
-                                builder.build_float_add(
+                            crate::app::parser::types::MathematicalSymbol::Addition => builder
+                                .build_float_add(
                                     builder
                                         .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
                                         .into_float_value(),
@@ -1476,21 +1506,19 @@ where
                                         .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
                                         .into_float_value(),
                                     "float_add_float",
-                                )?
-                            }
-                            crate::app::parser::types::MathematicalSymbol::Subtraction => {
-                                builder.build_float_sub(
-                                    builder
-                                        .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
-                                        .into_float_value(),
-                                    builder
-                                        .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
-                                        .into_float_value(),
-                                    "float_sub_float",
-                                )?
-                            }
-                            crate::app::parser::types::MathematicalSymbol::Division => {
-                                builder.build_float_div(
+                                )?,
+                            crate::app::parser::types::MathematicalSymbol::Subtraction => builder
+                                .build_float_sub(
+                                builder
+                                    .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
+                                    .into_float_value(),
+                                builder
+                                    .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
+                                    .into_float_value(),
+                                "float_sub_float",
+                            )?,
+                            crate::app::parser::types::MathematicalSymbol::Division => builder
+                                .build_float_div(
                                     builder
                                         .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
                                         .into_float_value(),
@@ -1498,8 +1526,7 @@ where
                                         .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
                                         .into_float_value(),
                                     "float_add_float",
-                                )?
-                            }
+                                )?,
                             crate::app::parser::types::MathematicalSymbol::Multiplication => {
                                 builder.build_float_mul(
                                     builder
@@ -1511,8 +1538,8 @@ where
                                     "float_add_float",
                                 )?
                             }
-                            crate::app::parser::types::MathematicalSymbol::Modulo => {
-                                builder.build_float_rem(
+                            crate::app::parser::types::MathematicalSymbol::Modulo => builder
+                                .build_float_rem(
                                     builder
                                         .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
                                         .into_float_value(),
@@ -1520,15 +1547,14 @@ where
                                         .build_load(rhs_ty.into_float_type(), rhs_ptr, "rhs")?
                                         .into_float_value(),
                                     "float_add_float",
-                                )?
-                            }
+                                )?,
                         };
 
                         builder.build_store(var_ptr, add_res)?;
                     } else if l_ty_disc.is_int() && r_ty_disc.is_int() {
                         let add_res = match mathematical_symbol {
-                            crate::app::parser::types::MathematicalSymbol::Addition => {
-                                builder.build_int_add(
+                            crate::app::parser::types::MathematicalSymbol::Addition => builder
+                                .build_int_add(
                                     builder
                                         .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
                                         .into_int_value(),
@@ -1536,30 +1562,27 @@ where
                                         .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
                                         .into_int_value(),
                                     "int_add_int",
-                                )?
-                            }
-                            crate::app::parser::types::MathematicalSymbol::Subtraction => {
-                                builder.build_int_sub(
+                                )?,
+                            crate::app::parser::types::MathematicalSymbol::Subtraction => builder
+                                .build_int_sub(
+                                builder
+                                    .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
+                                    .into_int_value(),
+                                builder
+                                    .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
+                                    .into_int_value(),
+                                "int_sub_int",
+                            )?,
+                            crate::app::parser::types::MathematicalSymbol::Division => builder
+                                .build_int_signed_div(
                                     builder
                                         .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
                                         .into_int_value(),
                                     builder
                                         .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
                                         .into_int_value(),
-                                    "int_sub_int",
-                                )?
-                            }
-                            crate::app::parser::types::MathematicalSymbol::Division => {
-                                builder.build_int_signed_div(
-                                    builder
-                                        .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
-                                        .into_int_value(),
-                                    builder
-                                        .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
-                                        .into_int_value(),
-                                    "int_add_int",
-                                )?
-                            }
+                                    "int_div_int",
+                                )?,
                             crate::app::parser::types::MathematicalSymbol::Multiplication => {
                                 builder.build_int_mul(
                                     builder
@@ -1568,11 +1591,11 @@ where
                                     builder
                                         .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
                                         .into_int_value(),
-                                    "int_add_int",
+                                    "int_mul_int",
                                 )?
                             }
-                            crate::app::parser::types::MathematicalSymbol::Modulo => {
-                                builder.build_int_signed_rem(
+                            crate::app::parser::types::MathematicalSymbol::Modulo => builder
+                                .build_int_signed_rem(
                                     builder
                                         .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
                                         .into_int_value(),
@@ -1580,8 +1603,7 @@ where
                                         .build_load(rhs_ty.into_int_type(), rhs_ptr, "rhs")?
                                         .into_int_value(),
                                     "int_rem_int",
-                                )?
-                            }
+                                )?,
                         };
 
                         builder.build_store(var_ptr, add_res)?;
@@ -1618,32 +1640,34 @@ where
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (arg_name, (arg_type, parsed_arg_token)) in fn_argument_list.iter() {
-                // Check if the function has been called with an allocation table
-                let (ptr, ptr_ty) = if let Some(ref mut allocations) = allocation_list {
-                    let (ptr, ty, _disc) = allocations.remove(0);
+            for (arg_name, (arg_type, arg_token)) in fn_argument_list.iter() {
+                let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
+                    if let Some(ref mut allocations) = allocation_scope {
+                        if let Some((ptr, ty, _disc)) = dbg!(allocations.get(dbg!(arg_token))) {
+                            return Ok((ptr.clone(), ty.clone()));
+                        }
+                    }
 
-                    (ptr, ty)
-                } else {
                     // Create a temporary variable for the argument thats passed in
                     let (ptr, ptr_ty) = create_new_variable(ctx, builder, arg_name, arg_type)?;
 
-                    // Set the value of the temp variable to the value the argument has
-                    create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        parsed_arg_token.clone(),
-                        variable_map,
-                        Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
-                        fn_ret_ty.clone(),
-                        this_fn_block,
-                        this_fn,
-                        alloca_table.clone(),
-                    )?;
+                    return Ok((ptr, ptr_ty));
+                })()?;
 
-                    (ptr, ptr_ty)
-                };
+                // Set the value of the temp variable to the value the argument has
+                create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    arg_token.clone(),
+                    variable_map,
+                    Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
+                    fn_ret_ty.clone(),
+                    this_fn_block,
+                    this_fn,
+                    allocation_list.clone(),
+                    allocation_list.get(&parsed_token).cloned(),
+                )?;
 
                 // Push the argument to the list of arguments
                 match ptr_ty {
@@ -1694,8 +1718,8 @@ where
 
                     (v_ptr, var_ty)
                 } else {
-                    let (v_ptr, v_ty) = if let Some(allocations) = allocation_list {
-                        if let Some((ptr, ty, _disc)) = allocations.last() {
+                    let (v_ptr, v_ty) = if let Some(allocations) = allocation_scope {
+                        if let Some((ptr, ty, _disc)) = allocations.get(&parsed_token) {
                             (*ptr, *ty)
                         } else {
                             return Err(CodeGenError::InvalidPreAllocation.into());
@@ -1859,7 +1883,8 @@ where
                                 fn_ret_ty,
                                 this_fn_block,
                                 this_fn,
-                                alloca_table,
+                                allocation_list.clone(),
+                                allocation_list.get(&parsed_token).cloned(),
                             )?;
                         }
                     }
@@ -1873,13 +1898,14 @@ where
                             ctx,
                             module,
                             builder,
-                            dbg!(*value),
+                            *value,
                             variable_map,
-                            Some((dbg!(variable_name), (*ptr, *ty), dbg!(ty_disc.clone()))),
+                            Some((variable_name, (*ptr, *ty), ty_disc.clone())),
                             fn_ret_ty,
                             this_fn_block,
                             this_fn,
-                            alloca_table,
+                            allocation_list.clone(),
+                            allocation_list.get(&parsed_token).cloned(),
                         )?;
                     }
                 }
@@ -1900,13 +1926,14 @@ where
                 ctx,
                 module,
                 builder,
-                *parsed_token,
+                *parsed_token.clone(),
                 variable_map,
                 Some((var_name.clone(), (ptr, ptr_ty), fn_ret_ty.clone())),
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
-                alloca_table,
+                allocation_list.clone(),
+                allocation_list.get(&parsed_token).cloned(),
             )?;
 
             match ptr_ty {
@@ -1956,7 +1983,8 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                alloca_table.clone(),
+                allocation_list.clone(),
+                allocation_list.get(&parsed_token).cloned(),
             )?;
 
             if let Some((cond_ptr, cond_ty, ty_disc)) = created_var {
@@ -1983,7 +2011,7 @@ where
                     branch_compl,
                     variable_map,
                     this_fn,
-                    alloca_table.clone(),
+                    allocation_list.clone(),
                 )?;
 
                 builder.build_unconditional_branch(branch_uncond)?;
@@ -2000,7 +2028,7 @@ where
                     branch_incompl,
                     variable_map,
                     this_fn,
-                    alloca_table.clone(),
+                    allocation_list.clone(),
                 )?;
 
                 // Position the builder at the original position
@@ -2040,7 +2068,8 @@ where
                         fn_ret_ty.clone(),
                         this_fn_block,
                         this_fn,
-                        alloca_table.clone(),
+                        allocation_list.clone(),
+                        allocation_list.get(&parsed_token).cloned(),
                     )?;
 
                     // Load the temp value to memory and store it
@@ -2093,7 +2122,8 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
-                alloca_table.clone(),
+                allocation_list.clone(),
+                allocation_list.get(&parsed_token).cloned(),
             )?;
             create_ir_from_parsed_token(
                 ctx,
@@ -2109,7 +2139,8 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                alloca_table,
+                allocation_list.clone(),
+                allocation_list.get(&parsed_token).cloned(),
             )?;
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
@@ -2199,7 +2230,7 @@ where
                 code_block,
                 variable_map,
                 this_fn,
-                Some(Arc::new(alloca_table)),
+                Arc::new(alloca_table),
             )?;
 
             builder.build_unconditional_branch(code_block)?;
@@ -2232,19 +2263,25 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     this_fn: FunctionValue<'ctx>,
 ) -> anyhow::Result<(
     ParsedToken,
-    Vec<(
-        // Pointer to the referenced variable
-        PointerValue<'ctx>,
-        // Type of the variable
-        BasicMetadataTypeEnum<'ctx>,
-        // TypeDiscriminant of the variable
-        TypeDiscriminant,
-    )>,
+    HashMap<
+        ParsedToken,
+        (
+            // Pointer to the referenced variable
+            PointerValue<'ctx>,
+            // Type of the variable
+            BasicMetadataTypeEnum<'ctx>,
+            // TypeDiscriminant of the variable
+            TypeDiscriminant,
+        ),
+    >,
 )>
 where
     'main: 'ctx,
 {
-    let mut allocations = Vec::new();
+    let mut allocations: HashMap<
+        ParsedToken,
+        (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant),
+    > = HashMap::new();
 
     match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
@@ -2263,17 +2300,17 @@ where
                 ctx,
                 module,
                 builder,
-                *var_set_val,
+                *var_set_val.clone(),
                 variable_map,
                 Some((var_name.clone(), (ptr, ty), var_type.clone())),
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                None,
+                Arc::new(HashMap::new()),
+                Some(allocations.clone()),
             )?;
 
-            // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
-            allocations.push((ptr, ty, var_type));
+            allocations.insert(*var_set_val, (ptr, ty, var_type));
         }
         // We do not need to store references from a VariableReference as it doesn't allocate anything on the stack and reuses already existing pointers
         ParsedToken::VariableReference(var_ref) => match var_ref {
@@ -2293,7 +2330,10 @@ where
                             (*ptr, *ty),
                         )?;
 
-                        allocations.push((f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc));
+                        allocations.insert(
+                            parsed_token.clone(),
+                            (f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc),
+                        );
                     } else {
                         return Err(CodeGenError::InternalVariableNotFound(
                             main_struct_var_name.clone(),
@@ -2306,7 +2346,7 @@ where
             }
             crate::app::parser::types::VariableReference::BasicReference(name) => {
                 if let Some(((ptr, ty), disc)) = variable_map.get(&name) {
-                    allocations.push((*ptr, *ty, disc.clone()));
+                    allocations.insert(parsed_token.clone(), (*ptr, *ty, disc.clone()));
                 }
             }
         },
@@ -2315,22 +2355,23 @@ where
 
             let (ptr, ty) = create_new_variable(ctx, builder, "", &ty_disc)?;
 
-            set_value_of_ptr(ctx, builder, literal, ptr)?;
+            // set_value_of_ptr(ctx, builder, literal, ptr)?;
 
-            allocations.push((ptr, ty, ty_disc));
+            allocations.insert(parsed_token.clone(), (ptr, ty, ty_disc));
         }
         ParsedToken::TypeCast(parsed_token, desired_type) => {
             let created_var = create_ir_from_parsed_token(
                 ctx,
                 module,
                 builder,
-                *parsed_token,
+                *parsed_token.clone(),
                 variable_map,
                 None,
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                None,
+                Arc::new(HashMap::new()),
+                Some(allocations.clone()),
             )?;
 
             if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -3088,15 +3129,15 @@ where
                 };
 
                 if let Some((ptr, ptr_ty, var_type)) = returned_alloca {
-                    allocations.push((ptr, ptr_ty, var_type));
+                    allocations.insert(*parsed_token.clone(), (ptr, ptr_ty, var_type));
                 }
             } else {
                 return Err(CodeGenError::InternalParsingError.into());
             }
         }
         ParsedToken::FunctionCall((fn_sig, fn_name), arguments) => {
-            for (_arg_name, arg) in arguments.iter() {
-                let (_token, arg_allocs) = fetch_alloca_ptr(
+            for (arg_idx, (_arg_name, arg)) in arguments.iter().enumerate() {
+                let (_, arg_allocs) = fetch_alloca_ptr(
                     ctx,
                     module,
                     builder,
@@ -3107,15 +3148,75 @@ where
                     this_fn,
                 )?;
 
+                let argument_type = fn_sig.args.get_index(arg_idx).unwrap().1;
+                
+                let (ptr, ty) = create_new_variable(ctx, builder, &_arg_name, argument_type)?;
+
+                allocations.insert(arg.clone(), (ptr, ty, argument_type.clone()));
+
                 allocations.extend(arg_allocs);
             }
 
             let (ptr, ty) = create_new_variable(ctx, builder, "", &fn_sig.return_type)?;
 
-            allocations.push((ptr, ty, fn_sig.return_type.clone()));
+            allocations.insert(parsed_token.clone(), (ptr, ty, fn_sig.return_type.clone()));
         }
-        ParsedToken::SetValue(var_ref, value) => (),
-        ParsedToken::MathematicalExpression(_, _, _) => (),
+        ParsedToken::SetValue(_var_ref, value) => {
+            let (_, allocation_table) = fetch_alloca_ptr(
+                ctx,
+                module,
+                builder,
+                *value,
+                variable_map,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+            )?;
+
+            allocations.extend(allocation_table);
+        }
+        ParsedToken::MathematicalExpression(lhs_token, _expr, rhs_token) => {
+            // Pre-Allocate the lhs of the mathematical expression so that it can be used multiple times later
+            let lhs = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *lhs_token.clone(),
+                variable_map,
+                None,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+                Arc::new(HashMap::new()),
+                Some(allocations.clone()),
+            )?;
+
+            // Pre-Allocate the rhs of the mathematical expression so that it can be used multiple times later
+            let rhs = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *rhs_token.clone(),
+                variable_map,
+                None,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                Arc::new(HashMap::new()),
+                Some(allocations.clone()),
+            )?;
+
+            // Store the pointer of either one of the allocable values
+            if let Some((ptr, ty, disc)) = lhs {
+                allocations.insert(*lhs_token, (ptr, ty, disc));
+            }
+
+            if let Some((ptr, ty, disc)) = rhs {
+                allocations.insert(*rhs_token, (ptr, ty, disc));
+            }
+
+            dbg!(&allocations);
+        }
         _ => {
             dbg!(&parsed_token);
 
@@ -3215,9 +3316,10 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
 
 /// This function takes in the variable pointer which is dereferenced to set the variable's value.
 /// Ensure that we are setting variable type `T` with value `T`
-pub fn set_value_of_ptr(
-    ctx: &Context,
+pub fn set_value_of_ptr<'ctx>(
+    ctx: &'ctx Context,
     builder: &Builder,
+    module: &Module<'ctx>,
     value: Type,
     v_ptr: PointerValue<'_>,
 ) -> anyhow::Result<()> {
@@ -3302,11 +3404,27 @@ pub fn set_value_of_ptr(
             builder.build_store(v_ptr, init_val)?;
         }
         Type::String(inner) => {
-            let (buffer_ptr, buffer_ty) = allocate_string(builder, i8_type, inner)?;
+            let string_bytes = inner.as_bytes();
+            
+            let char_array = ctx.const_string(string_bytes, Some(0) == string_bytes.last().copied());
+            
+            let global_string_handle = if let Some(global_string) = module.get_global(&inner) {
+                global_string
+            }
+            else {
+                let handle = module.add_global(char_array.get_type(), Some(AddressSpace::default()), &inner);
+
+                handle.set_initializer(&char_array);
+                handle.set_constant(true);
+
+                handle
+            };
+
+            let buffer_ptr = global_string_handle.as_pointer_value();
 
             let input_ptr = unsafe {
                 builder.build_gep(
-                    buffer_ty,
+                    char_array.get_type(),
                     buffer_ptr,
                     &[ctx.i32_type().const_zero(), ctx.i32_type().const_zero()],
                     "buf_ptr",

@@ -190,7 +190,9 @@ impl TypeDiscriminant {
 
     pub fn is_int(&self) -> bool {
         match self {
-            Self::I64 | Self::I32 | Self::I16 | Self::U64 | Self::U32 | Self::U16 | Self::U8 => true,
+            Self::I64 | Self::I32 | Self::I16 | Self::U64 | Self::U32 | Self::U16 | Self::U8 => {
+                true
+            }
             _ => false,
         }
     }
