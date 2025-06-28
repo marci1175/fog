@@ -45,4 +45,6 @@ pub enum CodeGenError {
     InternalParsingError,
     #[error("The codegen encountered a missing or an invalid PreAllocation in `allocation_map`.")]
     InvalidPreAllocation,
+    #[error("A `null` value is used in the mathematical expression.")]
+    InvalidMathematicalValue,
 }
