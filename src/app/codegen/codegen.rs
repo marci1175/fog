@@ -1454,14 +1454,14 @@ where
             if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference {
                 // Allocate memory on the stack for the value stored in the lhs
                 let parsed_lhs = {
-                    if let Some(allocations) = &allocation_scope {
+                    if let Some(allocations) = dbg!(&allocation_scope) {
                         allocations.get(&lhs).cloned()
                     } else {
                         create_ir_from_parsed_token(
                             ctx,
                             module,
                             builder,
-                            *lhs,
+                            *lhs.clone(),
                             variable_map,
                             None,
                             fn_ret_ty.clone(),
@@ -1482,7 +1482,7 @@ where
                             ctx,
                             module,
                             builder,
-                            *rhs,
+                            *rhs.clone(),
                             variable_map,
                             None,
                             fn_ret_ty.clone(),
@@ -1616,6 +1616,9 @@ where
                 }
                 // If either didn't that means that either side contained a parsed token which couldnt be referenced as a variable. Ie it is not a value in any way.
                 else {
+                    dbg!(&lhs.clone());
+                    dbg!(&rhs.clone());
+
                     return Err(CodeGenError::InternalParsingError.into());
                 }
             }
@@ -3217,12 +3220,8 @@ where
             if let Some((ptr, ty, disc)) = rhs {
                 allocations.insert(*rhs_token, (ptr, ty, disc));
             }
-
-            dbg!(&allocations);
         }
         _ => {
-            dbg!(&parsed_token);
-
             unimplemented!()
         }
     };

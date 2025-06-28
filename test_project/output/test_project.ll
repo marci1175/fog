@@ -1,19 +1,12 @@
 ; ModuleID = 'main'
 source_filename = "main"
 
-@"0000000000000000000" = constant [19 x i8] c"0000000000000000000"
-@"User input: %i\0A" = constant [15 x i8] c"User input: %i\0A"
-
-declare i32 @getchar()
-
-declare i32 @gets(ptr)
+@"Krisztian eletkora: %i\0A" = constant [23 x i8] c"Krisztian eletkora: %i\0A"
 
 declare i32 @printf(ptr, i32)
 
 define i32 @main() {
 main_fn_entry:
-  %buf = alloca ptr, align 8
-  store ptr @"0000000000000000000", ptr %buf, align 8
   %a = alloca i32, align 4
   store i32 0, ptr %a, align 4
   %0 = alloca i32, align 4
@@ -33,7 +26,7 @@ loop_body:                                        ; preds = %loop_body, %main_fn
   %rhs = load i32, ptr %1, align 4
   %int_sub_int = sub i32 %lhs, %rhs
   store i32 %int_sub_int, ptr %a, align 4
-  store ptr @"User input: %i\0A", ptr %2, align 8
+  store ptr @"Krisztian eletkora: %i\0A", ptr %2, align 8
   %str1 = load ptr, ptr %2, align 8
   %lhs2 = load i32, ptr %a, align 4
   %rhs3 = load i32, ptr %3, align 4
