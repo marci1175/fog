@@ -1,5 +1,5 @@
 use core::panic;
-use std::{any::Any, collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -19,7 +19,7 @@ use crate::{
     ApplicationError,
     app::{
         parser::types::{FunctionDefinition, FunctionSignature, ParsedToken},
-        type_system::type_system::{Type, TypeDiscriminant},
+        type_system::type_system::{OrdMap, Type, TypeDiscriminant},
     },
 };
 
@@ -36,7 +36,7 @@ pub fn codegen_main(
     let module = context.create_module("main");
 
     // Import functions defined by the user via llvm
-    import_user_lib_functions(&context, &module, imported_functions, parsed_functions);
+    import_user_lib_functions(&context, &module, imported_functions, parsed_functions)?;
 
     generate_ir(parsed_functions, &context, &module, &builder)?;
 
@@ -98,7 +98,7 @@ fn generate_ir<'ctx>(
         // Create function signature
         let function = module.add_function(
             function_name,
-            create_fn_type_from_ty_disc(context, function_definition.function_sig.clone()),
+            create_fn_type_from_ty_disc(context, function_definition.function_sig.clone())?,
             None,
         );
 
@@ -117,6 +117,7 @@ fn generate_ir<'ctx>(
             let argument_entry = function_definition
                 .function_sig
                 .args
+                .arguments_list
                 .get_index(idx)
                 .unwrap();
 
@@ -151,7 +152,7 @@ pub fn import_user_lib_functions<'a>(
     module: &Module<'a>,
     imported_functions: &'a HashMap<String, FunctionSignature>,
     parsed_functions: &IndexMap<String, FunctionDefinition>,
-) {
+) -> Result<()> {
     for (import_name, import_sig) in imported_functions.iter() {
         // If a function with the same name as the imports exists, do not expose the function signature instead define the whole function
         // This means that the function has been imported, and we do not need to expose it in the LLVM-IR
@@ -161,7 +162,7 @@ pub fn import_user_lib_functions<'a>(
 
         let mut args = Vec::new();
 
-        for (_, arg_ty) in import_sig.args.iter() {
+        for (_, arg_ty) in import_sig.args.arguments_list.iter() {
             let argument_sig = match arg_ty {
                 TypeDiscriminant::I32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
                 TypeDiscriminant::F32 => BasicMetadataTypeEnum::FloatType(ctx.f32_type()),
@@ -175,7 +176,7 @@ pub fn import_user_lib_functions<'a>(
                     panic!("Can't take a `Void` as an argument")
                 }
                 TypeDiscriminant::Struct((_struct_name, struct_inner)) => {
-                    let field_ty = struct_field_to_ty_list(ctx, struct_inner);
+                    let field_ty = struct_field_to_ty_list(ctx, struct_inner)?;
 
                     BasicMetadataTypeEnum::StructType(ctx.struct_type(&field_ty, false))
                 }
@@ -194,78 +195,82 @@ pub fn import_user_lib_functions<'a>(
             TypeDiscriminant::I32 => {
                 let return_type = ctx.i32_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::F32 => {
                 let return_type = ctx.f32_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::U32 => {
                 let return_type = ctx.i32_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::U8 => {
                 let return_type = ctx.i32_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::String => {
                 let return_type = ctx.ptr_type(AddressSpace::default());
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::Boolean => {
                 let return_type = ctx.bool_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::Void => {
                 let return_type = ctx.void_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::Struct((_struct_name, struct_inner)) => {
-                let return_type =
-                    ctx.struct_type(&struct_field_to_ty_list(ctx, struct_inner), false);
+                let return_type = ctx.struct_type(
+                    &struct_field_to_ty_list(ctx, struct_inner)?,
+                    import_sig.args.ellipsis_present,
+                );
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::I64 => {
                 let return_type = ctx.i64_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::F64 => {
                 let return_type = ctx.f32_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::U64 => {
                 let return_type = ctx.i64_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::I16 => {
                 let return_type = ctx.i16_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::F16 => {
                 let return_type = ctx.f16_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
             TypeDiscriminant::U16 => {
                 let return_type = ctx.i16_type();
 
-                return_type.fn_type(&args, false)
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
             }
         };
 
         module.add_function(import_name, function_type, None);
     }
+
+    Ok(())
 }
 
 pub fn create_ir<'main, 'ctx>(
@@ -544,6 +549,7 @@ where
                         }
                     }
                 }
+
                 let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type)?;
 
                 variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
@@ -1454,7 +1460,7 @@ where
                     if let Some((var_name, (var_ptr, var_ty), disc)) = variable_reference {
                         builder.build_store(
                             var_ptr,
-                            builder.build_load(ty_to_llvm_ty(ctx, &disc), *alloc_ptr, "")?,
+                            builder.build_load(ty_to_llvm_ty(ctx, &disc)?, *alloc_ptr, "")?,
                         )?;
 
                         return Ok(None);
@@ -1656,27 +1662,37 @@ where
             None
         }
         ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
-        ParsedToken::FunctionCall((fn_sig, fn_name), parsed_tokens) => {
+        ParsedToken::FunctionCall((fn_sig, fn_name), passed_arguments) => {
             // Try accessing the function in the current module
             let function_value = module
                 .get_function(&fn_name)
                 .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
 
-            let sig_iter = fn_sig.args.iter().map(|(key, value)| {
-                (
-                    key.clone(),
-                    (value.clone(), parsed_tokens.get(key).unwrap().clone()),
-                )
-            });
+            dbg!(&passed_arguments);
+
+            let arg_iter =
+                passed_arguments
+                    .iter()
+                    .enumerate()
+                    .map(|(argument_idx, (arg_name, value))| {
+                        (
+                            fn_sig
+                                .args
+                                .arguments_list
+                                .get_index(argument_idx)
+                                .map(|inner| inner.0.clone()),
+                            (value.clone()),
+                        )
+                    });
 
             // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
-            let fn_argument_list: IndexMap<String, (TypeDiscriminant, ParsedToken)> =
-                IndexMap::from_iter(sig_iter);
+            let fn_argument_list: OrdMap<Option<String>, (ParsedToken, TypeDiscriminant)> =
+                IndexMap::from_iter(arg_iter).into();
 
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (arg_name, (arg_type, arg_token)) in fn_argument_list.iter() {
+            for (arg_name, (arg_token, arg_type)) in fn_argument_list.iter() {
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                     if let Some(ref mut allocations) = allocation_scope {
                         if let Some((ptr, ty, _disc)) = dbg!(allocations.get(dbg!(arg_token))) {
@@ -1684,8 +1700,13 @@ where
                         }
                     }
 
-                    // Create a temporary variable for the argument thats passed in
-                    let (ptr, ptr_ty) = create_new_variable(ctx, builder, arg_name, arg_type)?;
+                    // Create a temporary variable for the argument thats passed in, if the argument name is None that means that the argument has been passed to a function which has an indenfinite amount of arguments.
+                    let (ptr, ptr_ty) = create_new_variable(
+                        ctx,
+                        builder,
+                        &arg_name.clone().unwrap_or_default(),
+                        arg_type,
+                    )?;
 
                     Ok((ptr, ptr_ty))
                 })()?;
@@ -1697,7 +1718,11 @@ where
                     builder,
                     arg_token.clone(),
                     variable_map,
-                    Some((arg_name.clone(), (ptr, ptr_ty), arg_type.clone())),
+                    Some((
+                        arg_name.clone().unwrap_or_default(),
+                        (ptr, ptr_ty),
+                        arg_type.clone(),
+                    )),
                     fn_ret_ty.clone(),
                     this_fn_block,
                     this_fn,
@@ -1708,32 +1733,56 @@ where
                 // Push the argument to the list of arguments
                 match ptr_ty {
                     BasicMetadataTypeEnum::ArrayType(array_type) => {
-                        let loaded_val = builder.build_load(array_type, ptr, arg_name)?;
+                        let loaded_val = builder.build_load(
+                            array_type,
+                            ptr,
+                            &arg_name.clone().unwrap_or_default(),
+                        )?;
 
                         arguments_passed_in.push(loaded_val.into());
                     }
                     BasicMetadataTypeEnum::FloatType(float_type) => {
-                        let loaded_val = builder.build_load(float_type, ptr, arg_name)?;
+                        let loaded_val = builder.build_load(
+                            float_type,
+                            ptr,
+                            &arg_name.clone().unwrap_or_default(),
+                        )?;
 
                         arguments_passed_in.push(loaded_val.into());
                     }
                     BasicMetadataTypeEnum::IntType(int_type) => {
-                        let loaded_val = builder.build_load(int_type, ptr, arg_name)?;
+                        let loaded_val = builder.build_load(
+                            int_type,
+                            ptr,
+                            &arg_name.clone().unwrap_or_default(),
+                        )?;
 
                         arguments_passed_in.push(loaded_val.into());
                     }
                     BasicMetadataTypeEnum::PointerType(pointer_type) => {
-                        let loaded_val = builder.build_load(pointer_type, ptr, arg_name)?;
+                        let loaded_val = builder.build_load(
+                            pointer_type,
+                            ptr,
+                            &arg_name.clone().unwrap_or_default(),
+                        )?;
 
                         arguments_passed_in.push(loaded_val.into());
                     }
                     BasicMetadataTypeEnum::StructType(struct_type) => {
-                        let loaded_val = builder.build_load(struct_type, ptr, arg_name)?;
+                        let loaded_val = builder.build_load(
+                            struct_type,
+                            ptr,
+                            &arg_name.clone().unwrap_or_default(),
+                        )?;
 
                         arguments_passed_in.push(loaded_val.into());
                     }
                     BasicMetadataTypeEnum::VectorType(vector_type) => {
-                        let loaded_val = builder.build_load(vector_type, ptr, arg_name)?;
+                        let loaded_val = builder.build_load(
+                            vector_type,
+                            ptr,
+                            &arg_name.clone().unwrap_or_default(),
+                        )?;
 
                         arguments_passed_in.push(loaded_val.into());
                     }
@@ -1865,7 +1914,7 @@ where
 
                     // Get what the function returned
                     let function_result = builder.build_load(
-                        ty_to_llvm_ty(ctx, &fn_sig.return_type),
+                        ty_to_llvm_ty(ctx, &fn_sig.return_type)?,
                         v_ptr,
                         &variable_name,
                     )?;
@@ -1886,9 +1935,8 @@ where
                     );
                 }
 
-                let (v_ptr, v_ty) = create_new_variable(ctx, builder, "", &TypeDiscriminant::Void)?;
-
-                Some((v_ptr, v_ty, TypeDiscriminant::Void))
+                // We dont return anything, as nothing is allocated
+                None
             }
         }
         ParsedToken::SetValue(var_ref_ty, value) => {
@@ -2088,7 +2136,7 @@ where
                 // Iterate over the struct's fields
                 for (field_idx, (field_name, field_ty)) in struct_tys.iter().enumerate() {
                     // Convert to llvm type
-                    let llvm_ty = ty_to_llvm_ty(ctx, field_ty);
+                    let llvm_ty = ty_to_llvm_ty(ctx, field_ty)?;
 
                     // Create a new temp variable according to the struct's field type
                     let (ptr, ty) = create_new_variable(ctx, builder, field_name, field_ty)?;
@@ -2136,7 +2184,7 @@ where
             None
         }
         ParsedToken::Comparison(lhs, order, rhs, comparison_hand_side_ty) => {
-            let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty);
+            let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty)?;
 
             // Create a new temp variable of val_tys for both of the sides
             let (lhs_ptr, lhs_ty) =
@@ -3172,7 +3220,7 @@ where
             }
         }
         ParsedToken::FunctionCall((fn_sig, fn_name), arguments) => {
-            for (arg_idx, (_arg_name, arg)) in arguments.iter().enumerate() {
+            for (arg_idx, (arg_name, (arg, arg_ty))) in arguments.iter().enumerate() {
                 let (_, arg_allocs) = fetch_alloca_ptr(
                     ctx,
                     module,
@@ -3184,11 +3232,16 @@ where
                     this_fn,
                 )?;
 
-                let argument_type = fn_sig.args.get_index(arg_idx).unwrap().1;
+                // We create a pre allocated temp variable for the function's arguments, we use the function arg's name to indicate which temp variable is for which argument.
+                // If the argument name is None, it means that the function we are calling has an indefinite amount of arguments, in this case having llvm automaticly name the variable is accepted
+                let (ptr, ty) = create_new_variable(
+                    ctx,
+                    builder,
+                    &arg_name.clone().unwrap_or_default(),
+                    arg_ty,
+                )?;
 
-                let (ptr, ty) = create_new_variable(ctx, builder, _arg_name, argument_type)?;
-
-                allocations.insert(arg.clone(), (ptr, ty, argument_type.clone()));
+                allocations.insert(arg.clone(), (ptr, ty, arg_ty.clone()));
 
                 allocations.extend(arg_allocs);
             }
@@ -3266,7 +3319,7 @@ fn access_nested_field<'a>(
                     (struct_field_ptr, pointee_ty.into()),
                 )
             } else {
-                let pointee_ty = ty_to_llvm_ty(ctx, field_ty);
+                let pointee_ty = ty_to_llvm_ty(ctx, field_ty)?;
 
                 Ok((last_field_ptr.0, pointee_ty, field_ty.clone()))
             }
@@ -3287,7 +3340,7 @@ fn create_new_variable<'a, 'b>(
     var_type: &TypeDiscriminant,
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>), anyhow::Error> {
     // Turn a `TypeDiscriminant` into an LLVM type
-    let var_type = ty_to_llvm_ty(ctx, var_type);
+    let var_type = ty_to_llvm_ty(ctx, var_type)?;
 
     // Allocate an instance of the converted type
     let v_ptr = builder.build_alloca(var_type, var_name)?;
@@ -3298,18 +3351,27 @@ fn create_new_variable<'a, 'b>(
 
 /// Creates a function type from a FunctionSignature.
 /// It uses the Function's return type and arguments to create a `FunctionType` which can be used later in llvm context.
-pub fn create_fn_type_from_ty_disc(ctx: &Context, fn_sig: FunctionSignature) -> FunctionType<'_> {
+pub fn create_fn_type_from_ty_disc(
+    ctx: &Context,
+    fn_sig: FunctionSignature,
+) -> Result<FunctionType<'_>> {
     // Create an LLVM type
-    let llvm_ty = ty_to_llvm_ty(ctx, &fn_sig.return_type);
+    let llvm_ty = ty_to_llvm_ty(ctx, &fn_sig.return_type)?;
 
     // Create the actual function type and parse the function's arguments
-    llvm_ty.fn_type(&get_args_from_sig(ctx, fn_sig), false)
+    Ok(llvm_ty.fn_type(
+        &get_args_from_sig(ctx, fn_sig.clone())?,
+        false, /* Variable arguments can not be used on source code defined functions */
+    ))
 }
 
 /// Fetches the arguments (and converts it into an LLVM type) from the function's signature
-pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicMetadataTypeEnum> {
+pub fn get_args_from_sig(
+    ctx: &Context,
+    fn_sig: FunctionSignature,
+) -> Result<Vec<BasicMetadataTypeEnum>> {
     // Create an iterator over the function's arguments
-    let fn_args = fn_sig.args.iter();
+    let fn_args = fn_sig.args.arguments_list.iter();
 
     // Create a list for all the arguments
     let mut arg_list: Vec<BasicMetadataTypeEnum> = vec![];
@@ -3317,14 +3379,14 @@ pub fn get_args_from_sig(ctx: &Context, fn_sig: FunctionSignature) -> Vec<BasicM
     // Iter over all the arguments and store the converted variants of the argument types
     for (_arg_name, arg_ty) in fn_args {
         // Create an llvm ty
-        let argument_sig = ty_to_llvm_ty(ctx, arg_ty);
+        let argument_sig = ty_to_llvm_ty(ctx, arg_ty)?;
 
         // Convert the type and store it
         arg_list.push(argument_sig.into());
     }
 
     // Return the list
-    arg_list
+    Ok(arg_list)
 }
 
 /// This function takes in the variable pointer which is dereferenced to set the variable's value.
@@ -3506,7 +3568,7 @@ pub fn allocate_string<'a>(
 }
 
 /// Converts a `TypeDiscriminant` into a `BasicTypeEnum` which can be used by inkwell.
-pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEnum<'a> {
+pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> Result<BasicTypeEnum<'a>> {
     let bool_type = ctx.bool_type();
     let i8_type = ctx.i8_type();
     let i16_type = ctx.i16_type();
@@ -3526,7 +3588,7 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEn
         TypeDiscriminant::String => BasicTypeEnum::PointerType(ptr_type),
         TypeDiscriminant::Boolean => BasicTypeEnum::IntType(bool_type),
         TypeDiscriminant::Void => {
-            unreachable!();
+            return Err(CodeGenError::InvalidVoidValue.into());
         }
         TypeDiscriminant::Struct((struct_name, struct_inner)) => {
             // If we are creating a new struct based on the TypeDiscriminant, we should first check if there is a struct created with the name
@@ -3540,7 +3602,7 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEn
                 let op_struct_type = ctx.opaque_struct_type(struct_name);
 
                 // Set the body of the struct
-                op_struct_type.set_body(&struct_field_to_ty_list(ctx, struct_inner), false);
+                op_struct_type.set_body(&struct_field_to_ty_list(ctx, struct_inner)?, false);
 
                 // Return the type of the struct
                 op_struct_type
@@ -3556,7 +3618,7 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant) -> BasicTypeEn
         TypeDiscriminant::U16 => BasicTypeEnum::IntType(i16_type),
     };
 
-    field_ty
+    Ok(field_ty)
 }
 
 pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataTypeEnum<'_> {
@@ -3577,18 +3639,18 @@ pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataT
 pub fn struct_field_to_ty_list<'a>(
     ctx: &'a Context,
     struct_inner: &IndexMap<String, TypeDiscriminant>,
-) -> Vec<BasicTypeEnum<'a>> {
+) -> Result<Vec<BasicTypeEnum<'a>>> {
     // Allocate a new list for storing the types
     let mut type_list = Vec::new();
 
     // Iterate over the struct's fields and convert the types into BasicTypeEnums
     for (_, ty) in struct_inner.iter() {
         // Convert the ty
-        let basic_ty = ty_to_llvm_ty(ctx, ty);
+        let basic_ty = ty_to_llvm_ty(ctx, ty)?;
 
         // Store the ty
         type_list.push(basic_ty);
     }
 
-    type_list
+    Ok(type_list)
 }

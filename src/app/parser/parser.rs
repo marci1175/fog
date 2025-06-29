@@ -149,10 +149,11 @@ pub fn parse_value(
     tokens: &[Token],
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
-    variable_type: TypeDiscriminant,
+    // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
+    mut desired_variable_type: Option<TypeDiscriminant>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-) -> Result<(ParsedToken, usize)> {
+) -> Result<(ParsedToken, usize, TypeDiscriminant)> {
     let mut token_idx = 0;
 
     // This is used for parsing mathematical expressions, comparisons
@@ -166,8 +167,6 @@ pub fn parse_value(
             )
         })?;
 
-        let mut variable_type = Some(variable_type.clone());
-
         if let Some(next_token) = tokens.get(token_idx + 1) {
             if *next_token == Token::Equal
                 || *next_token == Token::NotEqual
@@ -176,7 +175,8 @@ pub fn parse_value(
                 || *next_token == Token::Bigger
                 || *next_token == Token::Smaller
             {
-                variable_type = None;
+                // TODO: Check why am I doing this.....
+                desired_variable_type = None;
             }
         }
 
@@ -206,7 +206,7 @@ pub fn parse_value(
                                 tokens,
                                 function_signatures.clone(),
                                 variable_scope,
-                                variable_type.clone(),
+                                desired_variable_type.clone(),
                                 &mut token_idx,
                                 next_token,
                                 function_imports.clone(),
@@ -230,7 +230,7 @@ pub fn parse_value(
                     tokens,
                     function_signatures.clone(),
                     variable_scope,
-                    variable_type.clone(),
+                    desired_variable_type.clone(),
                     &mut token_idx,
                     current_token,
                     function_imports.clone(),
@@ -252,7 +252,7 @@ pub fn parse_value(
                     tokens,
                     function_signatures.clone(),
                     variable_scope,
-                    variable_type.clone(),
+                    desired_variable_type.clone(),
                     &mut token_idx,
                     current_token,
                     function_imports.clone(),
@@ -334,6 +334,9 @@ pub fn parse_value(
             super::error::SyntaxError::InvalidStatementDefinition,
         ))?,
         token_idx,
+        comparison_other_side_ty.ok_or(ParserError::SyntaxError(
+            super::error::SyntaxError::InvalidStatementDefinition,
+        ))?,
     ))
 }
 
@@ -453,7 +456,7 @@ pub fn parse_token_as_value(
                 // Return the function call
                 let parsed_token: ParsedToken = ParsedToken::FunctionCall(
                     (function.function_sig.clone(), identifier.clone()),
-                    call_arguments.into(),
+                    call_arguments,
                 );
 
                 // Increment the token index, and add the offset
@@ -601,7 +604,7 @@ pub fn parse_token_as_value(
                 // Return the function call
                 let parsed_token: ParsedToken = ParsedToken::FunctionCall(
                     (function_sig.clone(), identifier.clone()),
-                    call_arguments.into(),
+                    call_arguments,
                 );
 
                 // Increment the token index, and add the offset
@@ -691,11 +694,11 @@ pub fn parse_token_as_value(
             let desired_variable_type =
                 desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
 
-            let (parsed_token, _jmp_idx) = parse_value(
+            let (parsed_token, _jmp_idx, _) = parse_value(
                 tokens_inside_block,
                 function_signatures.clone(),
                 variable_scope,
-                desired_variable_type.clone(),
+                Some(desired_variable_type.clone()),
                 function_imports,
                 custom_items.clone(),
             )?;
@@ -786,16 +789,18 @@ pub fn init_struct(
             if let Some(Token::Colon) = struct_slice.get(idx + 1) {
                 let selected_tokens = &struct_slice[idx + 2..];
 
-                let (parsed_value, jump_idx) = parse_value(
+                let (parsed_value, jump_idx, _) = parse_value(
                     selected_tokens,
                     function_signatures.clone(),
                     variable_scope,
-                    this_struct_field
-                        .get(field_name)
-                        .ok_or(ParserError::SyntaxError(
-                            SyntaxError::InvalidStructFieldDefinition,
-                        ))?
-                        .clone(),
+                    Some(
+                        this_struct_field
+                            .get(field_name)
+                            .ok_or(ParserError::SyntaxError(
+                                SyntaxError::InvalidStructFieldDefinition,
+                            ))?
+                            .clone(),
+                    ),
                     function_imports.clone(),
                     custom_items.clone(),
                 )?;

@@ -29,14 +29,13 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             ';' => Some(Token::LineBreak),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
-            '.' => {
-                if !contains_non_digits(&string_buffer) {
-                    None
-                } else {
-                    Some(Token::Dot)
-                }
-            }
-
+            // '.' => {
+            //     if !contains_non_digits(&string_buffer) {
+            //         None
+            //     } else {
+            //         Some(Token::Dot)
+            //     }
+            // }
             _ => None,
         };
 
@@ -50,6 +49,21 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             token_list.push(single_char_token);
 
             string_buffer.clear();
+        } else if current_char == '.' {
+            let next_char = char_list.get(char_idx + 1);
+            let next_char_2 = char_list.get(char_idx + 2);
+
+            if Some(&'.') == next_char_2 && Some(&'.') == next_char {
+                token_list.push(Token::Ellipsis);
+
+                char_idx += 3;
+
+                continue;
+            } else if !contains_non_digits(&string_buffer) {
+                string_buffer.push(current_char);
+            } else {
+                token_list.push(Token::Dot);
+            }
         } else if current_char == '-' {
             let last_token = &token_list[token_list.len() - 1];
 

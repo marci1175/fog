@@ -47,4 +47,8 @@ pub enum CodeGenError {
     InvalidPreAllocation,
     #[error("A `null` value is used in the mathematical expression.")]
     InvalidMathematicalValue,
+    #[error(
+        "A value or argument of type `Void` is invalid. `Void` is solely for defining function return types."
+    )]
+    InvalidVoidValue,
 }

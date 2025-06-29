@@ -7,7 +7,10 @@ use std::{
 use inkwell::{FloatPredicate, IntPredicate};
 use strum_macros::Display;
 
-use crate::app::type_system::type_system::{OrdMap, Type, TypeDiscriminant};
+use crate::app::{
+    parser::parse_functions::FunctionArguments,
+    type_system::type_system::{OrdMap, Type, TypeDiscriminant},
+};
 
 use super::error::{ParserError, SyntaxError};
 
@@ -26,6 +29,7 @@ pub enum Token {
     Struct,
     Extend,
     Function,
+    Ellipsis,
     Return,
 
     Multiplication,
@@ -118,7 +122,10 @@ pub enum ParsedToken {
 
     Brackets(Vec<ParsedToken>, TypeDiscriminant),
 
-    FunctionCall((FunctionSignature, String), OrdMap<String, ParsedToken>),
+    FunctionCall(
+        (FunctionSignature, String),
+        OrdMap<Option<String>, (ParsedToken, TypeDiscriminant)>,
+    ),
 
     SetValue(VariableReference, Box<ParsedToken>),
 
@@ -200,7 +207,7 @@ pub struct FunctionDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionSignature {
-    pub args: OrdMap<String, TypeDiscriminant>,
+    pub args: FunctionArguments,
     pub return_type: TypeDiscriminant,
 }
 

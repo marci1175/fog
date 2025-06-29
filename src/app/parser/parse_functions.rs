@@ -50,6 +50,7 @@ pub fn create_signature_table(
 
                     token_idx += bracket_close_idx + 3;
 
+                    // Fetch the returned type of the function
                     if tokens[token_idx + 1] == Token::Colon {
                         let return_type = if let Token::TypeDefinition(return_type) =
                             tokens[token_idx + 2].clone()
@@ -124,10 +125,7 @@ pub fn create_signature_table(
                                 function_name.clone(),
                                 UnparsedFunctionDefinition {
                                     inner: braces_contains,
-                                    function_sig: FunctionSignature {
-                                        args: args.into(),
-                                        return_type,
-                                    },
+                                    function_sig: FunctionSignature { args, return_type },
                                 },
                             );
 
@@ -177,19 +175,18 @@ pub fn create_signature_table(
                                     return Err(ParserError::DuplicateSignatureImports.into());
                                 }
 
-                                external_imports.insert(
-                                    identifier,
-                                    FunctionSignature {
-                                        args: args.into(),
-                                        return_type,
-                                    },
-                                );
+                                external_imports
+                                    .insert(identifier, FunctionSignature { args, return_type });
 
                                 continue;
                             }
                         }
+                    } else {
+                        return Err(SyntaxError::ImportUnspecifiedReturnType.into());
                     }
-                } else if Token::DoubleColon == tokens[token_idx + 2] {
+                }
+                // This is matched when you are importing a named declaration from another fog source file
+                else if Token::DoubleColon == tokens[token_idx + 2] {
                     if let Token::Identifier(lib_function_name) = &tokens[token_idx + 3] {
                         let imported_file_query = imported_file_list.get(&identifier);
 
@@ -356,13 +353,11 @@ pub fn create_signature_table(
     ))
 }
 
-fn parse_signature_argument_tokens(
-    tokens: &[Token],
-) -> Result<(usize, IndexMap<String, TypeDiscriminant>)> {
+fn parse_signature_argument_tokens(tokens: &[Token]) -> Result<(usize, FunctionArguments)> {
     let bracket_closing_idx =
         find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidSignatureDefinition)?;
 
-    let mut args = IndexMap::new();
+    let mut args = FunctionArguments::new();
 
     if bracket_closing_idx != 0 {
         args = parse_signature_args(&tokens[..bracket_closing_idx])?;
@@ -371,9 +366,24 @@ fn parse_signature_argument_tokens(
     Ok((bracket_closing_idx, args))
 }
 
-fn parse_signature_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDiscriminant>> {
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct FunctionArguments {
+    pub arguments_list: OrdMap<String, TypeDiscriminant>,
+    pub ellipsis_present: bool,
+}
+
+impl FunctionArguments {
+    pub fn new() -> Self {
+        Self {
+            arguments_list: OrdMap::new(),
+            ellipsis_present: false,
+        }
+    }
+}
+
+fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments> {
     // Create a list of args which the function will take, we will return this later
-    let mut args: IndexMap<String, TypeDiscriminant> = IndexMap::new();
+    let mut args: FunctionArguments = FunctionArguments::new();
 
     // Create an index which will iterate through the tokens
     let mut args_idx = 0;
@@ -385,13 +395,14 @@ fn parse_signature_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDis
         // Get the variable's name
         // If the token is an identifier then we know that this is a variable name
         // If the token is a colon then we know that this is a type definition
-        if let Token::Identifier(var_name) = token_list[args_idx].clone() {
+        let current_token = token_list[args_idx].clone();
+        if let Token::Identifier(var_name) = current_token {
             // Match the colon from the signature, to ensure correct signaure
             if token_list[args_idx + 1] == Token::Colon {
                 // Get the type of the argument
                 if let Token::TypeDefinition(var_type) = &token_list[args_idx + 2] {
                     // Store the argument in the HashMap
-                    args.insert(var_name, var_type.clone());
+                    args.arguments_list.insert(var_name, var_type.clone());
 
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {
@@ -404,6 +415,21 @@ fn parse_signature_args(token_list: &[Token]) -> Result<IndexMap<String, TypeDis
                     continue;
                 }
             }
+        }
+        // If an ellipsis is found, that means that there can be an indefinite amount of arguments, this however can only be used at the end of the arguments when importing an external function
+        else if Token::Ellipsis == current_token {
+            // Check if this is the last argument, and return an error if it isn't
+            if args_idx != token_list.len() - 1 {
+                return Err(ParserError::InvalidEllipsisLocation.into());
+            }
+
+            // Store the ellipsis
+            args.ellipsis_present = true;
+
+            args_idx += 1;
+
+            // Countinue the loop
+            continue;
         }
 
         // If the pattern didnt match the tokens return an error
@@ -450,9 +476,16 @@ fn parse_function_block(
     this_function_signature: FunctionSignature,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-    mut variable_scope: OrdMap<String, TypeDiscriminant>,
+    this_fn_args: FunctionArguments,
 ) -> Result<Vec<ParsedToken>> {
+    // Check if the function defined by the source code does not have an indeterminate amount of args
+    if this_fn_args.ellipsis_present {
+        return Err(ParserError::DeterminiateArgumentsFunction.into());
+    }
+
     let mut token_idx = 0;
+
+    let mut variable_scope = this_fn_args.arguments_list.clone();
 
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
 
@@ -482,11 +515,11 @@ fn parse_function_block(
                         // Set the new idx
                         token_idx = line_break_idx;
 
-                        let (parsed_value, _) = parse_value(
+                        let (parsed_value, _, _) = parse_value(
                             selected_tokens,
                             function_signatures.clone(),
                             &mut variable_scope,
-                            var_type.clone(),
+                            Some(var_type.clone()),
                             function_imports.clone(),
                             custom_items.clone(),
                         )?;
@@ -572,7 +605,7 @@ fn parse_function_block(
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
                         (function_sig.function_sig.clone(), ident_name.clone()),
-                        variables_passed.into(),
+                        variables_passed,
                     ));
 
                     token_idx += jumped_idx + 2;
@@ -600,7 +633,7 @@ fn parse_function_block(
 
                     parsed_tokens.push(ParsedToken::FunctionCall(
                         (function_sig.clone(), ident_name.clone()),
-                        variables_passed.into(),
+                        variables_passed,
                     ));
 
                     token_idx += jumped_idx + 2;
@@ -627,11 +660,11 @@ fn parse_function_block(
 
                                     token_idx += selected_tokens.len() + 1;
 
-                                    let (parsed_token, _) = parse_value(
+                                    let (parsed_token, _, _) = parse_value(
                                         selected_tokens,
                                         function_signatures.clone(),
                                         &mut variable_scope,
-                                        variable_type.clone(),
+                                        Some(variable_type.clone()),
                                         function_imports.clone(),
                                         custom_items.clone(),
                                     )?;
@@ -669,11 +702,11 @@ fn parse_function_block(
                         .into());
                     }
                 } else {
-                    let (returned_value, jmp_idx) = parse_value(
+                    let (returned_value, jmp_idx, _) = parse_value(
                         &tokens[token_idx..],
                         function_signatures.clone(),
                         &mut variable_scope,
-                        this_function_signature.return_type.clone(),
+                        Some(this_function_signature.return_type.clone()),
                         function_imports.clone(),
                         custom_items.clone(),
                     )?;
@@ -692,11 +725,11 @@ fn parse_function_block(
                     // This is what we have to evaulate in order to execute the appropriate branch of the if statement
                     let cond_slice = &tokens[token_idx..paren_close_idx];
 
-                    let (condition, idx) = parse_value(
+                    let (condition, idx, _) = parse_value(
                         cond_slice,
                         function_signatures.clone(),
                         &mut variable_scope,
-                        TypeDiscriminant::Boolean,
+                        Some(TypeDiscriminant::Boolean),
                         function_imports.clone(),
                         custom_items.clone(),
                     )?;
@@ -715,12 +748,12 @@ fn parse_function_block(
                             true_block_slice,
                             function_signatures.clone(),
                             FunctionSignature {
-                                args: OrdMap::new(),
+                                args: FunctionArguments::new(),
                                 return_type: TypeDiscriminant::Void,
                             },
                             function_imports.clone(),
                             custom_items.clone(),
-                            variable_scope.clone(),
+                            this_fn_args.clone(),
                         )?;
 
                         let mut else_condition_branch = Vec::new();
@@ -742,12 +775,12 @@ fn parse_function_block(
                                     false_block_slice,
                                     function_signatures.clone(),
                                     FunctionSignature {
-                                        args: OrdMap::new(),
+                                        args: FunctionArguments::new(),
                                         return_type: TypeDiscriminant::Void,
                                     },
                                     function_imports.clone(),
                                     custom_items.clone(),
-                                    variable_scope.clone(),
+                                    this_fn_args.clone(),
                                 )?;
 
                                 token_idx = paren_close_idx + 1;
@@ -782,12 +815,12 @@ fn parse_function_block(
                         loop_body_tokens.to_vec(),
                         function_signatures.clone(),
                         FunctionSignature {
-                            args: OrdMap::new(),
+                            args: FunctionArguments::new(),
                             return_type: TypeDiscriminant::Void,
                         },
                         function_imports.clone(),
                         custom_items.clone(),
-                        variable_scope.clone(),
+                        this_fn_args.clone(),
                     )?;
 
                     token_idx = paren_close_idx + 1;
@@ -858,17 +891,20 @@ fn set_value_math_expr(
 pub fn parse_function_call_args(
     tokens: &[Token],
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
-    mut this_function_args: OrdMap<String, TypeDiscriminant>,
+    mut this_function_args: FunctionArguments,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-) -> Result<(IndexMap<String, ParsedToken>, usize)> {
+) -> Result<(
+    OrdMap<Option<String>, (ParsedToken, TypeDiscriminant)>,
+    usize,
+)> {
     let mut tokens_idx = 0;
 
     let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
 
     // Arguments which will passed in to the function
-    let mut arguments: IndexMap<String, ParsedToken> = IndexMap::new();
+    let mut arguments: OrdMap<Option<String>, (ParsedToken, TypeDiscriminant)> = OrdMap::new();
 
     // If there are no arguments just return everything as is
     if tokens.is_empty() {
@@ -880,6 +916,7 @@ pub fn parse_function_call_args(
         if let Token::Identifier(arg_name) = current_token.clone() {
             if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
                 let argument_type = this_function_args
+                    .arguments_list
                     .get(&arg_name)
                     .ok_or(ParserError::ArgumentError(arg_name.clone()))?;
 
@@ -887,11 +924,11 @@ pub fn parse_function_call_args(
 
                 let closing_idx = find_closing_comma(&tokens[tokens_idx..])? + tokens_idx;
 
-                let (parsed_argument, jump_idx) = parse_value(
+                let (parsed_argument, jump_idx, arg_ty) = parse_value(
                     &tokens[tokens_idx..closing_idx],
                     function_signatures.clone(),
                     variable_scope,
-                    argument_type.clone(),
+                    Some(argument_type.clone()),
                     standard_function_table.clone(),
                     custom_items.clone(),
                 )?;
@@ -899,9 +936,9 @@ pub fn parse_function_call_args(
                 tokens_idx += jump_idx;
 
                 // Remove tha argument from the argument list so we can parse unnamed arguments easier
-                this_function_args.shift_remove(&arg_name);
+                this_function_args.arguments_list.shift_remove(&arg_name);
 
-                arguments.insert(arg_name.clone(), parsed_argument);
+                arguments.insert(Some(arg_name.clone()), (parsed_argument, arg_ty));
             } else {
                 let args_list_len = &tokens[tokens_idx..].len() + tokens_idx;
 
@@ -928,14 +965,14 @@ pub fn parse_function_call_args(
                         }
 
                         // We can safely unwrap here
-                        let fn_argument_query = this_function_args.first_entry();
+                        let fn_argument_query = this_function_args.arguments_list.first_entry();
 
                         if let Some(fn_argument) = fn_argument_query {
-                            let (parsed_argument, _jump_idx) = parse_value(
+                            let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                                 &token_buf,
                                 function_signatures.clone(),
                                 variable_scope,
-                                fn_argument.get().clone(),
+                                Some(fn_argument.get().clone()),
                                 standard_function_table.clone(),
                                 custom_items.clone(),
                             )?;
@@ -944,7 +981,8 @@ pub fn parse_function_call_args(
 
                             token_buf.clear();
 
-                            arguments.insert(fn_argument.key().clone(), parsed_argument);
+                            arguments
+                                .insert(Some(fn_argument.key().clone()), (parsed_argument, arg_ty));
 
                             // Remove the argument from the argument list
                             fn_argument.shift_remove();
@@ -984,15 +1022,14 @@ pub fn parse_function_call_args(
                         token_buf.push(token.clone());
                     }
 
-                    // We can safely unwrap here
-                    let fn_argument = this_function_args.first_entry();
+                    let fn_argument = this_function_args.arguments_list.first_entry();
 
                     if let Some(fn_argument) = fn_argument {
-                        let (parsed_argument, _jump_idx) = parse_value(
+                        let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                             &token_buf,
                             function_signatures.clone(),
                             variable_scope,
-                            fn_argument.get().clone(),
+                            Some(fn_argument.get().clone()),
                             standard_function_table.clone(),
                             custom_items.clone(),
                         )?;
@@ -1001,13 +1038,31 @@ pub fn parse_function_call_args(
 
                         token_buf.clear();
 
-                        arguments.insert(fn_argument.key().clone(), parsed_argument);
+                        arguments
+                            .insert(Some(fn_argument.key().clone()), (parsed_argument, arg_ty));
 
                         // Remove the argument from the argument list
                         fn_argument.shift_remove();
                     } else {
-                        return Ok((arguments, tokens_idx));
+                        let (parsed_argument, _jump_idx, arg_ty) = parse_value(
+                            &token_buf,
+                            function_signatures.clone(),
+                            variable_scope,
+                            None,
+                            standard_function_table.clone(),
+                            custom_items.clone(),
+                        )?;
+
+                        tokens_idx += 1;
+
+                        token_buf.clear();
+
+                        arguments.insert(None, (parsed_argument, arg_ty));
                     }
+
+                    // else {
+                    //     return Ok((arguments, tokens_idx));
+                    // }
 
                     break;
                 } else {
@@ -1019,7 +1074,7 @@ pub fn parse_function_call_args(
         }
     }
 
-    if !this_function_args.is_empty() {
+    if !this_function_args.arguments_list.is_empty() {
         return Err(ParserError::InvalidFunctionArgumentCount.into());
     }
 
@@ -1055,11 +1110,11 @@ pub fn parse_variable_expression(
 
             *token_idx += selected_tokens.len() + 1;
 
-            let (parsed_token, _) = parse_value(
+            let (parsed_token, _, _) = parse_value(
                 selected_tokens,
                 function_signatures.clone(),
                 variable_scope,
-                variable_type.clone(),
+                Some(variable_type.clone()),
                 function_imports.clone(),
                 custom_items.clone(),
             )?;

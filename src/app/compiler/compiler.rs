@@ -48,6 +48,8 @@ impl CompilerState {
         println!("Tokenizing...");
         let tokens = tokenize(file_contents)?;
 
+        dbg!(&tokens);
+
         let mut parser_state = ParserState::new(tokens);
 
         println!("Parsing Tokens...");
@@ -59,7 +61,7 @@ impl CompilerState {
         if !is_lib {
             if let Some(fn_sig) = function_table.get("main") {
                 if fn_sig.function_sig.return_type != TypeDiscriminant::I32
-                    || !fn_sig.function_sig.args.is_empty()
+                    || !fn_sig.function_sig.args.arguments_list.is_empty()
                 {
                     return Err(CodeGenError::InvalidMain.into());
                 }

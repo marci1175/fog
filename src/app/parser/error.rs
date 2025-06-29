@@ -12,8 +12,16 @@ pub enum ParserError {
     InvalidSignatureDefinition,
     #[error("The function is called with the wrong types of arguments.")]
     InvalidFunctionCallArguments,
+    #[error(
+        "When importing a function, the ellpisis can only be used at the last place of the arguments."
+    )]
+    InvalidEllipsisLocation,
     #[error("Function has been called with the wrong amount of arguments.")]
     InvalidFunctionArgumentCount,
+    #[error(
+        "The function defined by fog must have a definate amount of arguments. The ellpisis can only be used when importing foreign functions."
+    )]
+    DeterminiateArgumentsFunction,
     #[error("Type `{0}` mismatches type `{1}`.")]
     TypeError(TypeDiscriminant, TypeDiscriminant),
     #[error("Source code contains a Syntax Error: {0}")]
@@ -102,4 +110,6 @@ pub enum SyntaxError {
     InvalidIfConditionDefinition,
     #[error("Loop bodies are defined via brackets surrounding the code we would like to repeat.")]
     InvalidLoopBody,
+    #[error("Imported function must have their return type defined.")]
+    ImportUnspecifiedReturnType,
 }
