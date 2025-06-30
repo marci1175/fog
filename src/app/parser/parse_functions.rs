@@ -810,12 +810,14 @@ fn parse_function_block(
 
                     // This is what we have to evaulate in order to execute the appropriate branch of the if statement
                     let loop_body_tokens = &tokens[token_idx..paren_close_idx];
-                    
+
                     // Create a custom FunctionArguments instance for the loop
                     let loop_body_arguments = FunctionArguments {
                         // Pass in the variable scope of the previous "closure" to the loop so that variables defined above are still accessible inside the loop.
                         // We do this instead of modifying the function entirely.
-                        arguments_list: this_fn_args.arguments_list.extend_clone(variable_scope.clone()),
+                        arguments_list: this_fn_args
+                            .arguments_list
+                            .extend_clone(variable_scope.clone()),
                         ellipsis_present: this_fn_args.ellipsis_present,
                     };
 

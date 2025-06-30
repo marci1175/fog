@@ -1643,8 +1643,7 @@ where
                                 "int_rem_int",
                             )?,
                     };
-                    if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference
-                    {
+                    if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference {
                         builder.build_store(var_ptr, math_res)?;
                     } else {
                         let (ptr, ty) =
