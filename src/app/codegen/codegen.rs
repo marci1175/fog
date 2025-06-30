@@ -136,7 +136,7 @@ fn generate_ir<'ctx>(
             module,
             builder,
             context,
-            dbg!(function_definition.inner.clone()),
+            function_definition.inner.clone(),
             arguments,
             function_definition.function_sig.return_type.clone(),
             basic_block,
@@ -538,11 +538,14 @@ where
 {
     let created_var = match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
+            let mut was_preallocated = false;
+
             // Check if the function has been called with an allocation table
             let (ptr, ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                 if let Some(alloca_t) = &allocation_scope {
                     if let Some((ptr, ptr_ty, ty)) = alloca_t.get(&var_set_val) {
                         if *ty == var_type {
+                            was_preallocated = true;
                             return Ok((*ptr, *ptr_ty));
                         } else {
                             return Err(CodeGenError::InvalidPreAllocation.into());
@@ -557,20 +560,23 @@ where
                 Ok((ptr, ptr_ty))
             })()?;
 
-            // Set the value of the newly created variable
-            create_ir_from_parsed_token(
-                ctx,
-                module,
-                builder,
-                *var_set_val,
-                variable_map,
-                Some((var_name, (ptr, ty), var_type)),
-                fn_ret_ty,
-                this_fn_block,
-                this_fn,
-                allocation_list.clone(),
-                allocation_scope.clone(),
-            )?;
+            // Check if the value was preallocated and is a literal, if yes we dont need to set the value of the variable as it was done beforehand.
+            if !(matches!(&*var_set_val, ParsedToken::Literal(_)) && was_preallocated) {
+                // Set the value of the newly created variable
+                create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    *var_set_val.clone(),
+                    variable_map,
+                    Some((var_name.clone(), (ptr, ty), var_type.clone())),
+                    fn_ret_ty,
+                    this_fn_block,
+                    this_fn,
+                    allocation_list.clone(),
+                    allocation_scope.clone(),
+                )?;
+            }
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
             None
@@ -1637,7 +1643,7 @@ where
                                 "int_rem_int",
                             )?,
                     };
-                    if let Some((var_ref_name, (var_ptr, var_ty), disc)) = dbg!(variable_reference)
+                    if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference
                     {
                         builder.build_store(var_ptr, math_res)?;
                     } else {
@@ -1668,8 +1674,6 @@ where
                 .get_function(&fn_name)
                 .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
 
-            dbg!(&passed_arguments);
-
             let arg_iter =
                 passed_arguments
                     .iter()
@@ -1695,7 +1699,7 @@ where
             for (arg_name, (arg_token, arg_type)) in fn_argument_list.iter() {
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                     if let Some(ref mut allocations) = allocation_scope {
-                        if let Some((ptr, ty, _disc)) = dbg!(allocations.get(dbg!(arg_token))) {
+                        if let Some((ptr, ty, _disc)) = allocations.get(arg_token) {
                             return Ok((*ptr, *ty));
                         }
                     }
@@ -2379,24 +2383,29 @@ where
                 (ptr, ty)
             };
 
-            // Set the value of the newly created variable
-            create_ir_from_parsed_token(
-                ctx,
-                module,
-                builder,
-                *var_set_val.clone(),
-                variable_map,
-                Some((var_name.clone(), (ptr, ty), var_type.clone())),
-                fn_ret_ty,
-                this_fn_block,
-                this_fn,
-                Arc::new(HashMap::new()),
-                Some(allocations.clone()),
-            )?;
+            // We only set the value of the pre-allocated variable if its a constant, like if its a literal
+            // This skips a step of setting the value in the loop, however this pre evaluation cannot be applied safely to all of the types
+            // Check if the value is a literal
+            // We also check if its a literal when we are checking for pre-allocated variables so that we dont set the value twice.
+            if matches!(&*var_set_val, ParsedToken::Literal(_)) {
+                // Set the value of the newly created variable
+                create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    *var_set_val.clone(),
+                    variable_map,
+                    Some((var_name.clone(), (ptr, ty), var_type.clone())),
+                    fn_ret_ty,
+                    this_fn_block,
+                    this_fn,
+                    Arc::new(HashMap::new()),
+                    Some(allocations.clone()),
+                )?;
+            }
 
             allocations.insert(*var_set_val, (ptr, ty, var_type));
         }
-        // We do not need to store references from a VariableReference as it doesn't allocate anything on the stack and reuses already existing pointers
         ParsedToken::VariableReference(var_ref) => match var_ref {
             crate::app::parser::types::VariableReference::StructFieldReference(
                 struct_field_stack,
@@ -2438,8 +2447,6 @@ where
             let ty_disc = literal.discriminant();
 
             let (ptr, ty) = create_new_variable(ctx, builder, "", &ty_disc)?;
-
-            // set_value_of_ptr(ctx, builder, literal, ptr)?;
 
             allocations.insert(parsed_token.clone(), (ptr, ty, ty_disc));
         }
@@ -3246,9 +3253,13 @@ where
                 allocations.extend(arg_allocs);
             }
 
-            let (ptr, ty) = create_new_variable(ctx, builder, "", &fn_sig.return_type)?;
+            // Check if the returned value of the function is Void
+            // If it is, then we dont need to allocate anything
+            if fn_sig.return_type != TypeDiscriminant::Void {
+                let (ptr, ty) = create_new_variable(ctx, builder, "", &fn_sig.return_type)?;
 
-            allocations.insert(parsed_token.clone(), (ptr, ty, fn_sig.return_type.clone()));
+                allocations.insert(parsed_token.clone(), (ptr, ty, fn_sig.return_type.clone()));
+            }
         }
         ParsedToken::SetValue(_var_ref, value) => {
             let (_, allocation_table) = fetch_alloca_ptr(
@@ -3284,6 +3295,72 @@ where
             if let Some((ptr, ty, disc)) = math_expr {
                 allocations.insert(parsed_token.clone(), (ptr, ty, disc));
             }
+        }
+        ParsedToken::If(inner) => {
+            let (_, condition_allocations) = fetch_alloca_ptr(
+                ctx,
+                module,
+                builder,
+                *inner.condition,
+                variable_map,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+            )?;
+
+            allocations.extend(condition_allocations);
+
+            for parsed_token in inner.complete_body {
+                let (_, body_allocas) = fetch_alloca_ptr(
+                    ctx,
+                    module,
+                    builder,
+                    parsed_token,
+                    variable_map,
+                    fn_ret_ty.clone(),
+                    this_fn_block,
+                    this_fn,
+                )?;
+
+                allocations.extend(body_allocas);
+            }
+
+            for parsed_token in inner.incomplete_body {
+                let (_, body_allocas) = fetch_alloca_ptr(
+                    ctx,
+                    module,
+                    builder,
+                    parsed_token,
+                    variable_map,
+                    fn_ret_ty.clone(),
+                    this_fn_block,
+                    this_fn,
+                )?;
+
+                allocations.extend(body_allocas);
+            }
+        }
+        ParsedToken::Comparison(lhs, _, rhs, _) => {
+            fetch_alloca_ptr(
+                ctx,
+                module,
+                builder,
+                *lhs,
+                variable_map,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+            )?;
+            fetch_alloca_ptr(
+                ctx,
+                module,
+                builder,
+                *rhs,
+                variable_map,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+            )?;
         }
         _ => {
             unimplemented!()

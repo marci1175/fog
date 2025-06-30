@@ -1,7 +1,7 @@
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
-    ops::{Deref, DerefMut},
+    ops::{Add, Deref, DerefMut},
 };
 
 use indexmap::IndexMap;
@@ -404,6 +404,18 @@ impl<K: PartialEq + Hash, V: PartialEq> Eq for OrdMap<K, V> {}
 impl<K, V> OrdMap<K, V> {
     pub fn new() -> Self {
         OrdMap(IndexMap::new())
+    }
+}
+
+impl<K: Hash + Eq + Clone, V: Clone> OrdMap<K, V> {
+    pub fn extend_clone(&self, rhs: Self) -> Self {
+        let mut self_clone = self.clone();
+
+        self_clone.extend(rhs.iter().map(|(k, v)| {
+            (k.clone(), v.clone())
+        }));
+
+        self_clone
     }
 }
 

@@ -810,6 +810,14 @@ fn parse_function_block(
 
                     // This is what we have to evaulate in order to execute the appropriate branch of the if statement
                     let loop_body_tokens = &tokens[token_idx..paren_close_idx];
+                    
+                    // Create a custom FunctionArguments instance for the loop
+                    let loop_body_arguments = FunctionArguments {
+                        // Pass in the variable scope of the previous "closure" to the loop so that variables defined above are still accessible inside the loop.
+                        // We do this instead of modifying the function entirely.
+                        arguments_list: this_fn_args.arguments_list.extend_clone(variable_scope.clone()),
+                        ellipsis_present: this_fn_args.ellipsis_present,
+                    };
 
                     let loop_body = parse_function_block(
                         loop_body_tokens.to_vec(),
@@ -820,7 +828,7 @@ fn parse_function_block(
                         },
                         function_imports.clone(),
                         custom_items.clone(),
-                        this_fn_args.clone(),
+                        loop_body_arguments,
                     )?;
 
                     token_idx = paren_close_idx + 1;
@@ -832,6 +840,7 @@ fn parse_function_block(
 
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidLoopBody).into());
             }
+
             token_idx += 1;
         }
     }
@@ -913,6 +922,7 @@ pub fn parse_function_call_args(
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
+
         if let Token::Identifier(arg_name) = current_token.clone() {
             if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
                 let argument_type = this_function_args
@@ -964,10 +974,9 @@ pub fn parse_function_call_args(
                             token_buf.push(token.clone());
                         }
 
-                        // We can safely unwrap here
-                        let fn_argument_query = this_function_args.arguments_list.first_entry();
+                        let fn_argument = this_function_args.arguments_list.first_entry();
 
-                        if let Some(fn_argument) = fn_argument_query {
+                        if let Some(fn_argument) = fn_argument {
                             let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                                 &token_buf,
                                 function_signatures.clone(),
@@ -986,6 +995,21 @@ pub fn parse_function_call_args(
 
                             // Remove the argument from the argument list
                             fn_argument.shift_remove();
+                        } else {
+                            let (parsed_argument, _jump_idx, arg_ty) = parse_value(
+                                &token_buf,
+                                function_signatures.clone(),
+                                variable_scope,
+                                None,
+                                standard_function_table.clone(),
+                                custom_items.clone(),
+                            )?;
+
+                            tokens_idx += 1;
+
+                            token_buf.clear();
+
+                            arguments.insert(None, (parsed_argument, arg_ty));
                         }
 
                         break;
@@ -1059,10 +1083,6 @@ pub fn parse_function_call_args(
 
                         arguments.insert(None, (parsed_argument, arg_ty));
                     }
-
-                    // else {
-                    //     return Ok((arguments, tokens_idx));
-                    // }
 
                     break;
                 } else {
