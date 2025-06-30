@@ -18,6 +18,7 @@ use inkwell::{
 use crate::{
     ApplicationError,
     app::{
+        codegen::LoopBodyBlocks,
         parser::types::{FunctionDefinition, FunctionSignature, ParsedToken},
         type_system::type_system::{OrdMap, Type, TypeDiscriminant},
     },
@@ -344,6 +345,7 @@ where
         &mut variable_map,
         this_fn,
         Arc::new(HashMap::new()),
+        None,
     )?;
 
     Ok(())
@@ -385,6 +387,7 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
             >,
         >,
     >,
+    is_loop_body: Option<LoopBodyBlocks>,
 ) -> Result<(), anyhow::Error>
 where
     'main: 'ctx,
@@ -402,12 +405,8 @@ where
             this_fn,
             alloca_table.clone(),
             alloca_table.get(&token).cloned(),
+            is_loop_body.clone(),
         )?;
-
-        // If the token we have parsed was a loop token that means any code from now becomes inaccessible, therefor we can stop parsing it.
-        if let ParsedToken::Loop(_) = token {
-            break;
-        }
     }
 
     Ok(())
@@ -521,6 +520,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
             ),
         >,
     >,
+    is_loop_body: Option<LoopBodyBlocks>,
 ) -> anyhow::Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
     // The return value is None if the `variable_reference` of the function is `Some`, as the variable will have its value set to the value of the returned value.
@@ -575,6 +575,7 @@ where
                     this_fn,
                     allocation_list.clone(),
                     allocation_scope.clone(),
+                    is_loop_body,
                 )?;
             }
 
@@ -782,6 +783,7 @@ where
                     this_fn,
                     allocation_list.clone(),
                     allocation_list.get(&parsed_token).cloned(),
+                    is_loop_body.clone(),
                 )?;
 
                 if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -1495,6 +1497,7 @@ where
                         this_fn,
                         allocation_list.clone(),
                         allocation_list.get(&parsed_token).cloned(),
+                        is_loop_body.clone(),
                     )
                 })()?;
 
@@ -1519,6 +1522,7 @@ where
                         this_fn,
                         allocation_list.clone(),
                         allocation_list.get(&parsed_token).cloned(),
+                        is_loop_body.clone(),
                     )
                 })()?;
 
@@ -1731,6 +1735,7 @@ where
                     this_fn,
                     allocation_list.clone(),
                     allocation_list.get(&parsed_token).cloned(),
+                    is_loop_body.clone(),
                 )?;
 
                 // Push the argument to the list of arguments
@@ -1972,6 +1977,7 @@ where
                                 this_fn,
                                 allocation_list.clone(),
                                 allocation_list.get(&parsed_token).cloned(),
+                                is_loop_body.clone(),
                             )?;
                         }
                     }
@@ -1993,6 +1999,7 @@ where
                             this_fn,
                             allocation_list.clone(),
                             allocation_list.get(&parsed_token).cloned(),
+                            is_loop_body.clone(),
                         )?;
                     }
                 }
@@ -2021,6 +2028,7 @@ where
                 this_fn,
                 allocation_list.clone(),
                 allocation_list.get(&parsed_token).cloned(),
+                is_loop_body.clone(),
             )?;
 
             match ptr_ty {
@@ -2072,6 +2080,7 @@ where
                 this_fn,
                 allocation_list.clone(),
                 allocation_list.get(&parsed_token).cloned(),
+                is_loop_body.clone(),
             )?;
 
             if let Some((cond_ptr, cond_ty, ty_disc)) = created_var {
@@ -2099,6 +2108,7 @@ where
                     variable_map,
                     this_fn,
                     allocation_list.clone(),
+                    is_loop_body.clone(),
                 )?;
 
                 builder.build_unconditional_branch(branch_uncond)?;
@@ -2116,6 +2126,7 @@ where
                     variable_map,
                     this_fn,
                     allocation_list.clone(),
+                    is_loop_body.clone(),
                 )?;
 
                 // Position the builder at the original position
@@ -2157,6 +2168,7 @@ where
                         this_fn,
                         allocation_list.clone(),
                         allocation_list.get(&parsed_token).cloned(),
+                        is_loop_body.clone(),
                     )?;
 
                     // Load the temp value to memory and store it
@@ -2211,6 +2223,7 @@ where
                 this_fn,
                 allocation_list.clone(),
                 allocation_list.get(&parsed_token).cloned(),
+                is_loop_body.clone(),
             )?;
             create_ir_from_parsed_token(
                 ctx,
@@ -2228,6 +2241,7 @@ where
                 this_fn,
                 allocation_list.clone(),
                 allocation_list.get(&parsed_token).cloned(),
+                is_loop_body.clone(),
             )?;
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
@@ -2291,8 +2305,14 @@ where
         }
         ParsedToken::CodeBlock(parsed_tokens) => todo!(),
         ParsedToken::Loop(parsed_tokens) => {
-            let code_block = ctx.append_basic_block(this_fn, "loop_body");
+            // Create the loop body
+            let loop_body = ctx.append_basic_block(this_fn, "loop_body");
 
+            // Create a the body of the code which would get executed after the loop body
+            let loop_body_exit = ctx.append_basic_block(this_fn, "loop_body_exit");
+
+            // Create an alloca_table
+            // This contains all the pre allocated variables for the loop body. This makes it so that we dont allocate anything inside the loop body, thus avoiding stack overflows.
             let alloca_table = create_alloca_table(
                 module,
                 builder,
@@ -2304,23 +2324,47 @@ where
                 this_fn,
             )?;
 
-            builder.build_unconditional_branch(code_block)?;
+            // Make the jump to the loop body
+            builder.build_unconditional_branch(loop_body)?;
 
-            builder.position_at_end(code_block);
+            // Position the builder at the loop body's beginning
+            builder.position_at_end(loop_body);
 
+            // Parse the tokens in the loop's body
             create_ir_from_parsed_token_list(
                 module,
                 builder,
                 ctx,
                 parsed_tokens,
                 TypeDiscriminant::Void,
-                code_block,
+                loop_body,
                 variable_map,
                 this_fn,
                 Arc::new(alloca_table),
+                Some(LoopBodyBlocks::new(loop_body, loop_body_exit)),
             )?;
 
-            builder.build_unconditional_branch(code_block)?;
+            // Create a jump to the beginning to the loop for an infinite loop
+            builder.build_unconditional_branch(loop_body)?;
+
+            // Reset the position of the builder
+            builder.position_at_end(loop_body_exit);
+
+            None
+        }
+        ParsedToken::ControlFlow(control_flow_variant) => {
+            if let Some(loop_body_blocks) = is_loop_body {
+                match control_flow_variant {
+                    crate::app::parser::types::ControlFlowType::Break => {
+                        builder.build_unconditional_branch(loop_body_blocks.loop_body_exit)?;
+                    }
+                    crate::app::parser::types::ControlFlowType::Continue => {
+                        builder.build_unconditional_branch(loop_body_blocks.loop_body)?;
+                    }
+                }
+            } else {
+                return Err(CodeGenError::InvalidControlFlowUsage.into());
+            }
 
             None
         }
@@ -2400,6 +2444,7 @@ where
                     this_fn,
                     Arc::new(HashMap::new()),
                     Some(allocations.clone()),
+                    None,
                 )?;
             }
 
@@ -2462,6 +2507,7 @@ where
                 this_fn,
                 Arc::new(HashMap::new()),
                 Some(allocations.clone()),
+                None,
             )?;
 
             if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -3288,6 +3334,7 @@ where
                 this_fn,
                 Arc::new(HashMap::new()),
                 Some(allocations.clone()),
+                None,
             )?;
 
             // Store the pointer of either one of the allocable values
@@ -3361,6 +3408,8 @@ where
                 this_fn,
             )?;
         }
+        // We can safely ignore this variant as it doesn't allocate anything
+        ParsedToken::ControlFlow(_) => (),
         _ => {
             unimplemented!()
         }

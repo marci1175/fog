@@ -760,10 +760,10 @@ fn parse_function_block(
 
                         token_idx = paren_close_idx + 1;
 
-                        if Token::Else == tokens[token_idx] {
+                        if Some(&Token::Else) == tokens.get(token_idx) {
                             token_idx += 1;
 
-                            if Token::OpenBraces == tokens[token_idx] {
+                            if Some(&Token::OpenBraces) == tokens.get(token_idx) {
                                 token_idx += 1;
 
                                 let paren_close_idx =
@@ -841,6 +841,18 @@ fn parse_function_block(
                 }
 
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidLoopBody).into());
+            } else if Token::Continue == current_token {
+                parsed_tokens.push(ParsedToken::ControlFlow(
+                    super::types::ControlFlowType::Continue,
+                ));
+
+                token_idx += 1;
+            } else if Token::Break == current_token {
+                parsed_tokens.push(ParsedToken::ControlFlow(
+                    super::types::ControlFlowType::Break,
+                ));
+
+                token_idx += 1;
             }
 
             token_idx += 1;

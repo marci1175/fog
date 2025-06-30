@@ -29,13 +29,6 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             ';' => Some(Token::LineBreak),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
-            // '.' => {
-            //     if !contains_non_digits(&string_buffer) {
-            //         None
-            //     } else {
-            //         Some(Token::Dot)
-            //     }
-            // }
             _ => None,
         };
 
@@ -393,6 +386,8 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "else" => Token::Else,
         "loop" => Token::Loop,
         "for" => Token::For,
+        "break" => Token::Break,
+        "continue" => Token::Continue,
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }

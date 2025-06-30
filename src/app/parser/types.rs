@@ -78,7 +78,10 @@ pub enum Token {
     Import,
 
     Loop,
+    While,
     For,
+    Continue,
+    Break,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -145,6 +148,14 @@ pub enum ParsedToken {
     CodeBlock(Vec<ParsedToken>),
 
     Loop(Vec<ParsedToken>),
+
+    ControlFlow(ControlFlowType),
+}
+
+#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
+pub enum ControlFlowType {
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]

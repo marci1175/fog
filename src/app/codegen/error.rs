@@ -51,4 +51,8 @@ pub enum CodeGenError {
         "A value or argument of type `Void` is invalid. `Void` is solely for defining function return types."
     )]
     InvalidVoidValue,
+    #[error(
+        "Control flow keyword used in a non-iteration environment. Flow control keywords can only be used in iterator bodies."
+    )]
+    InvalidControlFlowUsage,
 }
