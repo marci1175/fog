@@ -2,6 +2,7 @@
 #![no_main]
 
 use libc::putchar;
+use windows_sys::Win32::System::Threading::Sleep;
 
 #[cfg(not(any(test, feature = "std")))]
 #[panic_handler]
@@ -26,4 +27,11 @@ pub unsafe extern "C" fn printchar(c: i32) -> i32 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn print(str_ptr: *const i8) -> i32 {
     unsafe { libc::puts(str_ptr) }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sleep(msec: u32) {
+    unsafe {
+        Sleep(msec);
+    }
 }

@@ -3,18 +3,22 @@ import time(num: int): int;
 import sleep(secs: uint): void;
 
 function main(): int {
-    int curr_time = time(0);
+    int app_start_time = time(0);
 
-    printf("Seconds since epoch: %i", curr_time);
+    printf("Seconds since epoch: %i\n", app_start_time);
 
-    # Add 10 secs
-    int destination_secs = curr_time + 10;
+    int destination_secs = app_start_time + 10;
 
+    printf("Destination time: %i\n", destination_secs);
+    
     loop {
-        int secs_left = destination_secs - time(0);
-        printf("Seconds left till destination time: %i", secs_left);
+        int time = time(0);
+        int secs_left = destination_secs - time;
+
+        printf("Seconds since epoch: %i\n", time);
+        printf("Seconds left till destination time: %i\n", secs_left);
         
-        sleep(1);
+        sleep(1000);
 
         if (secs_left == 0) {
             break;

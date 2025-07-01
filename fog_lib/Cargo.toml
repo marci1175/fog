@@ -8,6 +8,7 @@ crate-type = ["lib", "staticlib"]
 
 [dependencies]
 libc = {default-features = false, version = "0.2.172"}
+windows-sys = {version = "0.60.2", features = ["Win32_System_Threading"]}
 
 [profile.release]
 panic = "abort"

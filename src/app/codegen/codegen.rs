@@ -1463,19 +1463,6 @@ where
             None
         }
         ParsedToken::MathematicalExpression(lhs, mathematical_symbol, rhs) => {
-            if let Some(allocations) = &allocation_scope {
-                if let Some((alloc_ptr, alloc_ty, alloc_disc)) = allocations.get(&parsed_token) {
-                    if let Some((var_name, (var_ptr, var_ty), disc)) = variable_reference {
-                        builder.build_store(
-                            var_ptr,
-                            builder.build_load(ty_to_llvm_ty(ctx, &disc)?, *alloc_ptr, "")?,
-                        )?;
-
-                        return Ok(None);
-                    }
-                }
-            }
-
             // Allocate memory on the stack for the value stored in the lhs
             let parsed_lhs =
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
@@ -3607,7 +3594,7 @@ pub fn set_value_of_ptr<'ctx>(
             let string_bytes = inner.as_bytes();
 
             let char_array =
-                ctx.const_string(string_bytes, Some(0) == string_bytes.last().copied());
+                ctx.const_string(string_bytes, Some(0) != string_bytes.last().copied());
 
             let global_string_handle = if let Some(global_string) = module.get_global(&inner) {
                 global_string
@@ -3669,7 +3656,6 @@ pub fn allocate_string<'a>(
             string_bytes.push(0);
         }
     }
-
     // Create a Sized array type with every element being an i8
     let sized_array_ty = i8_type.array_type(string_bytes.len() as u32);
 
