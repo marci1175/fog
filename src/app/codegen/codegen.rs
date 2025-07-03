@@ -1689,7 +1689,10 @@ where
             for (arg_name, (arg_token, arg_type)) in fn_argument_list.iter() {
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                     if let Some(ref mut allocations) = allocation_scope {
-                        if let Some((ptr, ty, _disc)) = allocations.get(arg_token) {
+                        // The problem is that parsed tokens can be nested and the alloc query will be one scope higher than we need..............
+                        // We should fix this with enums.
+                        dbg!(&allocations);
+                        if let Some((ptr, ty, _disc)) = allocations.get(dbg!(arg_token)) {
                             return Ok((*ptr, *ty));
                         }
                     }
@@ -2433,6 +2436,9 @@ where
                     Some(allocations.clone()),
                     None,
                 )?;
+            }
+            else {
+                fetch_alloca_ptr(ctx, module, builder, dbg!(*var_set_val.clone()), variable_map, fn_ret_ty, this_fn_block, this_fn)?;
             }
 
             allocations.insert(*var_set_val, (ptr, ty, var_type));
@@ -3260,16 +3266,18 @@ where
         }
         ParsedToken::FunctionCall((fn_sig, fn_name), arguments) => {
             for (arg_idx, (arg_name, (arg, arg_ty))) in arguments.iter().enumerate() {
-                let (_, arg_allocs) = fetch_alloca_ptr(
-                    ctx,
-                    module,
-                    builder,
-                    arg.clone(),
-                    variable_map,
-                    fn_ret_ty.clone(),
-                    this_fn_block,
-                    this_fn,
-                )?;
+                // let (_, arg_allocs) = fetch_alloca_ptr(
+                //     ctx,
+                //     module,
+                //     builder,
+                //     dbg!(arg.clone()),
+                //     variable_map,
+                //     fn_ret_ty.clone(),
+                //     this_fn_block,
+                //     this_fn,
+                // )?;
+
+                // allocations.extend(arg_allocs);
 
                 // We create a pre allocated temp variable for the function's arguments, we use the function arg's name to indicate which temp variable is for which argument.
                 // If the argument name is None, it means that the function we are calling has an indefinite amount of arguments, in this case having llvm automaticly name the variable is accepted
@@ -3281,8 +3289,6 @@ where
                 )?;
 
                 allocations.insert(arg.clone(), (ptr, ty, arg_ty.clone()));
-
-                allocations.extend(arg_allocs);
             }
 
             // Check if the returned value of the function is Void
