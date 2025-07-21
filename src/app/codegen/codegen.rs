@@ -4,7 +4,6 @@ use std::{
     io::ErrorKind,
     path::PathBuf,
     slice::Iter,
-    sync::Arc,
 };
 
 use anyhow::Result;
@@ -25,7 +24,7 @@ use crate::{
     ApplicationError,
     app::{
         codegen::LoopBodyBlocks,
-        parser::types::{FunctionDefinition, FunctionSignature, ParsedToken, PreAllocationEntry},
+        parser::types::{FunctionDefinition, FunctionSignature, ParsedToken},
         type_system::type_system::{OrdMap, Type, TypeDiscriminant},
     },
 };
@@ -2178,46 +2177,20 @@ where
         ParsedToken::Comparison(lhs, order, rhs, comparison_hand_side_ty) => {
             let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty)?;
 
-            let ((lhs_ptr, lhs_ty), (rhs_ptr, rhs_ty)) = if let Some((lhs_token, lhs_ptr, lhs_ty, lhs_disc)) = allocation_list.front().cloned() {
-                if dbg!(lhs_token) == dbg!((*lhs).clone()) {
-                    create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        *lhs,
-                        variable_map,
-                        Some((
-                            "lhs_tmp".to_string(),
-                            ((lhs_ptr, lhs_ty)),
-                            comparison_hand_side_ty.clone(),
-                        )),
-                        fn_ret_ty.clone(),
-                        this_fn_block,
-                        this_fn,
-                        allocation_list,
-                        is_loop_body.clone(),
-                    )?;
-
-                    allocation_list.pop_front();
-
-                    (lhs_ptr, lhs_ty)
-                } else {
-                    panic!()
-                };
-
-                let rhs_ptrs = if let Some((rhs_token, rhs_ptr, rhs_ty, rhs_disc)) =
+            let ((lhs_ptr, lhs_ty), (rhs_ptr, rhs_ty)) =
+                if let Some((lhs_token, lhs_ptr, lhs_ty, lhs_disc)) =
                     allocation_list.front().cloned()
                 {
-                    let ptr = if dbg!(rhs_token) == (*rhs).clone() {
+                    if dbg!(lhs_token) == dbg!((*lhs).clone()) {
                         create_ir_from_parsed_token(
                             ctx,
                             module,
                             builder,
-                            *rhs,
+                            *lhs,
                             variable_map,
                             Some((
-                                "rhs_tmp".to_string(),
-                                ((rhs_ptr, rhs_ty)),
+                                "lhs_tmp".to_string(),
+                                ((lhs_ptr, lhs_ty)),
                                 comparison_hand_side_ty.clone(),
                             )),
                             fn_ret_ty.clone(),
@@ -2226,26 +2199,53 @@ where
                             allocation_list,
                             is_loop_body.clone(),
                         )?;
-                        
+
                         allocation_list.pop_front();
 
-                        (rhs_ptr, rhs_ty)
+                        (lhs_ptr, lhs_ty)
                     } else {
                         panic!()
                     };
 
-                    ptr
-                } else {
-                    create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?
-                };
+                    let rhs_ptrs = if let Some((rhs_token, rhs_ptr, rhs_ty, rhs_disc)) =
+                        allocation_list.front().cloned()
+                    {
+                        if dbg!(rhs_token) == (*rhs).clone() {
+                            create_ir_from_parsed_token(
+                                ctx,
+                                module,
+                                builder,
+                                *rhs,
+                                variable_map,
+                                Some((
+                                    "rhs_tmp".to_string(),
+                                    ((rhs_ptr, rhs_ty)),
+                                    comparison_hand_side_ty.clone(),
+                                )),
+                                fn_ret_ty.clone(),
+                                this_fn_block,
+                                this_fn,
+                                allocation_list,
+                                is_loop_body.clone(),
+                            )?;
 
-                ((lhs_ptr, lhs_ty), rhs_ptrs)
-            } else {
-                (
-                    create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?,
-                    create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?,
-                )
-            };
+                            allocation_list.pop_front();
+
+                            (rhs_ptr, rhs_ty)
+                        } else {
+                            panic!()
+                        }
+                    } else {
+                        create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?
+                    };
+
+                    ((lhs_ptr, lhs_ty), rhs_ptrs)
+                } else {
+                    (
+                        create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?,
+                        create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?,
+                    )
+                };
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
             let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
@@ -2297,7 +2297,9 @@ where
                 builder.build_store(var_ptr, cmp_result)?;
 
                 None
-            } else if let Some((cmp_token, cmp_ptr, cmp_ty, ty_disc)) = allocation_list.front().cloned() {
+            } else if let Some((cmp_token, cmp_ptr, cmp_ty, ty_disc)) =
+                allocation_list.front().cloned()
+            {
                 if cmp_token != parsed_token.clone() {
                     return Err(CodeGenError::InvalidPreAllocation.into());
                 }
@@ -2307,8 +2309,7 @@ where
                 allocation_list.pop_front();
 
                 Some((cmp_ptr, cmp_ty, TypeDiscriminant::Boolean))
-            } 
-            else {
+            } else {
                 let (v_ptr, v_ty) =
                     create_new_variable(ctx, builder, "cmp_result", &TypeDiscriminant::Boolean)?;
 
@@ -3422,7 +3423,12 @@ where
             // Create a variable which stores the cmp result of the two
             let ptr = builder.build_alloca(ctx.bool_type(), "cmp_result")?;
 
-            pre_allocation_list.push((parsed_token.clone(), ptr, ctx.bool_type().into(), TypeDiscriminant::Boolean));
+            pre_allocation_list.push((
+                parsed_token.clone(),
+                ptr,
+                ctx.bool_type().into(),
+                TypeDiscriminant::Boolean,
+            ));
         }
         // We can safely ignore this variant as it doesn't allocate anything
         ParsedToken::ControlFlow(_) => (),
