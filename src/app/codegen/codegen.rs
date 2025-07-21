@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::HashMap, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
+use std::{collections::{HashMap, VecDeque}, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -16,12 +16,11 @@ use inkwell::{
 };
 
 use crate::{
-    ApplicationError,
     app::{
         codegen::LoopBodyBlocks,
-        parser::types::{FunctionDefinition, FunctionSignature, ParsedToken},
+        parser::types::{FunctionDefinition, FunctionSignature, ParsedToken, PreAllocationEntry},
         type_system::type_system::{OrdMap, Type, TypeDiscriminant},
-    },
+    }, ApplicationError
 };
 
 use super::error::CodeGenError;
@@ -344,7 +343,7 @@ where
         this_fn_block,
         &mut variable_map,
         this_fn,
-        Arc::new(HashMap::new()),
+        &mut VecDeque::new(),
         None,
     )?;
 
@@ -374,19 +373,7 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow
     // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
     // If the code we are running is not in a loop we can pass in `None`.
-    alloca_table: Arc<
-        HashMap<
-            ParsedToken,
-            HashMap<
-                ParsedToken,
-                (
-                    PointerValue<'ctx>,
-                    BasicMetadataTypeEnum<'ctx>,
-                    TypeDiscriminant,
-                ),
-            >,
-        >,
-    >,
+    alloca_table: &mut VecDeque<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)>,
     is_loop_body: Option<LoopBodyBlocks>,
 ) -> Result<(), anyhow::Error>
 where
@@ -403,8 +390,7 @@ where
             fn_ret_ty.clone(),
             this_fn_block,
             this_fn,
-            alloca_table.clone(),
-            alloca_table.get(&token).cloned(),
+            alloca_table,
             is_loop_body.clone(),
         )?;
     }
@@ -432,29 +418,16 @@ pub fn create_alloca_table<'main, 'ctx>(
     >,
     this_fn: FunctionValue<'ctx>,
 ) -> Result<
-    HashMap<
-        ParsedToken,
-        HashMap<
-            ParsedToken,
-            (
-                PointerValue<'ctx>,
-                BasicMetadataTypeEnum<'ctx>,
-                TypeDiscriminant,
-            ),
-        >,
-    >,
-    anyhow::Error,
+    VecDeque<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)>,
+    anyhow::Error
 >
 where
     'main: 'ctx,
 {
-    let mut alloc_table: HashMap<
-        ParsedToken,
-        HashMap<ParsedToken, (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>,
-    > = HashMap::new();
-
+    let mut alloc_list: VecDeque<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)> = VecDeque::new();
+    
     for token in parsed_tokens {
-        let (token, allocations) = fetch_alloca_ptr(
+        let allocations = fetch_alloca_ptr(
             ctx,
             module,
             builder,
@@ -465,15 +438,15 @@ where
             this_fn,
         )?;
 
-        alloc_table.insert(token.clone(), allocations);
+        alloc_list.extend(allocations);
 
         // If the token we have parsed was a loop token that means any code from now becomes inaccessible, therefor we can stop parsing it.
-        if let ParsedToken::Loop(_) = token {
-            break;
-        }
+        // if let ParsedToken::Loop(_) = token {
+        //     break;
+        // }
     }
 
-    Ok(alloc_table)
+    Ok(alloc_list)
 }
 
 pub fn create_ir_from_parsed_token<'main, 'ctx>(
@@ -493,33 +466,12 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
         (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
         TypeDiscriminant,
     )>,
+
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-    allocation_list: Arc<
-        HashMap<
-            ParsedToken,
-            HashMap<
-                ParsedToken,
-                (
-                    PointerValue<'ctx>,
-                    BasicMetadataTypeEnum<'ctx>,
-                    TypeDiscriminant,
-                ),
-            >,
-        >,
-    >,
-    mut allocation_scope: Option<
-        HashMap<
-            ParsedToken,
-            (
-                PointerValue<'ctx>,
-                BasicMetadataTypeEnum<'ctx>,
-                TypeDiscriminant,
-            ),
-        >,
-    >,
+    allocation_list: &mut VecDeque<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)>,
     is_loop_body: Option<LoopBodyBlocks>,
 ) -> anyhow::Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
@@ -542,11 +494,14 @@ where
 
             // Check if the function has been called with an allocation table
             let (ptr, ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
-                if let Some(alloca_t) = &allocation_scope {
-                    if let Some((ptr, ptr_ty, ty)) = alloca_t.get(&var_set_val) {
-                        if *ty == var_type {
+                if let Some((current_token, ptr, ptr_ty, ty)) = dbg!(allocation_list.front().cloned()) {
+                    if dbg!(current_token) == *dbg!(&*var_set_val) {
+                        if ty == var_type {
                             was_preallocated = true;
-                            return Ok((*ptr, *ptr_ty));
+                            
+                            allocation_list.pop_front();
+
+                            return Ok((ptr, ptr_ty));
                         } else {
                             return Err(CodeGenError::InvalidPreAllocation.into());
                         }
@@ -573,8 +528,7 @@ where
                     fn_ret_ty,
                     this_fn_block,
                     this_fn,
-                    allocation_list.clone(),
-                    allocation_scope.clone(),
+                    allocation_list,
                     is_loop_body,
                 )?;
             }
@@ -781,8 +735,7 @@ where
                     fn_ret_ty,
                     this_fn_block,
                     this_fn,
-                    allocation_list.clone(),
-                    allocation_list.get(&parsed_token).cloned(),
+                    allocation_list,
                     is_loop_body.clone(),
                 )?;
 
@@ -1466,9 +1419,10 @@ where
             // Allocate memory on the stack for the value stored in the lhs
             let parsed_lhs =
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
-                    if let Some(allocations) = &allocation_scope {
-                        if let Some(alloc) = allocations.get(&lhs).cloned() {
-                            return Ok(Some(alloc));
+                    if let Some((current_token, ptr, ptr_ty, disc)) = allocation_list.front().cloned() {
+                        if *lhs == current_token {
+                            allocation_list.pop_front();
+                            return Ok(Some((ptr, ptr_ty, disc)));
                         }
                     }
 
@@ -1482,8 +1436,7 @@ where
                         fn_ret_ty.clone(),
                         this_fn_block,
                         this_fn,
-                        allocation_list.clone(),
-                        allocation_list.get(&parsed_token).cloned(),
+                        allocation_list,
                         is_loop_body.clone(),
                     )
                 })()?;
@@ -1491,9 +1444,10 @@ where
             // Allocate memory on the stack for the value stored in the rhs
             let parsed_rhs =
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
-                    if let Some(allocations) = &allocation_scope {
-                        if let Some(alloc) = allocations.get(&rhs).cloned() {
-                            return Ok(Some(alloc));
+                    if let Some((current_token, ptr, ptr_ty, disc)) = allocation_list.front().cloned() {
+                        if *lhs == current_token {
+                            allocation_list.pop_front();
+                            return Ok(Some((ptr, ptr_ty, disc)));
                         }
                     }
 
@@ -1507,8 +1461,7 @@ where
                         fn_ret_ty.clone(),
                         this_fn_block,
                         this_fn,
-                        allocation_list.clone(),
-                        allocation_list.get(&parsed_token).cloned(),
+                        allocation_list,
                         is_loop_body.clone(),
                     )
                 })()?;
@@ -1688,13 +1641,9 @@ where
 
             for (arg_name, (arg_token, arg_type)) in fn_argument_list.iter() {
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
-                    if let Some(ref mut allocations) = allocation_scope {
-                        // The problem is that parsed tokens can be nested and the alloc query will be one scope higher than we need..............
-                        // We should fix this with enums.
-                        dbg!(&allocations);
-                        if let Some((ptr, ty, _disc)) = allocations.get(dbg!(arg_token)) {
-                            return Ok((*ptr, *ty));
-                        }
+                    if let Some((current_token, ptr, ptr_ty, disc)) = allocation_list.front().cloned() {
+                            allocation_list.pop_front();
+                        return Ok((ptr, ptr_ty));
                     }
 
                     // Create a temporary variable for the argument thats passed in, if the argument name is None that means that the argument has been passed to a function which has an indenfinite amount of arguments.
@@ -1723,8 +1672,7 @@ where
                     fn_ret_ty.clone(),
                     this_fn_block,
                     this_fn,
-                    allocation_list.clone(),
-                    allocation_list.get(&parsed_token).cloned(),
+                    allocation_list,
                     is_loop_body.clone(),
                 )?;
 
@@ -1801,12 +1749,9 @@ where
 
                     (v_ptr, var_ty)
                 } else {
-                    let (v_ptr, v_ty) = if let Some(allocations) = allocation_scope {
-                        if let Some((ptr, ty, _disc)) = allocations.get(&parsed_token) {
-                            (*ptr, *ty)
-                        } else {
-                            return Err(CodeGenError::InvalidPreAllocation.into());
-                        }
+                    let (v_ptr, v_ty) = if let Some((current_token, ptr, ty, _disc)) = allocation_list.front().cloned() {
+                            allocation_list.pop_front();
+                        (ptr, ty)
                     } else {
                         create_new_variable(ctx, builder, "", &fn_sig.return_type)?
                     };
@@ -1965,8 +1910,7 @@ where
                                 fn_ret_ty,
                                 this_fn_block,
                                 this_fn,
-                                allocation_list.clone(),
-                                allocation_list.get(&parsed_token).cloned(),
+                                allocation_list,
                                 is_loop_body.clone(),
                             )?;
                         }
@@ -1987,8 +1931,7 @@ where
                             fn_ret_ty,
                             this_fn_block,
                             this_fn,
-                            allocation_list.clone(),
-                            allocation_list.get(&parsed_token).cloned(),
+                            allocation_list,
                             is_loop_body.clone(),
                         )?;
                     }
@@ -2016,8 +1959,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
-                allocation_list.clone(),
-                allocation_list.get(&parsed_token).cloned(),
+                allocation_list,
                 is_loop_body.clone(),
             )?;
 
@@ -2068,8 +2010,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                allocation_list.clone(),
-                allocation_list.get(&parsed_token).cloned(),
+                allocation_list,
                 is_loop_body.clone(),
             )?;
 
@@ -2097,7 +2038,7 @@ where
                     branch_compl,
                     variable_map,
                     this_fn,
-                    allocation_list.clone(),
+                    allocation_list,
                     is_loop_body.clone(),
                 )?;
 
@@ -2115,7 +2056,7 @@ where
                     branch_incompl,
                     variable_map,
                     this_fn,
-                    allocation_list.clone(),
+                    allocation_list,
                     is_loop_body.clone(),
                 )?;
 
@@ -2156,8 +2097,7 @@ where
                         fn_ret_ty.clone(),
                         this_fn_block,
                         this_fn,
-                        allocation_list.clone(),
-                        allocation_list.get(&parsed_token).cloned(),
+                        allocation_list,
                         is_loop_body.clone(),
                     )?;
 
@@ -2211,8 +2151,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
-                allocation_list.clone(),
-                allocation_list.get(&parsed_token).cloned(),
+                allocation_list,
                 is_loop_body.clone(),
             )?;
             create_ir_from_parsed_token(
@@ -2229,8 +2168,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                allocation_list.clone(),
-                allocation_list.get(&parsed_token).cloned(),
+                allocation_list,
                 is_loop_body.clone(),
             )?;
 
@@ -2303,7 +2241,7 @@ where
 
             // Create an alloca_table
             // This contains all the pre allocated variables for the loop body. This makes it so that we dont allocate anything inside the loop body, thus avoiding stack overflows.
-            let alloca_table = create_alloca_table(
+            let mut alloca_table = create_alloca_table(
                 module,
                 builder,
                 ctx,
@@ -2330,7 +2268,7 @@ where
                 loop_body,
                 variable_map,
                 this_fn,
-                Arc::new(alloca_table),
+                &mut alloca_table,
                 Some(LoopBodyBlocks::new(loop_body, loop_body_exit)),
             )?;
 
@@ -2382,27 +2320,13 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-) -> anyhow::Result<(
-    ParsedToken,
-    HashMap<
-        ParsedToken,
-        (
-            // Pointer to the referenced variable
-            PointerValue<'ctx>,
-            // Type of the variable
-            BasicMetadataTypeEnum<'ctx>,
-            // TypeDiscriminant of the variable
-            TypeDiscriminant,
-        ),
-    >,
-)>
+) -> anyhow::Result<
+    Vec<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)>,
+>
 where
     'main: 'ctx,
 {
-    let mut allocations: HashMap<
-        ParsedToken,
-        (PointerValue, BasicMetadataTypeEnum, TypeDiscriminant),
-    > = HashMap::new();
+    let mut pre_allocation_list = Vec::new();
 
     match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
@@ -2415,6 +2339,8 @@ where
 
                 (ptr, ty)
             };
+
+            pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type.clone()));
 
             // We only set the value of the pre-allocated variable if its a constant, like if its a literal
             // This skips a step of setting the value in the loop, however this pre evaluation cannot be applied safely to all of the types
@@ -2432,16 +2358,15 @@ where
                     fn_ret_ty,
                     this_fn_block,
                     this_fn,
-                    Arc::new(HashMap::new()),
-                    Some(allocations.clone()),
+                    &mut VecDeque::new(),
                     None,
                 )?;
             }
             else {
-                fetch_alloca_ptr(ctx, module, builder, dbg!(*var_set_val.clone()), variable_map, fn_ret_ty, this_fn_block, this_fn)?;
+                let allocas = fetch_alloca_ptr(ctx, module, builder, dbg!(*var_set_val.clone()), variable_map, fn_ret_ty, this_fn_block, this_fn)?;
+                
+                pre_allocation_list.extend(allocas);
             }
-
-            allocations.insert(*var_set_val, (ptr, ty, var_type));
         }
         ParsedToken::VariableReference(var_ref) => match var_ref {
             crate::app::parser::types::VariableReference::StructFieldReference(
@@ -2460,9 +2385,8 @@ where
                             (*ptr, *ty),
                         )?;
 
-                        allocations.insert(
-                            parsed_token.clone(),
-                            (f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc),
+                        pre_allocation_list.push(
+                            (parsed_token.clone(), f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc),
                         );
                     } else {
                         return Err(CodeGenError::InternalVariableNotFound(
@@ -2476,16 +2400,16 @@ where
             }
             crate::app::parser::types::VariableReference::BasicReference(name) => {
                 if let Some(((ptr, ty), disc)) = variable_map.get(&name) {
-                    allocations.insert(parsed_token.clone(), (*ptr, *ty, disc.clone()));
+                    pre_allocation_list.push((parsed_token.clone(), *ptr, *ty, disc.clone()));
                 }
             }
         },
         ParsedToken::Literal(literal) => {
-            let ty_disc = literal.discriminant();
+            let var_type = literal.discriminant();
 
-            let (ptr, ty) = create_new_variable(ctx, builder, "", &ty_disc)?;
+            let (ptr, ty) = create_new_variable(ctx, builder, "", &var_type)?;
 
-            allocations.insert(parsed_token.clone(), (ptr, ty, ty_disc));
+            pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type));
         }
         ParsedToken::TypeCast(parsed_token, desired_type) => {
             let created_var = create_ir_from_parsed_token(
@@ -2498,8 +2422,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                Arc::new(HashMap::new()),
-                Some(allocations.clone()),
+                &mut VecDeque::new(),
                 None,
             )?;
 
@@ -3258,7 +3181,7 @@ where
                 };
 
                 if let Some((ptr, ptr_ty, var_type)) = returned_alloca {
-                    allocations.insert(*parsed_token.clone(), (ptr, ptr_ty, var_type));
+                    pre_allocation_list.push((*parsed_token.clone(), ptr, ptr_ty, var_type));
                 }
             } else {
                 return Err(CodeGenError::InternalParsingError.into());
@@ -3266,19 +3189,6 @@ where
         }
         ParsedToken::FunctionCall((fn_sig, fn_name), arguments) => {
             for (arg_idx, (arg_name, (arg, arg_ty))) in arguments.iter().enumerate() {
-                // let (_, arg_allocs) = fetch_alloca_ptr(
-                //     ctx,
-                //     module,
-                //     builder,
-                //     dbg!(arg.clone()),
-                //     variable_map,
-                //     fn_ret_ty.clone(),
-                //     this_fn_block,
-                //     this_fn,
-                // )?;
-
-                // allocations.extend(arg_allocs);
-
                 // We create a pre allocated temp variable for the function's arguments, we use the function arg's name to indicate which temp variable is for which argument.
                 // If the argument name is None, it means that the function we are calling has an indefinite amount of arguments, in this case having llvm automaticly name the variable is accepted
                 let (ptr, ty) = create_new_variable(
@@ -3288,7 +3198,7 @@ where
                     arg_ty,
                 )?;
 
-                allocations.insert(arg.clone(), (ptr, ty, arg_ty.clone()));
+                pre_allocation_list.push((parsed_token.clone(), ptr, ty, arg_ty.clone()));
             }
 
             // Check if the returned value of the function is Void
@@ -3296,11 +3206,11 @@ where
             if fn_sig.return_type != TypeDiscriminant::Void {
                 let (ptr, ty) = create_new_variable(ctx, builder, "", &fn_sig.return_type)?;
 
-                allocations.insert(parsed_token.clone(), (ptr, ty, fn_sig.return_type.clone()));
+                pre_allocation_list.push((parsed_token.clone(), ptr, ty, fn_sig.return_type));
             }
         }
         ParsedToken::SetValue(_var_ref, value) => {
-            let (_, allocation_table) = fetch_alloca_ptr(
+            let allocation_list = fetch_alloca_ptr(
                 ctx,
                 module,
                 builder,
@@ -3311,10 +3221,9 @@ where
                 this_fn,
             )?;
 
-            allocations.extend(allocation_table);
+            pre_allocation_list.extend(allocation_list);
         }
         ParsedToken::MathematicalExpression(lhs_token, _expr, rhs_token) => {
-            // Pre-Allocate the lhs of the mathematical expression so that it can be used multiple times later
             let math_expr = create_ir_from_parsed_token(
                 ctx,
                 module,
@@ -3325,18 +3234,17 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
-                Arc::new(HashMap::new()),
-                Some(allocations.clone()),
+                &mut VecDeque::new(),
                 None,
             )?;
 
             // Store the pointer of either one of the allocable values
-            if let Some((ptr, ty, disc)) = math_expr {
-                allocations.insert(parsed_token.clone(), (ptr, ty, disc));
+            if let Some((ptr, ty, ty_disc)) = math_expr {
+                pre_allocation_list.push((parsed_token.clone(), ptr, ty, ty_disc));
             }
         }
         ParsedToken::If(inner) => {
-            let (_, condition_allocations) = fetch_alloca_ptr(
+            let condition_allocations = fetch_alloca_ptr(
                 ctx,
                 module,
                 builder,
@@ -3347,10 +3255,10 @@ where
                 this_fn,
             )?;
 
-            allocations.extend(condition_allocations);
+            pre_allocation_list.extend(condition_allocations);
 
             for parsed_token in inner.complete_body {
-                let (_, body_allocas) = fetch_alloca_ptr(
+                let body_pre_allocs = fetch_alloca_ptr(
                     ctx,
                     module,
                     builder,
@@ -3361,11 +3269,11 @@ where
                     this_fn,
                 )?;
 
-                allocations.extend(body_allocas);
+                pre_allocation_list.extend(body_pre_allocs);
             }
 
             for parsed_token in inner.incomplete_body {
-                let (_, body_allocas) = fetch_alloca_ptr(
+                let body_pre_allocs = fetch_alloca_ptr(
                     ctx,
                     module,
                     builder,
@@ -3376,7 +3284,7 @@ where
                     this_fn,
                 )?;
 
-                allocations.extend(body_allocas);
+                pre_allocation_list.extend(body_pre_allocs);
             }
         }
         ParsedToken::Comparison(lhs, _, rhs, _) => {
@@ -3408,7 +3316,7 @@ where
         }
     };
 
-    Ok((parsed_token.clone(), allocations))
+    Ok(pre_allocation_list)
 }
 
 fn access_nested_field<'a>(

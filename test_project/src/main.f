@@ -5,6 +5,8 @@ import sleep(secs: uint): void;
 function main(): int {
     loop {
         int time = time(0);
+
+        printf("Time: %i", time);
     }
 
     return 0;
