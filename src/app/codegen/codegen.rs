@@ -1,5 +1,11 @@
 use core::panic;
-use std::{collections::{HashMap, VecDeque}, io::ErrorKind, path::PathBuf, slice::Iter, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    io::ErrorKind,
+    path::PathBuf,
+    slice::Iter,
+    sync::Arc,
+};
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -16,11 +22,12 @@ use inkwell::{
 };
 
 use crate::{
+    ApplicationError,
     app::{
         codegen::LoopBodyBlocks,
         parser::types::{FunctionDefinition, FunctionSignature, ParsedToken, PreAllocationEntry},
         type_system::type_system::{OrdMap, Type, TypeDiscriminant},
-    }, ApplicationError
+    },
 };
 
 use super::error::CodeGenError;
@@ -102,11 +109,21 @@ fn generate_ir<'ctx>(
             None,
         );
 
-        // Create a BasicBlock
+        // Create a BasicBlock to store the IR in
         let basic_block = context.append_basic_block(function, "main_fn_entry");
 
         // Insert the BasicBlock at the end
         builder.position_at_end(basic_block);
+
+        // Check if the return type is Void.
+        // We dont require the user to insert a return void instruction, instead we do it automaticly.
+        if function_definition.function_sig.return_type == TypeDiscriminant::Void {
+            // Insert the return void instruction
+            let instruction = builder.build_return(None)?;
+
+            // Put the builder before that instruction so that it can resume generating IR
+            builder.position_before(&instruction);
+        }
 
         // Create a HashMap of the arguments the function takes
         let mut arguments: HashMap<String, (BasicValueEnum, TypeDiscriminant)> = HashMap::new();
@@ -373,7 +390,12 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow
     // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
     // If the code we are running is not in a loop we can pass in `None`.
-    alloca_table: &mut VecDeque<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)>,
+    alloca_table: &mut VecDeque<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )>,
     is_loop_body: Option<LoopBodyBlocks>,
 ) -> Result<(), anyhow::Error>
 where
@@ -418,14 +440,24 @@ pub fn create_alloca_table<'main, 'ctx>(
     >,
     this_fn: FunctionValue<'ctx>,
 ) -> Result<
-    VecDeque<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)>,
-    anyhow::Error
+    VecDeque<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )>,
+    anyhow::Error,
 >
 where
     'main: 'ctx,
 {
-    let mut alloc_list: VecDeque<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)> = VecDeque::new();
-    
+    let mut alloc_list: VecDeque<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )> = VecDeque::new();
+
     for token in parsed_tokens {
         let allocations = fetch_alloca_ptr(
             ctx,
@@ -471,7 +503,12 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-    allocation_list: &mut VecDeque<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)>,
+    allocation_list: &mut VecDeque<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )>,
     is_loop_body: Option<LoopBodyBlocks>,
 ) -> anyhow::Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
@@ -494,11 +531,11 @@ where
 
             // Check if the function has been called with an allocation table
             let (ptr, ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
-                if let Some((current_token, ptr, ptr_ty, ty)) = dbg!(allocation_list.front().cloned()) {
-                    if dbg!(current_token) == *dbg!(&*var_set_val) {
+                if let Some((current_token, ptr, ptr_ty, ty)) = allocation_list.front().cloned() {
+                    if current_token == *var_set_val {
                         if ty == var_type {
                             was_preallocated = true;
-                            
+
                             allocation_list.pop_front();
 
                             return Ok((ptr, ptr_ty));
@@ -532,6 +569,8 @@ where
                     is_loop_body,
                 )?;
             }
+
+            allocation_list.pop_front();
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
             None
@@ -1419,7 +1458,9 @@ where
             // Allocate memory on the stack for the value stored in the lhs
             let parsed_lhs =
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
-                    if let Some((current_token, ptr, ptr_ty, disc)) = allocation_list.front().cloned() {
+                    if let Some((current_token, ptr, ptr_ty, disc)) =
+                        allocation_list.front().cloned()
+                    {
                         if *lhs == current_token {
                             allocation_list.pop_front();
                             return Ok(Some((ptr, ptr_ty, disc)));
@@ -1444,7 +1485,9 @@ where
             // Allocate memory on the stack for the value stored in the rhs
             let parsed_rhs =
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
-                    if let Some((current_token, ptr, ptr_ty, disc)) = allocation_list.front().cloned() {
+                    if let Some((current_token, ptr, ptr_ty, disc)) =
+                        allocation_list.front().cloned()
+                    {
                         if *lhs == current_token {
                             allocation_list.pop_front();
                             return Ok(Some((ptr, ptr_ty, disc)));
@@ -1639,10 +1682,12 @@ where
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (arg_name, (arg_token, arg_type)) in fn_argument_list.iter() {
+            for (arg_name, (arg_token, arg_type)) in dbg!(fn_argument_list.iter()) {
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
-                    if let Some((current_token, ptr, ptr_ty, disc)) = allocation_list.front().cloned() {
-                            allocation_list.pop_front();
+                    if let Some((current_token, ptr, ptr_ty, disc)) =
+                        allocation_list.front().cloned()
+                    {
+                        dbg!(allocation_list.pop_front());
                         return Ok((ptr, ptr_ty));
                     }
 
@@ -1749,8 +1794,10 @@ where
 
                     (v_ptr, var_ty)
                 } else {
-                    let (v_ptr, v_ty) = if let Some((current_token, ptr, ty, _disc)) = allocation_list.front().cloned() {
-                            allocation_list.pop_front();
+                    let (v_ptr, v_ty) = if let Some((current_token, ptr, ty, _disc)) =
+                        allocation_list.front().cloned()
+                    {
+                        allocation_list.pop_front();
                         (ptr, ty)
                     } else {
                         create_new_variable(ctx, builder, "", &fn_sig.return_type)?
@@ -2131,46 +2178,74 @@ where
         ParsedToken::Comparison(lhs, order, rhs, comparison_hand_side_ty) => {
             let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty)?;
 
-            // Create a new temp variable of val_tys for both of the sides
-            let (lhs_ptr, lhs_ty) =
-                create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?;
-            let (rhs_ptr, rhs_ty) =
-                create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?;
+            let ((lhs_ptr, lhs_ty), (rhs_ptr, rhs_ty)) = if let Some((lhs_token, lhs_ptr, lhs_ty, lhs_disc)) = allocation_list.front().cloned() {
+                if dbg!(lhs_token) == dbg!((*lhs).clone()) {
+                    create_ir_from_parsed_token(
+                        ctx,
+                        module,
+                        builder,
+                        *lhs,
+                        variable_map,
+                        Some((
+                            "lhs_tmp".to_string(),
+                            ((lhs_ptr, lhs_ty)),
+                            comparison_hand_side_ty.clone(),
+                        )),
+                        fn_ret_ty.clone(),
+                        this_fn_block,
+                        this_fn,
+                        allocation_list,
+                        is_loop_body.clone(),
+                    )?;
 
-            create_ir_from_parsed_token(
-                ctx,
-                module,
-                builder,
-                *lhs,
-                variable_map,
-                Some((
-                    "lhs_tmp".to_string(),
-                    ((lhs_ptr, lhs_ty)),
-                    comparison_hand_side_ty.clone(),
-                )),
-                fn_ret_ty.clone(),
-                this_fn_block,
-                this_fn,
-                allocation_list,
-                is_loop_body.clone(),
-            )?;
-            create_ir_from_parsed_token(
-                ctx,
-                module,
-                builder,
-                *rhs,
-                variable_map,
-                Some((
-                    "rhs_tmp".to_string(),
-                    ((rhs_ptr, rhs_ty)),
-                    comparison_hand_side_ty.clone(),
-                )),
-                fn_ret_ty,
-                this_fn_block,
-                this_fn,
-                allocation_list,
-                is_loop_body.clone(),
-            )?;
+                    allocation_list.pop_front();
+
+                    (lhs_ptr, lhs_ty)
+                } else {
+                    panic!()
+                };
+
+                let rhs_ptrs = if let Some((rhs_token, rhs_ptr, rhs_ty, rhs_disc)) =
+                    allocation_list.front().cloned()
+                {
+                    let ptr = if dbg!(rhs_token) == (*rhs).clone() {
+                        create_ir_from_parsed_token(
+                            ctx,
+                            module,
+                            builder,
+                            *rhs,
+                            variable_map,
+                            Some((
+                                "rhs_tmp".to_string(),
+                                ((rhs_ptr, rhs_ty)),
+                                comparison_hand_side_ty.clone(),
+                            )),
+                            fn_ret_ty.clone(),
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            is_loop_body.clone(),
+                        )?;
+                        
+                        allocation_list.pop_front();
+
+                        (rhs_ptr, rhs_ty)
+                    } else {
+                        panic!()
+                    };
+
+                    ptr
+                } else {
+                    create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?
+                };
+
+                ((lhs_ptr, lhs_ty), rhs_ptrs)
+            } else {
+                (
+                    create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?,
+                    create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?,
+                )
+            };
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
             let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
@@ -2222,9 +2297,20 @@ where
                 builder.build_store(var_ptr, cmp_result)?;
 
                 None
-            } else {
+            } else if let Some((cmp_token, cmp_ptr, cmp_ty, ty_disc)) = allocation_list.front().cloned() {
+                if cmp_token != parsed_token.clone() {
+                    return Err(CodeGenError::InvalidPreAllocation.into());
+                }
+
+                builder.build_store(cmp_ptr, cmp_result)?;
+
+                allocation_list.pop_front();
+
+                Some((cmp_ptr, cmp_ty, TypeDiscriminant::Boolean))
+            } 
+            else {
                 let (v_ptr, v_ty) =
-                    create_new_variable(ctx, builder, "", &TypeDiscriminant::Boolean)?;
+                    create_new_variable(ctx, builder, "cmp_result", &TypeDiscriminant::Boolean)?;
 
                 builder.build_store(v_ptr, cmp_result)?;
 
@@ -2321,7 +2407,12 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
 ) -> anyhow::Result<
-    Vec<(ParsedToken, PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant)>,
+    Vec<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )>,
 >
 where
     'main: 'ctx,
@@ -2340,7 +2431,8 @@ where
                 (ptr, ty)
             };
 
-            pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type.clone()));
+            // We dont check for the actual ParsedToken::NewVariable whether it is allocated already, we only check for its value
+            // pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type.clone()));
 
             // We only set the value of the pre-allocated variable if its a constant, like if its a literal
             // This skips a step of setting the value in the loop, however this pre evaluation cannot be applied safely to all of the types
@@ -2355,16 +2447,26 @@ where
                     *var_set_val.clone(),
                     variable_map,
                     Some((var_name.clone(), (ptr, ty), var_type.clone())),
-                    fn_ret_ty,
+                    fn_ret_ty.clone(),
                     this_fn_block,
                     this_fn,
                     &mut VecDeque::new(),
                     None,
                 )?;
-            }
-            else {
-                let allocas = fetch_alloca_ptr(ctx, module, builder, dbg!(*var_set_val.clone()), variable_map, fn_ret_ty, this_fn_block, this_fn)?;
-                
+
+                pre_allocation_list.push(((*var_set_val).clone(), ptr, ty, var_type.clone()));
+            } else {
+                let allocas = fetch_alloca_ptr(
+                    ctx,
+                    module,
+                    builder,
+                    dbg!(*var_set_val.clone()),
+                    variable_map,
+                    fn_ret_ty,
+                    this_fn_block,
+                    this_fn,
+                )?;
+
                 pre_allocation_list.extend(allocas);
             }
         }
@@ -2385,9 +2487,12 @@ where
                             (*ptr, *ty),
                         )?;
 
-                        pre_allocation_list.push(
-                            (parsed_token.clone(), f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc),
-                        );
+                        pre_allocation_list.push((
+                            parsed_token.clone(),
+                            f_ptr,
+                            ty_enum_to_metadata_ty_enum(f_ty),
+                            ty_disc,
+                        ));
                     } else {
                         return Err(CodeGenError::InternalVariableNotFound(
                             main_struct_var_name.clone(),
@@ -3198,7 +3303,7 @@ where
                     arg_ty,
                 )?;
 
-                pre_allocation_list.push((parsed_token.clone(), ptr, ty, arg_ty.clone()));
+                pre_allocation_list.push((arg.clone(), ptr, ty, arg_ty.clone()));
             }
 
             // Check if the returned value of the function is Void
@@ -3208,6 +3313,8 @@ where
 
                 pre_allocation_list.push((parsed_token.clone(), ptr, ty, fn_sig.return_type));
             }
+
+            dbg!(&pre_allocation_list);
         }
         ParsedToken::SetValue(_var_ref, value) => {
             let allocation_list = fetch_alloca_ptr(
@@ -3288,7 +3395,7 @@ where
             }
         }
         ParsedToken::Comparison(lhs, _, rhs, _) => {
-            fetch_alloca_ptr(
+            let lhs_allocations = fetch_alloca_ptr(
                 ctx,
                 module,
                 builder,
@@ -3298,7 +3405,7 @@ where
                 this_fn_block,
                 this_fn,
             )?;
-            fetch_alloca_ptr(
+            let rhs_allocations = fetch_alloca_ptr(
                 ctx,
                 module,
                 builder,
@@ -3308,6 +3415,14 @@ where
                 this_fn_block,
                 this_fn,
             )?;
+
+            pre_allocation_list.extend(lhs_allocations);
+            pre_allocation_list.extend(rhs_allocations);
+
+            // Create a variable which stores the cmp result of the two
+            let ptr = builder.build_alloca(ctx.bool_type(), "cmp_result")?;
+
+            pre_allocation_list.push((parsed_token.clone(), ptr, ctx.bool_type().into(), TypeDiscriminant::Boolean));
         }
         // We can safely ignore this variant as it doesn't allocate anything
         ParsedToken::ControlFlow(_) => (),
@@ -3381,6 +3496,13 @@ pub fn create_fn_type_from_ty_disc(
     ctx: &Context,
     fn_sig: FunctionSignature,
 ) -> Result<FunctionType<'_>> {
+    // Make an exception if the return type is Void
+    if fn_sig.return_type == TypeDiscriminant::Void {
+        return Ok(ctx
+            .void_type()
+            .fn_type(&get_args_from_sig(ctx, fn_sig.clone())?, false));
+    }
+
     // Create an LLVM type
     let llvm_ty = ty_to_llvm_ty(ctx, &fn_sig.return_type)?;
 

@@ -4,7 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use inkwell::{types::BasicMetadataTypeEnum, values::PointerValue, FloatPredicate, IntPredicate};
+use inkwell::{FloatPredicate, IntPredicate, types::BasicMetadataTypeEnum, values::PointerValue};
 use strum_macros::Display;
 
 use crate::app::{
@@ -331,5 +331,11 @@ impl Order {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PreAllocationEntry<'ctx> {
     AllocationMap(HashMap<ParsedToken, PreAllocationEntry<'ctx>>),
-    PreAllocationPtr((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, TypeDiscriminant))
+    PreAllocationPtr(
+        (
+            PointerValue<'ctx>,
+            BasicMetadataTypeEnum<'ctx>,
+            TypeDiscriminant,
+        ),
+    ),
 }
