@@ -531,7 +531,7 @@ where
             // Check if the function has been called with an allocation table
             let (ptr, ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                 if let Some((current_token, ptr, ptr_ty, ty)) = allocation_list.front().cloned() {
-                    if current_token == *var_set_val {
+                    if current_token == parsed_token.clone() {
                         if ty == var_type {
                             was_preallocated = true;
 
@@ -568,8 +568,6 @@ where
                     is_loop_body,
                 )?;
             }
-
-            allocation_list.pop_front();
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
             None
@@ -1458,7 +1456,7 @@ where
             let parsed_lhs =
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
-                        allocation_list.front().cloned()
+                        dbg!(allocation_list.front().cloned())
                     {
                         if *lhs == current_token {
                             allocation_list.pop_front();
@@ -1487,12 +1485,12 @@ where
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         allocation_list.front().cloned()
                     {
-                        if *lhs == current_token {
+                        if *rhs == current_token {
                             allocation_list.pop_front();
                             return Ok(Some((ptr, ptr_ty, disc)));
                         }
                     }
-
+                    
                     create_ir_from_parsed_token(
                         ctx,
                         module,
@@ -1681,12 +1679,12 @@ where
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (arg_name, (arg_token, arg_type)) in dbg!(fn_argument_list.iter()) {
+            for (arg_name, (arg_token, arg_type)) in fn_argument_list.iter() {
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         allocation_list.front().cloned()
                     {
-                        dbg!(allocation_list.pop_front());
+                        allocation_list.pop_front();
                         return Ok((ptr, ptr_ty));
                     }
 
@@ -2210,7 +2208,7 @@ where
                     let rhs_ptrs = if let Some((rhs_token, rhs_ptr, rhs_ty, rhs_disc)) =
                         allocation_list.front().cloned()
                     {
-                        if dbg!(rhs_token) == (*rhs).clone() {
+                        if dbg!(rhs_token) == dbg!((*rhs).clone()) {
                             create_ir_from_parsed_token(
                                 ctx,
                                 module,
@@ -2339,6 +2337,8 @@ where
                 this_fn,
             )?;
 
+            dbg!(&alloca_table);
+
             // Make the jump to the loop body
             builder.build_unconditional_branch(loop_body)?;
 
@@ -2432,8 +2432,8 @@ where
                 (ptr, ty)
             };
 
-            // We dont check for the actual ParsedToken::NewVariable whether it is allocated already, we only check for its value
-            // pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type.clone()));
+            // We will pre-allocate the variable itself and we will also preallocate its value which will get loaded into this variable.
+            pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type.clone()));
 
             // We only set the value of the pre-allocated variable if its a constant, like if its a literal
             // This skips a step of setting the value in the loop, however this pre evaluation cannot be applied safely to all of the types
@@ -2461,7 +2461,7 @@ where
                     ctx,
                     module,
                     builder,
-                    dbg!(*var_set_val.clone()),
+                    *var_set_val.clone(),
                     variable_map,
                     fn_ret_ty,
                     this_fn_block,
@@ -3314,8 +3314,6 @@ where
 
                 pre_allocation_list.push((parsed_token.clone(), ptr, ty, fn_sig.return_type));
             }
-
-            dbg!(&pre_allocation_list);
         }
         ParsedToken::SetValue(_var_ref, value) => {
             let allocation_list = fetch_alloca_ptr(
@@ -3332,11 +3330,25 @@ where
             pre_allocation_list.extend(allocation_list);
         }
         ParsedToken::MathematicalExpression(lhs_token, _expr, rhs_token) => {
-            let math_expr = create_ir_from_parsed_token(
+            let lhs_alloca = create_ir_from_parsed_token(
                 ctx,
                 module,
                 builder,
-                parsed_token.clone(),
+                *(lhs_token.clone()),
+                variable_map,
+                None,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+                &mut VecDeque::new(),
+                None,
+            )?;
+
+            let rhs_alloca = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *(rhs_token.clone()),
                 variable_map,
                 None,
                 fn_ret_ty.clone(),
@@ -3347,8 +3359,12 @@ where
             )?;
 
             // Store the pointer of either one of the allocable values
-            if let Some((ptr, ty, ty_disc)) = math_expr {
-                pre_allocation_list.push((parsed_token.clone(), ptr, ty, ty_disc));
+            if let (Some((l_ptr, l_ty, l_ty_disc)), Some((r_ptr, r_ty, r_ty_disc))) = (lhs_alloca, rhs_alloca) {
+                pre_allocation_list.push((*(lhs_token.clone()), l_ptr, l_ty, l_ty_disc));
+                pre_allocation_list.push((*(rhs_token.clone()), r_ptr, r_ty, r_ty_disc));
+            }
+            else {
+                return Err(CodeGenError::InvalidMathematicalValue.into())
             }
         }
         ParsedToken::If(inner) => {

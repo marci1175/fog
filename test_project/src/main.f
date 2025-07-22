@@ -9,11 +9,12 @@ function return_2(a: int): void {
 function main(): int {
     loop {
         int res = 1 + 2;
-        if (res > 2) {
-            printf("math broke!");
+        int res2 = 6 - 9;
+        if (res > res2) {
+            printf("math is still intact!\n");
         }
         else {
-            printf("math is still intact!");
+            printf("math broke!\n");
         }
     }
 
