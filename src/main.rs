@@ -107,26 +107,34 @@ fn main() -> anyhow::Result<()> {
             fs::create_dir_all(format!("{}/output", working_folder))?;
         }
         CliCommand::Init => {
+            println!("Getting folder name...");
+
             let get_folder_name = current_working_dir
                 .file_name()
                 .unwrap_or_default()
                 .to_string_lossy();
 
+            println!("Creating output folder...");
             fs::create_dir(format!("{}/output", current_working_dir.display()))
                 .map_err(ApplicationError::FileError)?;
+            println!("Creating source code folder...");
             fs::create_dir(format!("{}/src", current_working_dir.display()))
                 .map_err(ApplicationError::FileError)?;
 
+            println!("Creating main source file...");
             fs::write(
                 format!("{}/src/main.f", current_working_dir.display()),
                 include_str!("../defaults/default_code.f"),
             )?;
 
+            println!("Creating config file...");
             fs::write(
-                &current_working_dir,
+                &format!("{}/config.toml", current_working_dir.display()),
                 toml::to_string(&CompilerConfig::new(get_folder_name.to_string(), false))?,
             )
             .map_err(ApplicationError::FileError)?;
+            
+            println!("Successfully initalized a project at: {}", current_working_dir.display());
         }
     }
 

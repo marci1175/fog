@@ -405,7 +405,6 @@ pub fn parse_token_as_value(
             )?;
 
             let desired_variable_type = parsed_value.discriminant();
-
             let parsed_token = ParsedToken::Literal(parsed_value.clone());
 
             // Check if there is an `As` keyword after the variable

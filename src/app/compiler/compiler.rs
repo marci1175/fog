@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, rc::Rc};
 
 use serde::{Deserialize, Serialize};
 
@@ -72,7 +72,7 @@ impl CompilerState {
 
         println!("LLVM-IR generation...");
         codegen_main(
-            function_table,
+            Rc::new(function_table.clone()),
             target_path,
             optimization,
             imported_functions,

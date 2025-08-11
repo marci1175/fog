@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, VecDeque},
     io::ErrorKind,
     path::PathBuf,
+    rc::Rc,
     slice::Iter,
 };
 
@@ -32,7 +33,7 @@ use crate::{
 use super::error::CodeGenError;
 
 pub fn codegen_main(
-    parsed_functions: &IndexMap<String, FunctionDefinition>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     path_to_output: PathBuf,
     optimization: bool,
     imported_functions: &HashMap<String, FunctionSignature>,
@@ -42,7 +43,12 @@ pub fn codegen_main(
     let module = context.create_module("main");
 
     // Import functions defined by the user via llvm
-    import_user_lib_functions(&context, &module, imported_functions, parsed_functions)?;
+    import_user_lib_functions(
+        &context,
+        &module,
+        imported_functions,
+        parsed_functions.clone(),
+    )?;
 
     generate_ir(parsed_functions, &context, &module, &builder)?;
 
@@ -95,7 +101,7 @@ pub fn codegen_main(
 }
 
 fn generate_ir<'ctx>(
-    parsed_functions: &IndexMap<String, FunctionDefinition>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     context: &'ctx Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
@@ -157,6 +163,7 @@ fn generate_ir<'ctx>(
             function_definition.function_sig.return_type.clone(),
             basic_block,
             function,
+            parsed_functions.clone(),
         )?;
     }
 
@@ -167,7 +174,7 @@ pub fn import_user_lib_functions<'a>(
     ctx: &'a Context,
     module: &Module<'a>,
     imported_functions: &'a HashMap<String, FunctionSignature>,
-    parsed_functions: &IndexMap<String, FunctionDefinition>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
 ) -> Result<()> {
     for (import_name, import_sig) in imported_functions.iter() {
         // If a function with the same name as the imports exists, do not expose the function signature instead define the whole function
@@ -303,6 +310,7 @@ pub fn create_ir<'main, 'ctx>(
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
 ) -> Result<()>
 where
     'main: 'ctx,
@@ -361,6 +369,7 @@ where
         this_fn,
         &mut VecDeque::new(),
         None,
+        parsed_functions.clone(),
     )?;
 
     Ok(())
@@ -396,6 +405,7 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
         TypeDiscriminant,
     )>,
     is_loop_body: Option<LoopBodyBlocks>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
 ) -> Result<(), anyhow::Error>
 where
     'main: 'ctx,
@@ -413,6 +423,7 @@ where
             this_fn,
             alloca_table,
             is_loop_body.clone(),
+            parsed_functions.clone(),
         )?;
     }
 
@@ -438,6 +449,7 @@ pub fn create_alloca_table<'main, 'ctx>(
         ),
     >,
     this_fn: FunctionValue<'ctx>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
 ) -> Result<
     VecDeque<(
         ParsedToken,
@@ -467,17 +479,13 @@ where
             fn_ret_ty.clone(),
             this_fn_block,
             this_fn,
+            parsed_functions.clone(),
         )?;
 
         alloc_list.extend(allocations);
-
-        // If the token we have parsed was a loop token that means any code from now becomes inaccessible, therefor we can stop parsing it.
-        // if let ParsedToken::Loop(_) = token {
-        //     break;
-        // }
     }
 
-    Ok(alloc_list)
+    Ok(dbg!(alloc_list))
 }
 
 pub fn create_ir_from_parsed_token<'main, 'ctx>(
@@ -509,6 +517,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
         TypeDiscriminant,
     )>,
     is_loop_body: Option<LoopBodyBlocks>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
 ) -> anyhow::Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
     // The return value is None if the `variable_reference` of the function is `Some`, as the variable will have its value set to the value of the returned value.
@@ -566,6 +575,7 @@ where
                     this_fn,
                     allocation_list,
                     is_loop_body,
+                    parsed_functions.clone(),
                 )?;
             }
 
@@ -773,6 +783,7 @@ where
                     this_fn,
                     allocation_list,
                     is_loop_body.clone(),
+                    parsed_functions.clone(),
                 )?;
 
                 if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -1468,7 +1479,7 @@ where
                         ctx,
                         module,
                         builder,
-                        *lhs.clone(),
+                        dbg!(*lhs.clone()),
                         variable_map,
                         None,
                         fn_ret_ty.clone(),
@@ -1476,6 +1487,7 @@ where
                         this_fn,
                         allocation_list,
                         is_loop_body.clone(),
+                        parsed_functions.clone(),
                     )
                 })()?;
 
@@ -1490,7 +1502,7 @@ where
                             return Ok(Some((ptr, ptr_ty, disc)));
                         }
                     }
-                    
+
                     create_ir_from_parsed_token(
                         ctx,
                         module,
@@ -1503,6 +1515,7 @@ where
                         this_fn,
                         allocation_list,
                         is_loop_body.clone(),
+                        parsed_functions.clone(),
                     )
                 })()?;
 
@@ -1637,7 +1650,8 @@ where
 
                         return Ok(Some((ptr, ty, r_ty_disc)));
                     }
-                } else {
+                } 
+                else {
                     return Err(
                         CodeGenError::InternalVariableTypeMismatch(l_ty_disc, r_ty_disc).into(),
                     );
@@ -1716,6 +1730,7 @@ where
                     this_fn,
                     allocation_list,
                     is_loop_body.clone(),
+                    parsed_functions.clone(),
                 )?;
 
                 // Push the argument to the list of arguments
@@ -1956,6 +1971,7 @@ where
                                 this_fn,
                                 allocation_list,
                                 is_loop_body.clone(),
+                                parsed_functions.clone(),
                             )?;
                         }
                     }
@@ -1977,6 +1993,7 @@ where
                             this_fn,
                             allocation_list,
                             is_loop_body.clone(),
+                            parsed_functions.clone(),
                         )?;
                     }
                 }
@@ -2005,6 +2022,7 @@ where
                 this_fn,
                 allocation_list,
                 is_loop_body.clone(),
+                parsed_functions.clone(),
             )?;
 
             match ptr_ty {
@@ -2056,6 +2074,7 @@ where
                 this_fn,
                 allocation_list,
                 is_loop_body.clone(),
+                parsed_functions.clone(),
             )?;
 
             if let Some((cond_ptr, cond_ty, ty_disc)) = created_var {
@@ -2084,6 +2103,7 @@ where
                     this_fn,
                     allocation_list,
                     is_loop_body.clone(),
+                    parsed_functions.clone(),
                 )?;
 
                 builder.build_unconditional_branch(branch_uncond)?;
@@ -2102,6 +2122,7 @@ where
                     this_fn,
                     allocation_list,
                     is_loop_body.clone(),
+                    parsed_functions.clone(),
                 )?;
 
                 // Position the builder at the original position
@@ -2143,6 +2164,7 @@ where
                         this_fn,
                         allocation_list,
                         is_loop_body.clone(),
+                        parsed_functions.clone(),
                     )?;
 
                     // Load the temp value to memory and store it
@@ -2196,6 +2218,7 @@ where
                             this_fn,
                             allocation_list,
                             is_loop_body.clone(),
+                            parsed_functions.clone(),
                         )?;
 
                         allocation_list.pop_front();
@@ -2225,6 +2248,7 @@ where
                                 this_fn,
                                 allocation_list,
                                 is_loop_body.clone(),
+                                parsed_functions.clone(),
                             )?;
 
                             allocation_list.pop_front();
@@ -2335,6 +2359,7 @@ where
                 this_fn_block,
                 variable_map,
                 this_fn,
+                parsed_functions.clone(),
             )?;
 
             dbg!(&alloca_table);
@@ -2357,6 +2382,7 @@ where
                 this_fn,
                 &mut alloca_table,
                 Some(LoopBodyBlocks::new(loop_body, loop_body_exit)),
+                parsed_functions.clone(),
             )?;
 
             // Create a jump to the beginning to the loop for an infinite loop
@@ -2407,6 +2433,7 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
 ) -> anyhow::Result<
     Vec<(
         ParsedToken,
@@ -2453,6 +2480,7 @@ where
                     this_fn,
                     &mut VecDeque::new(),
                     None,
+                    parsed_functions.clone(),
                 )?;
 
                 pre_allocation_list.push(((*var_set_val).clone(), ptr, ty, var_type.clone()));
@@ -2466,6 +2494,7 @@ where
                     fn_ret_ty,
                     this_fn_block,
                     this_fn,
+                    parsed_functions.clone(),
                 )?;
 
                 pre_allocation_list.extend(allocas);
@@ -2530,6 +2559,7 @@ where
                 this_fn,
                 &mut VecDeque::new(),
                 None,
+                parsed_functions.clone(),
             )?;
 
             if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -3325,6 +3355,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
+                parsed_functions.clone(),
             )?;
 
             pre_allocation_list.extend(allocation_list);
@@ -3342,6 +3373,7 @@ where
                 this_fn,
                 &mut VecDeque::new(),
                 None,
+                parsed_functions.clone(),
             )?;
 
             let rhs_alloca = create_ir_from_parsed_token(
@@ -3356,15 +3388,17 @@ where
                 this_fn,
                 &mut VecDeque::new(),
                 None,
+                parsed_functions.clone(),
             )?;
 
             // Store the pointer of either one of the allocable values
-            if let (Some((l_ptr, l_ty, l_ty_disc)), Some((r_ptr, r_ty, r_ty_disc))) = (lhs_alloca, rhs_alloca) {
+            if let (Some((l_ptr, l_ty, l_ty_disc)), Some((r_ptr, r_ty, r_ty_disc))) =
+                (lhs_alloca, rhs_alloca)
+            {
                 pre_allocation_list.push((*(lhs_token.clone()), l_ptr, l_ty, l_ty_disc));
                 pre_allocation_list.push((*(rhs_token.clone()), r_ptr, r_ty, r_ty_disc));
-            }
-            else {
-                return Err(CodeGenError::InvalidMathematicalValue.into())
+            } else {
+                return Err(CodeGenError::InvalidMathematicalValue.into());
             }
         }
         ParsedToken::If(inner) => {
@@ -3377,6 +3411,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
+                parsed_functions.clone(),
             )?;
 
             pre_allocation_list.extend(condition_allocations);
@@ -3391,6 +3426,7 @@ where
                     fn_ret_ty.clone(),
                     this_fn_block,
                     this_fn,
+                    parsed_functions.clone(),
                 )?;
 
                 pre_allocation_list.extend(body_pre_allocs);
@@ -3406,6 +3442,7 @@ where
                     fn_ret_ty.clone(),
                     this_fn_block,
                     this_fn,
+                    parsed_functions.clone(),
                 )?;
 
                 pre_allocation_list.extend(body_pre_allocs);
@@ -3421,6 +3458,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
+                parsed_functions.clone(),
             )?;
             let rhs_allocations = fetch_alloca_ptr(
                 ctx,
@@ -3431,6 +3469,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
+                parsed_functions.clone(),
             )?;
 
             pre_allocation_list.extend(lhs_allocations);
