@@ -16,5 +16,5 @@
 - [Primitives](./concepts/1_primitives.md)
 - [Variables](./concepts/2_variables.md)
 - [Functions](./concepts/3_functions.md)
-- [Code Structuring](./concepts/4_code_structuring.md)
+- [Logic Gates and Comparisons](./concepts/4_logic_gates_and_cmp.md)
 - [Hello World](./concepts/5_hello_world.md)

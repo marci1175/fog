@@ -2263,10 +2263,48 @@ where
 
                     ((lhs_ptr, lhs_ty), rhs_ptrs)
                 } else {
-                    (
-                        create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?,
-                        create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?,
-                    )
+                    let temp_lhs = create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty)?;
+                    let temp_rhs = create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty)?;
+
+                    create_ir_from_parsed_token(
+                        ctx,
+                        module,
+                        builder,
+                        *rhs,
+                        variable_map,
+                        Some((
+                            "rhs_tmp".to_string(),
+                            (temp_rhs),
+                            comparison_hand_side_ty.clone(),
+                        )),
+                        fn_ret_ty.clone(),
+                        this_fn_block,
+                        this_fn,
+                        allocation_list,
+                        is_loop_body.clone(),
+                        parsed_functions.clone(),
+                    )?;
+
+                    create_ir_from_parsed_token(
+                            ctx,
+                            module,
+                            builder,
+                            *lhs,
+                            variable_map,
+                            Some((
+                                "lhs_tmp".to_string(),
+                                (temp_lhs),
+                                comparison_hand_side_ty.clone(),
+                            )),
+                            fn_ret_ty.clone(),
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            is_loop_body.clone(),
+                            parsed_functions.clone(),
+                        )?;
+
+                    (temp_lhs, temp_rhs)
                 };
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;

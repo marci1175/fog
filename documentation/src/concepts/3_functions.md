@@ -25,11 +25,23 @@ We can import functions from other source files, or from libc. For importing fun
 __Here is how to import both types of functions:__
 
 ```fog
-import "path_to_src_file/other.f";
+//other.f
+function return_2(): int {
+    return 2;
+} 
+
+// main.f
+import "other.f";
+// You can also import source files on different paths like
+// import "foo/bar/faz/test.f";
+// import test::some_fn;
 import printf(msg: string, ...): void;
+import other::return_2;
 
 function main(): int {
-    
+    int num = return_2();
+
+    printf("Returned number: %i", num);
 
     return 0;
 }
