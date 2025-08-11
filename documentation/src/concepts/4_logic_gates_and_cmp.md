@@ -7,12 +7,25 @@ Logic Gates work **almost** perfectly, the issue is with comparisons, as every c
 **An example for using Logic Gates:**
 
 ```fog
-function main() {
+import printf(msg: string): void;
+
+function main(): int {
     if (3 > 8) {
         printf("Oh no! Math broke!");
     }
     else {
         printf("Oh yes! Math is didn't break!");
     }
+
+    return 0;
 }
 ```
+
+The following comparison operators are implemented currently (for all types):
+
+- `!=`
+- `==`
+- `>`
+- `>=`
+- `<`
+- `<=`
