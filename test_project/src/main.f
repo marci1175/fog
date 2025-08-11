@@ -1,15 +1,9 @@
 import printf(msg: string, ...): void;
-import time(num: int): int;
-import sleep(secs: uint): void;
-
-function return_2(a: int): void {
-    printf("Num is: %i\n", a);
-}
+import "other.f";
+import other::return_2;
 
 function main(): int {
-    if (3 > 8) {
-        printf("Baj van tesomsz!");
-    }
+    return_2();
 
     return 0;
 }

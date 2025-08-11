@@ -211,7 +211,7 @@ pub fn create_signature_table(
                 tokens[token_idx + 1].clone()
             {
                 // Turn the String literal into path
-                let path = PathBuf::from(path_to_linked_file);
+                let path = PathBuf::from(format!("src/{path_to_linked_file}")).canonicalize()?;
 
                 // Check if a file exists at that path
                 if !fs::exists(&path)?

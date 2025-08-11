@@ -55,9 +55,6 @@ impl ParserState {
             custom_items.clone(),
         )?;
 
-        // Extend function table with imported functions. (Imported from Fog source code)
-        self.function_table.extend(source_imports);
-
         self.custom_items = custom_items.clone();
 
         Ok(())
