@@ -5,7 +5,7 @@ function main(): int {
         printf("Oh no! Math broke!");
     }
     else {
-        printf("Oh yes! Math is didn't break!");
+        printf("Oh yes! Math didn't break!");
     }
 
     return 0;
