@@ -203,7 +203,7 @@ pub fn parse_value(
                                 tokens,
                                 function_signatures.clone(),
                                 variable_scope,
-                                desired_variable_type.clone(),
+                                dbg!(desired_variable_type.clone()),
                                 &mut token_idx,
                                 next_token,
                                 function_imports.clone(),

@@ -729,7 +729,7 @@ fn parse_function_block(
                         cond_slice,
                         function_signatures.clone(),
                         &mut variable_scope,
-                        Some(TypeDiscriminant::Boolean),
+                        None,
                         function_imports.clone(),
                         custom_items.clone(),
                     )?;

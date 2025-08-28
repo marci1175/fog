@@ -1,11 +1,12 @@
 import printf(msg: string): void;
 
 function main(): int {
-    if (3 > 8) {
-        printf("Oh no! Math broke!");
+    intlong a = 9;
+    if (1 + a + 2 > 100) {
+        printf("Yes");
     }
     else {
-        printf("Oh yes! Math is didn't break!");
+        printf("No");
     }
 
     return 0;

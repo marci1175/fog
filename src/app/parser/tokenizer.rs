@@ -333,23 +333,23 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         }
 
         "inthalf" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I16)
         }
         "uinthalf" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::U32)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::U16)
         }
         "floathalf" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::F32)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::F16)
         }
 
         "intlong" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I64)
         }
         "uintlong" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::U64)
         }
         "floatlong" => {
-            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::I32)
+            Token::TypeDefinition(crate::app::type_system::type_system::TypeDiscriminant::F64)
         }
 
         "uintsmall" => {
