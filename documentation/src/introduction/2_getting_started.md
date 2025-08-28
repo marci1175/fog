@@ -10,7 +10,7 @@ After installing the compiler we finally get to work on our first ever project!
 
 There are multiple commands available for creating a new project.
 
-**You can the commands as following on Windows:**
+**You can use the commands on Windows as following:**
 
 - For Initializing a project in a pre-existing folder:
 

@@ -6,7 +6,11 @@ function main(): int {
         printf("Yes");
     }
     else {
+<<<<<<< HEAD
         printf("No");
+=======
+        printf("Oh yes! Math didn't break!");
+>>>>>>> f3b481de7afacedaf501ba1cafdc578da024b1f8
     }
 
     return 0;
