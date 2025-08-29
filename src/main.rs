@@ -129,7 +129,7 @@ fn main() -> anyhow::Result<()> {
 
             println!("Creating config file...");
             fs::write(
-                &format!("{}/config.toml", current_working_dir.display()),
+                format!("{}/config.toml", current_working_dir.display()),
                 toml::to_string(&CompilerConfig::new(get_folder_name.to_string(), false))?,
             )
             .map_err(ApplicationError::FileError)?;

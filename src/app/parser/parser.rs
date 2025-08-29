@@ -724,26 +724,34 @@ pub fn parse_token_as_value(
 
             let desired_variable_type =
                 desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
-            
-            let mut vector_item_idx = 0;
-            
+
+            let mut array_item_idx = 0;
+
             let mut vec_values = Vec::new();
 
-            if let TypeDiscriminant::Vector(inner_ty) = &desired_variable_type {
-                while vector_item_idx < tokens_inside_block.len() {
-                    let (parsed_token, jump_index, _) = parse_value(tokens_inside_block, function_signatures.clone(), variable_scope, Some(*inner_ty.clone()), function_imports.clone(), custom_items.clone())?;
+            if let TypeDiscriminant::Array((inner_ty, len)) = &desired_variable_type {
+                while array_item_idx < tokens_inside_block.len() {
+                    let (parsed_token, jump_index, _) = parse_value(
+                        tokens_inside_block,
+                        function_signatures.clone(),
+                        variable_scope,
+                        Some(*inner_ty.clone()),
+                        function_imports.clone(),
+                        custom_items.clone(),
+                    )?;
 
                     vec_values.push(parsed_token);
 
-                    vector_item_idx += jump_index + 1;
-
+                    array_item_idx += jump_index + 1;
                 }
 
-                *token_idx += vector_item_idx;
+                *token_idx += array_item_idx;
 
-                return Ok((ParsedToken::VectorInitialization(vec_values, (**inner_ty).clone()), desired_variable_type.clone()));
-            }
-            else {
+                return Ok((
+                    ParsedToken::ArrayInitialization(vec_values, (**inner_ty).clone()),
+                    desired_variable_type.clone(),
+                ));
+            } else {
                 return Err(ParserError::TypeNonIndexable(desired_variable_type).into());
             }
         }

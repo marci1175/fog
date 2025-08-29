@@ -33,7 +33,7 @@ pub enum Type {
     Void,
 
     Struct((String, OrdMap<String, Type>)),
-    Vector(Box<TypeDiscriminant>),
+    Array((Box<TypeDiscriminant>, usize)),
 }
 
 #[derive(Debug, Clone)]
@@ -152,7 +152,7 @@ impl Type {
 
                 TypeDiscriminant::Struct((struct_name.clone(), struct_field_ty_list))
             }
-            Type::Vector(inner) => TypeDiscriminant::Vector(inner.clone()),
+            Type::Array(inner) => TypeDiscriminant::Array(inner.clone()),
         }
     }
 }
@@ -180,7 +180,7 @@ pub enum TypeDiscriminant {
     Void,
 
     Struct((String, OrdMap<String, TypeDiscriminant>)),
-    Vector(Box<TypeDiscriminant>),
+    Array((Box<TypeDiscriminant>, usize)),
 }
 
 impl TypeDiscriminant {
@@ -211,7 +211,7 @@ impl TypeDiscriminant {
             Self::Boolean => std::mem::size_of::<bool>(),
             Self::Void => 0,
             Self::Struct((_, fields)) => fields.iter().map(|(_, ty)| ty.sizeof()).sum(),
-            Self::Vector(inner) => inner.sizeof(),
+            Self::Array((inner, _)) => inner.sizeof(),
         }
     }
 }
@@ -235,7 +235,7 @@ impl From<TypeDiscriminant> for Type {
             TypeDiscriminant::Struct(_) => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             }
-            TypeDiscriminant::Vector(_) => todo!(),
+            TypeDiscriminant::Array(_) => todo!(),
         }
     }
 }
@@ -257,7 +257,9 @@ impl Display for TypeDiscriminant {
             TypeDiscriminant::Boolean => "Boolean".to_string(),
             TypeDiscriminant::Void => "Void".to_string(),
             TypeDiscriminant::Struct((struct_name, _)) => format!("Struct({struct_name})"),
-            TypeDiscriminant::Vector(inner_ty) => format!("Vector(ty: {inner_ty})"),
+            TypeDiscriminant::Array((inner_ty, len)) => {
+                format!("Vector(ty: {inner_ty}, len:{len})")
+            }
         })
     }
 }
@@ -370,10 +372,10 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                     TypeDiscriminant::Struct(inner),
                 ));
             }
-            TypeDiscriminant::Vector(inner) => {
+            TypeDiscriminant::Array(inner) => {
                 return Err(ParserError::InvalidTypeCast(
                     raw_string,
-                    TypeDiscriminant::Vector(inner),
+                    TypeDiscriminant::Array(inner),
                 ));
             }
         }

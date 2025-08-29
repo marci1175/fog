@@ -1,4 +1,7 @@
-use crate::app::type_system::type_system::{Type, TypeDiscriminant};
+use crate::app::{
+    parser::error::SyntaxError,
+    type_system::type_system::{Type, TypeDiscriminant},
+};
 
 use super::{error::ParserError, types::Token};
 
@@ -279,7 +282,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::Bigger);
-        } else if *&string_buffer.trim() == "vector" {
+        } else if string_buffer.trim() == "array" {
             if current_char == '<' {
                 char_idx += 1;
 
@@ -291,24 +294,34 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                 if let Some(closing_idx) = closing_angled_bracket {
                     let list_type = &char_list[char_idx..closing_idx + char_idx];
 
-                    let list_type_def = list_type.iter().collect::<String>();
+                    let comma_pos = list_type.iter().position(|char| *char == ',').ok_or(
+                        ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
+                    )?;
+
+                    let list_type_def = list_type[..comma_pos].iter().collect::<String>().trim().to_string();
+                    let array_len = list_type[comma_pos + 1..].iter().collect::<String>().trim().to_string();
 
                     let inner_token = match_multi_character_expression(list_type_def);
-                    
+
                     if let Token::TypeDefinition(inner_ty) = inner_token {
-                        token_list.push(Token::TypeDefinition(TypeDiscriminant::Vector(Box::new(inner_ty))));
+                        token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
+                            Box::new(inner_ty),
+                            array_len.parse::<usize>().map_err(|_| {
+                                ParserError::SyntaxError(SyntaxError::UnparsableExpression(
+                                    array_len.clone(),
+                                ))
+                            })?,
+                        ))));
 
                         string_buffer.clear();
 
-                        char_idx = closing_idx + char_idx;
-                    }
-                    else {
+                        char_idx += closing_idx;
+                    } else {
                         return Err(ParserError::InvalidType(inner_token));
                     }
                 }
             }
-        } 
-        else if current_char == '<' {
+        } else if current_char == '<' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '<' {
                     token_list.push(Token::BitLeft);

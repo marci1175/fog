@@ -1297,7 +1297,7 @@ pub fn parse_variable_expression(
             }
         }
         Token::OpenSquareBrackets => {
-            if matches!(variable_type, TypeDiscriminant::Vector(_)) {
+            if matches!(variable_type, TypeDiscriminant::Array(_)) {
                 return Err(ParserError::TypeNonIndexable(variable_type).into());
             }
 
@@ -1326,7 +1326,7 @@ pub fn parse_variable_expression(
             *token_idx += idx_jmp;
 
             if let ParsedToken::Literal(Type::U64(idx)) = value {
-                parsed_tokens.push(ParsedToken::VectorIndexing(variable_ref.clone(), idx));
+                parsed_tokens.push(ParsedToken::ArrayIndexing(variable_ref.clone(), idx));
             }
 
             if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {

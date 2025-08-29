@@ -118,4 +118,10 @@ pub enum SyntaxError {
     InvalidLoopBody,
     #[error("Imported function must have their return type defined.")]
     ImportUnspecifiedReturnType,
+    #[error("A comma has been left out when defining an array.")]
+    MissingCommaAtArrayDef,
+    #[error("The type `{0}` cannot be indexed with.")]
+    InvalidIndex(TypeDiscriminant),
+    #[error("Unparsable expression: `{0}`")]
+    UnparsableExpression(String),
 }
