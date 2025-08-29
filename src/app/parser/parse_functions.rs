@@ -725,7 +725,7 @@ fn parse_function_block(
                     // This is what we have to evaulate in order to execute the appropriate branch of the if statement
                     let cond_slice = &tokens[token_idx..paren_close_idx];
 
-                    let (condition, idx, _) = parse_value(
+                    let (condition, _idx, _) = parse_value(
                         cond_slice,
                         function_signatures.clone(),
                         &mut variable_scope,
@@ -1297,7 +1297,7 @@ pub fn parse_variable_expression(
             }
         }
         _ => {
-            println!("[WARNING] Unimplemented token: {}", tokens[*token_idx]);
+            println!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
         }
     }
 

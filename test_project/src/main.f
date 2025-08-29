@@ -1,16 +1,12 @@
 import printf(msg: string): void;
 
 function main(): int {
-    intlong a = 9;
-    if (1 + a + 2 > 100) {
+    int a = 9;
+    if (1 as int > 100 as int) {
         printf("Yes");
     }
     else {
-<<<<<<< HEAD
         printf("No");
-=======
-        printf("Oh yes! Math didn't break!");
->>>>>>> f3b481de7afacedaf501ba1cafdc578da024b1f8
     }
 
     return 0;

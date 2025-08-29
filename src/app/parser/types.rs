@@ -9,7 +9,7 @@ use strum_macros::Display;
 
 use crate::app::{
     parser::parse_functions::FunctionArguments,
-    type_system::type_system::{OrdMap, Type, TypeDiscriminant},
+    type_system::type_system::{NotNan, OrdMap, Type, TypeDiscriminant},
 };
 
 use super::error::{ParserError, SyntaxError};

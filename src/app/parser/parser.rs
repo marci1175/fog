@@ -401,22 +401,12 @@ pub fn parse_token_as_value(
                 desired_variable_type.clone(),
             )?;
 
-            let desired_variable_type = parsed_value.discriminant();
             let parsed_token = ParsedToken::Literal(parsed_value.clone());
 
             // Check if there is an `As` keyword after the variable
             if let Some(Token::As) = tokens.get(*token_idx) {
                 // If there isnt a TypeDefinition after the `As` keyword raise an error
                 if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
-                    // Ezt lehet hogy késöbb ki kell majd venni
-                    if target_type.clone() != desired_variable_type.clone() {
-                        return Err(ParserError::TypeError(
-                            target_type.clone(),
-                            desired_variable_type,
-                        )
-                        .into());
-                    }
-
                     // Increment the token index after checking target type
                     *token_idx += 2;
 

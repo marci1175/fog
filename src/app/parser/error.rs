@@ -50,6 +50,8 @@ pub enum ParserError {
     LinkedSourceFileMissing(PathBuf),
     #[error(r#"Type `{1}` cannot be constructed from '{0}'."#)]
     InvalidTypeCast(String, TypeDiscriminant),
+    #[error("`{0}` is not a type.")]
+    InvalidType(Token),
     #[error("The type of literal `{0}` could not be guessed.")]
     ValueTypeUnknown(String),
     #[error("Floats cannot be created with a value of NaN.")]
