@@ -1,7 +1,5 @@
-import printf(msg: string): void;
-
 function main(): int {
-    printf("Yes");
+    vector<int> marci = {2, 4, 5, 6};
 
     return 0;
 }

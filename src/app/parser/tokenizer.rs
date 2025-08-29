@@ -1,4 +1,4 @@
-use crate::app::type_system::type_system::Type;
+use crate::app::type_system::type_system::{Type, TypeDiscriminant};
 
 use super::{error::ParserError, types::Token};
 
@@ -28,6 +28,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             '{' => Some(Token::OpenBraces),
             '[' => Some(Token::OpenSquareBrackets),
             ']' => Some(Token::CloseSquareBrackets),
+            // '<' => Some(Token::OpenAngledBrackets),
+            // '>' => Some(Token::CloseAngledBrackets),
             ';' => Some(Token::LineBreak),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
@@ -277,7 +279,36 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::Bigger);
-        } else if current_char == '<' {
+        } else if *&string_buffer.trim() == "vector" {
+            if current_char == '<' {
+                char_idx += 1;
+
+                let closing_angled_bracket = char_list
+                    .iter()
+                    .skip(char_idx)
+                    .position(|char| *char == '>');
+
+                if let Some(closing_idx) = closing_angled_bracket {
+                    let list_type = &char_list[char_idx..closing_idx + char_idx];
+
+                    let list_type_def = list_type.iter().collect::<String>();
+
+                    let inner_token = match_multi_character_expression(list_type_def);
+                    
+                    if let Token::TypeDefinition(inner_ty) = inner_token {
+                        token_list.push(Token::TypeDefinition(TypeDiscriminant::Vector(Box::new(inner_ty))));
+
+                        string_buffer.clear();
+
+                        char_idx = closing_idx + char_idx;
+                    }
+                    else {
+                        return Err(ParserError::InvalidType(inner_token));
+                    }
+                }
+            }
+        } 
+        else if current_char == '<' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '<' {
                     token_list.push(Token::BitLeft);

@@ -63,6 +63,8 @@ pub enum Token {
     CloseBraces,
     OpenSquareBrackets,
     CloseSquareBrackets,
+    OpenAngledBrackets,
+    CloseAngledBrackets,
 
     LineBreak,
     Comma,
@@ -153,7 +155,9 @@ pub enum ParsedToken {
 
     ControlFlow(ControlFlowType),
 
-    ListIndexing(VariableReference, u64),
+    VectorIndexing(VariableReference, u64),
+
+    VectorInitialization(Vec<ParsedToken>, TypeDiscriminant),
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]

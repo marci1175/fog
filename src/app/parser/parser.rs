@@ -318,6 +318,25 @@ pub fn parse_value(
                 }
             }
 
+            Token::OpenBraces => {
+                let (parsed_value, ty) = parse_token_as_value(
+                    tokens,
+                    function_signatures.clone(),
+                    variable_scope,
+                    desired_variable_type.clone(),
+                    &mut token_idx,
+                    current_token,
+                    function_imports.clone(),
+                    custom_items.clone(),
+                )?;
+
+                // Initialize parsed token with a value.
+                if parsed_token.is_none() {
+                    parsed_token = Some(parsed_value);
+                    comparison_other_side_ty = Some(ty);
+                }
+            }
+
             _ => {
                 dbg!(current_token);
 
@@ -696,7 +715,38 @@ pub fn parse_token_as_value(
                 desired_variable_type.clone(),
             )
         }
+        Token::OpenBraces => {
+            *token_idx += 1;
 
+            let closing_idx = find_closing_braces(&tokens[*token_idx..], 0)?;
+
+            let tokens_inside_block = &tokens[*token_idx..*token_idx + closing_idx];
+
+            let desired_variable_type =
+                desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
+            
+            let mut vector_item_idx = 0;
+            
+            let mut vec_values = Vec::new();
+
+            if let TypeDiscriminant::Vector(inner_ty) = &desired_variable_type {
+                while vector_item_idx < tokens_inside_block.len() {
+                    let (parsed_token, jump_index, _) = parse_value(tokens_inside_block, function_signatures.clone(), variable_scope, Some(*inner_ty.clone()), function_imports.clone(), custom_items.clone())?;
+
+                    vec_values.push(parsed_token);
+
+                    vector_item_idx += jump_index + 1;
+
+                }
+
+                *token_idx += vector_item_idx;
+
+                return Ok((ParsedToken::VectorInitialization(vec_values, (**inner_ty).clone()), desired_variable_type.clone()));
+            }
+            else {
+                return Err(ParserError::TypeNonIndexable(desired_variable_type).into());
+            }
+        }
         _ => {
             // If we are parsing something else than something that hold a value return an error.
             return Err(

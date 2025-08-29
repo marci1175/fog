@@ -1326,7 +1326,7 @@ pub fn parse_variable_expression(
             *token_idx += idx_jmp;
 
             if let ParsedToken::Literal(Type::U64(idx)) = value {
-                parsed_tokens.push(ParsedToken::ListIndexing(variable_ref.clone(), idx));
+                parsed_tokens.push(ParsedToken::VectorIndexing(variable_ref.clone(), idx));
             }
 
             if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
