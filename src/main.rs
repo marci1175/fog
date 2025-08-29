@@ -133,8 +133,11 @@ fn main() -> anyhow::Result<()> {
                 toml::to_string(&CompilerConfig::new(get_folder_name.to_string(), false))?,
             )
             .map_err(ApplicationError::FileError)?;
-            
-            println!("Successfully initalized a project at: {}", current_working_dir.display());
+
+            println!(
+                "Successfully initalized a project at: {}",
+                current_working_dir.display()
+            );
         }
     }
 

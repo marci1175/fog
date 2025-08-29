@@ -26,6 +26,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             '(' => Some(Token::OpenParentheses),
             '}' => Some(Token::CloseBraces),
             '{' => Some(Token::OpenBraces),
+            '[' => Some(Token::OpenSquareBrackets),
+            ']' => Some(Token::CloseSquareBrackets),
             ';' => Some(Token::LineBreak),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),

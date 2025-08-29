@@ -33,6 +33,7 @@ pub enum Type {
     Void,
 
     Struct((String, OrdMap<String, Type>)),
+    Vector(Box<TypeDiscriminant>),
 }
 
 #[derive(Debug, Clone)]
@@ -151,6 +152,7 @@ impl Type {
 
                 TypeDiscriminant::Struct((struct_name.clone(), struct_field_ty_list))
             }
+            Type::Vector(inner) => TypeDiscriminant::Vector(inner.clone()),
         }
     }
 }
@@ -178,6 +180,7 @@ pub enum TypeDiscriminant {
     Void,
 
     Struct((String, OrdMap<String, TypeDiscriminant>)),
+    Vector(Box<TypeDiscriminant>),
 }
 
 impl TypeDiscriminant {
@@ -190,6 +193,26 @@ impl TypeDiscriminant {
             self,
             Self::I64 | Self::I32 | Self::I16 | Self::U64 | Self::U32 | Self::U16 | Self::U8
         )
+    }
+
+    pub fn sizeof(&self) -> usize {
+        match self {
+            Self::I64 => std::mem::size_of::<i64>(),
+            Self::F64 => std::mem::size_of::<f64>(),
+            Self::U64 => std::mem::size_of::<u64>(),
+            Self::I32 => std::mem::size_of::<i32>(),
+            Self::F32 => std::mem::size_of::<f32>(),
+            Self::U32 => std::mem::size_of::<u32>(),
+            Self::I16 => std::mem::size_of::<i16>(),
+            Self::F16 => std::mem::size_of::<f16>(),
+            Self::U16 => std::mem::size_of::<u16>(),
+            Self::U8 => std::mem::size_of::<u8>(),
+            Self::String => std::mem::size_of::<String>(),
+            Self::Boolean => std::mem::size_of::<bool>(),
+            Self::Void => 0,
+            Self::Struct((_, fields)) => fields.iter().map(|(_, ty)| ty.sizeof()).sum(),
+            Self::Vector(inner) => inner.sizeof(),
+        }
     }
 }
 
@@ -212,6 +235,7 @@ impl From<TypeDiscriminant> for Type {
             TypeDiscriminant::Struct(_) => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             }
+            TypeDiscriminant::Vector(_) => todo!(),
         }
     }
 }
@@ -233,6 +257,7 @@ impl Display for TypeDiscriminant {
             TypeDiscriminant::Boolean => "Boolean".to_string(),
             TypeDiscriminant::Void => "Void".to_string(),
             TypeDiscriminant::Struct((struct_name, _)) => format!("Struct({struct_name})"),
+            TypeDiscriminant::Vector(inner_ty) => format!("Vector(ty: {inner_ty})"),
         })
     }
 }
@@ -343,6 +368,12 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                 return Err(ParserError::InvalidTypeCast(
                     raw_string,
                     TypeDiscriminant::Struct(inner),
+                ));
+            }
+            TypeDiscriminant::Vector(inner) => {
+                return Err(ParserError::InvalidTypeCast(
+                    raw_string,
+                    TypeDiscriminant::Vector(inner),
                 ));
             }
         }

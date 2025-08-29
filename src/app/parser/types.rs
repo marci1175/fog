@@ -9,7 +9,7 @@ use strum_macros::Display;
 
 use crate::app::{
     parser::parse_functions::FunctionArguments,
-    type_system::type_system::{NotNan, OrdMap, Type, TypeDiscriminant},
+    type_system::type_system::{OrdMap, Type, TypeDiscriminant},
 };
 
 use super::error::{ParserError, SyntaxError};
@@ -61,6 +61,8 @@ pub enum Token {
     CloseParentheses,
     OpenBraces,
     CloseBraces,
+    OpenSquareBrackets,
+    CloseSquareBrackets,
 
     LineBreak,
     Comma,
@@ -150,6 +152,8 @@ pub enum ParsedToken {
     Loop(Vec<ParsedToken>),
 
     ControlFlow(ControlFlowType),
+
+    ListIndexing(VariableReference, u64),
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]

@@ -1296,6 +1296,45 @@ pub fn parse_variable_expression(
                 return Err(ParserError::SyntaxError(SyntaxError::MissingLineBreak).into());
             }
         }
+        Token::OpenSquareBrackets => {
+            if matches!(variable_type, TypeDiscriminant::Vector(_)) {
+                return Err(ParserError::TypeNonIndexable(variable_type).into());
+            }
+
+            let square_brackets_break_idx = tokens
+                .iter()
+                .skip(*token_idx)
+                .position(|token| *token == Token::OpenSquareBrackets)
+                .ok_or({
+                    ParserError::SyntaxError(
+                        crate::app::parser::error::SyntaxError::LeftOpenSquareBrackets,
+                    )
+                })?
+                + *token_idx;
+
+            let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
+
+            let (value, idx_jmp, _) = parse_value(
+                selected_tokens,
+                function_signatures,
+                variable_scope,
+                Some(TypeDiscriminant::U64),
+                function_imports,
+                custom_items,
+            )?;
+
+            *token_idx += idx_jmp;
+
+            if let ParsedToken::Literal(Type::U64(idx)) = value {
+                parsed_tokens.push(ParsedToken::ListIndexing(variable_ref.clone(), idx));
+            }
+
+            if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
+                *token_idx += 1;
+            } else {
+                return Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into());
+            }
+        }
         _ => {
             println!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
         }

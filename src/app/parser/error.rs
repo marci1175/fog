@@ -56,14 +56,18 @@ pub enum ParserError {
     ValueTypeUnknown(String),
     #[error("Floats cannot be created with a value of NaN.")]
     FloatIsNAN,
+    #[error("Type `{0}` is non-indexable.")]
+    TypeNonIndexable(TypeDiscriminant),
 }
 
 #[derive(Debug, Error)]
 pub enum SyntaxError {
     #[error(r#"An open '{{' has been left in the code."#)]
-    OpenBraces,
+    LeftOpenBraces,
     #[error("An open '(' has been left in the code.")]
     LeftOpenParentheses,
+    #[error("An open '[' has been left in the code.")]
+    LeftOpenSquareBrackets,
     #[error(r#"An open '"' has been left in the code."#)]
     OpenQuotes,
     #[error("The code contains a missing `;`.")]
