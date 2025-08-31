@@ -764,23 +764,30 @@ where
             }
         }
         ParsedToken::TypeCast(parsed_token, desired_type) => {
-            if let Some((var_name, (ref_ptr, ref_ty), ty_disc)) = variable_reference {
-                let created_var = create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    *parsed_token.clone(),
-                    variable_map,
-                    None,
-                    fn_ret_ty,
-                    this_fn_block,
-                    this_fn,
-                    allocation_list,
-                    is_loop_body.clone(),
-                    parsed_functions.clone(),
-                )?;
+            let created_var = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *parsed_token.clone(),
+                variable_map,
+                None,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body.clone(),
+                parsed_functions.clone(),
+            )?;
 
                 if let Some((var_ptr, var_ty, ty_disc)) = created_var {
+                    let (ref_ptr, ty_disc) = if let Some((var_name, (ref_ptr, ref_ty), ty_disc)) = variable_reference.clone() {
+                        (ref_ptr, ty_disc)
+                    } else {
+                        let (ptr, ptr_ty) = create_new_variable(ctx, builder, "ty_cast_temp_val", &ty_disc)?;
+
+                        (ptr, ty_disc)
+                    };
+
                     match ty_disc {
                         TypeDiscriminant::I64 | TypeDiscriminant::I32 | TypeDiscriminant::I16 => {
                             match desired_type {
@@ -1510,10 +1517,11 @@ where
                             }
                         },
                     }
-                } else {
-                    return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                    
+                    if variable_reference.is_none() {
+                        return Ok(Some((ref_ptr, ty_to_llvm_ty(ctx, &ty_disc)?.into(), ty_disc.clone())));
+                    }
                 }
-            }
 
             None
         }
