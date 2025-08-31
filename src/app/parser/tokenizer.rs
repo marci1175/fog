@@ -298,8 +298,16 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                         ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
                     )?;
 
-                    let list_type_def = list_type[..comma_pos].iter().collect::<String>().trim().to_string();
-                    let array_len = list_type[comma_pos + 1..].iter().collect::<String>().trim().to_string();
+                    let list_type_def = list_type[..comma_pos]
+                        .iter()
+                        .collect::<String>()
+                        .trim()
+                        .to_string();
+                    let array_len = list_type[comma_pos + 1..]
+                        .iter()
+                        .collect::<String>()
+                        .trim()
+                        .to_string();
 
                     let inner_token = match_multi_character_expression(list_type_def);
 

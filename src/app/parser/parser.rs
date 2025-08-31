@@ -500,11 +500,10 @@ pub fn parse_token_as_value(
             }
             // If the identifier could not be found in the function list search in the variable scope
             else if let Some(variable_type) = variable_scope.get(identifier).cloned() {
-                let basic_reference = super::types::VariableReference::BasicReference(identifier.clone());
-                
-                let parsed_token = ParsedToken::VariableReference(
-                    basic_reference.clone(),
-                );
+                let basic_reference =
+                    super::types::VariableReference::BasicReference(identifier.clone());
+
+                let parsed_token = ParsedToken::VariableReference(basic_reference.clone());
 
                 *token_idx += 1;
 
@@ -593,12 +592,13 @@ pub fn parse_token_as_value(
                         ))
                         .into());
                     }
-                }
-                else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
+                } else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
                     if !matches!(variable_type, TypeDiscriminant::Array(_)) {
-                        return Err(ParserError::TypeMismatchNonIndexable(variable_type.clone()).into());
+                        return Err(
+                            ParserError::TypeMismatchNonIndexable(variable_type.clone()).into()
+                        );
                     }
-                    
+
                     *token_idx += 1;
 
                     let square_brackets_break_idx = tokens
@@ -629,10 +629,18 @@ pub fn parse_token_as_value(
                         *token_idx += 1;
 
                         if let TypeDiscriminant::Array((inner_ty, len)) = variable_type.clone() {
-                            return Ok((ParsedToken::ArrayIndexing(basic_reference.clone(), Box::new(value)), *inner_ty.clone()));
+                            return Ok((
+                                ParsedToken::ArrayIndexing(
+                                    basic_reference.clone(),
+                                    Box::new(value),
+                                ),
+                                *inner_ty.clone(),
+                            ));
                         }
                     } else {
-                        return Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into());
+                        return Err(
+                            ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into(),
+                        );
                     }
                 }
                 // Return the VariableReference

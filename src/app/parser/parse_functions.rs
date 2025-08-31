@@ -1300,7 +1300,7 @@ pub fn parse_variable_expression(
             if !matches!(variable_type, TypeDiscriminant::Array(_)) {
                 return Err(ParserError::TypeMismatchNonIndexable(variable_type).into());
             }
-            
+
             *token_idx += 1;
 
             let square_brackets_break_idx = tokens
@@ -1327,7 +1327,10 @@ pub fn parse_variable_expression(
 
             *token_idx += idx_jmp;
 
-            parsed_tokens.push(ParsedToken::ArrayIndexing(variable_ref.clone(), Box::new(value)));
+            parsed_tokens.push(ParsedToken::ArrayIndexing(
+                variable_ref.clone(),
+                Box::new(value),
+            ));
 
             if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
                 *token_idx += 1;
