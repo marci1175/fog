@@ -1297,14 +1297,16 @@ pub fn parse_variable_expression(
             }
         }
         Token::OpenSquareBrackets => {
-            if matches!(variable_type, TypeDiscriminant::Array(_)) {
-                return Err(ParserError::TypeNonIndexable(variable_type).into());
+            if !matches!(variable_type, TypeDiscriminant::Array(_)) {
+                return Err(ParserError::TypeMismatchNonIndexable(variable_type).into());
             }
+            
+            *token_idx += 1;
 
             let square_brackets_break_idx = tokens
                 .iter()
                 .skip(*token_idx)
-                .position(|token| *token == Token::OpenSquareBrackets)
+                .position(|token| *token == Token::CloseSquareBrackets)
                 .ok_or({
                     ParserError::SyntaxError(
                         crate::app::parser::error::SyntaxError::LeftOpenSquareBrackets,
@@ -1325,9 +1327,7 @@ pub fn parse_variable_expression(
 
             *token_idx += idx_jmp;
 
-            if let ParsedToken::Literal(Type::U64(idx)) = value {
-                parsed_tokens.push(ParsedToken::ArrayIndexing(variable_ref.clone(), idx));
-            }
+            parsed_tokens.push(ParsedToken::ArrayIndexing(variable_ref.clone(), Box::new(value)));
 
             if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
                 *token_idx += 1;

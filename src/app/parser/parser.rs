@@ -499,9 +499,11 @@ pub fn parse_token_as_value(
                 }
             }
             // If the identifier could not be found in the function list search in the variable scope
-            else if let Some(variable_type) = variable_scope.get(identifier) {
+            else if let Some(variable_type) = variable_scope.get(identifier).cloned() {
+                let basic_reference = super::types::VariableReference::BasicReference(identifier.clone());
+                
                 let parsed_token = ParsedToken::VariableReference(
-                    super::types::VariableReference::BasicReference(identifier.clone()),
+                    basic_reference.clone(),
                 );
 
                 *token_idx += 1;
@@ -545,7 +547,7 @@ pub fn parse_token_as_value(
                             tokens,
                             token_idx,
                             identifier,
-                            struct_def,
+                            &struct_def,
                             &mut struct_field_reference,
                         )?;
 
@@ -592,7 +594,47 @@ pub fn parse_token_as_value(
                         .into());
                     }
                 }
+                else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
+                    if !matches!(variable_type, TypeDiscriminant::Array(_)) {
+                        return Err(ParserError::TypeMismatchNonIndexable(variable_type.clone()).into());
+                    }
+                    
+                    *token_idx += 1;
 
+                    let square_brackets_break_idx = tokens
+                        .iter()
+                        .skip(*token_idx)
+                        .position(|token| *token == Token::CloseSquareBrackets)
+                        .ok_or({
+                            ParserError::SyntaxError(
+                                crate::app::parser::error::SyntaxError::LeftOpenSquareBrackets,
+                            )
+                        })?
+                        + *token_idx;
+
+                    let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
+
+                    let (value, idx_jmp, _) = parse_value(
+                        selected_tokens,
+                        function_signatures,
+                        variable_scope,
+                        Some(TypeDiscriminant::U64),
+                        function_imports,
+                        custom_items,
+                    )?;
+
+                    *token_idx += idx_jmp;
+
+                    if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
+                        *token_idx += 1;
+
+                        if let TypeDiscriminant::Array((inner_ty, len)) = variable_type.clone() {
+                            return Ok((ParsedToken::ArrayIndexing(basic_reference.clone(), Box::new(value)), *inner_ty.clone()));
+                        }
+                    } else {
+                        return Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into());
+                    }
+                }
                 // Return the VariableReference
                 (parsed_token, variable_type.clone())
             } else if let Some(function_sig) = function_imports.get(identifier) {
@@ -729,8 +771,10 @@ pub fn parse_token_as_value(
 
             let mut vec_values = Vec::new();
 
-            if let TypeDiscriminant::Array((inner_ty, len)) = &desired_variable_type {
+            // We will check for the valid length of the init value later, at codegen.
+            if let TypeDiscriminant::Array((inner_ty, _len)) = &desired_variable_type {
                 while array_item_idx < tokens_inside_block.len() {
+                    // Parse the value of the array
                     let (parsed_token, jump_index, _) = parse_value(
                         tokens_inside_block,
                         function_signatures.clone(),
@@ -740,19 +784,23 @@ pub fn parse_token_as_value(
                         custom_items.clone(),
                     )?;
 
+                    // Store the parsed token
                     vec_values.push(parsed_token);
 
+                    // Increment the idx counter
                     array_item_idx += jump_index + 1;
                 }
 
+                // Increment the token index to the end of the array's tokens.
                 *token_idx += array_item_idx;
 
+                // Return the final parsed token.
                 return Ok((
                     ParsedToken::ArrayInitialization(vec_values, (**inner_ty).clone()),
                     desired_variable_type.clone(),
                 ));
             } else {
-                return Err(ParserError::TypeNonIndexable(desired_variable_type).into());
+                return Err(ParserError::TypeMismatchNonIndexable(desired_variable_type).into());
             }
         }
         _ => {

@@ -258,7 +258,7 @@ impl Display for TypeDiscriminant {
             TypeDiscriminant::Void => "Void".to_string(),
             TypeDiscriminant::Struct((struct_name, _)) => format!("Struct({struct_name})"),
             TypeDiscriminant::Array((inner_ty, len)) => {
-                format!("Vector(ty: {inner_ty}, len:{len})")
+                format!("Array(ty: {inner_ty}, len:{len})")
             }
         })
     }

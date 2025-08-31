@@ -31,6 +31,8 @@ pub enum CodeGenError {
     InternalStructFieldNotFound,
     #[error("[INTERNAL ERROR] A variable type mismatch has occurred.")]
     InternalTypeMismatch,
+    #[error("A type mismatch has occurred at codegen. Type `{0}` mismatches type `{1}`.")]
+    CodegenTypeMismatch(TypeDiscriminant, TypeDiscriminant),
     #[error("[INTERNAL ERROR] A reference to an inexistent struct has been provided.")]
     InternalStructReference,
     #[error("Comparsions are not implemented for type `{0}`.")]
@@ -55,4 +57,11 @@ pub enum CodeGenError {
         "Control flow keyword used in a non-iteration environment. Flow control keywords can only be used in iterator bodies."
     )]
     InvalidControlFlowUsage,
+
+    /// The first value is the length of the original array, the second is the length of the array it was initalized with.
+    #[error("An array of length `{0}` was initalized with an array with the length of `{1}`.")]
+    ArrayLengthMismatch(usize, usize),
+
+    #[error("Cannot index into a list with type `{0}`.")]
+    NonIndexType(TypeDiscriminant),
 }

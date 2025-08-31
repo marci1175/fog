@@ -404,7 +404,7 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    for token in dbg!(parsed_tokens) {
+    for token in parsed_tokens {
         create_ir_from_parsed_token(
             ctx,
             module,
@@ -2509,96 +2509,97 @@ where
 
             None
         }
-        ParsedToken::ArrayIndexing(_, _) => {
-            panic!();
+        ParsedToken::ArrayIndexing(variable_ref, indexing) => {
+            let var_ref = create_ir_from_parsed_token(ctx, module, builder, ParsedToken::VariableReference(variable_ref.clone()), variable_map, None, fn_ret_ty.clone(), this_fn_block, this_fn, allocation_list, is_loop_body.clone(), parsed_functions.clone())?;
+
+            let index_val = create_ir_from_parsed_token(ctx, module, builder, *indexing, variable_map, None, fn_ret_ty, this_fn_block, this_fn, allocation_list, is_loop_body, parsed_functions)?;
+
+            if let Some((ptr, ptr_ty, type_disc)) = var_ref {
+                let pointee_ty = ty_to_llvm_ty(ctx, &type_disc)?;
+                
+                if let TypeDiscriminant::Array((inner_ty, len)) = type_disc.clone() {
+                    let var_deref = builder.build_load(pointee_ty.clone(), ptr, "var_deref")?;
+
+                    if let Some((idx_ptr, idx_ptr_val, idx_ty_disc)) = index_val {
+                        let idx = builder.build_load(ty_to_llvm_ty(ctx, &idx_ty_disc)?, idx_ptr, "array_idx_val")?;
+                        
+                        if !idx_ty_disc.is_int() {
+                            return Err(CodeGenError::NonIndexType(idx_ty_disc).into());
+                        }
+
+                        let gep_ptr = unsafe {
+                            builder.build_gep(pointee_ty, ptr, &[ctx.i32_type().const_int(0, false).into(), idx.into_int_value()], "array_idx_elem")?
+                        };
+
+                        // Decide what we want to do with the extracted value
+                        match variable_reference {
+                            // If there is a variable ref passed in
+                            Some((_, (ptr, _ptr_ty), var_ty_disc)) => {
+                                if *inner_ty != var_ty_disc {
+                                    return Err(CodeGenError::CodegenTypeMismatch(*inner_ty, var_ty_disc).into());
+                                }
+
+                                builder.build_store(ptr, builder.build_load(pointee_ty, gep_ptr, "idx_array_val_deref")?)?;
+
+                                return Ok(None);
+                            },
+                            // If there isnt one, we should return the ptr to this value
+                            None => {
+                                let array_val = builder.build_load(pointee_ty, gep_ptr, "idx_array_val_deref")?;
+                                
+                                let array_val_ty = ty_to_llvm_ty(ctx, &*inner_ty)?;
+
+                                let ptr = builder.build_alloca(array_val_ty.clone(), "temp_deref_var").unwrap();
+
+                                builder.build_store(ptr, array_val)?;
+
+                                return Ok(Some((ptr, array_val_ty.into(), *inner_ty)));
+                            },
+                        }
+                    }
+                    else {
+                        return Err(CodeGenError::InternalVariableNotFound("(INTERNAL_TEMPORARY_VARIABLE) array_idx_val".to_string()).into());
+                    }
+                }
+                else {
+                    return Err(CodeGenError::NonIndexType(type_disc.clone()).into());
+                }
+            }
+            else {
+                return Err(CodeGenError::InternalVariableNotFound(variable_ref.to_string()).into());
+            }
         }
         ParsedToken::ArrayInitialization(values, inner_ty) => {
-            if let Some((var_name, (ptr, ptr_ty), ty_disc)) = variable_reference {
-                let mut array_values: Vec<BasicValueEnum> = Vec::new();
+            if let Some((_, (ptr, _ptr_ty), ty_disc)) = variable_reference {
+                if let TypeDiscriminant::Array((_, len)) = ty_disc {
+                    let mut array_values: Vec<BasicValueEnum> = Vec::new();
 
-                for val in dbg!(values) {
-                    let (temp_var_ptr, temp_var_ty) = create_new_variable(ctx, builder, "array_temp_val_var", &inner_ty)?;
+                    for val in values {
+                        let (temp_var_ptr, temp_var_ty) = create_new_variable(ctx, builder, "array_temp_val_var", &inner_ty)?;
 
-                    create_ir_from_parsed_token(ctx, module, builder, val, variable_map, Some(("array_temp_val_var".to_string(), (temp_var_ptr, temp_var_ty), (inner_ty).clone())), fn_ret_ty.clone(), this_fn_block, this_fn, allocation_list, is_loop_body.clone(), parsed_functions.clone())?;          
-                
-                    let value = builder.build_load(ty_to_llvm_ty(ctx, &inner_ty)?, temp_var_ptr, "array_temp_val_deref")?;
+                        create_ir_from_parsed_token(ctx, module, builder, val, variable_map, Some(("array_temp_val_var".to_string(), (temp_var_ptr, temp_var_ty), (inner_ty).clone())), fn_ret_ty.clone(), this_fn_block, this_fn, allocation_list, is_loop_body.clone(), parsed_functions.clone())?;          
                     
-                    array_values.push(value);
+                        let value = builder.build_load(ty_to_llvm_ty(ctx, &inner_ty)?, temp_var_ptr, "array_temp_val_deref")?;
+                        
+                        array_values.push(value);
+                    }
+
+                    if array_values.len() != len {
+                        return Err(CodeGenError::ArrayLengthMismatch(len, array_values.len()).into());
+                    }
+
+                    let array_base = ctx.i32_type().const_int(0, false);
+
+                    for (idx, val) in array_values.iter().enumerate() {
+                        let array_idx = ctx.i32_type().const_int(idx as u64, false);
+
+                        let elem_ptr = unsafe {
+                            builder.build_gep(ty_to_llvm_ty(ctx, &ty_disc)?, ptr, &[array_base.clone(), array_idx], "array_idx_val")?
+                        };
+
+                        builder.build_store(elem_ptr, val.clone())?;
+                    }
                 }
-
-                let value = match &inner_ty {
-                    TypeDiscriminant::I64 => {
-                        let ty = ctx.i64_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_int_value()).collect::<Vec<IntValue>>())
-                    },
-                    TypeDiscriminant::F64 => {
-                        let ty = ctx.f64_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_float_value()).collect::<Vec<FloatValue>>())
-                    },
-                    TypeDiscriminant::U64 => {
-                        let ty = ctx.i64_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_int_value()).collect::<Vec<IntValue>>())
-                    },
-                    TypeDiscriminant::I32 => {
-                        let ty = ctx.i32_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_int_value()).collect::<Vec<IntValue>>())
-                    },
-                    TypeDiscriminant::F32 => {
-                        let ty = ctx.f32_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_float_value()).collect::<Vec<FloatValue>>())
-                    },
-                    TypeDiscriminant::U32 => {
-                        let ty = ctx.i32_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_int_value()).collect::<Vec<IntValue>>())
-                    },
-                    TypeDiscriminant::I16 => {
-                        let ty = ctx.i16_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_int_value()).collect::<Vec<IntValue>>())
-                    },
-                    TypeDiscriminant::F16 => {
-                        let ty = ctx.f16_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_float_value()).collect::<Vec<FloatValue>>())
-                    },
-                    TypeDiscriminant::U16 => {
-                        let ty = ctx.i16_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_int_value()).collect::<Vec<IntValue>>())
-                    },
-                    TypeDiscriminant::U8 => {
-                        let ty = ctx.i8_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_int_value()).collect::<Vec<IntValue>>())
-                    },
-                    TypeDiscriminant::String => {
-                        let ty = ctx.ptr_type(AddressSpace::default());
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_pointer_value()).collect::<Vec<PointerValue>>())
-                    },
-                    TypeDiscriminant::Boolean => {
-                        let ty = ctx.bool_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_int_value()).collect::<Vec<IntValue>>())
-                    },
-                    TypeDiscriminant::Void => unimplemented!(),
-                    TypeDiscriminant::Struct(_) => {
-                        let ty = ty_to_llvm_ty(ctx, &inner_ty)?.into_struct_type();
-
-                        ty.const_array(&array_values.iter().map(|val| val.into_struct_value()).collect::<Vec<StructValue>>())
-                    },
-                    TypeDiscriminant::Array(_) => {
-                        unimplemented!();
-                    },
-                };
-
-                builder.build_store(ptr, value)?;
             }
 
             None

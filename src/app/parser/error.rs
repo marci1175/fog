@@ -57,7 +57,7 @@ pub enum ParserError {
     #[error("Floats cannot be created with a value of NaN.")]
     FloatIsNAN,
     #[error("Type `{0}` is non-indexable.")]
-    TypeNonIndexable(TypeDiscriminant),
+    TypeMismatchNonIndexable(TypeDiscriminant),
 }
 
 #[derive(Debug, Error)]
@@ -82,7 +82,7 @@ pub enum SyntaxError {
     InvalidSetValueDefinition(String),
     #[error("Token `{0}` could not be interpreted as a Value.")]
     InvalidValue(Token),
-    #[error("Casting to a type requires a TypeDefinition after the `As` keyword.")]
+    #[error("Casting to a type requires a `TypeDefinition` after the `As` keyword.")]
     AsRequiresTypeDef,
     #[error("Function requires a returned value.")]
     FunctionRequiresReturn,

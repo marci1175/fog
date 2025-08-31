@@ -1,24 +1,29 @@
 ; ModuleID = 'main'
 source_filename = "main"
 
+@"The number is %i" = constant [17 x i8] c"The number is %i\00"
+
+declare void @printf(ptr, ...)
+
 define i32 @main() {
 main_fn_entry:
-  %marci = alloca [4 x i32], align 4
-  %array_temp_val_var = alloca i32, align 4
-  store i32 2, ptr %array_temp_val_var, align 4
-  %array_temp_val_deref = load i32, ptr %array_temp_val_var, align 4
-  %array_temp_val_var1 = alloca i32, align 4
-  store i32 2, ptr %array_temp_val_var1, align 4
-  %array_temp_val_deref2 = load i32, ptr %array_temp_val_var1, align 4
-  %array_temp_val_var3 = alloca i32, align 4
-  store i32 2, ptr %array_temp_val_var3, align 4
-  %array_temp_val_deref4 = load i32, ptr %array_temp_val_var3, align 4
-  %array_temp_val_var5 = alloca i32, align 4
-  store i32 2, ptr %array_temp_val_var5, align 4
-  %array_temp_val_deref6 = load i32, ptr %array_temp_val_var5, align 4
-  store [4 x i32] [i32 %array_temp_val_deref, i32 %array_temp_val_deref2, i32 %array_temp_val_deref4, i32 %array_temp_val_deref6], ptr %marci, align 4
-  %ret_tmp_var = alloca i32, align 4
-  store i32 0, ptr %ret_tmp_var, align 4
-  %ret_tmp_var7 = load i32, ptr %ret_tmp_var, align 4
-  ret i32 %ret_tmp_var7
+  %marci = alloca [5 x i32], align 4
+  %array_idx_val = getelementptr [5 x i32], ptr %marci, i32 0, i32 0
+  store i32 2, ptr %array_idx_val, align 4
+  %array_idx_val9 = getelementptr [5 x i32], ptr %marci, i32 0, i32 1
+  store i32 2, ptr %array_idx_val9, align 4
+  %array_idx_val10 = getelementptr [5 x i32], ptr %marci, i32 0, i32 2
+  store i32 2, ptr %array_idx_val10, align 4
+  %array_idx_val11 = getelementptr [5 x i32], ptr %marci, i32 0, i32 3
+  store i32 2, ptr %array_idx_val11, align 4
+  %array_idx_val12 = getelementptr [5 x i32], ptr %marci, i32 0, i32 4
+  store i32 2, ptr %array_idx_val12, align 4
+  %a = alloca i32, align 4
+  %var_deref = load [5 x i32], ptr %marci, align 4
+  %array_idx_elem = getelementptr [5 x i32], ptr %marci, i32 0, i64 0
+  %idx_array_val_deref = load [5 x i32], ptr %array_idx_elem, align 4
+  store [5 x i32] %idx_array_val_deref, ptr %a, align 4
+  %var_deref15 = load i32, ptr %a, align 4
+  call void (ptr, ...) @printf(ptr @"The number is %i", i32 %var_deref15)
+  ret i32 0
 }
