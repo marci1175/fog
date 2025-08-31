@@ -618,7 +618,7 @@ pub fn parse_token_as_value(
                         selected_tokens,
                         function_signatures,
                         variable_scope,
-                        Some(TypeDiscriminant::U64),
+                        Some(TypeDiscriminant::U32),
                         function_imports,
                         custom_items,
                     )?;
@@ -784,7 +784,7 @@ pub fn parse_token_as_value(
                 while array_item_idx < tokens_inside_block.len() {
                     // Parse the value of the array
                     let (parsed_token, jump_index, _) = parse_value(
-                        tokens_inside_block,
+                        &tokens_inside_block[array_item_idx..],
                         function_signatures.clone(),
                         variable_scope,
                         Some(*inner_ty.clone()),

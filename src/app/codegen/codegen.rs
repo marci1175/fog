@@ -2524,10 +2524,9 @@ where
             )?;
 
             if let Some((ptr, ptr_ty, type_disc)) = var_ref {
-                let pointee_ty = ty_to_llvm_ty(ctx, &type_disc)?;
-
+                
                 if let TypeDiscriminant::Array((inner_ty, len)) = type_disc.clone() {
-                    let var_deref = builder.build_load(pointee_ty, ptr, "var_deref")?;
+                    let pointee_ty = ty_to_llvm_ty(ctx, &type_disc)?;
 
                     if let Some((idx_ptr, idx_ptr_val, idx_ty_disc)) = index_val {
                         let idx = builder.build_load(
@@ -2567,7 +2566,7 @@ where
                                 builder.build_store(
                                     ptr,
                                     builder.build_load(
-                                        pointee_ty,
+                                        ty_to_llvm_ty(ctx, &*inner_ty)?,
                                         gep_ptr,
                                         "idx_array_val_deref",
                                     )?,
@@ -2578,7 +2577,7 @@ where
                             // If there isnt one, we should return the ptr to this value
                             None => {
                                 let array_val = builder.build_load(
-                                    pointee_ty,
+                                    ty_to_llvm_ty(ctx, &*inner_ty)?,
                                     gep_ptr,
                                     "idx_array_val_deref",
                                 )?;
