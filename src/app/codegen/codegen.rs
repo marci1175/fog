@@ -2663,7 +2663,7 @@ where
                                 &[array_base, array_idx],
                                 "array_idx_val",
                             )?
-                        };
+                        }; 
 
                         builder.build_store(elem_ptr, *val)?;
                     }
