@@ -336,6 +336,23 @@ pub fn parse_value(
                     comparison_other_side_ty = Some(ty);
                 }
             }
+            
+            Token::As => {
+                if let Some(last_token) = &parsed_token {
+                    if let Some(Token::TypeDefinition(target_type)) = tokens.get(token_idx + 1) {
+                        token_idx += 2;
+
+                        parsed_token = Some(ParsedToken::TypeCast(Box::new(last_token.clone()), target_type.clone()));
+                        comparison_other_side_ty = Some(target_type.clone());
+                    } else {
+                        // Throw an error
+                        return Err(ParserError::SyntaxError(
+                            super::error::SyntaxError::AsRequiresTypeDef,
+                        )
+                        .into());
+                    }
+                }
+            }
 
             _ => {
                 dbg!(current_token);
