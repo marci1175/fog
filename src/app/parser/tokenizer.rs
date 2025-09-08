@@ -33,7 +33,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             ']' => Some(Token::CloseSquareBrackets),
             // '<' => Some(Token::OpenAngledBrackets),
             // '>' => Some(Token::CloseAngledBrackets),
-            ';' => Some(Token::LineBreak),
+            ';' => Some(Token::SemiColon),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
             _ => None,

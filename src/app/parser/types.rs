@@ -66,7 +66,7 @@ pub enum Token {
     OpenAngledBrackets,
     CloseAngledBrackets,
 
-    LineBreak,
+    SemiColon,
     Comma,
     DoubleColon,
     Colon,
@@ -175,6 +175,7 @@ pub enum VariableReference {
         (String, OrdMap<String, TypeDiscriminant>),
     ),
     BasicReference(String),
+    ArrayReference(String, Vec<ParsedToken>),
 }
 
 /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.

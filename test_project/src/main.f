@@ -7,9 +7,9 @@ function return_0(): uint {
 function main(): int {
     array<uint, 5> marci = {90, 4, 5, 6, 7};
 
-    int a = marci[return_0()] as int;
+    marci[return_0()] = 100;
 
-    printf("The number is %i", a);
+    printf("The number is %i", marci[return_0()] as int);
 
     return 0;
 }

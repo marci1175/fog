@@ -18,10 +18,7 @@ use inkwell::{
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     types::{ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{
-        BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue,
-        PointerValue,
-    },
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
 use crate::{
@@ -703,6 +700,10 @@ where
                             };
                         }
                     }
+                    crate::app::parser::types::VariableReference::ArrayReference(
+                        _,
+                        parsed_tokens,
+                    ) => todo!(),
                 }
 
                 None
@@ -744,6 +745,10 @@ where
 
                         Some((*ptr, *ty, ty_disc.clone()))
                     }
+                    crate::app::parser::types::VariableReference::ArrayReference(
+                        _,
+                        parsed_tokens,
+                    ) => todo!(),
                 }
             }
         }
@@ -2039,6 +2044,9 @@ where
                         )?;
                     }
                 }
+                crate::app::parser::types::VariableReference::ArrayReference(_, parsed_tokens) => {
+                    todo!()
+                }
             }
 
             None
@@ -2524,7 +2532,6 @@ where
             )?;
 
             if let Some((ptr, ptr_ty, type_disc)) = var_ref {
-                
                 if let TypeDiscriminant::Array((inner_ty, len)) = type_disc.clone() {
                     let pointee_ty = ty_to_llvm_ty(ctx, &type_disc)?;
 
@@ -2543,10 +2550,7 @@ where
                             builder.build_gep(
                                 pointee_ty,
                                 ptr,
-                                &[
-                                    ctx.i32_type().const_int(0, false),
-                                    idx.into_int_value(),
-                                ],
+                                &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
                                 "array_idx_elem",
                             )?
                         };
@@ -2663,7 +2667,7 @@ where
                                 &[array_base, array_idx],
                                 "array_idx_val",
                             )?
-                        }; 
+                        };
 
                         builder.build_store(elem_ptr, *val)?;
                     }
@@ -2800,6 +2804,9 @@ where
                 if let Some(((ptr, ty), disc)) = variable_map.get(&name) {
                     pre_allocation_list.push((parsed_token.clone(), *ptr, *ty, disc.clone()));
                 }
+            }
+            crate::app::parser::types::VariableReference::ArrayReference(_, parsed_tokens) => {
+                todo!()
             }
         },
         ParsedToken::Literal(literal) => {

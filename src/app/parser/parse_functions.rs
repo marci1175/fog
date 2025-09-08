@@ -168,7 +168,7 @@ pub fn create_signature_table(
 
                     if tokens[token_idx + 1] == Token::Colon {
                         if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone() {
-                            if tokens[token_idx + 3] == Token::LineBreak {
+                            if tokens[token_idx + 3] == Token::SemiColon {
                                 if external_imports.get(&identifier).is_some()
                                     || function_list.get(&identifier).is_some()
                                 {
@@ -190,7 +190,7 @@ pub fn create_signature_table(
                     if let Token::Identifier(lib_function_name) = &tokens[token_idx + 3] {
                         let imported_file_query = imported_file_list.get(&identifier);
 
-                        if Token::LineBreak == tokens[token_idx + 4] {
+                        if Token::SemiColon == tokens[token_idx + 4] {
                             if let Some(imported_file) = imported_file_query {
                                 if let Some(function_def) = imported_file.get(lib_function_name) {
                                     // Store the imported function
@@ -501,7 +501,7 @@ fn parse_function_block(
                         let line_break_idx = tokens
                             .iter()
                             .skip(token_idx + 2)
-                            .position(|token| *token == Token::LineBreak)
+                            .position(|token| *token == Token::SemiColon)
                             .ok_or({
                                 ParserError::SyntaxError(
                                     crate::app::parser::error::SyntaxError::MissingLineBreak,
@@ -543,7 +543,7 @@ fn parse_function_block(
                         token_idx += 2;
                     }
 
-                    if tokens[token_idx] == Token::LineBreak {
+                    if tokens[token_idx] == Token::SemiColon {
                         token_idx += 1;
 
                         continue;
@@ -648,7 +648,7 @@ fn parse_function_block(
                                     let line_break_idx = tokens
                                     .iter()
                                     .skip(token_idx)
-                                    .position(|token| *token == Token::LineBreak)
+                                    .position(|token| *token == Token::SemiColon)
                                     .ok_or({
                                         ParserError::SyntaxError(
                                             crate::app::parser::error::SyntaxError::MissingLineBreak,
@@ -695,7 +695,7 @@ fn parse_function_block(
                 let next_token = &tokens[token_idx];
 
                 if this_function_signature.return_type.clone() == TypeDiscriminant::Void {
-                    if *next_token != Token::LineBreak {
+                    if *next_token != Token::SemiColon {
                         return Err(ParserError::SyntaxError(
                             super::error::SyntaxError::InvalidStatementDefinition,
                         )
@@ -1132,7 +1132,7 @@ pub fn parse_variable_expression(
             let line_break_idx = tokens
                 .iter()
                 .skip(*token_idx)
-                .position(|token| *token == Token::LineBreak)
+                .position(|token| *token == Token::SemiColon)
                 .ok_or({
                     ParserError::SyntaxError(
                         crate::app::parser::error::SyntaxError::MissingLineBreak,
@@ -1252,6 +1252,7 @@ pub fn parse_variable_expression(
                                     (struct_name, struct_def.clone()),
                                 );
                             }
+                            VariableReference::ArrayReference(_, parsed_tokens) => todo!(),
                         }
 
                         *token_idx += 2;
@@ -1289,7 +1290,7 @@ pub fn parse_variable_expression(
             if let Some(idx) = tokens
                 .iter()
                 .skip(*token_idx)
-                .position(|token| *token == Token::LineBreak)
+                .position(|token| *token == Token::SemiColon)
             {
                 *token_idx += idx;
             } else {
@@ -1297,6 +1298,16 @@ pub fn parse_variable_expression(
             }
         }
         Token::OpenSquareBrackets => {
+            match variable_ref {
+                VariableReference::StructFieldReference(struct_field_reference, _) => todo!(),
+                VariableReference::BasicReference(_) => {
+                    
+                },
+                VariableReference::ArrayReference(_, parsed_tokens) => {
+                    
+                },
+            }
+
             if !matches!(variable_type, TypeDiscriminant::Array(_)) {
                 return Err(ParserError::TypeMismatchNonIndexable(variable_type).into());
             }
@@ -1318,22 +1329,43 @@ pub fn parse_variable_expression(
 
             let (value, idx_jmp, _) = parse_value(
                 selected_tokens,
-                function_signatures,
+                function_signatures.clone(),
                 variable_scope,
-                Some(TypeDiscriminant::U64),
-                function_imports,
-                custom_items,
+                Some(TypeDiscriminant::U32),
+                function_imports.clone(),
+                custom_items.clone(),
             )?;
 
             *token_idx += idx_jmp;
 
-            parsed_tokens.push(ParsedToken::ArrayIndexing(
-                variable_ref.clone(),
-                Box::new(value),
-            ));
-
             if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
                 *token_idx += 1;
+
+                if tokens.get(*token_idx) != Some(&Token::SemiColon) {
+                    *token_idx += 1;
+
+                    let next_token = tokens.get(*token_idx).ok_or(ParserError::SyntaxError(
+                        SyntaxError::InvalidStatementDefinition,
+                    ))?;
+
+                    parse_variable_expression(
+                        tokens,
+                        next_token,
+                        token_idx,
+                        function_signatures.clone(),
+                        function_imports,
+                        variable_scope,
+                        variable_type,
+                        custom_items,
+                        variable_ref,
+                        parsed_tokens,
+                    )?;
+                } else {
+                    parsed_tokens.push(ParsedToken::ArrayIndexing(
+                        variable_ref.clone(),
+                        Box::new(value),
+                    ));
+                }
             } else {
                 return Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into());
             }
