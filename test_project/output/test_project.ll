@@ -41,32 +41,24 @@ main_fn_entry:
   store i32 %array_temp_val_deref6, ptr %array_idx_val11, align 4
   %array_idx_val12 = getelementptr [5 x i32], ptr %marci, i32 0, i32 4
   store i32 %array_temp_val_deref8, ptr %array_idx_val12, align 4
-  %function_call = call i32 @return_0()
+  %input = alloca ptr, align 8
+  store ptr @"The number is %i", ptr %input, align 8
+  %input13 = load ptr, ptr %input, align 8
   %0 = alloca i32, align 4
-  store i32 %function_call, ptr %0, align 4
-  %array_idx_val13 = load i32, ptr %0, align 4
-  %array_idx_elem = getelementptr [5 x i32], ptr %marci, i32 0, i32 %array_idx_val13
+  %function_call = call i32 @return_0()
+  %1 = alloca i32, align 4
+  store i32 %function_call, ptr %1, align 4
+  %array_idx_val14 = load i32, ptr %1, align 4
+  %array_idx_elem = getelementptr [5 x i32], ptr %marci, i32 0, i32 %array_idx_val14
   %idx_array_val_deref = load i32, ptr %array_idx_elem, align 4
   %temp_deref_var = alloca i32, align 4
   store i32 %idx_array_val_deref, ptr %temp_deref_var, align 4
-  %input = alloca ptr, align 8
-  store ptr @"The number is %i", ptr %input, align 8
-  %input14 = load ptr, ptr %input, align 8
-  %1 = alloca i32, align 4
-  %function_call15 = call i32 @return_0()
-  %2 = alloca i32, align 4
-  store i32 %function_call15, ptr %2, align 4
-  %array_idx_val16 = load i32, ptr %2, align 4
-  %array_idx_elem17 = getelementptr [5 x i32], ptr %marci, i32 0, i32 %array_idx_val16
-  %idx_array_val_deref18 = load i32, ptr %array_idx_elem17, align 4
-  %temp_deref_var19 = alloca i32, align 4
-  store i32 %idx_array_val_deref18, ptr %temp_deref_var19, align 4
-  %3 = load i32, ptr %temp_deref_var19, align 4
-  store i32 %3, ptr %1, align 4
-  %4 = load i32, ptr %1, align 4
-  call void (ptr, ...) @printf(ptr %input14, i32 %4)
+  %2 = load i32, ptr %temp_deref_var, align 4
+  store i32 %2, ptr %0, align 4
+  %3 = load i32, ptr %0, align 4
+  call void (ptr, ...) @printf(ptr %input13, i32 %3)
   %ret_tmp_var = alloca i32, align 4
   store i32 0, ptr %ret_tmp_var, align 4
-  %ret_tmp_var20 = load i32, ptr %ret_tmp_var, align 4
-  ret i32 %ret_tmp_var20
+  %ret_tmp_var15 = load i32, ptr %ret_tmp_var, align 4
+  ret i32 %ret_tmp_var15
 }
