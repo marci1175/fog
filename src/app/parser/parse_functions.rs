@@ -3,7 +3,10 @@ use indexmap::IndexMap;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use crate::app::{
-    parser::{parser::find_closing_comma, types::{FunctionArgumentIdentifier, If}},
+    parser::{
+        parser::find_closing_comma,
+        types::{FunctionArgumentIdentifier, If},
+    },
     type_system::type_system::{OrdMap, Type, TypeDiscriminant},
 };
 
@@ -566,8 +569,7 @@ fn parse_function_block(
                     token_idx += 1;
 
                     // Parse the variable's expression
-                    let mut variable_ref =
-                        VariableReference::BasicReference(ident_name.to_string());
+                    let variable_ref = VariableReference::BasicReference(ident_name.to_string());
 
                     parse_variable_expression(
                         &tokens,
@@ -927,7 +929,10 @@ pub fn parse_function_call_args(
     let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
 
     // Arguments which will passed in to the function
-    let mut arguments: OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)> = OrdMap::new();
+    let mut arguments: OrdMap<
+        FunctionArgumentIdentifier<String, usize>,
+        (ParsedToken, TypeDiscriminant),
+    > = OrdMap::new();
 
     // If there are no arguments just return everything as is
     if tokens.is_empty() {
@@ -962,7 +967,10 @@ pub fn parse_function_call_args(
                 // Remove tha argument from the argument list so we can parse unnamed arguments easier
                 this_function_args.arguments_list.shift_remove(&arg_name);
 
-                arguments.insert(FunctionArgumentIdentifier::Identifier(arg_name.clone()), (parsed_argument, arg_ty));
+                arguments.insert(
+                    FunctionArgumentIdentifier::Identifier(arg_name.clone()),
+                    (parsed_argument, arg_ty),
+                );
 
                 continue;
             }
@@ -980,7 +988,7 @@ pub fn parse_function_call_args(
         // We should start by finding the comma and parsing the tokens in between the current idx and the comma
         while tokens_idx < args_list_len {
             let token = &tokens[tokens_idx];
-            
+
             dbg!(&token);
 
             if *token == Token::OpenParentheses {
@@ -1011,7 +1019,10 @@ pub fn parse_function_call_args(
 
                     token_buf.clear();
 
-                    arguments.insert(FunctionArgumentIdentifier::Identifier(fn_argument.key().clone()), (parsed_argument, arg_ty));
+                    arguments.insert(
+                        FunctionArgumentIdentifier::Identifier(fn_argument.key().clone()),
+                        (parsed_argument, arg_ty),
+                    );
 
                     // Remove the argument from the argument list
                     fn_argument.shift_remove();
@@ -1030,7 +1041,10 @@ pub fn parse_function_call_args(
                     token_buf.clear();
 
                     let nth_argument = arguments.len();
-                    arguments.insert(FunctionArgumentIdentifier::Index(nth_argument), (parsed_argument, arg_ty));
+                    arguments.insert(
+                        FunctionArgumentIdentifier::Index(nth_argument),
+                        (parsed_argument, arg_ty),
+                    );
                 }
 
                 dbg!(&arguments);

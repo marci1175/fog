@@ -17,19 +17,19 @@ use inkwell::{
     module::Module,
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{
-        ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, PointerType,
-    },
+    types::{ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
-use serde::de::value::UsizeDeserializer;
 
 use crate::{
+    ApplicationError,
     app::{
         codegen::LoopBodyBlocks,
-        parser::types::{FunctionArgumentIdentifier, FunctionDefinition, FunctionSignature, ParsedToken},
+        parser::types::{
+            FunctionArgumentIdentifier, FunctionDefinition, FunctionSignature, ParsedToken,
+        },
         type_system::type_system::{OrdMap, Type, TypeDiscriminant},
-    }, ApplicationError
+    },
 };
 
 use super::error::CodeGenError;
@@ -1725,21 +1725,20 @@ where
                                 .args
                                 .arguments_list
                                 .get_index(argument_idx)
-                                .map(|inner| inner.0.clone()) {
-                                    Some(arg_name) => {
-                                        FunctionArgumentIdentifier::Identifier(arg_name)
-                                    },
-                                    None => {
-                                        FunctionArgumentIdentifier::Index(argument_idx)
-                                    },
-                                },
+                                .map(|inner| inner.0.clone())
+                            {
+                                Some(arg_name) => FunctionArgumentIdentifier::Identifier(arg_name),
+                                None => FunctionArgumentIdentifier::Index(argument_idx),
+                            },
                             (value.clone()),
                         )
                     });
 
             // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
-            let fn_argument_list: OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)> =
-                IndexMap::from_iter(arg_iter).into();
+            let fn_argument_list: OrdMap<
+                FunctionArgumentIdentifier<String, usize>,
+                (ParsedToken, TypeDiscriminant),
+            > = IndexMap::from_iter(arg_iter).into();
 
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
@@ -2058,8 +2057,7 @@ where
                     var_name,
                     parsed_tokens,
                 ) => {
-                    let ((mut ptr, mut ptr_ty), mut ty_disc) =
-                        variable_map.get(&var_name).unwrap().clone();
+                    let ((ptr, ptr_ty), ty_disc) = variable_map.get(&var_name).unwrap().clone();
 
                     for decay_elem in &parsed_tokens {}
                 }
@@ -2586,7 +2584,7 @@ where
                                 builder.build_store(
                                     ptr,
                                     builder.build_load(
-                                        ty_to_llvm_ty(ctx, &*inner_ty)?,
+                                        ty_to_llvm_ty(ctx, &inner_ty)?,
                                         gep_ptr,
                                         "idx_array_val_deref",
                                     )?,
@@ -2597,7 +2595,7 @@ where
                             // If there isnt one, we should return the ptr to this value
                             None => {
                                 let array_val = builder.build_load(
-                                    ty_to_llvm_ty(ctx, &*inner_ty)?,
+                                    ty_to_llvm_ty(ctx, &inner_ty)?,
                                     gep_ptr,
                                     "idx_array_val_deref",
                                 )?;
@@ -3643,12 +3641,12 @@ where
                     ctx,
                     builder,
                     &match arg_name.clone() {
-                        crate::app::parser::types::FunctionArgumentIdentifier::Identifier(ident) => {
-                            ident.to_string()
-                        },
+                        crate::app::parser::types::FunctionArgumentIdentifier::Identifier(
+                            ident,
+                        ) => ident.to_string(),
                         crate::app::parser::types::FunctionArgumentIdentifier::Index(idx) => {
                             format!("{fn_name}_idx_{idx}_arg")
-                        },
+                        }
                     },
                     arg_ty,
                 )?;
@@ -4208,13 +4206,16 @@ pub fn struct_field_to_ty_list<'a>(
     Ok(type_list)
 }
 
-pub fn fn_arg_to_string(fn_name: &str, fn_arg: &FunctionArgumentIdentifier<String, usize>) -> String {
+pub fn fn_arg_to_string(
+    fn_name: &str,
+    fn_arg: &FunctionArgumentIdentifier<String, usize>,
+) -> String {
     match fn_arg {
         crate::app::parser::types::FunctionArgumentIdentifier::Identifier(ident) => {
             ident.to_string()
-        },
+        }
         crate::app::parser::types::FunctionArgumentIdentifier::Index(idx) => {
             format!("{fn_name}_idx_{idx}_arg")
-        },
+        }
     }
 }

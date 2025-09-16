@@ -352,5 +352,5 @@ pub enum PreAllocationEntry<'ctx> {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum FunctionArgumentIdentifier<IDENT, IDX> {
     Identifier(IDENT),
-    Index(IDX)
+    Index(IDX),
 }
