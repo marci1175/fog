@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use crate::app::{
-    parser::{parser::find_closing_comma, types::If},
+    parser::{parser::find_closing_comma, types::{FunctionArgumentIdentifier, If}},
     type_system::type_system::{OrdMap, Type, TypeDiscriminant},
 };
 
@@ -919,7 +919,7 @@ pub fn parse_function_call_args(
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(
-    OrdMap<Option<String>, (ParsedToken, TypeDiscriminant)>,
+    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)>,
     usize,
 )> {
     let mut tokens_idx = 0;
@@ -927,7 +927,7 @@ pub fn parse_function_call_args(
     let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
 
     // Arguments which will passed in to the function
-    let mut arguments: OrdMap<Option<String>, (ParsedToken, TypeDiscriminant)> = OrdMap::new();
+    let mut arguments: OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)> = OrdMap::new();
 
     // If there are no arguments just return everything as is
     if tokens.is_empty() {
@@ -962,149 +962,85 @@ pub fn parse_function_call_args(
                 // Remove tha argument from the argument list so we can parse unnamed arguments easier
                 this_function_args.arguments_list.shift_remove(&arg_name);
 
-                arguments.insert(Some(arg_name.clone()), (parsed_argument, arg_ty));
-            } else {
-                let args_list_len = &tokens[tokens_idx..].len() + tokens_idx;
+                arguments.insert(FunctionArgumentIdentifier::Identifier(arg_name.clone()), (parsed_argument, arg_ty));
 
-                let mut token_buf = Vec::new();
-
-                let mut bracket_counter = 0;
-
-                // We should start by finding the comma and parsing the tokens in between the current idx and the comma
-                while tokens_idx < args_list_len {
-                    let token = &tokens[tokens_idx];
-
-                    if *token == Token::OpenParentheses {
-                        bracket_counter += 1;
-                    } else if *token == Token::CloseParentheses {
-                        bracket_counter -= 1;
-                    }
-
-                    // If a comma is found parse the tokens from the slice
-                    if (*token == Token::Comma && bracket_counter == 0)
-                        || tokens_idx == args_list_len - 1
-                    {
-                        if tokens_idx == args_list_len - 1 {
-                            token_buf.push(token.clone());
-                        }
-
-                        let fn_argument = this_function_args.arguments_list.first_entry();
-
-                        if let Some(fn_argument) = fn_argument {
-                            let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                                &token_buf,
-                                function_signatures.clone(),
-                                variable_scope,
-                                Some(fn_argument.get().clone()),
-                                standard_function_table.clone(),
-                                custom_items.clone(),
-                            )?;
-
-                            tokens_idx += 1;
-
-                            token_buf.clear();
-
-                            arguments
-                                .insert(Some(fn_argument.key().clone()), (parsed_argument, arg_ty));
-
-                            // Remove the argument from the argument list
-                            fn_argument.shift_remove();
-                        } else {
-                            let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                                &token_buf,
-                                function_signatures.clone(),
-                                variable_scope,
-                                None,
-                                standard_function_table.clone(),
-                                custom_items.clone(),
-                            )?;
-
-                            tokens_idx += 1;
-
-                            token_buf.clear();
-
-                            arguments.insert(None, (parsed_argument, arg_ty));
-                        }
-
-                        break;
-                    } else {
-                        token_buf.push(token.clone());
-                    }
-
-                    tokens_idx += 1;
-                }
+                continue;
             }
         } else if Token::CloseParentheses == current_token {
             break;
         } else if Token::Comma == current_token {
             tokens_idx += 1;
-        } else {
-            let mut token_buf = Vec::new();
-            let mut bracket_counter: i32 = 0;
 
-            // We should start by finding the comma and parsing the tokens in between the current idx and the comma
-            while tokens_idx < args_list_len {
-                let token = &tokens[tokens_idx];
+            continue;
+        }
 
-                if *token == Token::OpenParentheses {
-                    bracket_counter += 1;
-                } else if *token == Token::CloseParentheses {
-                    bracket_counter -= 1;
-                }
+        let mut token_buf = Vec::new();
+        let mut bracket_counter: i32 = 0;
 
-                // If a comma is found parse the tokens from the slice
-                if (*token == Token::Comma && bracket_counter == 0)
-                    || tokens_idx == args_list_len - 1
-                {
-                    if tokens_idx == args_list_len - 1 {
-                        token_buf.push(token.clone());
-                    }
+        // We should start by finding the comma and parsing the tokens in between the current idx and the comma
+        while tokens_idx < args_list_len {
+            let token = &tokens[tokens_idx];
+            
+            dbg!(&token);
 
-                    let fn_argument = this_function_args.arguments_list.first_entry();
+            if *token == Token::OpenParentheses {
+                bracket_counter += 1;
+            } else if *token == Token::CloseParentheses {
+                bracket_counter -= 1;
+            }
 
-                    if let Some(fn_argument) = fn_argument {
-                        let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                            &token_buf,
-                            function_signatures.clone(),
-                            variable_scope,
-                            Some(fn_argument.get().clone()),
-                            standard_function_table.clone(),
-                            custom_items.clone(),
-                        )?;
-
-                        tokens_idx += 1;
-
-                        token_buf.clear();
-
-                        arguments
-                            .insert(Some(fn_argument.key().clone()), (parsed_argument, arg_ty));
-
-                        // Remove the argument from the argument list
-                        fn_argument.shift_remove();
-                    } else {
-                        let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                            &token_buf,
-                            function_signatures.clone(),
-                            variable_scope,
-                            None,
-                            standard_function_table.clone(),
-                            custom_items.clone(),
-                        )?;
-
-                        tokens_idx += 1;
-
-                        token_buf.clear();
-
-                        arguments.insert(None, (parsed_argument, arg_ty));
-                    }
-
-                    break;
-                } else {
+            // If a comma is found parse the tokens from the slice
+            if (*token == Token::Comma && bracket_counter == 0) || tokens_idx == args_list_len - 1 {
+                if tokens_idx == args_list_len - 1 {
                     token_buf.push(token.clone());
                 }
 
-                tokens_idx += 1;
+                let fn_argument = this_function_args.arguments_list.first_entry();
+
+                if let Some(fn_argument) = fn_argument {
+                    let (parsed_argument, _jump_idx, arg_ty) = parse_value(
+                        &token_buf,
+                        function_signatures.clone(),
+                        variable_scope,
+                        Some(fn_argument.get().clone()),
+                        standard_function_table.clone(),
+                        custom_items.clone(),
+                    )?;
+
+                    tokens_idx += 1;
+
+                    token_buf.clear();
+
+                    arguments.insert(FunctionArgumentIdentifier::Identifier(fn_argument.key().clone()), (parsed_argument, arg_ty));
+
+                    // Remove the argument from the argument list
+                    fn_argument.shift_remove();
+                } else {
+                    let (parsed_argument, _jump_idx, arg_ty) = parse_value(
+                        &token_buf,
+                        function_signatures.clone(),
+                        variable_scope,
+                        None,
+                        standard_function_table.clone(),
+                        custom_items.clone(),
+                    )?;
+
+                    tokens_idx += 1;
+
+                    token_buf.clear();
+
+                    let nth_argument = arguments.len();
+                    arguments.insert(FunctionArgumentIdentifier::Index(nth_argument), (parsed_argument, arg_ty));
+                }
+
+                dbg!(&arguments);
+
+                continue;
+            } else {
+                token_buf.push(token.clone());
             }
+
+            tokens_idx += 1;
         }
     }
 

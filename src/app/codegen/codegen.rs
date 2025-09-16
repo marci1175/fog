@@ -17,17 +17,19 @@ use inkwell::{
     module::Module,
     passes::PassBuilderOptions,
     targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    types::{
+        ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType, PointerType,
+    },
     values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
+use serde::de::value::UsizeDeserializer;
 
 use crate::{
-    ApplicationError,
     app::{
         codegen::LoopBodyBlocks,
-        parser::types::{FunctionDefinition, FunctionSignature, ParsedToken},
+        parser::types::{FunctionArgumentIdentifier, FunctionDefinition, FunctionSignature, ParsedToken},
         type_system::type_system::{OrdMap, Type, TypeDiscriminant},
-    },
+    }, ApplicationError
 };
 
 use super::error::CodeGenError;
@@ -1711,7 +1713,7 @@ where
             // Try accessing the function in the current module
             let function_value = module
                 .get_function(&fn_name)
-                .ok_or(CodeGenError::InternalFunctionNotFound(fn_name))?;
+                .ok_or(CodeGenError::InternalFunctionNotFound(fn_name.clone()))?;
 
             let arg_iter =
                 passed_arguments
@@ -1719,23 +1721,31 @@ where
                     .enumerate()
                     .map(|(argument_idx, (arg_name, value))| {
                         (
-                            fn_sig
+                            match fn_sig
                                 .args
                                 .arguments_list
                                 .get_index(argument_idx)
-                                .map(|inner| inner.0.clone()),
+                                .map(|inner| inner.0.clone()) {
+                                    Some(arg_name) => {
+                                        FunctionArgumentIdentifier::Identifier(arg_name)
+                                    },
+                                    None => {
+                                        FunctionArgumentIdentifier::Index(argument_idx)
+                                    },
+                                },
                             (value.clone()),
                         )
                     });
 
             // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
-            let fn_argument_list: OrdMap<Option<String>, (ParsedToken, TypeDiscriminant)> =
+            let fn_argument_list: OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)> =
                 IndexMap::from_iter(arg_iter).into();
 
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (arg_name, (arg_token, arg_type)) in fn_argument_list.iter() {
+            for (arg_ident, (arg_token, arg_type)) in dbg!(fn_argument_list.iter()) {
+                let fn_name_clone = fn_name.clone();
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         allocation_list.front().cloned()
@@ -1748,7 +1758,7 @@ where
                     let (ptr, ptr_ty) = create_new_variable(
                         ctx,
                         builder,
-                        &arg_name.clone().unwrap_or_default(),
+                        &fn_arg_to_string(&fn_name_clone, arg_ident),
                         arg_type,
                     )?;
 
@@ -1763,7 +1773,7 @@ where
                     arg_token.clone(),
                     variable_map,
                     Some((
-                        arg_name.clone().unwrap_or_default(),
+                        fn_arg_to_string(&fn_name, arg_ident),
                         (ptr, ptr_ty),
                         arg_type.clone(),
                     )),
@@ -1781,7 +1791,7 @@ where
                         let loaded_val = builder.build_load(
                             array_type,
                             ptr,
-                            &arg_name.clone().unwrap_or_default(),
+                            &fn_arg_to_string(&fn_name, arg_ident),
                         )?;
 
                         arguments_passed_in.push(loaded_val.into());
@@ -1790,7 +1800,7 @@ where
                         let loaded_val = builder.build_load(
                             float_type,
                             ptr,
-                            &arg_name.clone().unwrap_or_default(),
+                            &fn_arg_to_string(&fn_name, arg_ident),
                         )?;
 
                         arguments_passed_in.push(loaded_val.into());
@@ -1799,7 +1809,7 @@ where
                         let loaded_val = builder.build_load(
                             int_type,
                             ptr,
-                            &arg_name.clone().unwrap_or_default(),
+                            &fn_arg_to_string(&fn_name, arg_ident),
                         )?;
 
                         arguments_passed_in.push(loaded_val.into());
@@ -1808,7 +1818,7 @@ where
                         let loaded_val = builder.build_load(
                             pointer_type,
                             ptr,
-                            &arg_name.clone().unwrap_or_default(),
+                            &fn_arg_to_string(&fn_name, arg_ident),
                         )?;
 
                         arguments_passed_in.push(loaded_val.into());
@@ -1817,7 +1827,7 @@ where
                         let loaded_val = builder.build_load(
                             struct_type,
                             ptr,
-                            &arg_name.clone().unwrap_or_default(),
+                            &fn_arg_to_string(&fn_name, arg_ident),
                         )?;
 
                         arguments_passed_in.push(loaded_val.into());
@@ -1826,7 +1836,7 @@ where
                         let loaded_val = builder.build_load(
                             vector_type,
                             ptr,
-                            &arg_name.clone().unwrap_or_default(),
+                            &fn_arg_to_string(&fn_name, arg_ident),
                         )?;
 
                         arguments_passed_in.push(loaded_val.into());
@@ -2044,8 +2054,14 @@ where
                         )?;
                     }
                 }
-                crate::app::parser::types::VariableReference::ArrayReference(_, parsed_tokens) => {
-                    todo!()
+                crate::app::parser::types::VariableReference::ArrayReference(
+                    var_name,
+                    parsed_tokens,
+                ) => {
+                    let ((mut ptr, mut ptr_ty), mut ty_disc) =
+                        variable_map.get(&var_name).unwrap().clone();
+
+                    for decay_elem in &parsed_tokens {}
                 }
             }
 
@@ -3626,7 +3642,14 @@ where
                 let (ptr, ty) = create_new_variable(
                     ctx,
                     builder,
-                    &arg_name.clone().unwrap_or_default(),
+                    &match arg_name.clone() {
+                        crate::app::parser::types::FunctionArgumentIdentifier::Identifier(ident) => {
+                            ident.to_string()
+                        },
+                        crate::app::parser::types::FunctionArgumentIdentifier::Index(idx) => {
+                            format!("{fn_name}_idx_{idx}_arg")
+                        },
+                    },
                     arg_ty,
                 )?;
 
@@ -4183,4 +4206,15 @@ pub fn struct_field_to_ty_list<'a>(
     }
 
     Ok(type_list)
+}
+
+pub fn fn_arg_to_string(fn_name: &str, fn_arg: &FunctionArgumentIdentifier<String, usize>) -> String {
+    match fn_arg {
+        crate::app::parser::types::FunctionArgumentIdentifier::Identifier(ident) => {
+            ident.to_string()
+        },
+        crate::app::parser::types::FunctionArgumentIdentifier::Index(idx) => {
+            format!("{fn_name}_idx_{idx}_arg")
+        },
+    }
 }

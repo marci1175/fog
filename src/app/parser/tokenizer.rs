@@ -5,8 +5,8 @@ use crate::app::{
 
 use super::{error::ParserError, types::Token};
 
-fn contains_non_digits(s: &str) -> bool {
-    s.chars().any(|c| !c.is_ascii_digit())
+fn only_contains_digits(s: &str) -> bool {
+    s.chars().all(|c| c.is_ascii_digit())
 }
 
 pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
@@ -59,9 +59,16 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                 char_idx += 3;
 
                 continue;
-            } else if !contains_non_digits(&string_buffer) {
+            } else if only_contains_digits(&string_buffer) {
                 string_buffer.push(current_char);
             } else {
+                // Push the chars we have collected as an ident
+                let token = match_multi_character_expression(string_buffer.clone());
+
+                token_list.push(token);
+
+                string_buffer.clear();
+
                 token_list.push(Token::Dot);
             }
         } else if current_char == '-' {

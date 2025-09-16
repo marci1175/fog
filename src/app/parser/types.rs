@@ -131,7 +131,7 @@ pub enum ParsedToken {
 
     FunctionCall(
         (FunctionSignature, String),
-        OrdMap<Option<String>, (ParsedToken, TypeDiscriminant)>,
+        OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)>,
     ),
 
     SetValue(VariableReference, Box<ParsedToken>),
@@ -347,4 +347,10 @@ pub enum PreAllocationEntry<'ctx> {
             TypeDiscriminant,
         ),
     ),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum FunctionArgumentIdentifier<IDENT, IDX> {
+    Identifier(IDENT),
+    Index(IDX)
 }
