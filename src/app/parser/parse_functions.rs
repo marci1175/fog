@@ -7,7 +7,7 @@ use crate::app::{
         parser::find_closing_comma,
         types::{FunctionArgumentIdentifier, If},
     },
-    type_system::type_system::{OrdMap, Type, TypeDiscriminant},
+    type_system::type_system::{token_to_ty, OrdMap, Type, TypeDiscriminant},
 };
 
 use super::{
@@ -1073,7 +1073,7 @@ pub fn parse_variable_expression(
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     variable_type: TypeDiscriminant,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
     mut variable_ref: VariableReference,
     parsed_tokens: &mut Vec<ParsedToken>,
 ) -> anyhow::Result<()> {
@@ -1100,7 +1100,7 @@ pub fn parse_variable_expression(
                 variable_scope,
                 Some(variable_type.clone()),
                 function_imports.clone(),
-                custom_items.clone(),
+                custom_types.clone(),
             )?;
 
             parsed_tokens.push(ParsedToken::SetValue(
@@ -1119,7 +1119,7 @@ pub fn parse_variable_expression(
                 variable_ref.clone(),
                 MathematicalSymbol::Addition,
                 function_imports.clone(),
-                custom_items.clone(),
+                custom_types.clone(),
             )?;
         }
         Token::SetValueSubtraction => {
@@ -1133,7 +1133,7 @@ pub fn parse_variable_expression(
                 variable_ref.clone(),
                 MathematicalSymbol::Subtraction,
                 function_imports.clone(),
-                custom_items.clone(),
+                custom_types.clone(),
             )?;
         }
         Token::SetValueDivision => {
@@ -1147,7 +1147,7 @@ pub fn parse_variable_expression(
                 variable_ref.clone(),
                 MathematicalSymbol::Division,
                 function_imports.clone(),
-                custom_items.clone(),
+                custom_types.clone(),
             )?;
         }
         Token::SetValueMultiplication => {
@@ -1161,7 +1161,7 @@ pub fn parse_variable_expression(
                 variable_ref.clone(),
                 MathematicalSymbol::Multiplication,
                 function_imports.clone(),
-                custom_items.clone(),
+                custom_types.clone(),
             )?;
         }
         Token::SetValueModulo => {
@@ -1175,7 +1175,7 @@ pub fn parse_variable_expression(
                 variable_ref.clone(),
                 MathematicalSymbol::Modulo,
                 function_imports.clone(),
-                custom_items.clone(),
+                custom_types.clone(),
             )?;
         }
         Token::Dot => {
@@ -1215,7 +1215,7 @@ pub fn parse_variable_expression(
                             function_imports,
                             variable_scope,
                             struct_field_ty.clone(),
-                            custom_items,
+                            custom_types,
                             variable_ref,
                             parsed_tokens,
                         )?;
@@ -1248,7 +1248,9 @@ pub fn parse_variable_expression(
             }
         }
         Token::OpenSquareBrackets => {
-            if let TypeDiscriminant::Array((inner_type, len)) = variable_type {
+            if let TypeDiscriminant::Array((inner_token, len)) = variable_type {
+                let inner_type = token_to_ty(*inner_token, custom_types.clone())?;
+
                 *token_idx += 1;
 
                 let square_brackets_break_idx = tokens
@@ -1270,7 +1272,7 @@ pub fn parse_variable_expression(
                     variable_scope,
                     Some(TypeDiscriminant::U32),
                     function_imports.clone(),
-                    custom_items.clone(),
+                    custom_types.clone(),
                 )?;
 
                 *token_idx += idx_jmp;
@@ -1290,8 +1292,8 @@ pub fn parse_variable_expression(
                             function_signatures.clone(),
                             function_imports,
                             variable_scope,
-                            *inner_type,
-                            custom_items,
+                            inner_type,
+                            custom_types,
                             match variable_ref.clone() {
                                 VariableReference::StructFieldReference(
                                     struct_field_reference,

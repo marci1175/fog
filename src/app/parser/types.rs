@@ -14,7 +14,7 @@ use crate::app::{
 
 use super::error::{ParserError, SyntaxError};
 
-#[derive(Debug, Clone, PartialEq, strum_macros::Display)]
+#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
 pub enum Token {
     Literal(Type),
 

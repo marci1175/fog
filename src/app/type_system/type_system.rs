@@ -1,14 +1,14 @@
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut}, sync::Arc,
 };
 
 use indexmap::IndexMap;
 use num::Float;
 use strum_macros::Display;
 
-use crate::app::parser::error::ParserError;
+use crate::app::parser::{error::ParserError, types::{CustomType, Token}};
 
 #[derive(Debug, Clone, Display, Default, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -33,7 +33,7 @@ pub enum Type {
     Void,
 
     Struct((String, OrdMap<String, Type>)),
-    Array((Box<TypeDiscriminant>, usize)),
+    Array((Box<Token>, usize)),
 }
 
 #[derive(Debug, Clone)]
@@ -180,7 +180,7 @@ pub enum TypeDiscriminant {
     Void,
 
     Struct((String, OrdMap<String, TypeDiscriminant>)),
-    Array((Box<TypeDiscriminant>, usize)),
+    Array((Box<Token>, usize)),
 }
 
 impl TypeDiscriminant {
@@ -195,7 +195,7 @@ impl TypeDiscriminant {
         )
     }
 
-    pub fn sizeof(&self) -> usize {
+    pub fn sizeof(&self, custom_types: Arc<IndexMap<String, CustomType>>) -> usize {
         match self {
             Self::I64 => std::mem::size_of::<i64>(),
             Self::F64 => std::mem::size_of::<f64>(),
@@ -210,8 +210,8 @@ impl TypeDiscriminant {
             Self::String => std::mem::size_of::<String>(),
             Self::Boolean => std::mem::size_of::<bool>(),
             Self::Void => 0,
-            Self::Struct((_, fields)) => fields.iter().map(|(_, ty)| ty.sizeof()).sum(),
-            Self::Array((inner, _)) => inner.sizeof(),
+            Self::Struct((_, fields)) => fields.iter().map(|(_, ty)| ty.sizeof(custom_types.clone())).sum(),
+            Self::Array((inner, _)) => token_to_ty((**inner).clone(), custom_types.clone()).unwrap().sizeof(custom_types.clone()),
         }
     }
 }
@@ -453,5 +453,28 @@ impl<K: Hash + Eq + Clone, V: Clone> OrdMap<K, V> {
 impl<K, V> From<IndexMap<K, V>> for OrdMap<K, V> {
     fn from(value: IndexMap<K, V>) -> Self {
         Self(value)
+    }
+}
+
+pub fn token_to_ty(token: Token, custom_types: Arc<IndexMap<String, CustomType>>) -> anyhow::Result<TypeDiscriminant> {
+    match token.clone() {
+        Token::Identifier(ident) => {
+            if let Some(custom_type) = custom_types.get(&ident) {
+                match custom_type {
+                    CustomType::Struct(struct_def) => {
+                        Ok(TypeDiscriminant::Struct(struct_def.clone()))
+                    },
+                    CustomType::Enum(ord_map) => unimplemented!(),
+                }
+            }
+            else {
+                Err(ParserError::InvalidType(token).into())
+            }
+        }
+        Token::TypeDefinition(type_def) => {
+            Ok(type_def)
+        }
+
+        _ => Err(ParserError::InvalidType(token).into())
     }
 }

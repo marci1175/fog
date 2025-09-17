@@ -59,7 +59,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                 char_idx += 3;
 
                 continue;
-            } else if only_contains_digits(&string_buffer) {
+            } else if only_contains_digits(&string_buffer) && !string_buffer.is_empty() /* This might break ellpisis parsing */ {
                 string_buffer.push(current_char);
             } else {
                 // Push the chars we have collected as an ident
@@ -318,22 +318,18 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
 
                     let inner_token = match_multi_character_expression(list_type_def);
 
-                    if let Token::TypeDefinition(inner_ty) = inner_token {
-                        token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
-                            Box::new(inner_ty),
-                            array_len.parse::<usize>().map_err(|_| {
-                                ParserError::SyntaxError(SyntaxError::UnparsableExpression(
-                                    array_len.clone(),
-                                ))
-                            })?,
-                        ))));
+                    token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
+                        Box::new(inner_token),
+                        array_len.parse::<usize>().map_err(|_| {
+                            ParserError::SyntaxError(SyntaxError::UnparsableExpression(
+                                array_len.clone(),
+                            ))
+                        })?,
+                    ))));
 
-                        string_buffer.clear();
+                    string_buffer.clear();
 
-                        char_idx += closing_idx;
-                    } else {
-                        return Err(ParserError::InvalidType(inner_token));
-                    }
+                    char_idx += closing_idx;
                 }
             }
         } else if current_char == '<' {

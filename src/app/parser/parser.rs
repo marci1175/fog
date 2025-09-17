@@ -1,5 +1,5 @@
 use crate::app::type_system::type_system::{
-    OrdMap, TypeDiscriminant, unparsed_const_to_typed_literal_unsafe,
+    token_to_ty, unparsed_const_to_typed_literal_unsafe, OrdMap, TypeDiscriminant
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -75,6 +75,10 @@ impl ParserState {
 
     pub fn imported_functions(&self) -> &HashMap<String, FunctionSignature> {
         &self.imported_functions
+    }
+    
+    pub fn custom_items(&self) -> Arc<IndexMap<String, CustomType>> {
+        self.custom_items.clone()
     }
 }
 
@@ -392,7 +396,7 @@ pub fn parse_token_as_value(
     // The token we want to evaluate, this is the first token of the slice most of the time
     eval_token: &Token,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(ParsedToken, TypeDiscriminant)> {
     // Match the token
     let inner_value = match eval_token {
@@ -475,7 +479,7 @@ pub fn parse_token_as_value(
                     function.function_sig.args.clone(),
                     function_signatures.clone(),
                     function_imports.clone(),
-                    custom_items.clone(),
+                    custom_types.clone(),
                 )?;
 
                 // Return the function call
@@ -640,7 +644,7 @@ pub fn parse_token_as_value(
                         variable_scope,
                         Some(TypeDiscriminant::U32),
                         function_imports,
-                        custom_items,
+                        custom_types.clone(),
                     )?;
 
                     *token_idx += idx_jmp;
@@ -654,7 +658,7 @@ pub fn parse_token_as_value(
                                     basic_reference.clone(),
                                     Box::new(value),
                                 ),
-                                *inner_ty.clone(),
+                                token_to_ty(*inner_ty.clone(), custom_types.clone())?,
                             ));
                         }
                     } else {
@@ -673,7 +677,7 @@ pub fn parse_token_as_value(
                     function_sig.args.clone(),
                     function_signatures.clone(),
                     function_imports.clone(),
-                    custom_items.clone(),
+                    custom_types.clone(),
                 )?;
 
                 // Return the function call
@@ -715,7 +719,7 @@ pub fn parse_token_as_value(
 
                     (parsed_token, desired_variable_type)
                 }
-            } else if let Some(custom_type) = custom_items.get(identifier) {
+            } else if let Some(custom_type) = custom_types.get(identifier) {
                 match custom_type {
                     CustomType::Struct((_struct_name, struct_inner)) => {
                         if let Some(Token::OpenBraces) = tokens.get(*token_idx + 1) {
@@ -729,7 +733,7 @@ pub fn parse_token_as_value(
                                 struct_inner,
                                 function_signatures.clone(),
                                 function_imports,
-                                custom_items.clone(),
+                                custom_types.clone(),
                                 variable_scope,
                             )?;
 
@@ -775,7 +779,7 @@ pub fn parse_token_as_value(
                 variable_scope,
                 Some(desired_variable_type.clone()),
                 function_imports,
-                custom_items.clone(),
+                custom_types.clone(),
             )?;
 
             *token_idx += closing_idx + 1;
@@ -800,16 +804,18 @@ pub fn parse_token_as_value(
             let mut vec_values = Vec::new();
 
             // We will check for the valid length of the init value later, at codegen.
-            if let TypeDiscriminant::Array((inner_ty, _len)) = &desired_variable_type {
+            if let TypeDiscriminant::Array((inner_token, _len)) = &desired_variable_type {
+                let inner_ty = token_to_ty((**inner_token).clone(), custom_types.clone())?;
+
                 while array_item_idx < tokens_inside_block.len() {
                     // Parse the value of the array
                     let (parsed_token, jump_index, _) = parse_value(
                         &tokens_inside_block[array_item_idx..],
                         function_signatures.clone(),
                         variable_scope,
-                        Some(*inner_ty.clone()),
+                        Some(inner_ty.clone()),
                         function_imports.clone(),
-                        custom_items.clone(),
+                        custom_types.clone(),
                     )?;
 
                     // Store the parsed token
@@ -824,7 +830,7 @@ pub fn parse_token_as_value(
 
                 // Return the final parsed token.
                 return Ok((
-                    ParsedToken::ArrayInitialization(vec_values, (**inner_ty).clone()),
+                    ParsedToken::ArrayInitialization(vec_values, inner_ty.clone()),
                     desired_variable_type.clone(),
                 ));
             } else {

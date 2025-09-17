@@ -12,11 +12,11 @@ struct alma {
 function main(): int {
     alma idared = alma { nev: "idared", szin: 69};
 
-    array<uint, 5> marci = {90, 4, 5, 6, 7};
+    array<alma, 5> marci = {alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}};
 
     # marci[2] = 100;
 
-    printf("The number is %i %s", marci[2] as int, idared.nev);
+    printf("The name is %s", marci[2].nev);
 
     return 0;
 }
