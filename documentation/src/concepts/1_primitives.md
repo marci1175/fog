@@ -36,16 +36,17 @@ struct my_struct {
 }
 ```
 
-Enums are also available and are accessible via the `enum` keyword. Enums serve as a `Default` value for any type.
+Enums are also available and are accessible via the `enum` keyword. Enums can also serve as a `Default` value for any type.
 
 ```fog
-struct Apple {
-    color: float,
-    name: string
+enum Weekdays {
+    Monday,
+    Tuesday,
+    Friday,
 }
 
-enum Apples<Apple> {
-    Idared = Apple { color: 1.0, name: "Idared" },
-    Granny = Apple { color: 0.5, name: "Granny Smith" }
+enum FavWords<string> {
+    choco = "Chocolate",
+    banana = "Banana",
 }
 ```

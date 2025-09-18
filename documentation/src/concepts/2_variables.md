@@ -22,5 +22,29 @@ struct person {
     is_male: bool,
 }
 
-person somebody = person { age: 23, name: "marci", is_male: true, };
+person somebody = person { age: 23, name: "marci", is_male: true };
+```
+
+Accessing an enum variable is no different from other languages. The default type for an enum is an `int` if not defined by the user.
+
+```fog
+struct Apple {
+    color: float,
+    name: string
+}
+
+enum Apples<Apple> {
+    Idared = Apple { color: 1.0, name: "Idared" },
+    Granny = Apple { color: 0.5, name: "Granny Smith" }
+}
+
+enum Numbers {
+    One,
+    Two,
+    SixtySeven = 67
+}
+
+string ida_name = Apples::Idared.name;
+int integer_zwei = Numbers::Two;
+int float_zwei = Numbers::Two as float;
 ```
