@@ -1,4 +1,5 @@
 import printf(input: string, ...): void;
+import scanf(filter: string, buffer: array<uintsmall, 10>): int;
 
 function return_0(): uint {
     return 2;
@@ -10,6 +11,11 @@ struct alma {
 }
 
 function main(): int {
-    array<array<alma, 2>, 2> marci1 = {{alma { nev: "idared", szin: 69 }, alma { nev: "idared", szin: 69 }}, {alma { nev: "idared", szin: 69 }, alma { nev: "idared", szin: 69 }}};
+    array<uintsmall, 10> buf = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    
+    scanf("%s", buf);
+
+    printf("Hello %i", buf[2]);
+    
     return 0;
 }

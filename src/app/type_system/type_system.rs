@@ -6,13 +6,14 @@ use std::{
 };
 
 use indexmap::IndexMap;
+use inkwell::{context::Context, types::{BasicType, BasicTypeEnum}, AddressSpace};
 use num::Float;
 use strum_macros::Display;
 
-use crate::app::parser::{
+use crate::app::{codegen::codegen::struct_field_to_ty_list, parser::{
     error::ParserError,
     types::{CustomType, Token},
-};
+}};
 
 #[derive(Debug, Clone, Display, Default, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -185,6 +186,7 @@ pub enum TypeDiscriminant {
 
     Struct((String, OrdMap<String, TypeDiscriminant>)),
     Array((Box<Token>, usize)),
+    // Pointer,
 }
 
 impl TypeDiscriminant {
@@ -222,6 +224,31 @@ impl TypeDiscriminant {
                 .unwrap()
                 .sizeof(custom_types.clone()),
         }
+    }
+
+    pub fn to_basic_type_enum(self, ctx: &Context, custom_types: Arc<IndexMap<String, CustomType>>) -> anyhow::Result<BasicTypeEnum> {
+        let basic_ty = match self {
+            TypeDiscriminant::I64 => BasicTypeEnum::IntType(ctx.i64_type()),
+            TypeDiscriminant::F64 => BasicTypeEnum::FloatType(ctx.f64_type()),
+            TypeDiscriminant::U64 => BasicTypeEnum::IntType(ctx.i64_type()),
+            TypeDiscriminant::I32 => BasicTypeEnum::IntType(ctx.i32_type()),
+            TypeDiscriminant::F32 => BasicTypeEnum::FloatType(ctx.f32_type()),
+            TypeDiscriminant::U32 => BasicTypeEnum::IntType(ctx.i32_type()),
+            TypeDiscriminant::I16 => BasicTypeEnum::IntType(ctx.i16_type()),
+            TypeDiscriminant::F16 => BasicTypeEnum::FloatType(ctx.f16_type()),
+            TypeDiscriminant::U16 => BasicTypeEnum::IntType(ctx.i16_type()),
+            TypeDiscriminant::U8 => BasicTypeEnum::IntType(ctx.i8_type()),
+            TypeDiscriminant::String => BasicTypeEnum::PointerType(ctx.ptr_type(AddressSpace::default())),
+            TypeDiscriminant::Boolean => BasicTypeEnum::IntType(ctx.bool_type()),
+            TypeDiscriminant::Void => unimplemented!("A BasicTypeEnum cannot be a `Void` type."),
+            TypeDiscriminant::Struct((_struct_name, fields)) => BasicTypeEnum::StructType(ctx.struct_type(
+                    &struct_field_to_ty_list(ctx, &fields, custom_types.clone())?,
+                    false,
+                )),
+            TypeDiscriminant::Array((array_ty, len)) => BasicTypeEnum::ArrayType(token_to_ty(*array_ty, custom_types.clone())?.to_basic_type_enum(ctx, custom_types.clone())?.array_type(len as u32)),
+        };
+
+        Ok(basic_ty)
     }
 }
 

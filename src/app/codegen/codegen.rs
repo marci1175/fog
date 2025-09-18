@@ -199,32 +199,7 @@ pub fn import_user_lib_functions<'a>(
         let mut args = Vec::new();
 
         for (_, arg_ty) in import_sig.args.arguments_list.iter() {
-            let argument_sig = match arg_ty {
-                TypeDiscriminant::I32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-                TypeDiscriminant::F32 => BasicMetadataTypeEnum::FloatType(ctx.f32_type()),
-                TypeDiscriminant::U32 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-                TypeDiscriminant::U8 => BasicMetadataTypeEnum::IntType(ctx.i32_type()),
-                TypeDiscriminant::String => {
-                    BasicMetadataTypeEnum::PointerType(ctx.ptr_type(AddressSpace::default()))
-                }
-                TypeDiscriminant::Boolean => BasicMetadataTypeEnum::IntType(ctx.bool_type()),
-                TypeDiscriminant::Void => {
-                    panic!("Can't take a `Void` as an argument")
-                }
-                TypeDiscriminant::Struct((_struct_name, struct_inner)) => {
-                    let field_ty =
-                        struct_field_to_ty_list(ctx, struct_inner, custom_types.clone())?;
-
-                    BasicMetadataTypeEnum::StructType(ctx.struct_type(&field_ty, false))
-                }
-                TypeDiscriminant::I64 => BasicMetadataTypeEnum::IntType(ctx.i64_type()),
-                TypeDiscriminant::F64 => BasicMetadataTypeEnum::FloatType(ctx.f64_type()),
-                TypeDiscriminant::U64 => BasicMetadataTypeEnum::IntType(ctx.i64_type()),
-                TypeDiscriminant::I16 => BasicMetadataTypeEnum::IntType(ctx.i16_type()),
-                TypeDiscriminant::F16 => BasicMetadataTypeEnum::FloatType(ctx.f16_type()),
-                TypeDiscriminant::U16 => BasicMetadataTypeEnum::IntType(ctx.i16_type()),
-                TypeDiscriminant::Array(_) => todo!(),
-            };
+            let argument_sig = ty_enum_to_metadata_ty_enum(arg_ty.clone().to_basic_type_enum(ctx, custom_types.clone())?);
 
             args.push(argument_sig);
         }
