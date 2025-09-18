@@ -452,14 +452,14 @@ pub fn parse_functions(
     for (fn_idx, (fn_name, unparsed_function)) in unparsed_functions.clone().iter().enumerate() {
         let function_definition = FunctionDefinition {
             function_sig: unparsed_function.function_sig.clone(),
-            inner: dbg!(parse_function_block(
+            inner: parse_function_block(
                 unparsed_function.inner.clone(),
                 unparsed_functions.clone(),
                 unparsed_function.function_sig.clone(),
                 function_imports.clone(),
                 custom_items.clone(),
                 unparsed_function.function_sig.args.clone(),
-            )?),
+            )?,
         };
 
         println!(
@@ -1317,7 +1317,7 @@ pub fn parse_variable_expression(
                         )?;
                     } else {
                         parsed_tokens.push(ParsedToken::ArrayIndexing(
-                            variable_ref.clone(),
+                            Box::new(ParsedToken::VariableReference(variable_ref.clone())),
                             Box::new(value),
                         ));
                     }

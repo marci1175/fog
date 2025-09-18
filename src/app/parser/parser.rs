@@ -660,6 +660,7 @@ pub fn parse_token_as_value(
                         })?
                         + *token_idx;
 
+                    // Check HERE
                     let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
 
                     let (value, idx_jmp, _) = parse_value(
@@ -679,7 +680,9 @@ pub fn parse_token_as_value(
                         if let TypeDiscriminant::Array((inner_ty, len)) = variable_type.clone() {
                             return Ok((
                                 ParsedToken::ArrayIndexing(
-                                    basic_reference.clone(),
+                                    Box::new(ParsedToken::VariableReference(
+                                        basic_reference.clone(),
+                                    )),
                                     Box::new(value),
                                 ),
                                 token_to_ty(*inner_ty.clone(), custom_types.clone())?,

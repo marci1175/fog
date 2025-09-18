@@ -155,7 +155,7 @@ pub enum ParsedToken {
 
     ControlFlow(ControlFlowType),
 
-    ArrayIndexing(VariableReference, Box<ParsedToken>),
+    ArrayIndexing(Box<ParsedToken>, Box<ParsedToken>),
 
     ArrayInitialization(Vec<ParsedToken>, TypeDiscriminant),
 }

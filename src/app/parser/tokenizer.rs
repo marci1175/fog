@@ -306,36 +306,30 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
 
                 let comma_count = list_type.iter().filter(|char| **char == ',').count();
 
-                let comma_pos = if comma_count < 1 {
-                    Some(
-                        list_type.len()
-                            - list_type.iter().rev().position(|char| *char == ',').ok_or(
-                                ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
-                            )?
-                            - 1,
-                    )
-                } else {
-                    None
-                };
+                let comma_pos = list_type.len()
+                - list_type.iter().rev().position(|char| *char == ',').ok_or(
+                    ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
+                )?;
 
-                let list_type_def = list_type[..comma_pos.unwrap_or(list_type.len() - 2) - 1]
+                let array_len = list_type[comma_pos..]
                     .iter()
                     .collect::<String>()
                     .trim()
                     .to_string();
 
-                let array_len = list_type[comma_pos.unwrap_or(list_type.len() - 2) + 1..]
+                let list_type_def = list_type[..comma_pos - 1]
                     .iter()
                     .collect::<String>()
                     .trim()
                     .to_string();
 
                 let inner_token = tokenize(dbg!(&list_type_def))?;
+                dbg!(&array_len);
 
                 if inner_token.len() > 1 {
                     return Err(ParserError::InvalidArrayTypeDefinition(inner_token));
                 }
-
+                
                 token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
                     Box::new(inner_token[0].clone()),
                     array_len.parse::<usize>().map_err(|_| {
@@ -399,8 +393,6 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
         char_idx += 1;
     }
 
-    dbg!(&token_list);
-    dbg!(&string_buffer);
     Ok(token_list)
 }
 

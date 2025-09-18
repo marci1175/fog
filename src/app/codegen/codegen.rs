@@ -2611,7 +2611,7 @@ where
                 ctx,
                 module,
                 builder,
-                ParsedToken::VariableReference(variable_ref.clone()),
+                *variable_ref.clone(),
                 variable_map,
                 None,
                 fn_ret_ty.clone(),
