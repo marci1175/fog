@@ -1,5 +1,7 @@
+use inkwell::debug_info::DISubprogram;
+
 use crate::app::{
-    parser::error::SyntaxError,
+    parser::{error::SyntaxError, parser::{find_closing_angled_bracket_char, find_closing_braces}},
     type_system::type_system::{Type, TypeDiscriminant},
 };
 
@@ -31,8 +33,6 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             '{' => Some(Token::OpenBraces),
             '[' => Some(Token::OpenSquareBrackets),
             ']' => Some(Token::CloseSquareBrackets),
-            // '<' => Some(Token::OpenAngledBrackets),
-            // '>' => Some(Token::CloseAngledBrackets),
             ';' => Some(Token::SemiColon),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
@@ -295,44 +295,51 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             if current_char == '<' {
                 char_idx += 1;
 
-                let closing_angled_bracket = char_list
-                    .iter()
-                    .skip(char_idx)
-                    .position(|char| *char == '>');
+                let closing_idx = find_closing_angled_bracket_char(&char_list[char_idx..], 0)?;
 
-                if let Some(closing_idx) = closing_angled_bracket {
-                    let list_type = &char_list[char_idx..closing_idx + char_idx];
+                let list_type = &char_list[char_idx..closing_idx + char_idx];
 
-                    let comma_pos = list_type.iter().position(|char| *char == ',').ok_or(
+                let comma_count = list_type.iter().filter(|char| **char == ',').count();
+                
+                let comma_pos = if comma_count < 1 {
+                    Some(list_type.len() - list_type.iter().rev().position(|char| *char == ',').ok_or(
                         ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
-                    )?;
-
-                    let list_type_def = list_type[..comma_pos]
-                        .iter()
-                        .collect::<String>()
-                        .trim()
-                        .to_string();
-                    let array_len = list_type[comma_pos + 1..]
-                        .iter()
-                        .collect::<String>()
-                        .trim()
-                        .to_string();
-
-                    let inner_token = match_multi_character_expression(list_type_def);
-
-                    token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
-                        Box::new(inner_token),
-                        array_len.parse::<usize>().map_err(|_| {
-                            ParserError::SyntaxError(SyntaxError::UnparsableExpression(
-                                array_len.clone(),
-                            ))
-                        })?,
-                    ))));
-
-                    string_buffer.clear();
-
-                    char_idx += closing_idx;
+                    )? - 1)
                 }
+                else {
+                    None
+                };
+
+                let list_type_def = list_type[..comma_pos.unwrap_or(list_type.len() - 2) - 1]
+                    .iter()
+                    .collect::<String>()
+                    .trim()
+                    .to_string();
+
+                let array_len = list_type[comma_pos.unwrap_or(list_type.len() - 2) + 1..]
+                    .iter()
+                    .collect::<String>()
+                    .trim()
+                    .to_string();
+
+                let inner_token = tokenize(dbg!(&list_type_def))?;
+
+                if inner_token.len() > 1 {
+                    return Err(ParserError::InvalidArrayTypeDefinition(inner_token));
+                }
+
+                token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
+                    Box::new(inner_token[0].clone()),
+                    array_len.parse::<usize>().map_err(|_| {
+                        ParserError::SyntaxError(SyntaxError::UnparsableExpression(
+                            array_len.clone(),
+                        ))
+                    })?,
+                ))));
+
+                string_buffer.clear();
+
+                char_idx += closing_idx;
             }
         } else if current_char == '<' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
@@ -369,6 +376,14 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             token_list.push(token);
 
             string_buffer.clear();
+        } else if string_buffer.len() + 1 == char_list.len() {
+            string_buffer.push(char_list[char_list.len() - 1]);
+
+            let token = match_multi_character_expression(string_buffer.clone());
+
+            token_list.push(token);
+
+            string_buffer.clear();
         } else if current_char != ' ' {
             string_buffer.push(current_char);
         }
@@ -376,6 +391,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
         char_idx += 1;
     }
 
+    dbg!(&token_list);
+    dbg!(&string_buffer);
     Ok(token_list)
 }
 

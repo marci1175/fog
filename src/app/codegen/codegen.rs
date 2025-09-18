@@ -2618,8 +2618,8 @@ where
                             Some((_, (ptr, _ptr_ty), var_ty_disc)) => {
                                 if inner_ty != var_ty_disc {
                                     return Err(CodeGenError::CodegenTypeMismatch(
-                                        inner_ty,
-                                        var_ty_disc,
+                                        dbg!(inner_ty),
+                                        dbg!(var_ty_disc),
                                     )
                                     .into());
                                 }

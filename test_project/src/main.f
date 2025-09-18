@@ -10,9 +10,9 @@ struct alma {
 }
 
 function main(): int {
-    alma idared = alma { nev: "idared", szin: 69};
+    alma idared = alma { nev: "idared", szin: 69 };
 
-    array<alma, 5> marci = {alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}};
+    array<array<alma, 2>, 2> marci = {{alma { nev: "idared", szin: 69 }, alma { nev: "idared", szin: 69 }}, {alma { nev: "idared", szin: 69 }, alma { nev: "idared", szin: 69 }}};
 
     alma idared = marci[2];
 

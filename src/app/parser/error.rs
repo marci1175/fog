@@ -58,6 +58,8 @@ pub enum ParserError {
     FloatIsNAN,
     #[error("Type `{0}` is non-indexable.")]
     TypeMismatchNonIndexable(TypeDiscriminant),
+    #[error("Array has type `{0:?}` as its initalizer type.")]
+    InvalidArrayTypeDefinition(Vec<Token>),
 }
 
 #[derive(Debug, Error)]
@@ -66,6 +68,8 @@ pub enum SyntaxError {
     LeftOpenBraces,
     #[error("An open '(' has been left in the code.")]
     LeftOpenParentheses,
+    #[error("An open '<' has been left in the code.")]
+    LeftOpenAngledBrackets,
     #[error("An open '[' has been left in the code.")]
     LeftOpenSquareBrackets,
     #[error(r#"An open '"' has been left in the code."#)]

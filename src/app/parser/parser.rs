@@ -3,6 +3,7 @@ use crate::app::type_system::type_system::{
 };
 use anyhow::Result;
 use indexmap::IndexMap;
+use serde::de::IntoDeserializer;
 use std::{collections::HashMap, sync::Arc};
 
 use super::{
@@ -143,6 +144,25 @@ pub fn find_closing_braces(
     }
 
     Err(ParserError::SyntaxError(super::error::SyntaxError::LeftOpenParentheses).into())
+}
+
+/// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.
+pub fn find_closing_angled_bracket_char(paren_start_slice: &[char], angled_bracket_count: usize) -> Result<usize, ParserError> {
+    let mut paren_layer_counter = 1;
+    for (idx, token) in paren_start_slice.iter().enumerate() {
+        match token {
+            '<' => paren_layer_counter += 1,
+            '>' => {
+                paren_layer_counter -= 1;
+                if paren_layer_counter == angled_bracket_count {
+                    return Ok(idx);
+                }
+            }
+            _ => continue,
+        }
+    }
+
+    Err(ParserError::SyntaxError(super::error::SyntaxError::LeftOpenAngledBrackets).into())
 }
 
 /// This is a top level implementation for `parse_token_as_value`
