@@ -62,12 +62,14 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             } else if only_contains_digits(&string_buffer) && !string_buffer.is_empty() /* This might break ellpisis parsing */ {
                 string_buffer.push(current_char);
             } else {
-                // Push the chars we have collected as an ident
-                let token = match_multi_character_expression(string_buffer.clone());
+                if !string_buffer.is_empty() {
+                    // Push the chars we have collected as an ident
+                    let token = match_multi_character_expression(string_buffer.clone());
 
-                token_list.push(token);
+                    token_list.push(token);
 
-                string_buffer.clear();
+                    string_buffer.clear();
+                }
 
                 token_list.push(Token::Dot);
             }

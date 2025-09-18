@@ -14,9 +14,9 @@ function main(): int {
 
     array<alma, 5> marci = {alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}, alma { nev: "idared", szin: 69}};
 
-    # marci[2] = 100;
+    alma idared = marci[2];
 
-    printf("The name is %s", marci[2].nev);
+    printf("The name is %s", idared.nev);
 
     return 0;
 }
