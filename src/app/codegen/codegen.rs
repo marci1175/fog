@@ -28,7 +28,7 @@ use crate::{
         codegen::LoopBodyBlocks,
         parser::types::{
             CustomType, FunctionArgumentIdentifier, FunctionDefinition, FunctionSignature,
-            ParsedToken, Token,
+            ParsedToken,
         },
         type_system::type_system::{OrdMap, Type, TypeDiscriminant, token_to_ty},
     },

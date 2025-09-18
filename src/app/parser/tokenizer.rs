@@ -1,9 +1,8 @@
-use inkwell::debug_info::DISubprogram;
 
 use crate::app::{
     parser::{
         error::SyntaxError,
-        parser::{find_closing_angled_bracket_char, find_closing_braces},
+        parser::find_closing_angled_bracket_char,
     },
     type_system::type_system::{Type, TypeDiscriminant},
 };

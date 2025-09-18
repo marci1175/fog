@@ -3,7 +3,6 @@ use crate::app::type_system::type_system::{
 };
 use anyhow::Result;
 use indexmap::IndexMap;
-use serde::de::IntoDeserializer;
 use std::{collections::HashMap, sync::Arc};
 
 use super::{
@@ -165,7 +164,7 @@ pub fn find_closing_angled_bracket_char(
         }
     }
 
-    Err(ParserError::SyntaxError(super::error::SyntaxError::LeftOpenAngledBrackets).into())
+    Err(ParserError::SyntaxError(super::error::SyntaxError::LeftOpenAngledBrackets))
 }
 
 /// This is a top level implementation for `parse_token_as_value`
