@@ -1,7 +1,10 @@
 use inkwell::debug_info::DISubprogram;
 
 use crate::app::{
-    parser::{error::SyntaxError, parser::{find_closing_angled_bracket_char, find_closing_braces}},
+    parser::{
+        error::SyntaxError,
+        parser::{find_closing_angled_bracket_char, find_closing_braces},
+    },
     type_system::type_system::{Type, TypeDiscriminant},
 };
 
@@ -59,7 +62,9 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                 char_idx += 3;
 
                 continue;
-            } else if only_contains_digits(&string_buffer) && !string_buffer.is_empty() /* This might break ellpisis parsing */ {
+            } else if only_contains_digits(&string_buffer) && !string_buffer.is_empty()
+            /* This might break ellpisis parsing */
+            {
                 string_buffer.push(current_char);
             } else {
                 if !string_buffer.is_empty() {
@@ -300,13 +305,16 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                 let list_type = &char_list[char_idx..closing_idx + char_idx];
 
                 let comma_count = list_type.iter().filter(|char| **char == ',').count();
-                
+
                 let comma_pos = if comma_count < 1 {
-                    Some(list_type.len() - list_type.iter().rev().position(|char| *char == ',').ok_or(
-                        ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
-                    )? - 1)
-                }
-                else {
+                    Some(
+                        list_type.len()
+                            - list_type.iter().rev().position(|char| *char == ',').ok_or(
+                                ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
+                            )?
+                            - 1,
+                    )
+                } else {
                     None
                 };
 

@@ -1,14 +1,18 @@
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
-    ops::{Deref, DerefMut}, sync::Arc,
+    ops::{Deref, DerefMut},
+    sync::Arc,
 };
 
 use indexmap::IndexMap;
 use num::Float;
 use strum_macros::Display;
 
-use crate::app::parser::{error::ParserError, types::{CustomType, Token}};
+use crate::app::parser::{
+    error::ParserError,
+    types::{CustomType, Token},
+};
 
 #[derive(Debug, Clone, Display, Default, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -210,8 +214,13 @@ impl TypeDiscriminant {
             Self::String => std::mem::size_of::<String>(),
             Self::Boolean => std::mem::size_of::<bool>(),
             Self::Void => 0,
-            Self::Struct((_, fields)) => fields.iter().map(|(_, ty)| ty.sizeof(custom_types.clone())).sum(),
-            Self::Array((inner, _)) => token_to_ty((**inner).clone(), custom_types.clone()).unwrap().sizeof(custom_types.clone()),
+            Self::Struct((_, fields)) => fields
+                .iter()
+                .map(|(_, ty)| ty.sizeof(custom_types.clone()))
+                .sum(),
+            Self::Array((inner, _)) => token_to_ty((**inner).clone(), custom_types.clone())
+                .unwrap()
+                .sizeof(custom_types.clone()),
         }
     }
 }
@@ -456,25 +465,25 @@ impl<K, V> From<IndexMap<K, V>> for OrdMap<K, V> {
     }
 }
 
-pub fn token_to_ty(token: Token, custom_types: Arc<IndexMap<String, CustomType>>) -> anyhow::Result<TypeDiscriminant> {
+pub fn token_to_ty(
+    token: Token,
+    custom_types: Arc<IndexMap<String, CustomType>>,
+) -> anyhow::Result<TypeDiscriminant> {
     match token.clone() {
         Token::Identifier(ident) => {
             if let Some(custom_type) = custom_types.get(&ident) {
                 match custom_type {
                     CustomType::Struct(struct_def) => {
                         Ok(TypeDiscriminant::Struct(struct_def.clone()))
-                    },
+                    }
                     CustomType::Enum(ord_map) => unimplemented!(),
                 }
-            }
-            else {
+            } else {
                 Err(ParserError::InvalidType(token).into())
             }
         }
-        Token::TypeDefinition(type_def) => {
-            Ok(type_def)
-        }
+        Token::TypeDefinition(type_def) => Ok(type_def),
 
-        _ => Err(ParserError::InvalidType(token).into())
+        _ => Err(ParserError::InvalidType(token).into()),
     }
 }

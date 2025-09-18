@@ -1,5 +1,5 @@
 use crate::app::type_system::type_system::{
-    token_to_ty, unparsed_const_to_typed_literal_unsafe, OrdMap, TypeDiscriminant
+    OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe,
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -77,7 +77,7 @@ impl ParserState {
     pub fn imported_functions(&self) -> &HashMap<String, FunctionSignature> {
         &self.imported_functions
     }
-    
+
     pub fn custom_items(&self) -> Arc<IndexMap<String, CustomType>> {
         self.custom_items.clone()
     }
@@ -147,7 +147,10 @@ pub fn find_closing_braces(
 }
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.
-pub fn find_closing_angled_bracket_char(paren_start_slice: &[char], angled_bracket_count: usize) -> Result<usize, ParserError> {
+pub fn find_closing_angled_bracket_char(
+    paren_start_slice: &[char],
+    angled_bracket_count: usize,
+) -> Result<usize, ParserError> {
     let mut paren_layer_counter = 1;
     for (idx, token) in paren_start_slice.iter().enumerate() {
         match token {
@@ -382,6 +385,7 @@ pub fn parse_value(
             }
 
             _ => {
+                dbg!(parsed_token);
                 dbg!(current_token);
 
                 unimplemented!()

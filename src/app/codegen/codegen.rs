@@ -4,7 +4,8 @@ use std::{
     io::ErrorKind,
     path::PathBuf,
     rc::Rc,
-    slice::Iter, sync::Arc,
+    slice::Iter,
+    sync::Arc,
 };
 
 use anyhow::Result;
@@ -22,13 +23,15 @@ use inkwell::{
 };
 
 use crate::{
+    ApplicationError,
     app::{
         codegen::LoopBodyBlocks,
         parser::types::{
-            CustomType, FunctionArgumentIdentifier, FunctionDefinition, FunctionSignature, ParsedToken, Token
+            CustomType, FunctionArgumentIdentifier, FunctionDefinition, FunctionSignature,
+            ParsedToken, Token,
         },
-        type_system::type_system::{token_to_ty, OrdMap, Type, TypeDiscriminant},
-    }, ApplicationError
+        type_system::type_system::{OrdMap, Type, TypeDiscriminant, token_to_ty},
+    },
 };
 
 use super::error::CodeGenError;
@@ -38,7 +41,7 @@ pub fn codegen_main(
     path_to_output: PathBuf,
     optimization: bool,
     imported_functions: &HashMap<String, FunctionSignature>,
-    custom_types: Arc<IndexMap<String, CustomType>>
+    custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<()> {
     let context = Context::create();
     let builder = context.create_builder();
@@ -50,7 +53,7 @@ pub fn codegen_main(
         &module,
         imported_functions,
         parsed_functions.clone(),
-        custom_types.clone()
+        custom_types.clone(),
     )?;
 
     generate_ir(parsed_functions, &context, &module, &builder, custom_types)?;
@@ -114,7 +117,11 @@ fn generate_ir<'ctx>(
         // Create function signature
         let function = module.add_function(
             function_name,
-            create_fn_type_from_ty_disc(context, function_definition.function_sig.clone(), custom_types.clone())?,
+            create_fn_type_from_ty_disc(
+                context,
+                function_definition.function_sig.clone(),
+                custom_types.clone(),
+            )?,
             None,
         );
 
@@ -180,7 +187,7 @@ pub fn import_user_lib_functions<'a>(
     module: &Module<'a>,
     imported_functions: &'a HashMap<String, FunctionSignature>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: Arc<IndexMap<String, CustomType>>
+    custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<()> {
     for (import_name, import_sig) in imported_functions.iter() {
         // If a function with the same name as the imports exists, do not expose the function signature instead define the whole function
@@ -205,7 +212,8 @@ pub fn import_user_lib_functions<'a>(
                     panic!("Can't take a `Void` as an argument")
                 }
                 TypeDiscriminant::Struct((_struct_name, struct_inner)) => {
-                    let field_ty = struct_field_to_ty_list(ctx, struct_inner, custom_types.clone())?;
+                    let field_ty =
+                        struct_field_to_ty_list(ctx, struct_inner, custom_types.clone())?;
 
                     BasicMetadataTypeEnum::StructType(ctx.struct_type(&field_ty, false))
                 }
@@ -319,7 +327,7 @@ pub fn create_ir<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_items: Arc<IndexMap<String, CustomType>>
+    custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<()>
 where
     'main: 'ctx,
@@ -462,7 +470,7 @@ pub fn create_alloca_table<'main, 'ctx>(
     >,
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_items: Arc<IndexMap<String, CustomType>>
+    custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<
     VecDeque<(
         ParsedToken,
@@ -532,7 +540,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     )>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: Arc<IndexMap<String, CustomType>>
+    custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> anyhow::Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
     // The return value is None if the `variable_reference` of the function is `Some`, as the variable will have its value set to the value of the returned value.
@@ -568,7 +576,8 @@ where
                     }
                 }
 
-                let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
+                let (ptr, ptr_ty) =
+                    create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
 
                 variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
 
@@ -591,7 +600,7 @@ where
                     allocation_list,
                     is_loop_body,
                     parsed_functions.clone(),
-            custom_types.clone(),
+                    custom_types.clone(),
                 )?;
             }
 
@@ -619,7 +628,7 @@ where
                                     &mut field_stack_iter,
                                     &struct_fields,
                                     (*ptr, *ty),
-                                    custom_types.clone()
+                                    custom_types.clone(),
                                 )?;
 
                                 let basic_value =
@@ -740,7 +749,7 @@ where
                                     &mut field_stack_iter,
                                     &struct_def,
                                     (*ptr, *ty),
-                                    custom_types.clone()
+                                    custom_types.clone(),
                                 )?;
 
                                 Some((f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc))
@@ -788,7 +797,8 @@ where
             } else {
                 let ty_disc = literal.discriminant();
 
-                let (v_ptr, v_ty) = create_new_variable(ctx, builder, "", &ty_disc, custom_types.clone())?;
+                let (v_ptr, v_ty) =
+                    create_new_variable(ctx, builder, "", &ty_disc, custom_types.clone())?;
 
                 set_value_of_ptr(ctx, builder, module, literal, v_ptr)?;
 
@@ -809,7 +819,7 @@ where
                 allocation_list,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
-            custom_types.clone(),
+                custom_types.clone(),
             )?;
 
             if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -818,8 +828,13 @@ where
                 {
                     (ref_ptr, ty_disc)
                 } else {
-                    let (ptr, ptr_ty) =
-                        create_new_variable(ctx, builder, "ty_cast_temp_val", &ty_disc, custom_types.clone())?;
+                    let (ptr, ptr_ty) = create_new_variable(
+                        ctx,
+                        builder,
+                        "ty_cast_temp_val",
+                        &ty_disc,
+                        custom_types.clone(),
+                    )?;
 
                     (ptr, ty_disc)
                 };
@@ -1548,8 +1563,7 @@ where
                         allocation_list,
                         is_loop_body.clone(),
                         parsed_functions.clone(),
-            custom_types.clone(),
-
+                        custom_types.clone(),
                     )
                 })()?;
 
@@ -1578,8 +1592,7 @@ where
                         allocation_list,
                         is_loop_body.clone(),
                         parsed_functions.clone(),
-            custom_types.clone(),
-
+                        custom_types.clone(),
                     )
                 })()?;
 
@@ -1644,8 +1657,13 @@ where
                     if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference {
                         builder.build_store(var_ptr, math_res)?;
                     } else {
-                        let (ptr, ty) =
-                            create_new_variable(ctx, builder, "math_expr_res", &r_ty_disc, custom_types.clone())?;
+                        let (ptr, ty) = create_new_variable(
+                            ctx,
+                            builder,
+                            "math_expr_res",
+                            &r_ty_disc,
+                            custom_types.clone(),
+                        )?;
 
                         builder.build_store(ptr, math_res)?;
 
@@ -1707,8 +1725,13 @@ where
                     if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference {
                         builder.build_store(var_ptr, math_res)?;
                     } else {
-                        let (ptr, ty) =
-                            create_new_variable(ctx, builder, "math_expr_res", &r_ty_disc, custom_types.clone())?;
+                        let (ptr, ty) = create_new_variable(
+                            ctx,
+                            builder,
+                            "math_expr_res",
+                            &r_ty_disc,
+                            custom_types.clone(),
+                        )?;
 
                         builder.build_store(ptr, math_res)?;
 
@@ -1777,7 +1800,8 @@ where
                         ctx,
                         builder,
                         &fn_arg_to_string(&fn_name_clone, arg_ident),
-                        arg_type, custom_types.clone()
+                        arg_type,
+                        custom_types.clone(),
                     )?;
 
                     Ok((ptr, ptr_ty))
@@ -1801,8 +1825,7 @@ where
                     allocation_list,
                     is_loop_body.clone(),
                     parsed_functions.clone(),
-            custom_types.clone(),
-
+                    custom_types.clone(),
                 )?;
 
                 // Push the argument to the list of arguments
@@ -1884,7 +1907,13 @@ where
                         allocation_list.pop_front();
                         (ptr, ty)
                     } else {
-                        create_new_variable(ctx, builder, "", &fn_sig.return_type, custom_types.clone())?
+                        create_new_variable(
+                            ctx,
+                            builder,
+                            "",
+                            &fn_sig.return_type,
+                            custom_types.clone(),
+                        )?
                     };
 
                     (v_ptr, v_ty)
@@ -2034,7 +2063,7 @@ where
                                 &mut field_stack_iter,
                                 &struct_def,
                                 (*ptr, *ty),
-                                custom_types.clone()
+                                custom_types.clone(),
                             )?;
 
                             create_ir_from_parsed_token(
@@ -2050,8 +2079,7 @@ where
                                 allocation_list,
                                 is_loop_body.clone(),
                                 parsed_functions.clone(),
-            custom_types.clone(),
-
+                                custom_types.clone(),
                             )?;
                         }
                     }
@@ -2074,8 +2102,7 @@ where
                             allocation_list,
                             is_loop_body.clone(),
                             parsed_functions.clone(),
-            custom_types.clone(),
-
+                            custom_types.clone(),
                         )?;
                     }
                 }
@@ -2097,7 +2124,8 @@ where
             // This temporary variable is used to return the value
             let var_name = String::from("ret_tmp_var");
 
-            let (ptr, ptr_ty) = create_new_variable(ctx, builder, &var_name, &fn_ret_ty, custom_types.clone())?;
+            let (ptr, ptr_ty) =
+                create_new_variable(ctx, builder, &var_name, &fn_ret_ty, custom_types.clone())?;
 
             // Set the value of the newly created variable
             create_ir_from_parsed_token(
@@ -2113,8 +2141,7 @@ where
                 allocation_list,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
-            custom_types.clone(),
-
+                custom_types.clone(),
             )?;
 
             match ptr_ty {
@@ -2167,8 +2194,7 @@ where
                 allocation_list,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
-            custom_types.clone(),
-
+                custom_types.clone(),
             )?;
 
             if let Some((cond_ptr, cond_ty, ty_disc)) = created_var {
@@ -2245,7 +2271,13 @@ where
                     let llvm_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
 
                     // Create a new temp variable according to the struct's field type
-                    let (ptr, ty) = create_new_variable(ctx, builder, field_name, field_ty, custom_types.clone())?;
+                    let (ptr, ty) = create_new_variable(
+                        ctx,
+                        builder,
+                        field_name,
+                        field_ty,
+                        custom_types.clone(),
+                    )?;
 
                     // Parse the value for the temp var
                     create_ir_from_parsed_token(
@@ -2357,15 +2389,31 @@ where
                             panic!()
                         }
                     } else {
-                        create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty, custom_types.clone())?
+                        create_new_variable(
+                            ctx,
+                            builder,
+                            "rhs_tmp",
+                            &comparison_hand_side_ty,
+                            custom_types.clone(),
+                        )?
                     };
 
                     ((lhs_ptr, lhs_ty), rhs_ptrs)
                 } else {
-                    let temp_lhs =
-                        create_new_variable(ctx, builder, "lhs_tmp", &comparison_hand_side_ty, custom_types.clone())?;
-                    let temp_rhs =
-                        create_new_variable(ctx, builder, "rhs_tmp", &comparison_hand_side_ty, custom_types.clone())?;
+                    let temp_lhs = create_new_variable(
+                        ctx,
+                        builder,
+                        "lhs_tmp",
+                        &comparison_hand_side_ty,
+                        custom_types.clone(),
+                    )?;
+                    let temp_rhs = create_new_variable(
+                        ctx,
+                        builder,
+                        "rhs_tmp",
+                        &comparison_hand_side_ty,
+                        custom_types.clone(),
+                    )?;
 
                     create_ir_from_parsed_token(
                         ctx,
@@ -2474,8 +2522,13 @@ where
 
                 Some((cmp_ptr, cmp_ty, TypeDiscriminant::Boolean))
             } else {
-                let (v_ptr, v_ty) =
-                    create_new_variable(ctx, builder, "cmp_result", &TypeDiscriminant::Boolean, custom_types.clone())?;
+                let (v_ptr, v_ty) = create_new_variable(
+                    ctx,
+                    builder,
+                    "cmp_result",
+                    &TypeDiscriminant::Boolean,
+                    custom_types.clone(),
+                )?;
 
                 builder.build_store(v_ptr, cmp_result)?;
 
@@ -2643,7 +2696,8 @@ where
                                     "idx_array_val_deref",
                                 )?;
 
-                                let array_val_ty = ty_to_llvm_ty(ctx, &inner_ty, custom_types.clone())?;
+                                let array_val_ty =
+                                    ty_to_llvm_ty(ctx, &inner_ty, custom_types.clone())?;
 
                                 let ptr = builder
                                     .build_alloca(array_val_ty, "temp_deref_var")
@@ -2675,8 +2729,13 @@ where
                     let mut array_values: Vec<BasicValueEnum> = Vec::new();
 
                     for val in values {
-                        let (temp_var_ptr, temp_var_ty) =
-                            create_new_variable(ctx, builder, "array_temp_val_var", &inner_ty, custom_types.clone())?;
+                        let (temp_var_ptr, temp_var_ty) = create_new_variable(
+                            ctx,
+                            builder,
+                            "array_temp_val_var",
+                            &inner_ty,
+                            custom_types.clone(),
+                        )?;
 
                         create_ir_from_parsed_token(
                             ctx,
@@ -2778,7 +2837,8 @@ where
             let (ptr, ty) = if let Some(((ptr, ty), _)) = variable_map.get(&var_name) {
                 (*ptr, *ty)
             } else {
-                let (ptr, ty) = create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
+                let (ptr, ty) =
+                    create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
 
                 variable_map.insert(var_name.clone(), ((ptr, ty), var_type.clone()));
 
@@ -2843,7 +2903,7 @@ where
                             &mut field_stack_iter,
                             &struct_def,
                             (*ptr, *ty),
-                                custom_types.clone()
+                            custom_types.clone(),
                         )?;
 
                         pre_allocation_list.push((
@@ -2892,7 +2952,7 @@ where
                 &mut VecDeque::new(),
                 None,
                 parsed_functions.clone(),
-                    custom_types.clone(),
+                custom_types.clone(),
             )?;
 
             if let Some((var_ptr, var_ty, ty_disc)) = created_var {
@@ -3698,7 +3758,7 @@ where
                         }
                     },
                     arg_ty,
-                    custom_types.clone()
+                    custom_types.clone(),
                 )?;
 
                 pre_allocation_list.push((arg.clone(), ptr, ty, arg_ty.clone()));
@@ -3707,7 +3767,13 @@ where
             // Check if the returned value of the function is Void
             // If it is, then we dont need to allocate anything
             if fn_sig.return_type != TypeDiscriminant::Void {
-                let (ptr, ty) = create_new_variable(ctx, builder, "", &fn_sig.return_type, custom_types.clone())?;
+                let (ptr, ty) = create_new_variable(
+                    ctx,
+                    builder,
+                    "",
+                    &fn_sig.return_type,
+                    custom_types.clone(),
+                )?;
 
                 pre_allocation_list.push((parsed_token.clone(), ptr, ty, fn_sig.return_type));
             }
@@ -3798,7 +3864,7 @@ where
                     this_fn_block,
                     this_fn,
                     parsed_functions.clone(),
-                    custom_types.clone()
+                    custom_types.clone(),
                 )?;
 
                 pre_allocation_list.extend(body_pre_allocs);
@@ -3815,7 +3881,7 @@ where
                     this_fn_block,
                     this_fn,
                     parsed_functions.clone(),
-                    custom_types.clone()
+                    custom_types.clone(),
                 )?;
 
                 pre_allocation_list.extend(body_pre_allocs);
@@ -3895,7 +3961,7 @@ fn access_nested_field<'a>(
                     field_stack_iter,
                     struct_def,
                     (struct_field_ptr, pointee_ty.into()),
-                    custom_types.clone()
+                    custom_types.clone(),
                 )
             } else {
                 let pointee_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
@@ -3934,13 +4000,14 @@ fn create_new_variable<'a, 'b>(
 pub fn create_fn_type_from_ty_disc(
     ctx: &Context,
     fn_sig: FunctionSignature,
-    custom_types: Arc<IndexMap<String, CustomType>>
+    custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<FunctionType<'_>> {
     // Make an exception if the return type is Void
     if fn_sig.return_type == TypeDiscriminant::Void {
-        return Ok(ctx
-            .void_type()
-            .fn_type(&get_args_from_sig(ctx, fn_sig.clone(), custom_types.clone())?, false));
+        return Ok(ctx.void_type().fn_type(
+            &get_args_from_sig(ctx, fn_sig.clone(), custom_types.clone())?,
+            false,
+        ));
     }
 
     // Create an LLVM type
@@ -4157,7 +4224,11 @@ pub fn allocate_string<'a>(
 }
 
 /// Converts a `TypeDiscriminant` into a `BasicTypeEnum` which can be used by inkwell.
-pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant, custom_types: Arc<IndexMap<String, CustomType>>) -> Result<BasicTypeEnum<'a>> {
+pub fn ty_to_llvm_ty<'a>(
+    ctx: &'a Context,
+    ty: &TypeDiscriminant,
+    custom_types: Arc<IndexMap<String, CustomType>>,
+) -> Result<BasicTypeEnum<'a>> {
     let bool_type = ctx.bool_type();
     let i8_type = ctx.i8_type();
     let i16_type = ctx.i16_type();
@@ -4191,7 +4262,10 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant, custom_types: 
                 let op_struct_type = ctx.opaque_struct_type(struct_name);
 
                 // Set the body of the struct
-                op_struct_type.set_body(&struct_field_to_ty_list(ctx, struct_inner, custom_types.clone())?, false);
+                op_struct_type.set_body(
+                    &struct_field_to_ty_list(ctx, struct_inner, custom_types.clone())?,
+                    false,
+                );
 
                 // Return the type of the struct
                 op_struct_type
@@ -4206,7 +4280,11 @@ pub fn ty_to_llvm_ty<'a>(ctx: &'a Context, ty: &TypeDiscriminant, custom_types: 
         TypeDiscriminant::F16 => BasicTypeEnum::FloatType(f16_type),
         TypeDiscriminant::U16 => BasicTypeEnum::IntType(i16_type),
         TypeDiscriminant::Array((token_ty, len)) => {
-            let llvm_ty = ty_to_llvm_ty(ctx, &token_to_ty(*(*token_ty).clone(), custom_types.clone())?, custom_types.clone())?;
+            let llvm_ty = ty_to_llvm_ty(
+                ctx,
+                &token_to_ty(*(*token_ty).clone(), custom_types.clone())?,
+                custom_types.clone(),
+            )?;
 
             let array_ty = llvm_ty.array_type(*len as u32);
 
@@ -4253,7 +4331,7 @@ pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataT
 pub fn struct_field_to_ty_list<'a>(
     ctx: &'a Context,
     struct_inner: &IndexMap<String, TypeDiscriminant>,
-    custom_types: Arc<IndexMap<String, CustomType>>
+    custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<Vec<BasicTypeEnum<'a>>> {
     // Allocate a new list for storing the types
     let mut type_list = Vec::new();

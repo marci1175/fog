@@ -76,7 +76,7 @@ impl CompilerState {
             target_path,
             optimization,
             imported_functions,
-            parser_state.custom_items()
+            parser_state.custom_items(),
         )?;
 
         Ok(())

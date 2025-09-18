@@ -7,7 +7,7 @@ use crate::app::{
         parser::find_closing_comma,
         types::{FunctionArgumentIdentifier, If},
     },
-    type_system::type_system::{token_to_ty, OrdMap, Type, TypeDiscriminant},
+    type_system::type_system::{OrdMap, Type, TypeDiscriminant, token_to_ty},
 };
 
 use super::{

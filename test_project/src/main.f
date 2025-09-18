@@ -14,7 +14,7 @@ function main(): int {
 
     array<array<alma, 2>, 2> marci = {{alma { nev: "idared", szin: 69 }, alma { nev: "idared", szin: 69 }}, {alma { nev: "idared", szin: 69 }, alma { nev: "idared", szin: 69 }}};
 
-    alma idared = marci[2];
+    alma idared = marci[2][0];
 
     printf("The name is %s", idared.nev);
 
