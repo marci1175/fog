@@ -11,11 +11,11 @@ struct alma {
 }
 
 function main(): int {
-    array<uintsmall, 10> buf = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    
-    scanf("%s", buf);
+    array<alma, 3> kosar = {alma { nev: "granny", szin: 1}, alma { nev: "finom", szin: 2}, alma { nev: "szhar", szin: 3}};
 
-    printf("Hello %i", buf[2]);
+    alma szhar_alma = kosar[2];
+
+    printf("Alma neve: %s", szhar_alma.nev);
     
     return 0;
 }
