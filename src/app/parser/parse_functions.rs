@@ -273,7 +273,6 @@ pub fn create_signature_table(
 
                     // Store the idx
                     let mut token_idx = 0;
-
                     // Parse the struct fields
                     while token_idx < struct_slice.len() {
                         // Get the current token
@@ -281,8 +280,10 @@ pub fn create_signature_table(
 
                         // Pattern match the syntax
                         if let Token::Identifier(field_name) = current_token {
-                            if let Token::Colon = struct_slice[token_idx + 1] {
-                                if let Some(Token::Comma) = struct_slice.get(token_idx + 3) {
+                            if let Token::Colon = &struct_slice[token_idx + 1] {
+                                // Check if there is a comma present in the field, if not check if its the end of the struct definition
+                                // Or the user did not put a comma at the end of the last field definition. This is expected
+                                if Some(&Token::Comma) == struct_slice.get(token_idx + 3) || token_idx + 3 == struct_slice.len() {
                                     if let Token::TypeDefinition(field_type) =
                                         &struct_slice[token_idx + 2]
                                     {
@@ -457,7 +458,7 @@ pub fn parse_functions(
                 unparsed_functions.clone(),
                 unparsed_function.function_sig.clone(),
                 function_imports.clone(),
-                custom_items.clone(),
+                dbg!(custom_items.clone()),
                 unparsed_function.function_sig.args.clone(),
             )?,
         };

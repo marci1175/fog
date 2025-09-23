@@ -1,9 +1,5 @@
-
 use crate::app::{
-    parser::{
-        error::SyntaxError,
-        parser::find_closing_angled_bracket_char,
-    },
+    parser::{error::SyntaxError, parser::find_closing_angled_bracket_char},
     type_system::type_system::{Type, TypeDiscriminant},
 };
 
@@ -306,9 +302,9 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                 let comma_count = list_type.iter().filter(|char| **char == ',').count();
 
                 let comma_pos = list_type.len()
-                - list_type.iter().rev().position(|char| *char == ',').ok_or(
-                    ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
-                )?;
+                    - list_type.iter().rev().position(|char| *char == ',').ok_or(
+                        ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
+                    )?;
 
                 let array_len = list_type[comma_pos..]
                     .iter()
@@ -322,13 +318,12 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                     .trim()
                     .to_string();
 
-                let inner_token = tokenize(dbg!(&list_type_def))?;
-                dbg!(&array_len);
+                let inner_token = tokenize(&list_type_def)?;
 
                 if inner_token.len() > 1 {
                     return Err(ParserError::InvalidArrayTypeDefinition(inner_token));
                 }
-                
+
                 token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
                     Box::new(inner_token[0].clone()),
                     array_len.parse::<usize>().map_err(|_| {

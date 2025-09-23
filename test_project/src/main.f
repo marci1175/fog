@@ -10,12 +10,20 @@ struct alma {
     szin: int,
 }
 
+struct osztaly {
+    diakok: array<string, 3>
+}
+
 function main(): int {
-    array<alma, 3> kosar = {alma { nev: "granny", szin: 1}, alma { nev: "finom", szin: 2}, alma { nev: "szhar", szin: 3}};
+    # array<alma, 3> kosar = {alma { nev: "granny", szin: 1}, alma { nev: "finom", szin: 2}, alma { nev: "szhar", szin: 3}};
 
-    alma szhar_alma = kosar[2];
+    # string szhar_alma = kosar[2].nev;
 
-    printf("Alma neve: %s", szhar_alma.nev);
+    # printf("Alma neve: %s", szhar_alma);
+
+    osztaly c_oszt = osztaly { diakok: {"marci", "marci", "marci" } };
     
+    string marci = c_oszt.diakok[0]; 
+
     return 0;
 }

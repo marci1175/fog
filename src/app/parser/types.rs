@@ -119,6 +119,8 @@ impl TryInto<MathematicalSymbol> for Token {
 pub enum ParsedToken {
     NewVariable(String, TypeDiscriminant, Box<ParsedToken>),
 
+    /// This is the token for referencing a variable. This is the lowest layer of referencing a variable.
+    /// Other tokens might wrap it like an `ArrayIndexing`. This is the last token which points to the variable.
     VariableReference(VariableReference),
 
     Literal(Type),
@@ -167,14 +169,17 @@ pub enum ControlFlowType {
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
+/// VariableReferences are the lowest layer of referencing a variable. This is enum wrapped in a ParsedToken, consult the documentation of that enum variant for more information.ű
+/// VariableReferences should not contain themselves as they are only for referencing a variable, there is not much more to it.
 pub enum VariableReference {
     /// Variable name, (struct_name, struct_type)
-    /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
     StructFieldReference(
         StructFieldReference,
         (String, OrdMap<String, TypeDiscriminant>),
     ),
+    /// Variable name
     BasicReference(String),
+    /// Variable name, array values
     ArrayReference(String, Vec<ParsedToken>),
 }
 

@@ -20,7 +20,7 @@ pub struct ParserState {
 
     function_table: IndexMap<String, FunctionDefinition>,
 
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
 
     imported_functions: Arc<HashMap<String, FunctionSignature>>,
 }
@@ -30,10 +30,10 @@ impl ParserState {
         println!("Creating signature table...");
         // Create user defined signature table
         // Create an import table which can be used later by other functions
-        let (unparsed_functions, source_imports, mut external_imports, custom_items) =
+        let (unparsed_functions, source_imports, mut external_imports, custom_types) =
             create_signature_table(self.tokens.clone())?;
 
-        let custom_items: Arc<IndexMap<String, CustomType>> = Arc::new(custom_items);
+        let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
 
         // Extend the list of external imports with source imports aka imports from Fog source files.
         external_imports.extend(
@@ -52,10 +52,10 @@ impl ParserState {
         self.function_table = parse_functions(
             Arc::new(unparsed_functions),
             imports.clone(),
-            custom_items.clone(),
+            custom_types.clone(),
         )?;
 
-        self.custom_items = custom_items.clone();
+        self.custom_types = custom_types.clone();
 
         Ok(())
     }
@@ -65,7 +65,7 @@ impl ParserState {
             tokens,
             function_table: IndexMap::new(),
             imported_functions: Arc::new(HashMap::new()),
-            custom_items: Arc::new(IndexMap::new()),
+            custom_types: Arc::new(IndexMap::new()),
         }
     }
 
@@ -77,8 +77,8 @@ impl ParserState {
         &self.imported_functions
     }
 
-    pub fn custom_items(&self) -> Arc<IndexMap<String, CustomType>> {
-        self.custom_items.clone()
+    pub fn custom_types(&self) -> Arc<IndexMap<String, CustomType>> {
+        self.custom_types.clone()
     }
 }
 
@@ -164,7 +164,9 @@ pub fn find_closing_angled_bracket_char(
         }
     }
 
-    Err(ParserError::SyntaxError(super::error::SyntaxError::LeftOpenAngledBrackets))
+    Err(ParserError::SyntaxError(
+        super::error::SyntaxError::LeftOpenAngledBrackets,
+    ))
 }
 
 /// This is a top level implementation for `parse_token_as_value`
@@ -175,7 +177,7 @@ pub fn parse_value(
     // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
     mut desired_variable_type: Option<TypeDiscriminant>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(ParsedToken, usize, TypeDiscriminant)> {
     let mut token_idx = 0;
 
@@ -233,7 +235,7 @@ pub fn parse_value(
                                 &mut token_idx,
                                 next_token,
                                 function_imports.clone(),
-                                custom_items.clone(),
+                                custom_types.clone(),
                             )?
                             .0,
                         ),
@@ -257,7 +259,7 @@ pub fn parse_value(
                     &mut token_idx,
                     current_token,
                     function_imports.clone(),
-                    custom_items.clone(),
+                    custom_types.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -279,7 +281,7 @@ pub fn parse_value(
                     &mut token_idx,
                     current_token,
                     function_imports.clone(),
-                    custom_items.clone(),
+                    custom_types.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -298,7 +300,7 @@ pub fn parse_value(
                     &mut token_idx,
                     current_token,
                     function_imports.clone(),
-                    custom_items.clone(),
+                    custom_types.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -332,7 +334,7 @@ pub fn parse_value(
                         &mut token_idx,
                         next_token,
                         function_imports.clone(),
-                        custom_items.clone(),
+                        custom_types.clone(),
                     )?;
 
                     parsed_token = Some(ParsedToken::Comparison(
@@ -353,7 +355,7 @@ pub fn parse_value(
                     &mut token_idx,
                     current_token,
                     function_imports.clone(),
-                    custom_items.clone(),
+                    custom_types.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -383,6 +385,23 @@ pub fn parse_value(
                 }
             }
 
+            Token::Dot => {
+                if let Some(last_parsed_token) = parsed_token.clone() {
+                    match last_parsed_token {
+                        ParsedToken::ArrayIndexing(array_ref, index) => {
+                            dbg!(parsed_token);
+                            dbg!(current_token);
+
+                            resolve_variable_ref(variable_scope, custom_types, &*array_ref);
+
+                            unimplemented!()
+                        }
+
+                        _ => panic!(),
+                    }
+                }
+            }
+
             _ => {
                 dbg!(parsed_token);
                 dbg!(current_token);
@@ -401,6 +420,57 @@ pub fn parse_value(
             super::error::SyntaxError::InvalidStatementDefinition,
         ))?,
     ))
+}
+
+pub fn resolve_variable_ref(
+    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
+    variable_ref: &ParsedToken,
+) {
+    match variable_ref {
+        ParsedToken::ArrayIndexing(array, _index) => {
+            resolve_variable_ref(variable_scope, custom_types, array);
+        }
+        ParsedToken::VariableReference(var_ref_type) => match var_ref_type {
+            super::types::VariableReference::StructFieldReference(
+                struct_field_reference,
+                struct_reference,
+            ) => {
+                let mut struct_field_stack = struct_field_reference.clone();
+
+                struct_field_stack.field_stack.pop();
+
+                let field_ty = access_nested_field_ty(&mut struct_field_stack, &struct_reference);
+            }
+            super::types::VariableReference::BasicReference(variable_name) => {
+                variable_scope.get(variable_name);
+            }
+            super::types::VariableReference::ArrayReference(_, parsed_tokens) => {}
+        },
+        _ => {}
+    }
+}
+
+/// Fetches the type of the struct's field referenced by the reference stack.
+pub fn access_nested_field_ty(
+    struct_field_stack: &mut StructFieldReference,
+    struct_reference: &(String, OrdMap<String, TypeDiscriminant>),
+) -> TypeDiscriminant {
+    let struct_field_stack = struct_field_stack.field_stack.iter();
+
+    let mut current_struct_fields = struct_reference.clone();
+
+    for struct_field in struct_field_stack {
+        let field_ty = current_struct_fields.1.get(struct_field).unwrap();
+
+        if let TypeDiscriminant::Struct((_struct_name, struct_fields)) = &field_ty {
+            current_struct_fields = (_struct_name.clone(), struct_fields.clone());
+        } else {
+            return field_ty.clone();
+        }
+    }
+
+    return TypeDiscriminant::Struct(current_struct_fields);
 }
 
 /// Parses the next token as something that holds a value:
@@ -746,7 +816,7 @@ pub fn parse_token_as_value(
                     (parsed_token, desired_variable_type)
                 }
             } else if let Some(custom_type) = custom_types.get(identifier) {
-                match custom_type {
+                match dbg!(custom_type) {
                     CustomType::Struct((_struct_name, struct_inner)) => {
                         if let Some(Token::OpenBraces) = tokens.get(*token_idx + 1) {
                             let closing_idx = find_closing_braces(&tokens[*token_idx + 2..], 0)?;
@@ -927,7 +997,7 @@ pub fn init_struct(
     this_struct_field: &IndexMap<String, TypeDiscriminant>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
 ) -> anyhow::Result<(usize, ParsedToken)> {
     let mut struct_field_init_map: IndexMap<String, Box<ParsedToken>> = IndexMap::new();
@@ -935,11 +1005,13 @@ pub fn init_struct(
     let mut idx: usize = 0;
 
     let mut nth_field: usize = 0;
-
+    
     while idx < struct_slice.len() {
         if let Some(Token::Identifier(field_name)) = struct_slice.get(idx) {
             if let Some(Token::Colon) = struct_slice.get(idx + 1) {
                 let selected_tokens = &struct_slice[idx + 2..];
+                
+                dbg!(&this_struct_field);
 
                 let (parsed_value, jump_idx, _) = parse_value(
                     selected_tokens,
@@ -954,7 +1026,7 @@ pub fn init_struct(
                             .clone(),
                     ),
                     function_imports.clone(),
-                    custom_items.clone(),
+                    custom_types.clone(),
                 )?;
 
                 idx += jump_idx + 2;

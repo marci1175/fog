@@ -199,7 +199,11 @@ pub fn import_user_lib_functions<'a>(
         let mut args = Vec::new();
 
         for (_, arg_ty) in import_sig.args.arguments_list.iter() {
-            let argument_sig = ty_enum_to_metadata_ty_enum(arg_ty.clone().to_basic_type_enum(ctx, custom_types.clone())?);
+            let argument_sig = ty_enum_to_metadata_ty_enum(
+                arg_ty
+                    .clone()
+                    .to_basic_type_enum(ctx, custom_types.clone())?,
+            );
 
             args.push(argument_sig);
         }
@@ -597,7 +601,7 @@ where
                             if let Some(((ptr, ty), ty_disc)) =
                                 variable_map.get(main_struct_var_name)
                             {
-                                let (f_ptr, f_ty, ty_disc) = access_nested_field(
+                                let (f_ptr, f_ty, ty_disc) = access_nested_field_ptr(
                                     ctx,
                                     builder,
                                     &mut field_stack_iter,
@@ -718,7 +722,7 @@ where
                             if let Some(((ptr, ty), ty_disc)) =
                                 variable_map.get(main_struct_var_name)
                             {
-                                let (f_ptr, f_ty, ty_disc) = access_nested_field(
+                                let (f_ptr, f_ty, ty_disc) = access_nested_field_ptr(
                                     ctx,
                                     builder,
                                     &mut field_stack_iter,
@@ -2032,7 +2036,7 @@ where
 
                     if let Some(main_struct_var_name) = field_stack_iter.next() {
                         if let Some(((ptr, ty), ty_disc)) = variable_map.get(main_struct_var_name) {
-                            let (f_ptr, f_ty, ty_disc) = access_nested_field(
+                            let (f_ptr, f_ty, ty_disc) = access_nested_field_ptr(
                                 ctx,
                                 builder,
                                 &mut field_stack_iter,
@@ -2088,6 +2092,8 @@ where
                     let ((ptr, ptr_ty), ty_disc) = variable_map.get(&var_name).unwrap().clone();
 
                     for decay_elem in &parsed_tokens {}
+
+                    todo!()
                 }
             }
 
@@ -2872,7 +2878,7 @@ where
 
                 if let Some(main_struct_var_name) = field_stack_iter.next() {
                     if let Some(((ptr, ty), _)) = variable_map.get(main_struct_var_name) {
-                        let (f_ptr, f_ty, ty_disc) = access_nested_field(
+                        let (f_ptr, f_ty, ty_disc) = access_nested_field_ptr(
                             ctx,
                             builder,
                             &mut field_stack_iter,
@@ -3911,7 +3917,7 @@ where
     Ok(pre_allocation_list)
 }
 
-fn access_nested_field<'a>(
+fn access_nested_field_ptr<'a>(
     ctx: &'a Context,
     builder: &'a Builder,
     field_stack_iter: &mut Iter<String>,
@@ -3930,7 +3936,7 @@ fn access_nested_field<'a>(
                     "deref_nested_strct",
                 )?;
 
-                access_nested_field(
+                access_nested_field_ptr(
                     ctx,
                     builder,
                     field_stack_iter,
