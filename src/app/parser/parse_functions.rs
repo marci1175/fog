@@ -283,7 +283,9 @@ pub fn create_signature_table(
                             if let Token::Colon = &struct_slice[token_idx + 1] {
                                 // Check if there is a comma present in the field, if not check if its the end of the struct definition
                                 // Or the user did not put a comma at the end of the last field definition. This is expected
-                                if Some(&Token::Comma) == struct_slice.get(token_idx + 3) || token_idx + 3 == struct_slice.len() {
+                                if Some(&Token::Comma) == struct_slice.get(token_idx + 3)
+                                    || token_idx + 3 == struct_slice.len()
+                                {
                                     if let Token::TypeDefinition(field_type) =
                                         &struct_slice[token_idx + 2]
                                     {

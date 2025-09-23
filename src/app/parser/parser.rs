@@ -1,6 +1,6 @@
-use crate::app::{parser::types::VariableReference, type_system::type_system::{
-    token_to_ty, unparsed_const_to_typed_literal_unsafe, OrdMap, TypeDiscriminant
-}};
+use crate::app::type_system::type_system::{
+        OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe,
+    };
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, sync::Arc};
@@ -392,7 +392,8 @@ pub fn parse_value(
                             dbg!(parsed_token);
                             dbg!(current_token);
 
-                            let indexed_array_inner_ty = resolve_variable_ref(variable_scope, custom_types, &*array_ref)?;
+                            let indexed_array_inner_ty =
+                                resolve_variable_ref(variable_scope, custom_types, &array_ref)?;
 
                             unimplemented!()
                         }
@@ -440,7 +441,7 @@ pub fn resolve_variable_ref(
 
                 struct_field_stack.field_stack.pop();
 
-                let field_ty = access_nested_field_ty(&mut struct_field_stack, &struct_reference);
+                let field_ty = access_nested_field_ty(&mut struct_field_stack, struct_reference);
 
                 Ok(field_ty)
             }
@@ -452,9 +453,12 @@ pub fn resolve_variable_ref(
 
                 if let TypeDiscriminant::Array((inner_ty, len)) = array_type_discriminant {
                     token_to_ty(*inner_ty, custom_types.clone())
-                }
-                else {
-                    return Err(ParserError::InternalTypeMismatch(var_ref_type.clone(), array_type_discriminant).into());
+                } else {
+                    Err(ParserError::InternalTypeMismatch(
+                        var_ref_type.clone(),
+                        array_type_discriminant,
+                    )
+                    .into())
                 }
             }
         },
@@ -483,7 +487,7 @@ pub fn access_nested_field_ty(
         }
     }
 
-    return TypeDiscriminant::Struct(current_struct_fields);
+    TypeDiscriminant::Struct(current_struct_fields)
 }
 
 /// Parses the next token as something that holds a value:
@@ -1018,12 +1022,12 @@ pub fn init_struct(
     let mut idx: usize = 0;
 
     let mut nth_field: usize = 0;
-    
+
     while idx < struct_slice.len() {
         if let Some(Token::Identifier(field_name)) = struct_slice.get(idx) {
             if let Some(Token::Colon) = struct_slice.get(idx + 1) {
                 let selected_tokens = &struct_slice[idx + 2..];
-                
+
                 dbg!(&this_struct_field);
 
                 let (parsed_value, jump_idx, _) = parse_value(
