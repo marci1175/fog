@@ -1,6 +1,6 @@
-use crate::app::type_system::type_system::{
-    OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe,
-};
+use crate::app::{parser::types::VariableReference, type_system::type_system::{
+    token_to_ty, unparsed_const_to_typed_literal_unsafe, OrdMap, TypeDiscriminant
+}};
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, sync::Arc};
@@ -388,11 +388,11 @@ pub fn parse_value(
             Token::Dot => {
                 if let Some(last_parsed_token) = parsed_token.clone() {
                     match last_parsed_token {
-                        ParsedToken::ArrayIndexing(array_ref, index) => {
+                        ParsedToken::ArrayIndexing(array_ref, _index) => {
                             dbg!(parsed_token);
                             dbg!(current_token);
 
-                            resolve_variable_ref(variable_scope, custom_types, &*array_ref);
+                            let indexed_array_inner_ty = resolve_variable_ref(variable_scope, custom_types, &*array_ref)?;
 
                             unimplemented!()
                         }
@@ -426,10 +426,10 @@ pub fn resolve_variable_ref(
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     variable_ref: &ParsedToken,
-) {
+) -> Result<TypeDiscriminant> {
     match variable_ref {
         ParsedToken::ArrayIndexing(array, _index) => {
-            resolve_variable_ref(variable_scope, custom_types, array);
+            resolve_variable_ref(variable_scope, custom_types, array)
         }
         ParsedToken::VariableReference(var_ref_type) => match var_ref_type {
             super::types::VariableReference::StructFieldReference(
@@ -441,13 +441,26 @@ pub fn resolve_variable_ref(
                 struct_field_stack.field_stack.pop();
 
                 let field_ty = access_nested_field_ty(&mut struct_field_stack, &struct_reference);
+
+                Ok(field_ty)
             }
             super::types::VariableReference::BasicReference(variable_name) => {
-                variable_scope.get(variable_name);
+                Ok(variable_scope.get(variable_name).unwrap().clone())
             }
-            super::types::VariableReference::ArrayReference(_, parsed_tokens) => {}
+            super::types::VariableReference::ArrayReference(variable_name, parsed_tokens) => {
+                let array_type_discriminant = variable_scope.get(variable_name).unwrap().clone();
+
+                if let TypeDiscriminant::Array((inner_ty, len)) = array_type_discriminant {
+                    token_to_ty(*inner_ty, custom_types.clone())
+                }
+                else {
+                    return Err(ParserError::InternalTypeMismatch(var_ref_type.clone(), array_type_discriminant).into());
+                }
+            }
         },
-        _ => {}
+        _ => {
+            unimplemented!()
+        }
     }
 }
 

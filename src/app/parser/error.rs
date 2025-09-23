@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::app::type_system::type_system::{OrdMap, TypeDiscriminant};
+use crate::app::{parser::types::VariableReference, type_system::type_system::{OrdMap, TypeDiscriminant}};
 
 use super::types::{FunctionSignature, Token};
 
@@ -44,6 +44,10 @@ pub enum ParserError {
         "[INTERNAL ERROR] A value could not be parsed because a desired type discriminant wasn't set, required for type checking something with known type."
     )]
     InternalDesiredTypeMissing,
+    #[error(
+        "[INTERNAL ERROR] Variable `{0}` has the inner type of `{1}` which is invalid."
+    )]
+    InternalTypeMismatch(VariableReference, TypeDiscriminant),
     #[error("A function with this name/signature has been imported already.")]
     DuplicateSignatureImports,
     #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
