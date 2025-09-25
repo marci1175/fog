@@ -2,7 +2,6 @@ use fog::ApplicationError;
 use fog::app::cli_parser::cli_parser::{CliCommand, parse_args};
 use fog::app::codegen::error::CodeGenError;
 use fog::app::compiler::compiler::{CompilerConfig, CompilerState};
-pub use fog_lib;
 use std::env;
 use std::{fs, path::PathBuf};
 use strum::{EnumMessage, VariantArray};
