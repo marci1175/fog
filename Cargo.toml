@@ -25,3 +25,6 @@ ordered-float = "5.0.0"
 
 [profile.dev]
 panic = "abort"
+
+[profile.release]
+opt-level = 3

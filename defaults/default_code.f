@@ -1,7 +1,7 @@
-import puts(msg: string): int;
+import printf(input: string, ...): int;
 
 function main(): int {
-    puts("Hello World!");
-    
+    printf("Hello world!\n");
+
     return 0;
 }
