@@ -804,9 +804,7 @@ fn handle_variable(
             Ok(handling_continuation)
         } else {
             // Throw an error
-            Err(
-                ParserError::SyntaxError(super::error::SyntaxError::AsRequiresTypeDef).into(),
-            )
+            Err(ParserError::SyntaxError(super::error::SyntaxError::AsRequiresTypeDef).into())
         }
     } else if let Some(Token::Dot) = tokens.get(*token_idx) {
         if let TypeDiscriminant::Struct(struct_def) = variable_type {
