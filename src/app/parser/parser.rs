@@ -234,7 +234,7 @@ pub fn parse_value(
                                 tokens,
                                 function_signatures.clone(),
                                 variable_scope,
-                                dbg!(desired_variable_type.clone()),
+                                desired_variable_type.clone(),
                                 &mut token_idx,
                                 next_token,
                                 function_imports.clone(),
@@ -388,24 +388,6 @@ pub fn parse_value(
                 }
             }
 
-            // Token::Dot => {
-            //     if let Some(last_parsed_token) = parsed_token.clone() {
-            //         match last_parsed_token {
-            //             ParsedToken::ArrayIndexing(array_ref, _index) => {
-            //                 dbg!(parsed_token);
-            //                 dbg!(current_token);
-
-            //                 let indexed_array_inner_ty =
-            //                     resolve_variable_ref(variable_scope, custom_types, &array_ref)?;
-
-            //                 unimplemented!()
-            //             }
-
-            //             _ => panic!(),
-            //         }
-            //     }
-            // }
-
             _ => {
                 dbg!(parsed_token);
                 dbg!(current_token);
@@ -424,73 +406,6 @@ pub fn parse_value(
             super::error::SyntaxError::InvalidStatementDefinition,
         ))?,
     ))
-}
-
-pub fn resolve_variable_ref(
-    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
-    variable_ref: &ParsedToken,
-) -> Result<TypeDiscriminant> {
-    match variable_ref {
-        ParsedToken::ArrayIndexing(array, _index) => {
-            resolve_variable_ref(variable_scope, custom_types, array)
-        }
-        ParsedToken::VariableReference(var_ref_type) => match var_ref_type {
-            super::types::VariableReference::StructFieldReference(
-                struct_field_reference,
-                struct_reference,
-            ) => {
-                let mut struct_field_stack = struct_field_reference.clone();
-
-                struct_field_stack.field_stack.pop();
-
-                let field_ty = access_nested_field_ty(&mut struct_field_stack, struct_reference);
-
-                Ok(field_ty)
-            }
-            super::types::VariableReference::BasicReference(variable_name) => {
-                Ok(variable_scope.get(variable_name).unwrap().clone())
-            }
-            super::types::VariableReference::ArrayReference(variable_name, parsed_tokens) => {
-                let array_type_discriminant = variable_scope.get(variable_name).unwrap().clone();
-
-                if let TypeDiscriminant::Array((inner_ty, len)) = array_type_discriminant {
-                    token_to_ty(*inner_ty, custom_types.clone())
-                } else {
-                    Err(ParserError::InternalTypeMismatch(
-                        var_ref_type.clone(),
-                        array_type_discriminant,
-                    )
-                    .into())
-                }
-            }
-        },
-        _ => {
-            unimplemented!()
-        }
-    }
-}
-
-/// Fetches the type of the struct's field referenced by the reference stack.
-pub fn access_nested_field_ty(
-    struct_field_stack: &mut StructFieldReference,
-    struct_reference: &(String, OrdMap<String, TypeDiscriminant>),
-) -> TypeDiscriminant {
-    let struct_field_stack = struct_field_stack.field_stack.iter();
-
-    let mut current_struct_fields = struct_reference.clone();
-
-    for struct_field in struct_field_stack {
-        let field_ty = current_struct_fields.1.get(struct_field).unwrap();
-
-        if let TypeDiscriminant::Struct((_struct_name, struct_fields)) = &field_ty {
-            current_struct_fields = (_struct_name.clone(), struct_fields.clone());
-        } else {
-            return field_ty.clone();
-        }
-    }
-
-    TypeDiscriminant::Struct(current_struct_fields)
 }
 
 /// Parses the next token as something that holds a value:
@@ -711,7 +626,7 @@ pub fn parse_token_as_value(
                     (parsed_token, desired_variable_type)
                 }
             } else if let Some(custom_type) = custom_types.get(identifier) {
-                match dbg!(custom_type) {
+                match custom_type {
                     CustomType::Struct((_struct_name, struct_inner)) => {
                         if let Some(Token::OpenBraces) = tokens.get(*token_idx + 1) {
                             let closing_idx = find_closing_braces(&tokens[*token_idx + 2..], 0)?;
@@ -857,7 +772,7 @@ fn handle_variable(
     // Last parsed token's type
     variable_type: TypeDiscriminant,
 ) -> Result<(ParsedToken, TypeDiscriminant), anyhow::Error> {
-    if let Some(Token::As) = dbg!(tokens.get(*token_idx)) {
+    if let Some(Token::As) = tokens.get(*token_idx) {
         if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
             let desired_variable_type =
                 desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
@@ -971,7 +886,7 @@ fn handle_variable(
         if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
             *token_idx += 1;
 
-            if let TypeDiscriminant::Array((inner_ty, len)) = variable_type.clone() {
+            if let TypeDiscriminant::Array((inner_ty, _len)) = variable_type.clone() {
                 let handling_continuation = handle_variable(
                     tokens,
                     function_signatures,
@@ -982,10 +897,10 @@ fn handle_variable(
                     custom_types,
                     identifier,
                     VariableReference::ArrayReference(identifier.clone(), Box::new(value.clone())),
-                    dbg!(ParsedToken::ArrayIndexing(
+                    ParsedToken::ArrayIndexing(
                         Box::new(ParsedToken::VariableReference(variable_reference.clone())),
                         Box::new(value),
-                    )),
+                    ),
                     token_to_ty(*inner_ty.clone(), custom_types.clone())?,
                 )?;
 
@@ -1066,8 +981,6 @@ pub fn init_struct(
         if let Some(Token::Identifier(field_name)) = struct_slice.get(idx) {
             if let Some(Token::Colon) = struct_slice.get(idx + 1) {
                 let selected_tokens = &struct_slice[idx + 2..];
-
-                dbg!(&this_struct_field);
 
                 let (parsed_value, jump_idx, _) = parse_value(
                     selected_tokens,

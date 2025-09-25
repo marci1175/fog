@@ -408,7 +408,7 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    for token in dbg!(parsed_tokens) {
+    for token in parsed_tokens {
         create_ir_from_parsed_token(
             ctx,
             module,
@@ -1764,7 +1764,7 @@ where
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (arg_ident, (arg_token, arg_type)) in dbg!(fn_argument_list.iter()) {
+            for (arg_ident, (arg_token, arg_type)) in fn_argument_list.iter() {
                 let fn_name_clone = fn_name.clone();
                 let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =

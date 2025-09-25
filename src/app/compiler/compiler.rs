@@ -48,7 +48,7 @@ impl CompilerState {
         println!("Tokenizing...");
         let tokens = tokenize(file_contents)?;
 
-        let mut parser_state = ParserState::new(dbg!(tokens));
+        let mut parser_state = ParserState::new(tokens);
 
         println!("Parsing Tokens...");
         parser_state.parse_tokens()?;

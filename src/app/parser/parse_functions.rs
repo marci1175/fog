@@ -460,7 +460,7 @@ pub fn parse_functions(
                 unparsed_functions.clone(),
                 unparsed_function.function_sig.clone(),
                 function_imports.clone(),
-                dbg!(custom_items.clone()),
+                custom_items.clone(),
                 unparsed_function.function_sig.args.clone(),
             )?,
         };
@@ -992,8 +992,6 @@ pub fn parse_function_call_args(
         while tokens_idx < args_list_len {
             let token = &tokens[tokens_idx];
 
-            dbg!(&token);
-
             if *token == Token::OpenParentheses {
                 bracket_counter += 1;
             } else if *token == Token::CloseParentheses {
@@ -1049,8 +1047,6 @@ pub fn parse_function_call_args(
                         (parsed_argument, arg_ty),
                     );
                 }
-
-                dbg!(&arguments);
 
                 continue;
             } else {
