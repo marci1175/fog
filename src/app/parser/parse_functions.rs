@@ -1305,16 +1305,18 @@ pub fn parse_variable_expression(
                                     todo!()
                                 }
                                 VariableReference::BasicReference(array_var_name) => {
-                                    VariableReference::ArrayReference(array_var_name, vec![value])
+                                    VariableReference::ArrayReference(
+                                        array_var_name,
+                                        Box::new(value),
+                                    )
                                 }
                                 VariableReference::ArrayReference(
                                     array_var_name,
-                                    mut parsed_tokens,
-                                ) => {
-                                    parsed_tokens.push(value);
-
-                                    VariableReference::ArrayReference(array_var_name, parsed_tokens)
-                                }
+                                    parsed_tokens,
+                                ) => VariableReference::ArrayReference(
+                                    array_var_name,
+                                    Box::new(value),
+                                ),
                             },
                             parsed_tokens,
                         )?;

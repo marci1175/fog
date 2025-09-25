@@ -408,7 +408,7 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    for token in parsed_tokens {
+    for token in dbg!(parsed_tokens) {
         create_ir_from_parsed_token(
             ctx,
             module,
@@ -2091,7 +2091,7 @@ where
                 ) => {
                     let ((ptr, ptr_ty), ty_disc) = variable_map.get(&var_name).unwrap().clone();
 
-                    for decay_elem in &parsed_tokens {}
+                    // for decay_elem in &parsed_tokens {}
 
                     todo!()
                 }

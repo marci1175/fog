@@ -20,10 +20,17 @@ function main(): int {
     # string szhar_alma = kosar[2].nev;
 
     # printf("Alma neve: %s", szhar_alma);
-
-    osztaly c_oszt = osztaly { diakok: {"marci", "marci", "marci" } };
     
-    string marci = c_oszt.diakok[0]; 
+    array<array<osztaly, 2>, 4> osztalyok = {
+        {osztaly { diakok: {"marci30", "marci", "marci" } }, osztaly { diakok: {"marci30", "marci", "marci" } }},
+        {osztaly { diakok: {"marci30", "marci", "marci" } }, osztaly { diakok: {"marci30", "marci", "marci" } }},
+        {osztaly { diakok: {"marci30", "marci", "marci" } }, osztaly { diakok: {"marci30", "marci", "marci" } }},
+        {osztaly { diakok: {"marci30", "marci", "marci" } }, osztaly { diakok: {"marci30", "marci", "marci" } }}
+    };
+
+    printf("Hello");
+
+    printf("Termeszporkolt: %s", osztalyok[1][1].diakok[0]);
 
     return 0;
 }

@@ -1,6 +1,9 @@
-use crate::app::type_system::type_system::{
+use crate::app::{
+    parser::types::VariableReference,
+    type_system::type_system::{
         OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe,
-    };
+    },
+};
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::{collections::HashMap, sync::Arc};
@@ -385,23 +388,23 @@ pub fn parse_value(
                 }
             }
 
-            Token::Dot => {
-                if let Some(last_parsed_token) = parsed_token.clone() {
-                    match last_parsed_token {
-                        ParsedToken::ArrayIndexing(array_ref, _index) => {
-                            dbg!(parsed_token);
-                            dbg!(current_token);
+            // Token::Dot => {
+            //     if let Some(last_parsed_token) = parsed_token.clone() {
+            //         match last_parsed_token {
+            //             ParsedToken::ArrayIndexing(array_ref, _index) => {
+            //                 dbg!(parsed_token);
+            //                 dbg!(current_token);
 
-                            let indexed_array_inner_ty =
-                                resolve_variable_ref(variable_scope, custom_types, &array_ref)?;
+            //                 let indexed_array_inner_ty =
+            //                     resolve_variable_ref(variable_scope, custom_types, &array_ref)?;
 
-                            unimplemented!()
-                        }
+            //                 unimplemented!()
+            //             }
 
-                        _ => panic!(),
-                    }
-                }
-            }
+            //             _ => panic!(),
+            //         }
+            //     }
+            // }
 
             _ => {
                 dbg!(parsed_token);
@@ -641,145 +644,20 @@ pub fn parse_token_as_value(
 
                 *token_idx += 1;
 
-                if let Some(Token::As) = tokens.get(*token_idx) {
-                    if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
-                        let desired_variable_type =
-                            desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
+                let (parsed_token, variable_type) = handle_variable(
+                    tokens,
+                    &function_signatures,
+                    variable_scope,
+                    desired_variable_type,
+                    token_idx,
+                    &function_imports,
+                    &custom_types,
+                    identifier,
+                    basic_reference,
+                    parsed_token,
+                    variable_type.clone(),
+                )?;
 
-                        if *target_type != desired_variable_type {
-                            return Err(ParserError::TypeError(
-                                target_type.clone(),
-                                desired_variable_type,
-                            )
-                            .into());
-                        }
-
-                        // Increment the token index after checking target type
-                        *token_idx += 2;
-
-                        // Return the type casted literal
-                        return Ok((
-                            ParsedToken::TypeCast(Box::new(parsed_token), target_type.clone()),
-                            target_type.clone(),
-                        ));
-                    } else {
-                        // Throw an error
-                        return Err(ParserError::SyntaxError(
-                            super::error::SyntaxError::AsRequiresTypeDef,
-                        )
-                        .into());
-                    }
-                } else if let Some(Token::Dot) = tokens.get(*token_idx) {
-                    if let TypeDiscriminant::Struct(struct_def) = variable_type {
-                        *token_idx += 1;
-
-                        let mut struct_field_reference =
-                            StructFieldReference::from_single_entry(identifier.clone());
-
-                        let field_type = get_struct_field_stack(
-                            tokens,
-                            token_idx,
-                            identifier,
-                            &struct_def,
-                            &mut struct_field_reference,
-                        )?;
-
-                        if let Some(Token::As) = tokens.get(*token_idx) {
-                            if let Some(Token::TypeDefinition(target_type)) =
-                                tokens.get(*token_idx + 1)
-                            {
-                                *token_idx += 2;
-
-                                return Ok((
-                                    ParsedToken::TypeCast(
-                                        Box::new(ParsedToken::VariableReference(
-                                            super::types::VariableReference::StructFieldReference(
-                                                struct_field_reference,
-                                                struct_def.clone(),
-                                            ),
-                                        )),
-                                        target_type.clone(),
-                                    ),
-                                    target_type.clone(),
-                                ));
-                            } else {
-                                // Throw an error
-                                return Err(ParserError::SyntaxError(
-                                    super::error::SyntaxError::AsRequiresTypeDef,
-                                )
-                                .into());
-                            }
-                        }
-
-                        return Ok((
-                            ParsedToken::VariableReference(
-                                super::types::VariableReference::StructFieldReference(
-                                    struct_field_reference,
-                                    struct_def.clone(),
-                                ),
-                            ),
-                            field_type,
-                        ));
-                    } else {
-                        return Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(
-                            identifier.clone(),
-                        ))
-                        .into());
-                    }
-                } else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
-                    if !matches!(variable_type, TypeDiscriminant::Array(_)) {
-                        return Err(
-                            ParserError::TypeMismatchNonIndexable(variable_type.clone()).into()
-                        );
-                    }
-
-                    *token_idx += 1;
-
-                    let square_brackets_break_idx = tokens
-                        .iter()
-                        .skip(*token_idx)
-                        .position(|token| *token == Token::CloseSquareBrackets)
-                        .ok_or({
-                            ParserError::SyntaxError(
-                                crate::app::parser::error::SyntaxError::LeftOpenSquareBrackets,
-                            )
-                        })?
-                        + *token_idx;
-
-                    // Check HERE
-                    let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
-
-                    let (value, idx_jmp, _) = parse_value(
-                        selected_tokens,
-                        function_signatures,
-                        variable_scope,
-                        Some(TypeDiscriminant::U32),
-                        function_imports,
-                        custom_types.clone(),
-                    )?;
-
-                    *token_idx += idx_jmp;
-
-                    if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
-                        *token_idx += 1;
-
-                        if let TypeDiscriminant::Array((inner_ty, len)) = variable_type.clone() {
-                            return Ok((
-                                ParsedToken::ArrayIndexing(
-                                    Box::new(ParsedToken::VariableReference(
-                                        basic_reference.clone(),
-                                    )),
-                                    Box::new(value),
-                                ),
-                                token_to_ty(*inner_ty.clone(), custom_types.clone())?,
-                            ));
-                        }
-                    } else {
-                        return Err(
-                            ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into(),
-                        );
-                    }
-                }
                 // Return the VariableReference
                 (parsed_token, variable_type.clone())
             } else if let Some(function_sig) = function_imports.get(identifier) {
@@ -962,6 +840,167 @@ pub fn parse_token_as_value(
     };
 
     Ok(inner_value)
+}
+
+fn handle_variable(
+    tokens: &[Token],
+    function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    desired_variable_type: Option<TypeDiscriminant>,
+    token_idx: &mut usize,
+    function_imports: &Arc<HashMap<String, FunctionSignature>>,
+    custom_types: &Arc<IndexMap<String, CustomType>>,
+    identifier: &String,
+    variable_reference: super::types::VariableReference,
+    // Last parsed token parsed
+    parsed_token: ParsedToken,
+    // Last parsed token's type
+    variable_type: TypeDiscriminant,
+) -> Result<(ParsedToken, TypeDiscriminant), anyhow::Error> {
+    if let Some(Token::As) = dbg!(tokens.get(*token_idx)) {
+        if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
+            let desired_variable_type =
+                desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
+
+            if *target_type != desired_variable_type {
+                return Err(
+                    ParserError::TypeError(target_type.clone(), desired_variable_type).into(),
+                );
+            }
+
+            // Increment the token index after checking target type
+            *token_idx += 2;
+
+            let handling_continuation = handle_variable(
+                tokens,
+                function_signatures,
+                variable_scope,
+                Some(desired_variable_type),
+                token_idx,
+                function_imports,
+                custom_types,
+                identifier,
+                variable_reference,
+                ParsedToken::TypeCast(Box::new(parsed_token), target_type.clone()),
+                target_type.clone(),
+            )?;
+
+            // Return the type casted literal
+            Ok(handling_continuation)
+        } else {
+            // Throw an error
+            Err(
+                ParserError::SyntaxError(super::error::SyntaxError::AsRequiresTypeDef).into(),
+            )
+        }
+    } else if let Some(Token::Dot) = tokens.get(*token_idx) {
+        if let TypeDiscriminant::Struct(struct_def) = variable_type {
+            *token_idx += 1;
+
+            let mut struct_field_reference =
+                StructFieldReference::from_single_entry(identifier.clone());
+
+            let field_type = get_struct_field_stack(
+                tokens,
+                token_idx,
+                identifier,
+                &struct_def,
+                &mut struct_field_reference,
+            )?;
+
+            let handling_continuation = handle_variable(
+                tokens,
+                function_signatures,
+                variable_scope,
+                desired_variable_type,
+                token_idx,
+                function_imports,
+                custom_types,
+                identifier,
+                super::types::VariableReference::StructFieldReference(
+                    struct_field_reference.clone(),
+                    struct_def.clone(),
+                ),
+                ParsedToken::VariableReference(
+                    super::types::VariableReference::StructFieldReference(
+                        struct_field_reference,
+                        struct_def.clone(),
+                    ),
+                ),
+                field_type,
+            )?;
+
+            return Ok(handling_continuation);
+        } else {
+            return Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(
+                identifier.clone(),
+            ))
+            .into());
+        }
+    } else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
+        if !matches!(variable_type, TypeDiscriminant::Array(_)) {
+            return Err(ParserError::TypeMismatchNonIndexable(variable_type.clone()).into());
+        }
+
+        *token_idx += 1;
+
+        let square_brackets_break_idx = tokens
+            .iter()
+            .skip(*token_idx)
+            .position(|token| *token == Token::CloseSquareBrackets)
+            .ok_or({
+                ParserError::SyntaxError(
+                    crate::app::parser::error::SyntaxError::LeftOpenSquareBrackets,
+                )
+            })?
+            + *token_idx;
+
+        let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
+
+        let (value, idx_jmp, _) = parse_value(
+            selected_tokens,
+            function_signatures.clone(),
+            variable_scope,
+            Some(TypeDiscriminant::U32),
+            function_imports.clone(),
+            custom_types.clone(),
+        )?;
+
+        *token_idx += idx_jmp;
+
+        if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
+            *token_idx += 1;
+
+            if let TypeDiscriminant::Array((inner_ty, len)) = variable_type.clone() {
+                let handling_continuation = handle_variable(
+                    tokens,
+                    function_signatures,
+                    variable_scope,
+                    desired_variable_type,
+                    token_idx,
+                    function_imports,
+                    custom_types,
+                    identifier,
+                    VariableReference::ArrayReference(identifier.clone(), Box::new(value.clone())),
+                    dbg!(ParsedToken::ArrayIndexing(
+                        Box::new(ParsedToken::VariableReference(variable_reference.clone())),
+                        Box::new(value),
+                    )),
+                    token_to_ty(*inner_ty.clone(), custom_types.clone())?,
+                )?;
+
+                return Ok(handling_continuation);
+            } else {
+                unreachable!(
+                    "This is unreachable as there is a type check at the beginning of this code."
+                );
+            }
+        } else {
+            return Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into());
+        }
+    } else {
+        Ok((parsed_token.clone(), variable_type.clone()))
+    }
 }
 
 fn get_struct_field_stack(

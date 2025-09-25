@@ -179,8 +179,8 @@ pub enum VariableReference {
     ),
     /// Variable name
     BasicReference(String),
-    /// Variable name, array values
-    ArrayReference(String, Vec<ParsedToken>),
+    /// Variable name, array index
+    ArrayReference(String, Box<ParsedToken>),
 }
 
 /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
