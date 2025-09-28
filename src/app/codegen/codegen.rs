@@ -2087,13 +2087,75 @@ where
                 }
                 crate::app::parser::types::VariableReference::ArrayReference(
                     var_name,
-                    parsed_tokens,
+                    indexing,
                 ) => {
                     let ((ptr, ptr_ty), ty_disc) = variable_map.get(&var_name).unwrap().clone();
 
-                    // for decay_elem in &parsed_tokens {}
+                    let index_val = create_ir_from_parsed_token(
+                        ctx,
+                        module,
+                        builder,
+                        *indexing,
+                        variable_map,
+                        None,
+                        fn_ret_ty.clone(),
+                        this_fn_block,
+                        this_fn,
+                        allocation_list,
+                        is_loop_body.clone(),
+                        parsed_functions.clone(),
+                        custom_types.clone(),
+                    )?;
 
-                    todo!()
+                    if let Some((idx_ptr, idx_ptr_val, idx_ty_disc)) = index_val {
+                        let idx = builder.build_load(
+                            ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
+                            idx_ptr,
+                            "array_idx_val",
+                        )?;
+
+                        let gep_ptr = unsafe {
+                            builder.build_gep(
+                                ty_disc
+                                    .clone()
+                                    .to_basic_type_enum(ctx, custom_types.clone())?,
+                                ptr,
+                                &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
+                                "array_idx_elem",
+                            )?
+                        };
+
+                        if let TypeDiscriminant::Array((inner_ty, len)) = &ty_disc {
+                            let array_inner_type =
+                                token_to_ty((**inner_ty).clone(), custom_types.clone())?;
+
+                            create_ir_from_parsed_token(
+                                ctx,
+                                module,
+                                builder,
+                                *value,
+                                variable_map,
+                                Some((
+                                    "".to_string(),
+                                    (
+                                        gep_ptr,
+                                        array_inner_type
+                                            .clone()
+                                            .to_basic_type_enum(ctx, custom_types.clone())?
+                                            .into(),
+                                    ),
+                                    array_inner_type.clone(),
+                                )),
+                                fn_ret_ty,
+                                this_fn_block,
+                                this_fn,
+                                allocation_list,
+                                is_loop_body.clone(),
+                                parsed_functions.clone(),
+                                custom_types.clone(),
+                            )?;
+                        }
+                    }
                 }
             }
 
