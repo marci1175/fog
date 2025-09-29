@@ -242,36 +242,33 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                 string_buffer.clear();
             }
 
-            if let Some(next_char) = char_list.get(char_idx + 1) {
-                if *next_char == ':' {
+            if let Some(next_char) = char_list.get(char_idx + 1)
+                && *next_char == ':' {
                     token_list.push(Token::DoubleColon);
 
                     char_idx += 2;
                     continue;
                 }
-            }
 
             token_list.push(Token::Colon);
         } else if current_char == '&' {
-            if let Some(next_char) = char_list.get(char_idx + 1) {
-                if *next_char == '&' {
+            if let Some(next_char) = char_list.get(char_idx + 1)
+                && *next_char == '&' {
                     token_list.push(Token::And);
 
                     char_idx += 2;
                     continue;
                 }
-            }
 
             token_list.push(Token::BitAnd);
         } else if current_char == '!' {
-            if let Some(next_char) = char_list.get(char_idx + 1) {
-                if *next_char == '=' {
+            if let Some(next_char) = char_list.get(char_idx + 1)
+                && *next_char == '=' {
                     token_list.push(Token::NotEqual);
 
                     char_idx += 2;
                     continue;
                 }
-            }
 
             token_list.push(Token::Not);
         } else if current_char == '>' {
@@ -356,14 +353,13 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
 
             token_list.push(Token::Smaller);
         } else if current_char == '|' {
-            if let Some(next_char) = char_list.get(char_idx + 1) {
-                if *next_char == '|' {
+            if let Some(next_char) = char_list.get(char_idx + 1)
+                && *next_char == '|' {
                     token_list.push(Token::Or);
 
                     char_idx += 2;
                     continue;
                 }
-            }
 
             token_list.push(Token::BitOr);
         } else if current_char == ' ' && !string_buffer.trim().is_empty() {

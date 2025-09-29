@@ -237,7 +237,7 @@ impl TypeDiscriminant {
         self,
         ctx: &Context,
         custom_types: Arc<IndexMap<String, CustomType>>,
-    ) -> anyhow::Result<BasicTypeEnum> {
+    ) -> anyhow::Result<BasicTypeEnum<'_>> {
         let basic_ty = match self {
             TypeDiscriminant::I64 => BasicTypeEnum::IntType(ctx.i64_type()),
             TypeDiscriminant::F64 => BasicTypeEnum::FloatType(ctx.f64_type()),

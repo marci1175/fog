@@ -17,8 +17,7 @@ use super::{
     },
     tokenizer::tokenize,
     types::{
-        CustomType, FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken,
-        StructFieldReference, Token, UnparsedFunctionDefinition, VariableReference,
+        CustomType, FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token, UnparsedFunctionDefinition, VariableReference,
     },
 };
 
@@ -170,8 +169,8 @@ pub fn create_signature_table(
                     token_idx += bracket_close_idx + 3;
 
                     if tokens[token_idx + 1] == Token::Colon {
-                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone() {
-                            if tokens[token_idx + 3] == Token::SemiColon {
+                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone()
+                            && tokens[token_idx + 3] == Token::SemiColon {
                                 if external_imports.get(&identifier).is_some()
                                     || function_list.get(&identifier).is_some()
                                 {
@@ -183,19 +182,18 @@ pub fn create_signature_table(
 
                                 continue;
                             }
-                        }
                     } else {
                         return Err(SyntaxError::ImportUnspecifiedReturnType.into());
                     }
                 }
                 // This is matched when you are importing a named declaration from another fog source file
-                else if Token::DoubleColon == tokens[token_idx + 2] {
-                    if let Token::Identifier(lib_function_name) = &tokens[token_idx + 3] {
+                else if Token::DoubleColon == tokens[token_idx + 2]
+                    && let Token::Identifier(lib_function_name) = &tokens[token_idx + 3] {
                         let imported_file_query = imported_file_list.get(&identifier);
 
-                        if Token::SemiColon == tokens[token_idx + 4] {
-                            if let Some(imported_file) = imported_file_query {
-                                if let Some(function_def) = imported_file.get(lib_function_name) {
+                        if Token::SemiColon == tokens[token_idx + 4]
+                            && let Some(imported_file) = imported_file_query
+                                && let Some(function_def) = imported_file.get(lib_function_name) {
                                     // Store the imported function
                                     source_imports
                                         .insert(lib_function_name.clone(), function_def.clone());
@@ -206,10 +204,7 @@ pub fn create_signature_table(
                                     // Continue looping over the top-level tokens
                                     continue;
                                 }
-                            }
-                        }
                     }
-                }
             } else if let Token::Literal(Type::String(path_to_linked_file)) =
                 tokens[token_idx + 1].clone()
             {
@@ -279,8 +274,8 @@ pub fn create_signature_table(
                         let current_token = &struct_slice[token_idx];
 
                         // Pattern match the syntax
-                        if let Token::Identifier(field_name) = current_token {
-                            if let Token::Colon = &struct_slice[token_idx + 1] {
+                        if let Token::Identifier(field_name) = current_token
+                            && let Token::Colon = &struct_slice[token_idx + 1] {
                                 // Check if there is a comma present in the field, if not check if its the end of the struct definition
                                 // Or the user did not put a comma at the end of the last field definition. This is expected
                                 if Some(&Token::Comma) == struct_slice.get(token_idx + 3)
@@ -300,8 +295,7 @@ pub fn create_signature_table(
                                         continue;
                                     } else if let Token::Identifier(custom_type) =
                                         &struct_slice[token_idx + 2]
-                                    {
-                                        if let Some(custom_item) = custom_items.get(custom_type) {
+                                        && let Some(custom_item) = custom_items.get(custom_type) {
                                             match custom_item {
                                                 CustomType::Struct(struct_def) => {
                                                     struct_fields.insert(
@@ -322,10 +316,8 @@ pub fn create_signature_table(
                                             // Continue looping through, if the pattern doesnt match the syntax return an error
                                             continue;
                                         }
-                                    }
                                 }
                             }
-                        }
 
                         // Return a syntax error
                         return Err(ParserError::SyntaxError(
@@ -648,8 +640,8 @@ fn parse_function_block(
                             let variable_type = TypeDiscriminant::Struct(struct_instance.clone());
                             token_idx += 1;
 
-                            if let Some(Token::Identifier(var_name)) = tokens.get(token_idx) {
-                                if let Some(Token::SetValue) = tokens.get(token_idx + 1) {
+                            if let Some(Token::Identifier(var_name)) = tokens.get(token_idx)
+                                && let Some(Token::SetValue) = tokens.get(token_idx + 1) {
                                     let line_break_idx = tokens
                                     .iter()
                                     .skip(token_idx)
@@ -685,7 +677,6 @@ fn parse_function_block(
                                         TypeDiscriminant::Struct(struct_instance.clone()),
                                     );
                                 }
-                            }
                         }
                         CustomType::Enum(enum_types) => {}
                     };

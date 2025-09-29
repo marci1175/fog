@@ -195,18 +195,17 @@ pub fn parse_value(
             )
         })?;
 
-        if let Some(next_token) = tokens.get(token_idx + 1) {
-            if *next_token == Token::Equal
+        if let Some(next_token) = tokens.get(token_idx + 1)
+            && (*next_token == Token::Equal
                 || *next_token == Token::NotEqual
                 || *next_token == Token::EqBigger
                 || *next_token == Token::EqSmaller
                 || *next_token == Token::Bigger
-                || *next_token == Token::Smaller
+                || *next_token == Token::Smaller)
             {
                 // TODO: Check why am I doing this.....
                 desired_variable_type = None;
             }
-        }
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
         match current_token {
@@ -843,12 +842,12 @@ fn handle_variable(
                 field_type,
             )?;
 
-            return Ok(handling_continuation);
+            Ok(handling_continuation)
         } else {
-            return Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(
+            Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(
                 identifier.clone(),
             ))
-            .into());
+            .into())
         }
     } else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
         if !matches!(variable_type, TypeDiscriminant::Array(_)) {
@@ -902,14 +901,14 @@ fn handle_variable(
                     token_to_ty(*inner_ty.clone(), custom_types.clone())?,
                 )?;
 
-                return Ok(handling_continuation);
+                Ok(handling_continuation)
             } else {
                 unreachable!(
                     "This is unreachable as there is a type check at the beginning of this code."
                 );
             }
         } else {
-            return Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into());
+            Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into())
         }
     } else {
         Ok((parsed_token.clone(), variable_type.clone()))
@@ -948,13 +947,13 @@ fn get_struct_field_stack(
 
             struct_field_stack.field_stack.push(field_name.clone());
 
-            return Ok(field_type.clone());
+            Ok(field_type.clone())
         } else {
-            return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
+            Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
                 field_name.clone(),
                 (struct_name.clone(), struct_fields.clone()),
             ))
-            .into());
+            .into())
         }
     } else {
         Err(ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference).into())
@@ -976,8 +975,8 @@ pub fn init_struct(
     let mut nth_field: usize = 0;
 
     while idx < struct_slice.len() {
-        if let Some(Token::Identifier(field_name)) = struct_slice.get(idx) {
-            if let Some(Token::Colon) = struct_slice.get(idx + 1) {
+        if let Some(Token::Identifier(field_name)) = struct_slice.get(idx)
+            && let Some(Token::Colon) = struct_slice.get(idx + 1) {
                 let selected_tokens = &struct_slice[idx + 2..];
 
                 let (parsed_value, jump_idx, _) = parse_value(
@@ -1010,7 +1009,6 @@ pub fn init_struct(
                     continue;
                 }
             }
-        }
 
         return Err(ParserError::SyntaxError(SyntaxError::InvalidStructFieldDefinition).into());
     }

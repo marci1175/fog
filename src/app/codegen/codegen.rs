@@ -2,7 +2,6 @@ use core::panic;
 use std::{
     collections::{HashMap, VecDeque},
     io::ErrorKind,
-    ops::Deref,
     path::PathBuf,
     rc::Rc,
     slice::Iter,
@@ -552,8 +551,8 @@ where
 
             // Check if the function has been called with an allocation table
             let (ptr, ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
-                if let Some((current_token, ptr, ptr_ty, ty)) = allocation_list.front().cloned() {
-                    if current_token == parsed_token.clone() {
+                if let Some((current_token, ptr, ptr_ty, ty)) = allocation_list.front().cloned()
+                    && current_token == parsed_token.clone() {
                         if ty == var_type {
                             was_preallocated = true;
 
@@ -564,7 +563,6 @@ where
                             return Err(CodeGenError::InvalidPreAllocation.into());
                         }
                     }
-                }
 
                 let (ptr, ptr_ty) =
                     create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
@@ -1578,12 +1576,10 @@ where
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         dbg!(allocation_list.front().cloned())
-                    {
-                        if *lhs == current_token {
+                        && *lhs == current_token {
                             allocation_list.pop_front();
                             return Ok(Some((ptr, ptr_ty, disc)));
                         }
-                    }
 
                     create_ir_from_parsed_token(
                         ctx,
@@ -1607,12 +1603,10 @@ where
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         allocation_list.front().cloned()
-                    {
-                        if *rhs == current_token {
+                        && *rhs == current_token {
                             allocation_list.pop_front();
                             return Ok(Some((ptr, ptr_ty, disc)));
                         }
-                    }
 
                     create_ir_from_parsed_token(
                         ctx,
@@ -2091,8 +2085,8 @@ where
                     ) => {
                         let mut field_stack_iter = struct_field_reference.field_stack.iter();
 
-                        if let Some(main_struct_var_name) = field_stack_iter.next() {
-                            if let Some(((ptr, ty), ty_disc)) =
+                        if let Some(main_struct_var_name) = field_stack_iter.next()
+                            && let Some(((ptr, ty), ty_disc)) =
                                 variable_map.get(main_struct_var_name)
                             {
                                 let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
@@ -2120,7 +2114,6 @@ where
                                     custom_types.clone(),
                                 )?;
                             }
-                        }
                     }
                     crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
                         let variable_query = variable_map.get(&variable_name);
@@ -2833,8 +2826,8 @@ where
             }
         }
         ParsedToken::ArrayInitialization(values, inner_ty) => {
-            if let Some((_, (ptr, _ptr_ty), ty_disc)) = variable_reference {
-                if let TypeDiscriminant::Array((_, len)) = ty_disc {
+            if let Some((_, (ptr, _ptr_ty), ty_disc)) = variable_reference
+                && let TypeDiscriminant::Array((_, len)) = ty_disc {
                     let mut array_values: Vec<BasicValueEnum> = Vec::new();
 
                     for val in values {
@@ -2898,7 +2891,6 @@ where
                         builder.build_store(elem_ptr, *val)?;
                     }
                 }
-            }
 
             None
         }
@@ -2979,16 +2971,16 @@ where
 
         let gep_ptr = unsafe {
             builder.build_gep(
-                pointee_ty.clone(),
+                pointee_ty,
                 array_ptr,
                 &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
                 "array_idx_elem_ptr",
             )?
         };
 
-        return Ok((gep_ptr, pointee_ty.into(), ty_disc.clone()));
+        Ok((gep_ptr, pointee_ty.into(), ty_disc.clone()))
     } else {
-        return Err(CodeGenError::InvalidIndexValue(*index.clone()).into());
+        Err(CodeGenError::InvalidIndexValue(*index.clone()).into())
     }
 }
 
@@ -4220,7 +4212,7 @@ pub fn get_args_from_sig(
     ctx: &Context,
     fn_sig: FunctionSignature,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<Vec<BasicMetadataTypeEnum>> {
+) -> Result<Vec<BasicMetadataTypeEnum<'_>>> {
     // Create an iterator over the function's arguments
     let fn_args = fn_sig.args.arguments_list.iter();
 
