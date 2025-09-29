@@ -583,7 +583,7 @@ fn parse_function_block(
                         &mut variable_scope,
                         variable_type,
                         custom_items.clone(),
-                        variable_ref,
+                        ParsedToken::VariableReference(variable_ref),
                         &mut parsed_tokens,
                     )?;
                 } else if let Some(function_sig) = function_signatures.get(ident_name) {
@@ -881,7 +881,7 @@ fn set_value_math_expr(
     parsed_tokens: &mut Vec<ParsedToken>,
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     variable_type: TypeDiscriminant,
-    variable_reference: VariableReference,
+    variable_reference: ParsedToken,
     math_symbol: MathematicalSymbol,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
@@ -904,9 +904,9 @@ fn set_value_math_expr(
     )?;
 
     parsed_tokens.push(ParsedToken::SetValue(
-        variable_reference.clone(),
+        Box::new(variable_reference.clone()),
         Box::new(ParsedToken::MathematicalExpression(
-            Box::new(ParsedToken::VariableReference(variable_reference)),
+            Box::new(variable_reference),
             math_symbol,
             Box::new(next_token),
         )),
@@ -1073,7 +1073,7 @@ pub fn parse_variable_expression(
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     variable_type: TypeDiscriminant,
     custom_types: Arc<IndexMap<String, CustomType>>,
-    mut variable_ref: VariableReference,
+    variable_ref: ParsedToken,
     parsed_tokens: &mut Vec<ParsedToken>,
 ) -> anyhow::Result<()> {
     match &current_token {
@@ -1103,7 +1103,7 @@ pub fn parse_variable_expression(
             )?;
 
             parsed_tokens.push(ParsedToken::SetValue(
-                variable_ref.clone(),
+                Box::new(variable_ref.clone()),
                 Box::new(parsed_token),
             ));
         }
@@ -1183,26 +1183,26 @@ pub fn parse_variable_expression(
             if let TypeDiscriminant::Struct((struct_name, struct_def)) = variable_type {
                 if let Some(Token::Identifier(field_name)) = field_name {
                     if let Some(struct_field_ty) = struct_def.get(field_name) {
-                        match &mut variable_ref {
-                            VariableReference::StructFieldReference(
-                                struct_field_reference,
-                                struct_ty,
-                            ) => {
-                                struct_field_reference
-                                    .field_stack
-                                    .push(field_name.to_string());
-                            }
-                            VariableReference::BasicReference(basic_ref) => {
-                                variable_ref = VariableReference::StructFieldReference(
-                                    StructFieldReference::from_stack(vec![
-                                        basic_ref.to_string(),
-                                        field_name.to_string(),
-                                    ]),
-                                    (struct_name, struct_def.clone()),
-                                );
-                            }
-                            VariableReference::ArrayReference(_, parsed_tokens) => todo!(),
-                        }
+                        // match &mut variable_ref {
+                        //     VariableReference::StructFieldReference(
+                        //         struct_field_reference,
+                        //         struct_ty,
+                        //     ) => {
+                        //         struct_field_reference
+                        //             .field_stack
+                        //             .push(field_name.to_string());
+                        //     }
+                        //     VariableReference::BasicReference(basic_ref) => {
+                        //         variable_ref = VariableReference::StructFieldReference(
+                        //             StructFieldReference::from_stack(vec![
+                        //                 basic_ref.to_string(),
+                        //                 field_name.to_string(),
+                        //             ]),
+                        //             (struct_name, struct_def.clone()),
+                        //         );
+                        //     }
+                        //     VariableReference::ArrayReference(_, parsed_tokens) => todo!(),
+                        // }
 
                         *token_idx += 2;
 
@@ -1215,6 +1215,7 @@ pub fn parse_variable_expression(
                             variable_scope,
                             struct_field_ty.clone(),
                             custom_types,
+                            // This is not going to work we may need to rework struct references.
                             variable_ref,
                             parsed_tokens,
                         )?;
@@ -1247,6 +1248,8 @@ pub fn parse_variable_expression(
             }
         }
         Token::OpenSquareBrackets => {
+            dbg!(&variable_type);
+
             if let TypeDiscriminant::Array((inner_token, len)) = variable_type {
                 let inner_type = token_to_ty(*inner_token, custom_types.clone())?;
 
@@ -1274,12 +1277,14 @@ pub fn parse_variable_expression(
                     custom_types.clone(),
                 )?;
 
+                dbg!(&value);
+
                 *token_idx += idx_jmp;
 
                 if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
                     *token_idx += 1;
 
-                    if dbg!(tokens.get(*token_idx)) != Some(&Token::SemiColon) {
+                    if tokens.get(*token_idx) != Some(&Token::SemiColon) {
                         let next_token = tokens.get(*token_idx).ok_or(ParserError::SyntaxError(
                             SyntaxError::InvalidStatementDefinition,
                         ))?;
@@ -1293,34 +1298,19 @@ pub fn parse_variable_expression(
                             variable_scope,
                             inner_type,
                             custom_types,
-                            match variable_ref.clone() {
-                                VariableReference::StructFieldReference(
-                                    struct_field_reference,
-                                    (struct_name, struct_access_path),
-                                ) => {
-                                    todo!()
-                                }
-                                VariableReference::BasicReference(array_var_name) => {
-                                    VariableReference::ArrayReference(
-                                        array_var_name,
-                                        Box::new(value),
-                                    )
-                                }
-                                VariableReference::ArrayReference(
-                                    array_var_name,
-                                    parsed_tokens,
-                                ) => VariableReference::ArrayReference(
-                                    array_var_name,
-                                    Box::new(value),
-                                ),
-                            },
+                            ParsedToken::ArrayIndexing(
+                                Box::new(variable_ref.clone()),
+                                Box::new(value.clone()),
+                            ),
                             parsed_tokens,
                         )?;
                     } else {
-                        parsed_tokens.push(ParsedToken::ArrayIndexing(
-                            Box::new(ParsedToken::VariableReference(variable_ref.clone())),
-                            Box::new(value),
-                        ));
+                        // parsed_tokens.push(ParsedToken::ArrayIndexing(
+                        //     Box::new(ParsedToken::VariableReference(variable_ref.clone())),
+                        //     Box::new(value),
+                        // ));
+
+                        panic!("Check later if this is a syntax check.")
                     }
                 } else {
                     return Err(

@@ -2,6 +2,7 @@ use core::panic;
 use std::{
     collections::{HashMap, VecDeque},
     io::ErrorKind,
+    ops::Deref,
     path::PathBuf,
     rc::Rc,
     slice::Iter,
@@ -408,6 +409,16 @@ fn create_ir_from_parsed_token_list<'main, 'ctx>(
 where
     'main: 'ctx,
 {
+    #[cfg(debug_assertions)]
+    {
+        use std::fs;
+
+        fs::write(
+            format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")),
+            format!("{:#?}", parsed_tokens.clone()),
+        )?;
+    }
+
     for token in parsed_tokens {
         create_ir_from_parsed_token(
             ctx,
@@ -586,6 +597,7 @@ where
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
             None
         }
+        // In one of the cases we are returning a value in the other we are returning a pointer to the value please check it
         ParsedToken::VariableReference(var_ref_variant) => {
             if let Some((var_ref_name, (var_ref_ptr, var_ref_ty), var_ref_ty_disc)) =
                 variable_reference
@@ -601,7 +613,7 @@ where
                             if let Some(((ptr, ty), ty_disc)) =
                                 variable_map.get(main_struct_var_name)
                             {
-                                let (f_ptr, f_ty, ty_disc) = access_nested_field_ptr(
+                                let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
                                     ctx,
                                     builder,
                                     &mut field_stack_iter,
@@ -704,9 +716,35 @@ where
                         }
                     }
                     crate::app::parser::types::VariableReference::ArrayReference(
-                        _,
-                        parsed_tokens,
-                    ) => todo!(),
+                        variable_reference,
+                        index,
+                    ) => {
+                        let (ptr, ptr_ty, ty_disc) = access_array_index(
+                            ctx,
+                            module,
+                            builder,
+                            variable_map,
+                            &fn_ret_ty,
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            &is_loop_body,
+                            &parsed_functions,
+                            &custom_types,
+                            variable_reference,
+                            index,
+                        )?;
+
+                        if var_ref_ty_disc != ty_disc {
+                            return Err(CodeGenError::InternalVariableTypeMismatch(
+                                var_ref_ty_disc.clone(),
+                                ty_disc.clone(),
+                            )
+                            .into());
+                        }
+
+                        builder.build_store(var_ref_ptr, ptr)?;
+                    }
                 }
 
                 None
@@ -722,7 +760,7 @@ where
                             if let Some(((ptr, ty), ty_disc)) =
                                 variable_map.get(main_struct_var_name)
                             {
-                                let (f_ptr, f_ty, ty_disc) = access_nested_field_ptr(
+                                let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
                                     ctx,
                                     builder,
                                     &mut field_stack_iter,
@@ -750,9 +788,27 @@ where
                         Some((*ptr, *ty, ty_disc.clone()))
                     }
                     crate::app::parser::types::VariableReference::ArrayReference(
-                        _,
-                        parsed_tokens,
-                    ) => todo!(),
+                        variable_reference,
+                        index,
+                    ) => {
+                        let array_ptr = access_array_index(
+                            ctx,
+                            module,
+                            builder,
+                            variable_map,
+                            &fn_ret_ty,
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            &is_loop_body,
+                            &parsed_functions,
+                            &custom_types,
+                            variable_reference,
+                            index,
+                        )?;
+
+                        Some(array_ptr)
+                    }
                 }
             }
         }
@@ -2027,31 +2083,57 @@ where
             }
         }
         ParsedToken::SetValue(var_ref_ty, value) => {
-            match var_ref_ty {
-                crate::app::parser::types::VariableReference::StructFieldReference(
-                    struct_field_reference,
-                    (_struct_name, struct_def),
-                ) => {
-                    let mut field_stack_iter = struct_field_reference.field_stack.iter();
+            if let ParsedToken::VariableReference(variable_ref) = *var_ref_ty {
+                match variable_ref {
+                    crate::app::parser::types::VariableReference::StructFieldReference(
+                        struct_field_reference,
+                        (_struct_name, struct_def),
+                    ) => {
+                        let mut field_stack_iter = struct_field_reference.field_stack.iter();
 
-                    if let Some(main_struct_var_name) = field_stack_iter.next() {
-                        if let Some(((ptr, ty), ty_disc)) = variable_map.get(main_struct_var_name) {
-                            let (f_ptr, f_ty, ty_disc) = access_nested_field_ptr(
-                                ctx,
-                                builder,
-                                &mut field_stack_iter,
-                                &struct_def,
-                                (*ptr, *ty),
-                                custom_types.clone(),
-                            )?;
+                        if let Some(main_struct_var_name) = field_stack_iter.next() {
+                            if let Some(((ptr, ty), ty_disc)) =
+                                variable_map.get(main_struct_var_name)
+                            {
+                                let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
+                                    ctx,
+                                    builder,
+                                    &mut field_stack_iter,
+                                    &struct_def,
+                                    (*ptr, *ty),
+                                    custom_types.clone(),
+                                )?;
 
+                                create_ir_from_parsed_token(
+                                    ctx,
+                                    module,
+                                    builder,
+                                    *value,
+                                    variable_map,
+                                    Some((String::new(), (f_ptr, f_ty.into()), ty_disc.clone())),
+                                    fn_ret_ty,
+                                    this_fn_block,
+                                    this_fn,
+                                    allocation_list,
+                                    is_loop_body.clone(),
+                                    parsed_functions.clone(),
+                                    custom_types.clone(),
+                                )?;
+                            }
+                        }
+                    }
+                    crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
+                        let variable_query = variable_map.get(&variable_name);
+
+                        if let Some(((ptr, ty), ty_disc)) = variable_query {
+                            // Set the value of the variable which was referenced
                             create_ir_from_parsed_token(
                                 ctx,
                                 module,
                                 builder,
                                 *value,
                                 variable_map,
-                                Some((String::new(), (f_ptr, f_ty.into()), ty_disc.clone())),
+                                Some((variable_name, (*ptr, *ty), ty_disc.clone())),
                                 fn_ret_ty,
                                 this_fn_block,
                                 this_fn,
@@ -2062,20 +2144,20 @@ where
                             )?;
                         }
                     }
-                }
-                crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
-                    let variable_query = variable_map.get(&variable_name);
+                    crate::app::parser::types::VariableReference::ArrayReference(
+                        var_name,
+                        indexing,
+                    ) => {
+                        let ((ptr, ptr_ty), ty_disc) = variable_map.get(&var_name).unwrap().clone();
 
-                    if let Some(((ptr, ty), ty_disc)) = variable_query {
-                        // Set the value of the variable which was referenced
-                        create_ir_from_parsed_token(
+                        let index_val = create_ir_from_parsed_token(
                             ctx,
                             module,
                             builder,
-                            *value,
+                            *indexing,
                             variable_map,
-                            Some((variable_name, (*ptr, *ty), ty_disc.clone())),
-                            fn_ret_ty,
+                            None,
+                            fn_ret_ty.clone(),
                             this_fn_block,
                             this_fn,
                             allocation_list,
@@ -2083,80 +2165,64 @@ where
                             parsed_functions.clone(),
                             custom_types.clone(),
                         )?;
-                    }
-                }
-                crate::app::parser::types::VariableReference::ArrayReference(
-                    var_name,
-                    indexing,
-                ) => {
-                    let ((ptr, ptr_ty), ty_disc) = variable_map.get(&var_name).unwrap().clone();
 
-                    let index_val = create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        *indexing,
-                        variable_map,
-                        None,
-                        fn_ret_ty.clone(),
-                        this_fn_block,
-                        this_fn,
-                        allocation_list,
-                        is_loop_body.clone(),
-                        parsed_functions.clone(),
-                        custom_types.clone(),
-                    )?;
-
-                    if let Some((idx_ptr, idx_ptr_val, idx_ty_disc)) = index_val {
-                        let idx = builder.build_load(
-                            ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
-                            idx_ptr,
-                            "array_idx_val",
-                        )?;
-
-                        let gep_ptr = unsafe {
-                            builder.build_gep(
-                                ty_disc
-                                    .clone()
-                                    .to_basic_type_enum(ctx, custom_types.clone())?,
-                                ptr,
-                                &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
-                                "array_idx_elem",
-                            )?
-                        };
-
-                        if let TypeDiscriminant::Array((inner_ty, len)) = &ty_disc {
-                            let array_inner_type =
-                                token_to_ty((**inner_ty).clone(), custom_types.clone())?;
-
-                            create_ir_from_parsed_token(
-                                ctx,
-                                module,
-                                builder,
-                                *value,
-                                variable_map,
-                                Some((
-                                    "".to_string(),
-                                    (
-                                        gep_ptr,
-                                        array_inner_type
-                                            .clone()
-                                            .to_basic_type_enum(ctx, custom_types.clone())?
-                                            .into(),
-                                    ),
-                                    array_inner_type.clone(),
-                                )),
-                                fn_ret_ty,
-                                this_fn_block,
-                                this_fn,
-                                allocation_list,
-                                is_loop_body.clone(),
-                                parsed_functions.clone(),
-                                custom_types.clone(),
+                        if let Some((idx_ptr, idx_ptr_val, idx_ty_disc)) = index_val {
+                            let idx = builder.build_load(
+                                ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
+                                idx_ptr,
+                                "array_idx_val",
                             )?;
+
+                            let gep_ptr = unsafe {
+                                builder.build_gep(
+                                    ty_disc
+                                        .clone()
+                                        .to_basic_type_enum(ctx, custom_types.clone())?,
+                                    ptr,
+                                    &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
+                                    "array_idx_elem_ptr",
+                                )?
+                            };
+
+                            if let TypeDiscriminant::Array((inner_ty, len)) = &ty_disc {
+                                let array_inner_type =
+                                    token_to_ty((**inner_ty).clone(), custom_types.clone())?;
+
+                                create_ir_from_parsed_token(
+                                    ctx,
+                                    module,
+                                    builder,
+                                    *value,
+                                    variable_map,
+                                    Some((
+                                        "array_idx_set_value".to_string(),
+                                        (
+                                            gep_ptr,
+                                            array_inner_type
+                                                .clone()
+                                                .to_basic_type_enum(ctx, custom_types.clone())?
+                                                .into(),
+                                        ),
+                                        array_inner_type.clone(),
+                                    )),
+                                    fn_ret_ty,
+                                    this_fn_block,
+                                    this_fn,
+                                    allocation_list,
+                                    is_loop_body.clone(),
+                                    parsed_functions.clone(),
+                                    custom_types.clone(),
+                                )?;
+                            }
                         }
                     }
                 }
+            }
+            else if let ParsedToken::ArrayIndexing(array_reference, indexing) = *var_ref_ty {
+                
+            }
+            else {
+                return Err(CodeGenError::InvalidVariableReference(*var_ref_ty).into());
             }
 
             None
@@ -2704,7 +2770,7 @@ where
                                 pointee_ty,
                                 ptr,
                                 &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
-                                "array_idx_elem",
+                                "array_idx_elem_ptr",
                             )?
                         };
 
@@ -2841,6 +2907,91 @@ where
     Ok(created_var)
 }
 
+fn access_array_index<'main, 'ctx>(
+    ctx: &'main Context,
+    module: &Module<'ctx>,
+    builder: &'ctx Builder<'ctx>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            TypeDiscriminant,
+        ),
+    >,
+    fn_ret_ty: &TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
+    this_fn: FunctionValue<'ctx>,
+    allocation_list: &mut VecDeque<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )>,
+    is_loop_body: &Option<LoopBodyBlocks<'_>>,
+    parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
+    custom_types: &Arc<IndexMap<String, CustomType>>,
+    variable_reference: String,
+    index: Box<ParsedToken>,
+) -> Result<
+    (
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    ),
+    anyhow::Error,
+>
+where
+    'main: 'ctx,
+{
+    let ((array_ptr, array_ty), ty_disc) = variable_map
+        .get(&variable_reference)
+        .ok_or(CodeGenError::InternalVariableNotFound(
+            variable_reference.clone(),
+        ))?
+        .clone();
+
+    let index_val = create_ir_from_parsed_token(
+        ctx,
+        module,
+        builder,
+        *index.clone(),
+        variable_map,
+        None,
+        fn_ret_ty.clone(),
+        this_fn_block,
+        this_fn,
+        allocation_list,
+        is_loop_body.clone(),
+        parsed_functions.clone(),
+        custom_types.clone(),
+    )?;
+
+    if let Some((idx_ptr, ptr_ty, idx_ty_disc)) = index_val {
+        let idx = builder.build_load(
+            ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
+            idx_ptr,
+            "array_idx_val",
+        )?;
+
+        let pointee_ty = ty_disc
+            .clone()
+            .to_basic_type_enum(ctx, custom_types.clone())?;
+
+        let gep_ptr = unsafe {
+            builder.build_gep(
+                pointee_ty.clone(),
+                array_ptr,
+                &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
+                "array_idx_elem_ptr",
+            )?
+        };
+
+        return Ok((gep_ptr, pointee_ty.into(), ty_disc.clone()));
+    } else {
+        return Err(CodeGenError::InvalidIndexValue(*index.clone()).into());
+    }
+}
+
 /// This function returns a pointer to the allocation made by according to the specific [`ParsedToken`] which had been passed in.
 /// It serves as a way to make allocations before entering a loop, to avoid stack overflows.
 /// If no allocation had been made the function will return [`None`].
@@ -2940,7 +3091,7 @@ where
 
                 if let Some(main_struct_var_name) = field_stack_iter.next() {
                     if let Some(((ptr, ty), _)) = variable_map.get(main_struct_var_name) {
-                        let (f_ptr, f_ty, ty_disc) = access_nested_field_ptr(
+                        let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
                             ctx,
                             builder,
                             &mut field_stack_iter,
@@ -3979,7 +4130,8 @@ where
     Ok(pre_allocation_list)
 }
 
-fn access_nested_field_ptr<'a>(
+/// This function is used to get a ptr to a field that a nested struct contains.
+fn access_nested_struct_field_ptr<'a>(
     ctx: &'a Context,
     builder: &'a Builder,
     field_stack_iter: &mut Iter<String>,
@@ -3998,7 +4150,7 @@ fn access_nested_field_ptr<'a>(
                     "deref_nested_strct",
                 )?;
 
-                access_nested_field_ptr(
+                access_nested_struct_field_ptr(
                     ctx,
                     builder,
                     field_stack_iter,

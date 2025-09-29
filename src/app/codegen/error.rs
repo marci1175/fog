@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
-use crate::app::type_system::type_system::TypeDiscriminant;
+use crate::app::{parser::types::ParsedToken, type_system::type_system::TypeDiscriminant};
 
 #[derive(Debug, Error)]
 pub enum CodeGenError {
@@ -64,4 +64,8 @@ pub enum CodeGenError {
 
     #[error("Cannot index into a list with type `{0}`.")]
     NonIndexType(TypeDiscriminant),
+    #[error("Value `{0}` cannot be indexed with.")]
+    InvalidIndexValue(ParsedToken),
+    #[error("ParsedToken `{0}` is not a valid variable reference.")]
+    InvalidVariableReference(ParsedToken),
 }

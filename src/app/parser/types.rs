@@ -136,7 +136,9 @@ pub enum ParsedToken {
         OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)>,
     ),
 
-    SetValue(VariableReference, Box<ParsedToken>),
+    /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
+    /// The second is the value we are setting this variable.
+    SetValue(Box<ParsedToken>, Box<ParsedToken>),
 
     MathematicalBlock(Box<ParsedToken>),
 
@@ -157,6 +159,8 @@ pub enum ParsedToken {
 
     ControlFlow(ControlFlowType),
 
+    /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
+    /// The second argument is the index we are referencing at.
     ArrayIndexing(Box<ParsedToken>, Box<ParsedToken>),
 
     ArrayInitialization(Vec<ParsedToken>, TypeDiscriminant),
