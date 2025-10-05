@@ -202,10 +202,10 @@ pub fn parse_value(
                 || *next_token == Token::EqSmaller
                 || *next_token == Token::Bigger
                 || *next_token == Token::Smaller)
-            {
-                // TODO: Check why am I doing this.....
-                desired_variable_type = None;
-            }
+        {
+            // TODO: Check why am I doing this.....
+            desired_variable_type = None;
+        }
 
         // Please note that we are not looking at values by themselves, except in SetValue where we take the next token.
         match current_token {
@@ -844,10 +844,7 @@ fn handle_variable(
 
             Ok(handling_continuation)
         } else {
-            Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(
-                identifier.clone(),
-            ))
-            .into())
+            Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(identifier.clone())).into())
         }
     } else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
         if !matches!(variable_type, TypeDiscriminant::Array(_)) {
@@ -976,39 +973,40 @@ pub fn init_struct(
 
     while idx < struct_slice.len() {
         if let Some(Token::Identifier(field_name)) = struct_slice.get(idx)
-            && let Some(Token::Colon) = struct_slice.get(idx + 1) {
-                let selected_tokens = &struct_slice[idx + 2..];
+            && let Some(Token::Colon) = struct_slice.get(idx + 1)
+        {
+            let selected_tokens = &struct_slice[idx + 2..];
 
-                let (parsed_value, jump_idx, _) = parse_value(
-                    selected_tokens,
-                    function_signatures.clone(),
-                    variable_scope,
-                    Some(
-                        this_struct_field
-                            .get(field_name)
-                            .ok_or(ParserError::SyntaxError(
-                                SyntaxError::InvalidStructFieldDefinition,
-                            ))?
-                            .clone(),
-                    ),
-                    function_imports.clone(),
-                    custom_types.clone(),
-                )?;
+            let (parsed_value, jump_idx, _) = parse_value(
+                selected_tokens,
+                function_signatures.clone(),
+                variable_scope,
+                Some(
+                    this_struct_field
+                        .get(field_name)
+                        .ok_or(ParserError::SyntaxError(
+                            SyntaxError::InvalidStructFieldDefinition,
+                        ))?
+                        .clone(),
+                ),
+                function_imports.clone(),
+                custom_types.clone(),
+            )?;
 
-                idx += jump_idx + 2;
+            idx += jump_idx + 2;
 
-                struct_field_init_map.insert(field_name.to_string(), Box::new(parsed_value));
+            struct_field_init_map.insert(field_name.to_string(), Box::new(parsed_value));
 
-                if let Some(Token::Comma) = struct_slice.get(idx) {
-                    nth_field += 1;
-                    idx += 1;
-                    continue;
-                } else if nth_field + 1 == this_struct_field.len() {
-                    nth_field += 1;
-                    idx += 1;
-                    continue;
-                }
+            if let Some(Token::Comma) = struct_slice.get(idx) {
+                nth_field += 1;
+                idx += 1;
+                continue;
+            } else if nth_field + 1 == this_struct_field.len() {
+                nth_field += 1;
+                idx += 1;
+                continue;
             }
+        }
 
         return Err(ParserError::SyntaxError(SyntaxError::InvalidStructFieldDefinition).into());
     }

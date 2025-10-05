@@ -17,7 +17,8 @@ use super::{
     },
     tokenizer::tokenize,
     types::{
-        CustomType, FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token, UnparsedFunctionDefinition, VariableReference,
+        CustomType, FunctionDefinition, FunctionSignature, MathematicalSymbol, ParsedToken, Token,
+        UnparsedFunctionDefinition, VariableReference,
     },
 };
 
@@ -170,41 +171,43 @@ pub fn create_signature_table(
 
                     if tokens[token_idx + 1] == Token::Colon {
                         if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone()
-                            && tokens[token_idx + 3] == Token::SemiColon {
-                                if external_imports.get(&identifier).is_some()
-                                    || function_list.get(&identifier).is_some()
-                                {
-                                    return Err(ParserError::DuplicateSignatureImports.into());
-                                }
-
-                                external_imports
-                                    .insert(identifier, FunctionSignature { args, return_type });
-
-                                continue;
+                            && tokens[token_idx + 3] == Token::SemiColon
+                        {
+                            if external_imports.get(&identifier).is_some()
+                                || function_list.get(&identifier).is_some()
+                            {
+                                return Err(ParserError::DuplicateSignatureImports.into());
                             }
+
+                            external_imports
+                                .insert(identifier, FunctionSignature { args, return_type });
+
+                            continue;
+                        }
                     } else {
                         return Err(SyntaxError::ImportUnspecifiedReturnType.into());
                     }
                 }
                 // This is matched when you are importing a named declaration from another fog source file
                 else if Token::DoubleColon == tokens[token_idx + 2]
-                    && let Token::Identifier(lib_function_name) = &tokens[token_idx + 3] {
-                        let imported_file_query = imported_file_list.get(&identifier);
+                    && let Token::Identifier(lib_function_name) = &tokens[token_idx + 3]
+                {
+                    let imported_file_query = imported_file_list.get(&identifier);
 
-                        if Token::SemiColon == tokens[token_idx + 4]
-                            && let Some(imported_file) = imported_file_query
-                                && let Some(function_def) = imported_file.get(lib_function_name) {
-                                    // Store the imported function
-                                    source_imports
-                                        .insert(lib_function_name.clone(), function_def.clone());
+                    if Token::SemiColon == tokens[token_idx + 4]
+                        && let Some(imported_file) = imported_file_query
+                        && let Some(function_def) = imported_file.get(lib_function_name)
+                    {
+                        // Store the imported function
+                        source_imports.insert(lib_function_name.clone(), function_def.clone());
 
-                                    // Increment token index
-                                    token_idx += 4;
+                        // Increment token index
+                        token_idx += 4;
 
-                                    // Continue looping over the top-level tokens
-                                    continue;
-                                }
+                        // Continue looping over the top-level tokens
+                        continue;
                     }
+                }
             } else if let Token::Literal(Type::String(path_to_linked_file)) =
                 tokens[token_idx + 1].clone()
             {
@@ -275,49 +278,48 @@ pub fn create_signature_table(
 
                         // Pattern match the syntax
                         if let Token::Identifier(field_name) = current_token
-                            && let Token::Colon = &struct_slice[token_idx + 1] {
-                                // Check if there is a comma present in the field, if not check if its the end of the struct definition
-                                // Or the user did not put a comma at the end of the last field definition. This is expected
-                                if Some(&Token::Comma) == struct_slice.get(token_idx + 3)
-                                    || token_idx + 3 == struct_slice.len()
+                            && let Token::Colon = &struct_slice[token_idx + 1]
+                        {
+                            // Check if there is a comma present in the field, if not check if its the end of the struct definition
+                            // Or the user did not put a comma at the end of the last field definition. This is expected
+                            if Some(&Token::Comma) == struct_slice.get(token_idx + 3)
+                                || token_idx + 3 == struct_slice.len()
+                            {
+                                if let Token::TypeDefinition(field_type) =
+                                    &struct_slice[token_idx + 2]
                                 {
-                                    if let Token::TypeDefinition(field_type) =
-                                        &struct_slice[token_idx + 2]
-                                    {
-                                        // Save the field's type and name
-                                        struct_fields
-                                            .insert(field_name.clone(), field_type.clone());
+                                    // Save the field's type and name
+                                    struct_fields.insert(field_name.clone(), field_type.clone());
 
-                                        // Increment the token index
-                                        token_idx += 4;
+                                    // Increment the token index
+                                    token_idx += 4;
 
-                                        // Continue looping through, if the pattern doesnt match the syntax return an error
-                                        continue;
-                                    } else if let Token::Identifier(custom_type) =
-                                        &struct_slice[token_idx + 2]
-                                        && let Some(custom_item) = custom_items.get(custom_type) {
-                                            match custom_item {
-                                                CustomType::Struct(struct_def) => {
-                                                    struct_fields.insert(
-                                                        field_name.to_string(),
-                                                        TypeDiscriminant::Struct(
-                                                            struct_def.clone(),
-                                                        ),
-                                                    );
-                                                }
-                                                CustomType::Enum(index_map) => {
-                                                    todo!()
-                                                }
-                                            }
-
-                                            // Increment the token index
-                                            token_idx += 4;
-
-                                            // Continue looping through, if the pattern doesnt match the syntax return an error
-                                            continue;
+                                    // Continue looping through, if the pattern doesnt match the syntax return an error
+                                    continue;
+                                } else if let Token::Identifier(custom_type) =
+                                    &struct_slice[token_idx + 2]
+                                    && let Some(custom_item) = custom_items.get(custom_type)
+                                {
+                                    match custom_item {
+                                        CustomType::Struct(struct_def) => {
+                                            struct_fields.insert(
+                                                field_name.to_string(),
+                                                TypeDiscriminant::Struct(struct_def.clone()),
+                                            );
                                         }
+                                        CustomType::Enum(index_map) => {
+                                            todo!()
+                                        }
+                                    }
+
+                                    // Increment the token index
+                                    token_idx += 4;
+
+                                    // Continue looping through, if the pattern doesnt match the syntax return an error
+                                    continue;
                                 }
                             }
+                        }
 
                         // Return a syntax error
                         return Err(ParserError::SyntaxError(
@@ -641,8 +643,9 @@ fn parse_function_block(
                             token_idx += 1;
 
                             if let Some(Token::Identifier(var_name)) = tokens.get(token_idx)
-                                && let Some(Token::SetValue) = tokens.get(token_idx + 1) {
-                                    let line_break_idx = tokens
+                                && let Some(Token::SetValue) = tokens.get(token_idx + 1)
+                            {
+                                let line_break_idx = tokens
                                     .iter()
                                     .skip(token_idx)
                                     .position(|token| *token == Token::SemiColon)
@@ -653,30 +656,30 @@ fn parse_function_block(
                                     })?
                                     + token_idx;
 
-                                    let selected_tokens = &tokens[token_idx + 2..line_break_idx];
+                                let selected_tokens = &tokens[token_idx + 2..line_break_idx];
 
-                                    token_idx += selected_tokens.len() + 1;
+                                token_idx += selected_tokens.len() + 1;
 
-                                    let (parsed_token, _, _) = parse_value(
-                                        selected_tokens,
-                                        function_signatures.clone(),
-                                        &mut variable_scope,
-                                        Some(variable_type.clone()),
-                                        function_imports.clone(),
-                                        custom_items.clone(),
-                                    )?;
+                                let (parsed_token, _, _) = parse_value(
+                                    selected_tokens,
+                                    function_signatures.clone(),
+                                    &mut variable_scope,
+                                    Some(variable_type.clone()),
+                                    function_imports.clone(),
+                                    custom_items.clone(),
+                                )?;
 
-                                    parsed_tokens.push(ParsedToken::NewVariable(
-                                        var_name.clone(),
-                                        variable_type,
-                                        Box::new(parsed_token),
-                                    ));
+                                parsed_tokens.push(ParsedToken::NewVariable(
+                                    var_name.clone(),
+                                    variable_type,
+                                    Box::new(parsed_token),
+                                ));
 
-                                    variable_scope.insert(
-                                        var_name.clone(),
-                                        TypeDiscriminant::Struct(struct_instance.clone()),
-                                    );
-                                }
+                                variable_scope.insert(
+                                    var_name.clone(),
+                                    TypeDiscriminant::Struct(struct_instance.clone()),
+                                );
+                            }
                         }
                         CustomType::Enum(enum_types) => {}
                     };

@@ -349,6 +349,7 @@ where
                 builder.build_store(v_ptr, value)?;
                 (v_ptr, BasicMetadataTypeEnum::VectorType(value.get_type()))
             }
+            BasicValueEnum::ScalableVectorValue(scalable_vector_value) => todo!(),
         };
 
         variable_map.insert(arg_name, ((v_ptr, ty), arg_ty));
@@ -552,17 +553,18 @@ where
             // Check if the function has been called with an allocation table
             let (ptr, ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
                 if let Some((current_token, ptr, ptr_ty, ty)) = allocation_list.front().cloned()
-                    && current_token == parsed_token.clone() {
-                        if ty == var_type {
-                            was_preallocated = true;
+                    && current_token == parsed_token.clone()
+                {
+                    if ty == var_type {
+                        was_preallocated = true;
 
-                            allocation_list.pop_front();
+                        allocation_list.pop_front();
 
-                            return Ok((ptr, ptr_ty));
-                        } else {
-                            return Err(CodeGenError::InvalidPreAllocation.into());
-                        }
+                        return Ok((ptr, ptr_ty));
+                    } else {
+                        return Err(CodeGenError::InvalidPreAllocation.into());
                     }
+                }
 
                 let (ptr, ptr_ty) =
                     create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
@@ -1576,10 +1578,11 @@ where
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         dbg!(allocation_list.front().cloned())
-                        && *lhs == current_token {
-                            allocation_list.pop_front();
-                            return Ok(Some((ptr, ptr_ty, disc)));
-                        }
+                        && *lhs == current_token
+                    {
+                        allocation_list.pop_front();
+                        return Ok(Some((ptr, ptr_ty, disc)));
+                    }
 
                     create_ir_from_parsed_token(
                         ctx,
@@ -1603,10 +1606,11 @@ where
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         allocation_list.front().cloned()
-                        && *rhs == current_token {
-                            allocation_list.pop_front();
-                            return Ok(Some((ptr, ptr_ty, disc)));
-                        }
+                        && *rhs == current_token
+                    {
+                        allocation_list.pop_front();
+                        return Ok(Some((ptr, ptr_ty, disc)));
+                    }
 
                     create_ir_from_parsed_token(
                         ctx,
@@ -2088,32 +2092,32 @@ where
                         if let Some(main_struct_var_name) = field_stack_iter.next()
                             && let Some(((ptr, ty), ty_disc)) =
                                 variable_map.get(main_struct_var_name)
-                            {
-                                let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
-                                    ctx,
-                                    builder,
-                                    &mut field_stack_iter,
-                                    &struct_def,
-                                    (*ptr, *ty),
-                                    custom_types.clone(),
-                                )?;
+                        {
+                            let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
+                                ctx,
+                                builder,
+                                &mut field_stack_iter,
+                                &struct_def,
+                                (*ptr, *ty),
+                                custom_types.clone(),
+                            )?;
 
-                                create_ir_from_parsed_token(
-                                    ctx,
-                                    module,
-                                    builder,
-                                    *value,
-                                    variable_map,
-                                    Some((String::new(), (f_ptr, f_ty.into()), ty_disc.clone())),
-                                    fn_ret_ty,
-                                    this_fn_block,
-                                    this_fn,
-                                    allocation_list,
-                                    is_loop_body.clone(),
-                                    parsed_functions.clone(),
-                                    custom_types.clone(),
-                                )?;
-                            }
+                            create_ir_from_parsed_token(
+                                ctx,
+                                module,
+                                builder,
+                                *value,
+                                variable_map,
+                                Some((String::new(), (f_ptr, f_ty.into()), ty_disc.clone())),
+                                fn_ret_ty,
+                                this_fn_block,
+                                this_fn,
+                                allocation_list,
+                                is_loop_body.clone(),
+                                parsed_functions.clone(),
+                                custom_types.clone(),
+                            )?;
+                        }
                     }
                     crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
                         let variable_query = variable_map.get(&variable_name);
@@ -2210,11 +2214,8 @@ where
                         }
                     }
                 }
-            }
-            else if let ParsedToken::ArrayIndexing(array_reference, indexing) = *var_ref_ty {
-                
-            }
-            else {
+            } else if let ParsedToken::ArrayIndexing(array_reference, indexing) = *var_ref_ty {
+            } else {
                 return Err(CodeGenError::InvalidVariableReference(*var_ref_ty).into());
             }
 
@@ -2827,70 +2828,69 @@ where
         }
         ParsedToken::ArrayInitialization(values, inner_ty) => {
             if let Some((_, (ptr, _ptr_ty), ty_disc)) = variable_reference
-                && let TypeDiscriminant::Array((_, len)) = ty_disc {
-                    let mut array_values: Vec<BasicValueEnum> = Vec::new();
+                && let TypeDiscriminant::Array((_, len)) = ty_disc
+            {
+                let mut array_values: Vec<BasicValueEnum> = Vec::new();
 
-                    for val in values {
-                        let (temp_var_ptr, temp_var_ty) = create_new_variable(
-                            ctx,
-                            builder,
-                            "array_temp_val_var",
-                            &inner_ty,
-                            custom_types.clone(),
-                        )?;
+                for val in values {
+                    let (temp_var_ptr, temp_var_ty) = create_new_variable(
+                        ctx,
+                        builder,
+                        "array_temp_val_var",
+                        &inner_ty,
+                        custom_types.clone(),
+                    )?;
 
-                        create_ir_from_parsed_token(
-                            ctx,
-                            module,
-                            builder,
-                            val,
-                            variable_map,
-                            Some((
-                                "array_temp_val_var".to_string(),
-                                (temp_var_ptr, temp_var_ty),
-                                (inner_ty).clone(),
-                            )),
-                            fn_ret_ty.clone(),
-                            this_fn_block,
-                            this_fn,
-                            allocation_list,
-                            is_loop_body.clone(),
-                            parsed_functions.clone(),
-                            custom_types.clone(),
-                        )?;
+                    create_ir_from_parsed_token(
+                        ctx,
+                        module,
+                        builder,
+                        val,
+                        variable_map,
+                        Some((
+                            "array_temp_val_var".to_string(),
+                            (temp_var_ptr, temp_var_ty),
+                            (inner_ty).clone(),
+                        )),
+                        fn_ret_ty.clone(),
+                        this_fn_block,
+                        this_fn,
+                        allocation_list,
+                        is_loop_body.clone(),
+                        parsed_functions.clone(),
+                        custom_types.clone(),
+                    )?;
 
-                        let value = builder.build_load(
-                            ty_to_llvm_ty(ctx, &inner_ty, custom_types.clone())?,
-                            temp_var_ptr,
-                            "array_temp_val_deref",
-                        )?;
+                    let value = builder.build_load(
+                        ty_to_llvm_ty(ctx, &inner_ty, custom_types.clone())?,
+                        temp_var_ptr,
+                        "array_temp_val_deref",
+                    )?;
 
-                        array_values.push(value);
-                    }
-
-                    if array_values.len() != len {
-                        return Err(
-                            CodeGenError::ArrayLengthMismatch(len, array_values.len()).into()
-                        );
-                    }
-
-                    let array_base = ctx.i32_type().const_int(0, false);
-
-                    for (idx, val) in array_values.iter().enumerate() {
-                        let array_idx = ctx.i32_type().const_int(idx as u64, false);
-
-                        let elem_ptr = unsafe {
-                            builder.build_gep(
-                                ty_to_llvm_ty(ctx, &ty_disc, custom_types.clone())?,
-                                ptr,
-                                &[array_base, array_idx],
-                                "array_idx_val",
-                            )?
-                        };
-
-                        builder.build_store(elem_ptr, *val)?;
-                    }
+                    array_values.push(value);
                 }
+
+                if array_values.len() != len {
+                    return Err(CodeGenError::ArrayLengthMismatch(len, array_values.len()).into());
+                }
+
+                let array_base = ctx.i32_type().const_int(0, false);
+
+                for (idx, val) in array_values.iter().enumerate() {
+                    let array_idx = ctx.i32_type().const_int(idx as u64, false);
+
+                    let elem_ptr = unsafe {
+                        builder.build_gep(
+                            ty_to_llvm_ty(ctx, &ty_disc, custom_types.clone())?,
+                            ptr,
+                            &[array_base, array_idx],
+                            "array_idx_val",
+                        )?
+                    };
+
+                    builder.build_store(elem_ptr, *val)?;
+                }
+            }
 
             None
         }
@@ -4501,16 +4501,18 @@ pub fn ty_to_llvm_ty<'a>(
 }
 
 pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataTypeEnum<'_> {
-    match ty_enum {
-        BasicTypeEnum::ArrayType(array_type) => BasicMetadataTypeEnum::ArrayType(array_type),
-        BasicTypeEnum::FloatType(float_type) => BasicMetadataTypeEnum::FloatType(float_type),
-        BasicTypeEnum::IntType(int_type) => BasicMetadataTypeEnum::IntType(int_type),
-        BasicTypeEnum::PointerType(pointer_type) => {
-            BasicMetadataTypeEnum::PointerType(pointer_type)
-        }
-        BasicTypeEnum::StructType(struct_type) => BasicMetadataTypeEnum::StructType(struct_type),
-        BasicTypeEnum::VectorType(vector_type) => BasicMetadataTypeEnum::VectorType(vector_type),
-    }
+    todo!();
+
+    // match ty_enum {
+    //     BasicTypeEnum::ArrayType(array_type) => BasicMetadataTypeEnum::ArrayType(array_type),
+    //     BasicTypeEnum::FloatType(float_type) => BasicMetadataTypeEnum::FloatType(float_type),
+    //     BasicTypeEnum::IntType(int_type) => BasicMetadataTypeEnum::IntType(int_type),
+    //     BasicTypeEnum::PointerType(pointer_type) => {
+    //         BasicMetadataTypeEnum::PointerType(pointer_type)
+    //     }
+    //     BasicTypeEnum::StructType(struct_type) => BasicMetadataTypeEnum::StructType(struct_type),
+    //     BasicTypeEnum::VectorType(vector_type) => BasicMetadataTypeEnum::VectorType(vector_type),
+    // }
 }
 
 /// This function takes the field of a struct, and returns the fields' [`BasicTypeEnum`] variant.
