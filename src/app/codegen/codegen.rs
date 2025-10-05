@@ -2095,7 +2095,20 @@ where
             }
         }
         ParsedToken::SetValue(var_ref_ty, value) => {
-            let ((ptr, ty), ty_disc) = access_variable_ptr(ctx, module, builder, variable_map, &fn_ret_ty, this_fn_block, this_fn, allocation_list, &is_loop_body, &parsed_functions, &custom_types, *var_ref_ty)?;
+            let ((ptr, ty), ty_disc) = access_variable_ptr(
+                ctx,
+                module,
+                builder,
+                variable_map,
+                &fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                &is_loop_body,
+                &parsed_functions,
+                &custom_types,
+                *var_ref_ty,
+            )?;
 
             create_ir_from_parsed_token(
                 ctx,
@@ -2103,7 +2116,11 @@ where
                 builder,
                 *value,
                 variable_map,
-                Some((String::from("set_value_var_ref"), (ptr, ty.into()), ty_disc.clone())),
+                Some((
+                    String::from("set_value_var_ref"),
+                    (ptr, ty),
+                    ty_disc.clone(),
+                )),
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
@@ -2861,7 +2878,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
                 index,
             )?;
 
-            return Ok(((array_val_ptr.0, array_val_ptr.1), array_val_ptr.2));
+            Ok(((array_val_ptr.0, array_val_ptr.1), array_val_ptr.2))
         }
         ParsedToken::VariableReference(variable_reference) => match variable_reference {
             crate::app::parser::types::VariableReference::StructFieldReference(
@@ -2882,9 +2899,9 @@ pub fn access_variable_ptr<'main, 'ctx>(
                         custom_types.clone(),
                     )?;
 
-                    return Ok(((f_ptr, f_ty.into()), ty_disc));
+                    Ok(((f_ptr, f_ty.into()), ty_disc))
                 } else {
-                    return Err(CodeGenError::InternalInvalidStructReference.into());
+                    Err(CodeGenError::InternalInvalidStructReference.into())
                 }
             }
             crate::app::parser::types::VariableReference::BasicReference(basic_reference) => {
@@ -2894,7 +2911,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
                     ))
                 })?;
 
-                return Ok(variable_ref.clone());
+                Ok(variable_ref.clone())
             }
             crate::app::parser::types::VariableReference::ArrayReference(array_name, indexing) => {
                 let ((ptr, ptr_ty), ty_disc) = variable_map.get(&array_name).unwrap().clone();
@@ -2951,11 +2968,11 @@ pub fn access_variable_ptr<'main, 'ctx>(
                         unreachable!("This must be an `Array`.");
                     }
                 } else {
-                    return Err(CodeGenError::InvalidIndexValue((*indexing).clone()).into());
+                    Err(CodeGenError::InvalidIndexValue((*indexing).clone()).into())
                 }
             }
         },
-        _ => return Err(CodeGenError::InvalidVariableReference(parsed_token.clone()).into()),
+        _ => Err(CodeGenError::InvalidVariableReference(parsed_token.clone()).into()),
     }
 }
 
@@ -3037,7 +3054,14 @@ where
         let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
         let inner_ty = token_to_ty(*inner_ty_token, custom_types.clone())?;
 
-        Ok((gep_ptr, inner_ty.clone().to_basic_type_enum(ctx, custom_types.clone())?.into(), inner_ty.clone()))
+        Ok((
+            gep_ptr,
+            inner_ty
+                .clone()
+                .to_basic_type_enum(ctx, custom_types.clone())?
+                .into(),
+            inner_ty.clone(),
+        ))
     } else {
         Err(CodeGenError::InvalidIndexValue(*index.clone()).into())
     }

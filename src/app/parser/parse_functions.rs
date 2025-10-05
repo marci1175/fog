@@ -1242,8 +1242,6 @@ pub fn parse_variable_expression(
             }
         }
         Token::OpenSquareBrackets => {
-            dbg!(&variable_type);
-
             if let TypeDiscriminant::Array((inner_token, len)) = variable_type {
                 let inner_type = token_to_ty(*inner_token, custom_types.clone())?;
 
