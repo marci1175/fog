@@ -1271,8 +1271,6 @@ pub fn parse_variable_expression(
                     custom_types.clone(),
                 )?;
 
-                dbg!(&value);
-
                 *token_idx += idx_jmp;
 
                 if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {

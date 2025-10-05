@@ -34,7 +34,7 @@ pub enum CodeGenError {
     #[error("A type mismatch has occurred at codegen. Type `{0}` mismatches type `{1}`.")]
     CodegenTypeMismatch(TypeDiscriminant, TypeDiscriminant),
     #[error("[INTERNAL ERROR] A reference to an inexistent struct has been provided.")]
-    InternalStructReference,
+    InternalInvalidStructReference,
     #[error("Comparsions are not implemented for type `{0}`.")]
     ComparisonIncompatibility(TypeDiscriminant),
     #[error("Type `{0}` cannot be casted to type `{1}`.")]

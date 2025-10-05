@@ -415,7 +415,7 @@ where
 
         fs::write(
             format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")),
-            format!("{:#?}", parsed_tokens.clone()),
+            format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()),
         )?;
     }
 
@@ -640,7 +640,7 @@ where
                                 }
                             }
                         } else {
-                            return Err(CodeGenError::InternalStructReference.into());
+                            return Err(CodeGenError::InternalInvalidStructReference.into());
                         }
                     }
                     crate::app::parser::types::VariableReference::BasicReference(var_name) => {
@@ -719,6 +719,13 @@ where
                         variable_reference,
                         index,
                     ) => {
+                        let variable_ptr = variable_map
+                            .get(&variable_reference)
+                            .ok_or(CodeGenError::InternalVariableNotFound(
+                                variable_reference.clone(),
+                            ))?
+                            .clone();
+
                         let (ptr, ptr_ty, ty_disc) = access_array_index(
                             ctx,
                             module,
@@ -731,7 +738,7 @@ where
                             &is_loop_body,
                             &parsed_functions,
                             &custom_types,
-                            variable_reference,
+                            variable_ptr,
                             index,
                         )?;
 
@@ -777,7 +784,7 @@ where
                                 .into());
                             }
                         } else {
-                            return Err(CodeGenError::InternalStructReference.into());
+                            return Err(CodeGenError::InternalInvalidStructReference.into());
                         }
                     }
                     crate::app::parser::types::VariableReference::BasicReference(basic_ref) => {
@@ -791,6 +798,13 @@ where
                         variable_reference,
                         index,
                     ) => {
+                        let variable_ptr = variable_map
+                            .get(&variable_reference)
+                            .ok_or(CodeGenError::InternalVariableNotFound(
+                                variable_reference.clone(),
+                            ))?
+                            .clone();
+
                         let array_ptr = access_array_index(
                             ctx,
                             module,
@@ -803,7 +817,7 @@ where
                             &is_loop_body,
                             &parsed_functions,
                             &custom_types,
-                            variable_reference,
+                            variable_ptr,
                             index,
                         )?;
 
@@ -2081,143 +2095,23 @@ where
             }
         }
         ParsedToken::SetValue(var_ref_ty, value) => {
-            if let ParsedToken::VariableReference(variable_ref) = *var_ref_ty {
-                match variable_ref {
-                    crate::app::parser::types::VariableReference::StructFieldReference(
-                        struct_field_reference,
-                        (_struct_name, struct_def),
-                    ) => {
-                        let mut field_stack_iter = struct_field_reference.field_stack.iter();
+            let ((ptr, ty), ty_disc) = access_variable_ptr(ctx, module, builder, variable_map, &fn_ret_ty, this_fn_block, this_fn, allocation_list, &is_loop_body, &parsed_functions, &custom_types, *var_ref_ty)?;
 
-                        if let Some(main_struct_var_name) = field_stack_iter.next()
-                            && let Some(((ptr, ty), ty_disc)) =
-                                variable_map.get(main_struct_var_name)
-                        {
-                            let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
-                                ctx,
-                                builder,
-                                &mut field_stack_iter,
-                                &struct_def,
-                                (*ptr, *ty),
-                                custom_types.clone(),
-                            )?;
-
-                            create_ir_from_parsed_token(
-                                ctx,
-                                module,
-                                builder,
-                                *value,
-                                variable_map,
-                                Some((String::new(), (f_ptr, f_ty.into()), ty_disc.clone())),
-                                fn_ret_ty,
-                                this_fn_block,
-                                this_fn,
-                                allocation_list,
-                                is_loop_body.clone(),
-                                parsed_functions.clone(),
-                                custom_types.clone(),
-                            )?;
-                        }
-                    }
-                    crate::app::parser::types::VariableReference::BasicReference(variable_name) => {
-                        let variable_query = variable_map.get(&variable_name);
-
-                        if let Some(((ptr, ty), ty_disc)) = variable_query {
-                            // Set the value of the variable which was referenced
-                            create_ir_from_parsed_token(
-                                ctx,
-                                module,
-                                builder,
-                                *value,
-                                variable_map,
-                                Some((variable_name, (*ptr, *ty), ty_disc.clone())),
-                                fn_ret_ty,
-                                this_fn_block,
-                                this_fn,
-                                allocation_list,
-                                is_loop_body.clone(),
-                                parsed_functions.clone(),
-                                custom_types.clone(),
-                            )?;
-                        }
-                    }
-                    crate::app::parser::types::VariableReference::ArrayReference(
-                        var_name,
-                        indexing,
-                    ) => {
-                        let ((ptr, ptr_ty), ty_disc) = variable_map.get(&var_name).unwrap().clone();
-
-                        let index_val = create_ir_from_parsed_token(
-                            ctx,
-                            module,
-                            builder,
-                            *indexing,
-                            variable_map,
-                            None,
-                            fn_ret_ty.clone(),
-                            this_fn_block,
-                            this_fn,
-                            allocation_list,
-                            is_loop_body.clone(),
-                            parsed_functions.clone(),
-                            custom_types.clone(),
-                        )?;
-
-                        if let Some((idx_ptr, idx_ptr_val, idx_ty_disc)) = index_val {
-                            let idx = builder.build_load(
-                                ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
-                                idx_ptr,
-                                "array_idx_val",
-                            )?;
-
-                            let gep_ptr = unsafe {
-                                builder.build_gep(
-                                    ty_disc
-                                        .clone()
-                                        .to_basic_type_enum(ctx, custom_types.clone())?,
-                                    ptr,
-                                    &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
-                                    "array_idx_elem_ptr",
-                                )?
-                            };
-
-                            if let TypeDiscriminant::Array((inner_ty, len)) = &ty_disc {
-                                let array_inner_type =
-                                    token_to_ty((**inner_ty).clone(), custom_types.clone())?;
-
-                                create_ir_from_parsed_token(
-                                    ctx,
-                                    module,
-                                    builder,
-                                    *value,
-                                    variable_map,
-                                    Some((
-                                        "array_idx_set_value".to_string(),
-                                        (
-                                            gep_ptr,
-                                            array_inner_type
-                                                .clone()
-                                                .to_basic_type_enum(ctx, custom_types.clone())?
-                                                .into(),
-                                        ),
-                                        array_inner_type.clone(),
-                                    )),
-                                    fn_ret_ty,
-                                    this_fn_block,
-                                    this_fn,
-                                    allocation_list,
-                                    is_loop_body.clone(),
-                                    parsed_functions.clone(),
-                                    custom_types.clone(),
-                                )?;
-                            }
-                        }
-                    }
-                }
-            } else if let ParsedToken::ArrayIndexing(array_reference, indexing) = *var_ref_ty {
-            } else {
-                return Err(CodeGenError::InvalidVariableReference(*var_ref_ty).into());
-            }
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *value,
+                variable_map,
+                Some((String::from("set_value_var_ref"), (ptr, ty.into()), ty_disc.clone())),
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body.clone(),
+                parsed_functions.clone(),
+                custom_types.clone(),
+            )?;
 
             None
         }
@@ -2899,6 +2793,172 @@ where
     Ok(created_var)
 }
 
+/// This function accesses any kind of variable.
+/// This is a recursive function so that nested variables i.e nested variables inside arrays and structs can be fetched.
+/// The parsed token is the token containing the entire reference to the variable.
+/// The variable_ptr passed in is supposed to be the ptr equal to the `ParsedToken`'s "nestedness".
+pub fn access_variable_ptr<'main, 'ctx>(
+    ctx: &'ctx Context,
+    module: &Module<'ctx>,
+    builder: &'ctx Builder<'ctx>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            TypeDiscriminant,
+        ),
+    >,
+    fn_ret_ty: &TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
+    this_fn: FunctionValue<'ctx>,
+    allocation_list: &mut VecDeque<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )>,
+    is_loop_body: &Option<LoopBodyBlocks<'_>>,
+    parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
+    custom_types: &Arc<IndexMap<String, CustomType>>,
+    parsed_token: ParsedToken,
+) -> anyhow::Result<(
+    (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+    TypeDiscriminant,
+)> {
+    match parsed_token {
+        ParsedToken::ArrayIndexing(var_ref, index) => {
+            // This variable is supposed to fetch the inner value of this array indexing, this is how this function is recursive.
+            // When you are trying to understand the code, just imagine as if this were inside the function as an argument.
+            let inner_variable = access_variable_ptr(
+                ctx,
+                module,
+                builder,
+                variable_map,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body,
+                parsed_functions,
+                custom_types,
+                *var_ref,
+            )?;
+
+            // Access the value available the index value provided
+            let array_val_ptr = access_array_index(
+                ctx,
+                module,
+                builder,
+                variable_map,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body,
+                parsed_functions,
+                custom_types,
+                inner_variable,
+                index,
+            )?;
+
+            return Ok(((array_val_ptr.0, array_val_ptr.1), array_val_ptr.2));
+        }
+        ParsedToken::VariableReference(variable_reference) => match variable_reference {
+            crate::app::parser::types::VariableReference::StructFieldReference(
+                struct_field_reference,
+                (_struct_name, struct_definition),
+            ) => {
+                let mut field_stack_iter = struct_field_reference.field_stack.iter();
+
+                if let Some(main_struct_var_name) = field_stack_iter.next()
+                    && let Some(((ptr, ty), _ty_disc)) = variable_map.get(main_struct_var_name)
+                {
+                    let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
+                        ctx,
+                        builder,
+                        &mut field_stack_iter,
+                        &struct_definition,
+                        (*ptr, *ty),
+                        custom_types.clone(),
+                    )?;
+
+                    return Ok(((f_ptr, f_ty.into()), ty_disc));
+                } else {
+                    return Err(CodeGenError::InternalInvalidStructReference.into());
+                }
+            }
+            crate::app::parser::types::VariableReference::BasicReference(basic_reference) => {
+                let variable_ref = variable_map.get(&basic_reference).ok_or_else(|| {
+                    anyhow::Error::from(CodeGenError::InternalVariableNotFound(
+                        basic_reference.clone(),
+                    ))
+                })?;
+
+                return Ok(variable_ref.clone());
+            }
+            crate::app::parser::types::VariableReference::ArrayReference(array_name, indexing) => {
+                let ((ptr, ptr_ty), ty_disc) = variable_map.get(&array_name).unwrap().clone();
+
+                let index_val = create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    (*indexing).clone(),
+                    variable_map,
+                    None,
+                    fn_ret_ty.clone(),
+                    this_fn_block,
+                    this_fn,
+                    allocation_list,
+                    is_loop_body.clone(),
+                    parsed_functions.clone(),
+                    custom_types.clone(),
+                )?;
+
+                if let Some((idx_ptr, _idx_ptr_val, idx_ty_disc)) = index_val {
+                    let idx = builder.build_load(
+                        ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
+                        idx_ptr,
+                        "array_idx_val",
+                    )?;
+
+                    let gep_ptr = unsafe {
+                        builder.build_gep(
+                            ty_disc
+                                .clone()
+                                .to_basic_type_enum(ctx, custom_types.clone())?,
+                            ptr,
+                            &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
+                            "array_idx_elem_ptr",
+                        )?
+                    };
+
+                    if let TypeDiscriminant::Array((inner_ty, _len)) = &ty_disc {
+                        let array_inner_type =
+                            token_to_ty((**inner_ty).clone(), custom_types.clone())?;
+
+                        return Ok((
+                            (
+                                gep_ptr,
+                                array_inner_type
+                                    .clone()
+                                    .to_basic_type_enum(ctx, custom_types.clone())?
+                                    .into(),
+                            ),
+                            array_inner_type.clone(),
+                        ));
+                    } else {
+                        unreachable!("This must be an `Array`.");
+                    }
+                } else {
+                    return Err(CodeGenError::InvalidIndexValue((*indexing).clone()).into());
+                }
+            }
+        },
+        _ => return Err(CodeGenError::InvalidVariableReference(parsed_token.clone()).into()),
+    }
+}
+
 fn access_array_index<'main, 'ctx>(
     ctx: &'main Context,
     module: &Module<'ctx>,
@@ -2922,7 +2982,10 @@ fn access_array_index<'main, 'ctx>(
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: &Arc<IndexMap<String, CustomType>>,
-    variable_reference: String,
+    ((array_ptr, _ptr_ty), ty_disc): (
+        (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+        TypeDiscriminant,
+    ),
     index: Box<ParsedToken>,
 ) -> Result<
     (
@@ -2935,13 +2998,6 @@ fn access_array_index<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    let ((array_ptr, array_ty), ty_disc) = variable_map
-        .get(&variable_reference)
-        .ok_or(CodeGenError::InternalVariableNotFound(
-            variable_reference.clone(),
-        ))?
-        .clone();
-
     let index_val = create_ir_from_parsed_token(
         ctx,
         module,
@@ -2978,7 +3034,10 @@ where
             )?
         };
 
-        Ok((gep_ptr, pointee_ty.into(), ty_disc.clone()))
+        let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
+        let inner_ty = token_to_ty(*inner_ty_token, custom_types.clone())?;
+
+        Ok((gep_ptr, inner_ty.clone().to_basic_type_enum(ctx, custom_types.clone())?.into(), inner_ty.clone()))
     } else {
         Err(CodeGenError::InvalidIndexValue(*index.clone()).into())
     }
@@ -3105,7 +3164,7 @@ where
                         .into());
                     }
                 } else {
-                    return Err(CodeGenError::InternalStructReference.into());
+                    return Err(CodeGenError::InternalInvalidStructReference.into());
                 }
             }
             crate::app::parser::types::VariableReference::BasicReference(name) => {
@@ -4501,18 +4560,17 @@ pub fn ty_to_llvm_ty<'a>(
 }
 
 pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataTypeEnum<'_> {
-    todo!();
-
-    // match ty_enum {
-    //     BasicTypeEnum::ArrayType(array_type) => BasicMetadataTypeEnum::ArrayType(array_type),
-    //     BasicTypeEnum::FloatType(float_type) => BasicMetadataTypeEnum::FloatType(float_type),
-    //     BasicTypeEnum::IntType(int_type) => BasicMetadataTypeEnum::IntType(int_type),
-    //     BasicTypeEnum::PointerType(pointer_type) => {
-    //         BasicMetadataTypeEnum::PointerType(pointer_type)
-    //     }
-    //     BasicTypeEnum::StructType(struct_type) => BasicMetadataTypeEnum::StructType(struct_type),
-    //     BasicTypeEnum::VectorType(vector_type) => BasicMetadataTypeEnum::VectorType(vector_type),
-    // }
+    match ty_enum {
+        BasicTypeEnum::ArrayType(array_type) => BasicMetadataTypeEnum::ArrayType(array_type),
+        BasicTypeEnum::FloatType(float_type) => BasicMetadataTypeEnum::FloatType(float_type),
+        BasicTypeEnum::IntType(int_type) => BasicMetadataTypeEnum::IntType(int_type),
+        BasicTypeEnum::PointerType(pointer_type) => {
+            BasicMetadataTypeEnum::PointerType(pointer_type)
+        }
+        BasicTypeEnum::StructType(struct_type) => BasicMetadataTypeEnum::StructType(struct_type),
+        BasicTypeEnum::VectorType(vector_type) => BasicMetadataTypeEnum::VectorType(vector_type),
+        BasicTypeEnum::ScalableVectorType(scalable_vector_type) => todo!(),
+    }
 }
 
 /// This function takes the field of a struct, and returns the fields' [`BasicTypeEnum`] variant.

@@ -12,6 +12,7 @@ use inkwell::{
     types::{BasicType, BasicTypeEnum},
 };
 use num::Float;
+use strum::EnumTryAs;
 use strum_macros::Display;
 
 use crate::app::{
@@ -169,7 +170,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Default, Eq, Hash, EnumTryAs)]
 pub enum TypeDiscriminant {
     I64,
     F64,
