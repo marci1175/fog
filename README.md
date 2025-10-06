@@ -5,6 +5,7 @@
 **Fog is a lightweight, high-performance programming language designed to be simple, flexible, and expressive. Fog is designed with simplicity and minimalism in mind, making it a great choice for quick prototypes.**
 
 ---
+![Endpoint Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fghloc.vercel.app%2Fapi%2Fmarci1175%2Ffog%2Fbadge)
 
 ## Features
 
