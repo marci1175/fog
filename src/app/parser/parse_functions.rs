@@ -128,7 +128,11 @@ pub fn create_signature_table(
                                 function_name.clone(),
                                 UnparsedFunctionDefinition {
                                     inner: braces_contains,
-                                    function_sig: FunctionSignature { args, return_type },
+                                    function_sig: FunctionSignature {
+                                        args,
+                                        return_type,
+                                        debug_attributes: None,
+                                    },
                                 },
                             );
 
@@ -179,8 +183,14 @@ pub fn create_signature_table(
                                 return Err(ParserError::DuplicateSignatureImports.into());
                             }
 
-                            external_imports
-                                .insert(identifier, FunctionSignature { args, return_type });
+                            external_imports.insert(
+                                identifier,
+                                FunctionSignature {
+                                    args,
+                                    return_type,
+                                    debug_attributes: None,
+                                },
+                            );
 
                             continue;
                         }
@@ -749,6 +759,7 @@ fn parse_function_block(
                             FunctionSignature {
                                 args: FunctionArguments::new(),
                                 return_type: TypeDiscriminant::Void,
+                                debug_attributes: None,
                             },
                             function_imports.clone(),
                             custom_items.clone(),
@@ -776,6 +787,7 @@ fn parse_function_block(
                                     FunctionSignature {
                                         args: FunctionArguments::new(),
                                         return_type: TypeDiscriminant::Void,
+                                        debug_attributes: None,
                                     },
                                     function_imports.clone(),
                                     custom_items.clone(),
@@ -826,6 +838,7 @@ fn parse_function_block(
                         FunctionSignature {
                             args: FunctionArguments::new(),
                             return_type: TypeDiscriminant::Void,
+                            debug_attributes: None,
                         },
                         function_imports.clone(),
                         custom_items.clone(),

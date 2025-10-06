@@ -209,6 +209,19 @@ impl TypeDiscriminant {
         )
     }
 
+    /// Reference arcticle: https://dwarfstd.org/doc/DWARF5.pdf
+    pub fn get_dwarf_encoding(&self) -> u32 {
+        match self {
+            Self::I64 | Self::I32 | Self::I16 => 5,
+            Self::U64 | Self::U32 | Self::U16 | Self::U8 => 7,
+            Self::F64 | Self::F32 | Self::F16 => 4,
+            Self::Boolean => 2,
+            Self::String => 18,
+            // Self::Pointer => 1,
+            _ => panic!("DWARF identifier requested on invalid type."),
+        }
+    }
+
     pub fn sizeof(&self, custom_types: Arc<IndexMap<String, CustomType>>) -> usize {
         match self {
             Self::I64 => std::mem::size_of::<i64>(),

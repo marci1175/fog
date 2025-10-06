@@ -534,19 +534,23 @@ pub fn parse_token_as_value(
                         .into());
                     }
                 } else {
-                    let desired_variable_type =
-                        desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
+                    // If there is a desired variable type then check if the two types match
+                    if let Some(desired_variable_type) = desired_variable_type {
+                        // If the function's return type doesn't match the variable's return type return an error
+                        if function.function_sig.return_type != desired_variable_type {
+                            return Err(ParserError::TypeError(
+                                function.function_sig.return_type.clone(),
+                                desired_variable_type,
+                            )
+                            .into());
+                        }
 
-                    // If the function's return type doesn't match the variable's return type return an error
-                    if function.function_sig.return_type != desired_variable_type {
-                        return Err(ParserError::TypeError(
-                            function.function_sig.return_type.clone(),
-                            desired_variable_type,
-                        )
-                        .into());
+                        (parsed_token, desired_variable_type)
                     }
-
-                    (parsed_token, desired_variable_type)
+                    // If there were no explicit type definitions, return the type which is produced by the function
+                    else {
+                        (parsed_token, function.function_sig.return_type.clone())
+                    }
                 }
             }
             // If the identifier could not be found in the function list search in the variable scope

@@ -1,25 +1,17 @@
 use core::panic;
 use std::{
-    collections::{HashMap, VecDeque},
-    io::ErrorKind,
-    path::PathBuf,
-    rc::Rc,
-    slice::Iter,
-    sync::Arc,
+    collections::{HashMap, VecDeque}, ffi::CString, io::ErrorKind, path::PathBuf, pin::Pin, rc::Rc, slice::Iter, sync::Arc
 };
 
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    AddressSpace,
-    basic_block::BasicBlock,
-    builder::Builder,
-    context::Context,
-    module::Module,
-    passes::PassBuilderOptions,
-    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::{ArrayType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    basic_block::BasicBlock, builder::Builder, context::Context, debug_info::{
+        AsDIScope, DIFile, DIFlagsConstants, DIScope, DIType, DWARFEmissionKind,
+        DWARFSourceLanguage, DebugInfoBuilder,
+    }, llvm_sys::{
+        self, core::LLVMDisposeMessage, error::LLVMDisposeErrorMessage, target::{LLVMABIAlignmentOfType, LLVMCreateTargetData, LLVMStoreSizeOfType, LLVMTargetDataRef}, target_machine::{LLVMCreateTargetMachine, LLVMGetDefaultTargetTriple, LLVMGetTargetFromTriple, LLVMTargetRef}
+    }, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{ArrayType, AsTypeRef, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue}, AddressSpace
 };
 
 use crate::{
@@ -39,9 +31,10 @@ use super::error::CodeGenError;
 pub fn codegen_main(
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     path_to_output: PathBuf,
-    optimization: bool,
+    is_optimized: bool,
     imported_functions: &HashMap<String, FunctionSignature>,
     custom_types: Arc<IndexMap<String, CustomType>>,
+    flags_passed_in: &str,
 ) -> Result<()> {
     let context = Context::create();
     let builder = context.create_builder();
@@ -56,7 +49,15 @@ pub fn codegen_main(
         custom_types.clone(),
     )?;
 
-    generate_ir(parsed_functions, &context, &module, &builder, custom_types)?;
+    generate_ir(
+        parsed_functions,
+        &context,
+        &module,
+        &builder,
+        custom_types,
+        is_optimized,
+        flags_passed_in,
+    )?;
 
     // Init target
     Target::initialize_x86(&InitializationConfig::default());
@@ -84,7 +85,7 @@ pub fn codegen_main(
     let passes = ["globaldce", "sink", "mem2reg"].join(",");
 
     // Run optimization passes if the user prompted to
-    if optimization {
+    if is_optimized {
         let passes = passes.as_str();
 
         println!("Running optimization passes: {passes}...");
@@ -106,24 +107,282 @@ pub fn codegen_main(
     Ok(())
 }
 
+/// Stores the DebugInformation type equivalents of the passed in [`TypeDiscriminant`]s.
+fn generate_debug_inforamtion_types<'ctx>(
+    ctx: &'ctx Context,
+    module: &Module<'ctx>,
+    types_buffer: &mut Vec<inkwell::debug_info::DIType<'ctx>>,
+    debug_info_builder: &DebugInfoBuilder<'ctx>,
+    type_discriminants: Vec<TypeDiscriminant>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
+    scope: DIScope<'ctx>,
+    file: DIFile<'ctx>,
+    unique_id_source: &mut u32,
+) -> Result<(), &'static str> {
+    for type_disc in type_discriminants {
+        let di_ty = generate_debug_type_from_type_disc(
+            ctx,
+            module,
+            debug_info_builder,
+            &custom_types,
+            type_disc,
+            scope,
+            file,
+            unique_id_source,
+        )?;
+
+        types_buffer.push(di_ty);
+    }
+
+    Ok(())
+}
+
+fn get_unique_id(source: &mut u32) -> u32 {
+    *source += 1;
+
+    *source
+}
+
+fn generate_debug_type_from_type_disc<'ctx>(
+    ctx: &'ctx Context,
+    module: &Module<'ctx>,
+    debug_info_builder: &DebugInfoBuilder<'ctx>,
+    custom_types: &Arc<IndexMap<String, CustomType>>,
+    type_disc: TypeDiscriminant,
+    scope: DIScope<'ctx>,
+    file: DIFile<'ctx>,
+    unique_id_source: &mut u32,
+) -> Result<DIType<'ctx>, &'static str> {
+    let debug_type = match type_disc.clone() {
+        TypeDiscriminant::Array((array_ty, len)) => {
+            let inner_ty_disc = token_to_ty(*array_ty, custom_types.clone()).unwrap();
+
+            let inner_type = get_basic_debug_type_from_ty(
+                &debug_info_builder,
+                custom_types.clone(),
+                inner_ty_disc.clone(),
+            )?;
+
+            debug_info_builder
+                .create_array_type(
+                    inner_type.as_type(),
+                    (inner_ty_disc.sizeof(custom_types.clone()) * len) as u64,
+                    inner_type.as_type().get_align_in_bits(),
+                    &[0..len as i64],
+                )
+                .as_type()
+        }
+        TypeDiscriminant::Struct((struct_name, struct_def)) => {
+            let mut struct_field_types: Vec<DIType> = Vec::new();
+
+            let type_discs = struct_def
+                .iter()
+                .map(|(_, val)| val.clone())
+                .collect::<Vec<TypeDiscriminant>>();
+
+            // Call the function recursively
+            generate_debug_inforamtion_types(
+                ctx,
+                module,
+                &mut struct_field_types,
+                debug_info_builder,
+                type_discs,
+                custom_types.clone(),
+                scope,
+                file.clone(),
+                unique_id_source,
+            )?;
+
+            let struct_type = type_disc
+                .to_basic_type_enum(ctx, custom_types.clone())
+                .unwrap()
+                .into_struct_type();
+
+            unsafe {
+                let target = std::ptr::null_mut();
+                
+                let default_target_triple = LLVMGetDefaultTargetTriple();
+
+                let error_message = std::ptr::null_mut();
+                
+                LLVMGetTargetFromTriple(default_target_triple, target, error_message);
+
+                
+
+                // Free memory
+                LLVMDisposeMessage(default_target_triple);
+                LLVMDisposeErrorMessage(*error_message);
+            }
+
+            let (size_bits, align_bits) = unsafe {
+                panic!();
+
+                // let size_in_bytes = LLVMStoreSizeOfType(
+                //     target_data_layout,
+                //     struct_type.as_type_ref(),
+                // );
+                // let align_in_bytes = LLVMABIAlignmentOfType(
+                //     target_data_layout,
+                //     struct_type.as_type_ref(),
+                // );
+
+                // (size_in_bytes * 8, align_in_bytes * 8)
+            };
+
+            debug_info_builder
+                .create_struct_type(
+                    scope,
+                    &struct_name,
+                    file.clone(),
+                    69,
+                    size_bits,
+                    align_bits,
+                    DIFlagsConstants::ZERO,
+                    None,
+                    &struct_field_types,
+                    DWARFSourceLanguage::C as u32,
+                    None,
+                    &get_unique_id(unique_id_source).to_string(),
+                )
+                .as_type()
+        }
+        _ => get_basic_debug_type_from_ty(debug_info_builder, custom_types.clone(), type_disc)?
+            .as_type(),
+    };
+
+    Ok(debug_type)
+}
+
+fn get_basic_debug_type_from_ty<'ctx>(
+    debug_info_builder: &DebugInfoBuilder<'ctx>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
+    type_disc: TypeDiscriminant,
+) -> Result<inkwell::debug_info::DIBasicType<'ctx>, &'static str> {
+    let debug_type = debug_info_builder.create_basic_type(
+        &type_disc.to_string(),
+        type_disc.sizeof(custom_types.clone()) as u64,
+        type_disc.get_dwarf_encoding(),
+        DIFlagsConstants::ZERO,
+    )?;
+
+    Ok(debug_type)
+}
+
+/// This function is solely for generating the LLVM-IR from the main sourec file.
 fn generate_ir<'ctx>(
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     context: &'ctx Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
     custom_types: Arc<IndexMap<String, CustomType>>,
+    is_optimized: bool,
+    flags_passed_in: &str,
 ) -> Result<(), anyhow::Error> {
+    let (debug_info_builder, debug_info_compile_uint) = module.create_debug_info_builder(
+        false,
+        // Im lying hehe but who cares
+        DWARFSourceLanguage::C,
+        module.get_name().to_str()?,
+        "src/",
+        &format!("Fog (ver.: {}) with LLVM 18-1-8", env!("CARGO_PKG_VERSION")),
+        is_optimized,
+        flags_passed_in,
+        0,
+        "",
+        {
+            if is_optimized {
+                DWARFEmissionKind::LineTablesOnly
+            } else {
+                DWARFEmissionKind::Full
+            }
+        },
+        0,
+        false,
+        !is_optimized,
+        "",
+        "",
+    );
+
+    let debug_info_file = debug_info_compile_uint.get_file();
+
+    let debug_scope = debug_info_file.as_debug_info_scope();
+
+    let mut unique_id_source = 0;
+
     for (function_name, function_definition) in parsed_functions.iter() {
-        // Create function signature
-        let function = module.add_function(
-            function_name,
-            create_fn_type_from_ty_disc(
-                context,
-                function_definition.function_sig.clone(),
-                custom_types.clone(),
-            )?,
+        let function_type = create_fn_type_from_ty_disc(
+            context,
+            function_definition.function_sig.clone(),
+            custom_types.clone(),
+        )?;
+
+        let return_type = function_definition.function_sig.return_type.clone();
+
+        let return_type = if return_type == TypeDiscriminant::Void {
+            None
+        } else {
+            Some(
+                generate_debug_type_from_type_disc(
+                    context,
+                    module,
+                    &debug_info_builder,
+                    &custom_types,
+                    return_type,
+                    debug_scope,
+                    debug_info_file,
+                    &mut unique_id_source,
+                )
+                .unwrap(),
+            )
+        };
+
+        let mut param_types: Vec<inkwell::debug_info::DIType<'ctx>> = Vec::new();
+
+        generate_debug_inforamtion_types(
+            context,
+            module,
+            &mut param_types,
+            &debug_info_builder,
+            function_definition
+                .function_sig
+                .args
+                .arguments_list
+                .iter()
+                .map(|(_key, value)| value.clone())
+                .collect::<Vec<TypeDiscriminant>>(),
+            custom_types.clone(),
+            debug_scope,
+            debug_info_file,
+            &mut unique_id_source,
+        )
+        .unwrap();
+
+        let debug_subroutine_type: inkwell::debug_info::DISubroutineType<'_> = debug_info_builder
+            .create_subroutine_type(
+                debug_info_file,
+                return_type,
+                &param_types,
+                DIFlagsConstants::ZERO,
+            );
+
+        let debug_subprogram = debug_info_builder.create_function(
+            debug_scope,
+            &function_name,
             None,
+            debug_info_file,
+            69,
+            debug_subroutine_type,
+            true,
+            true,
+            69,
+            DIFlagsConstants::ZERO,
+            is_optimized,
         );
+
+        // Create function signature
+        let function = module.add_function(function_name, function_type, None);
+
+        function.set_subprogram(debug_subprogram);
 
         // Create a BasicBlock to store the IR in
         let basic_block = context.append_basic_block(function, "main_fn_entry");

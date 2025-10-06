@@ -1,18 +1,23 @@
 import printf(input: string, ...): int;
 
+struct fing {
+    asd: int
+}
+
+function finggen(): fing {
+    fing tmp = fing { asd: 0 };
+    return tmp;
+}
+
+# [debug_attr: "Main function"]
+# [hot]
+# [no_mangle]
 function main(): int {
-    printf("Hello world!\n");
-    
-    array<array<int, 2>, 4> szamok = {
-        { 0, 1 },
-        { 0, 1 },
-        { 0, 1 },
-        { 0, 1 }
-    };
+    int szamok = 2;
 
-    szamok[0][1] = 2;
+    fing marci = finggen();
 
-    printf("Number %i", szamok[0][1]);
+    printf("Number %s", szamok);
 
     return 0;
 }

@@ -238,13 +238,14 @@ pub struct FunctionDefinition {
 pub struct FunctionSignature {
     pub args: FunctionArguments,
     pub return_type: TypeDiscriminant,
+    pub debug_attributes: Option<String>,
 }
 
 impl Display for FunctionSignature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!(
-            "Arguments: {:?}, Return type: {}",
-            self.args, self.return_type
+            "Arguments: {:?}, Return type: {}, Debug Attributes: {:?}",
+            self.args, self.return_type, self.debug_attributes
         ))
     }
 }

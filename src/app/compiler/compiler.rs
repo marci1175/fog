@@ -77,6 +77,8 @@ impl CompilerState {
             optimization,
             imported_functions,
             parser_state.custom_types(),
+            // We should make it so that this argument will contain all of the flags the user has passed in
+            "",
         )?;
 
         Ok(())
