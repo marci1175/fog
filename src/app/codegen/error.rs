@@ -68,4 +68,8 @@ pub enum CodeGenError {
     InvalidIndexValue(ParsedToken),
     #[error("ParsedToken `{0}` is not a valid variable reference.")]
     InvalidVariableReference(ParsedToken),
+
+    /// This error can only be returned when an error occured thorugh LLVM-SYS itself.
+    #[error("An error has occured while generating LLVM-IR: `{0}`.")]
+    LibraryLLVMMessage(String),
 }

@@ -142,7 +142,7 @@ fn generate_debug_inforamtion_types<'ctx>(
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
     unique_id_source: &mut u32,
-) -> Result<(), &'static str> {
+) -> Result<(), String> {
     for type_disc in type_discriminants {
         let di_ty = generate_debug_type_from_type_disc(
             ctx,
@@ -178,7 +178,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
     unique_id_source: &mut u32,
-) -> Result<DIType<'ctx>, &'static str> {
+) -> Result<DIType<'ctx>, String> {
     let debug_type = match type_disc.clone() {
         TypeDiscriminant::Array((array_ty, len)) => {
             let inner_ty_disc = token_to_ty(*array_ty, custom_types.clone()).unwrap();
@@ -240,6 +240,8 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
                     eprintln!("Failed to get target: {}", c_str.to_string_lossy());
                     LLVMDisposeMessage(error_message);
                     LLVMDisposeMessage(target_triple);
+
+                    return Err(c_str.to_string_lossy().to_string());
                 }
 
                 let features = CString::new("").unwrap();
@@ -378,7 +380,8 @@ fn generate_ir<'ctx>(
                 function_name,
                 function_definition,
                 return_type,
-            );
+            )
+            .map_err(|err| CodeGenError::LibraryLLVMMessage(err))?;
 
             function.set_subprogram(debug_subprogram);
         }
@@ -454,23 +457,20 @@ fn create_subprogram_debug_information<'ctx>(
     function_name: &String,
     function_definition: &FunctionDefinition,
     return_type: TypeDiscriminant,
-) -> inkwell::debug_info::DISubprogram<'ctx> {
+) -> Result<inkwell::debug_info::DISubprogram<'ctx>, String> {
     let debug_return_type = if return_type == TypeDiscriminant::Void {
         None
     } else {
-        Some(
-            generate_debug_type_from_type_disc(
-                context,
-                module,
-                debug_info_builder,
-                custom_types,
-                return_type,
-                debug_scope,
-                debug_info_file,
-                unique_id_source,
-            )
-            .unwrap(),
-        )
+        Some(generate_debug_type_from_type_disc(
+            context,
+            module,
+            debug_info_builder,
+            custom_types,
+            return_type,
+            debug_scope,
+            debug_info_file,
+            unique_id_source,
+        )?)
     };
 
     let mut param_types: Vec<inkwell::debug_info::DIType<'ctx>> = Vec::new();
@@ -491,8 +491,7 @@ fn create_subprogram_debug_information<'ctx>(
         debug_scope,
         debug_info_file,
         unique_id_source,
-    )
-    .unwrap();
+    )?;
 
     let debug_subroutine_type: inkwell::debug_info::DISubroutineType<'_> = debug_info_builder
         .create_subroutine_type(
@@ -502,7 +501,7 @@ fn create_subprogram_debug_information<'ctx>(
             DIFlagsConstants::ZERO,
         );
 
-    debug_info_builder.create_function(
+    Ok(debug_info_builder.create_function(
         debug_scope,
         function_name,
         None,
@@ -514,7 +513,7 @@ fn create_subprogram_debug_information<'ctx>(
         69,
         DIFlagsConstants::ZERO,
         is_optimized,
-    )
+    ))
 }
 
 pub fn import_user_lib_functions<'a>(
