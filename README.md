@@ -14,13 +14,13 @@
 | LLVM backend    | Supported ✅ |
 | Powerful Abstractions | Supported ✅|
 | Cross-compilation | Partially Supported ⚠️ |
-| Modules and Libraries | Parially Supported ⚠️ |
+| Modules and Libraries | Partially Supported ⚠️ |
 | FFI support | Partially Supported ⚠️ |
 | Structs, custom types | Partially Supported ⚠️ |
+| Debug information in binaries | Partially Supported ⚠️ |
 | Function Generics | In Progress ❌ |
 | Dynamic memory allocation | Planned 🔵 |
 | Asnyc support | Planned 🔵 |
-| Debuggable binaries | Planned 🔵 |
 
 **Documentation is available [here](https://marci1175.github.io/fog/book/).**
 
