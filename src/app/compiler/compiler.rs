@@ -1,5 +1,9 @@
 use std::{path::PathBuf, rc::Rc};
 
+use inkwell::llvm_sys::target::{
+    LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters, LLVM_InitializeAllTargetInfos,
+    LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::app::{
@@ -68,6 +72,15 @@ impl CompilerState {
             }
         } else if function_table.contains_key("main") {
             println!("A `main` function has been found, but the library flag is set to `true`.");
+        }
+
+        println!("Initializing LLVM environment...");
+        unsafe {
+            LLVM_InitializeAllTargetInfos();
+            LLVM_InitializeAllTargets();
+            LLVM_InitializeAllTargetMCs();
+            LLVM_InitializeAllAsmParsers();
+            LLVM_InitializeAllAsmPrinters();
         }
 
         println!("LLVM-IR generation...");

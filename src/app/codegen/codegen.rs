@@ -1,17 +1,41 @@
 use core::panic;
 use std::{
-    collections::{HashMap, VecDeque}, ffi::CString, io::ErrorKind, path::PathBuf, pin::Pin, rc::Rc, slice::Iter, sync::Arc
+    collections::{HashMap, VecDeque},
+    ffi::{CStr, CString},
+    io::ErrorKind,
+    path::PathBuf,
+    ptr,
+    rc::Rc,
+    slice::Iter,
+    sync::Arc,
 };
 
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    basic_block::BasicBlock, builder::Builder, context::Context, debug_info::{
+    AddressSpace,
+    basic_block::BasicBlock,
+    builder::Builder,
+    context::Context,
+    debug_info::{
         AsDIScope, DIFile, DIFlagsConstants, DIScope, DIType, DWARFEmissionKind,
         DWARFSourceLanguage, DebugInfoBuilder,
-    }, llvm_sys::{
-        self, core::LLVMDisposeMessage, error::LLVMDisposeErrorMessage, target::{LLVMABIAlignmentOfType, LLVMCreateTargetData, LLVMStoreSizeOfType, LLVMTargetDataRef}, target_machine::{LLVMCreateTargetMachine, LLVMGetDefaultTargetTriple, LLVMGetTargetFromTriple, LLVMTargetRef}
-    }, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine}, types::{ArrayType, AsTypeRef, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType}, values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue}, AddressSpace
+    },
+    llvm_sys::{
+        core::LLVMDisposeMessage,
+        error::LLVMDisposeErrorMessage,
+        target::{LLVMABIAlignmentOfType, LLVMDisposeTargetData, LLVMStoreSizeOfType},
+        target_machine::{
+            LLVMCodeGenOptLevel, LLVMCodeModel, LLVMCreateTargetDataLayout,
+            LLVMCreateTargetMachine, LLVMDisposeTargetMachine, LLVMGetDefaultTargetTriple,
+            LLVMGetTargetFromTriple, LLVMRelocMode,
+        },
+    },
+    module::Module,
+    passes::PassBuilderOptions,
+    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
+    types::{ArrayType, AsTypeRef, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
 use crate::{
@@ -143,7 +167,9 @@ fn get_unique_id(source: &mut u32) -> u32 {
     *source
 }
 
-fn generate_debug_type_from_type_disc<'ctx>(
+/// Generates a debug type from a [`TypeDiscriminant`].
+/// This can be used to generate debug information, which can be added into the llvm-ir.
+pub fn generate_debug_type_from_type_disc<'ctx>(
     ctx: &'ctx Context,
     module: &Module<'ctx>,
     debug_info_builder: &DebugInfoBuilder<'ctx>,
@@ -158,7 +184,7 @@ fn generate_debug_type_from_type_disc<'ctx>(
             let inner_ty_disc = token_to_ty(*array_ty, custom_types.clone()).unwrap();
 
             let inner_type = get_basic_debug_type_from_ty(
-                &debug_info_builder,
+                debug_info_builder,
                 custom_types.clone(),
                 inner_ty_disc.clone(),
             )?;
@@ -189,7 +215,7 @@ fn generate_debug_type_from_type_disc<'ctx>(
                 type_discs,
                 custom_types.clone(),
                 scope,
-                file.clone(),
+                file,
                 unique_id_source,
             )?;
 
@@ -198,42 +224,58 @@ fn generate_debug_type_from_type_disc<'ctx>(
                 .unwrap()
                 .into_struct_type();
 
-            unsafe {
-                let target = std::ptr::null_mut();
-                
-                let default_target_triple = LLVMGetDefaultTargetTriple();
-
-                let error_message = std::ptr::null_mut();
-                
-                LLVMGetTargetFromTriple(default_target_triple, target, error_message);
-
-                
-
-                // Free memory
-                LLVMDisposeMessage(default_target_triple);
-                LLVMDisposeErrorMessage(*error_message);
-            }
-
             let (size_bits, align_bits) = unsafe {
-                panic!();
+                let target_triple = LLVMGetDefaultTargetTriple();
 
-                // let size_in_bytes = LLVMStoreSizeOfType(
-                //     target_data_layout,
-                //     struct_type.as_type_ref(),
-                // );
-                // let align_in_bytes = LLVMABIAlignmentOfType(
-                //     target_data_layout,
-                //     struct_type.as_type_ref(),
-                // );
+                let mut target = ptr::null_mut();
+                let mut error_message = ptr::null_mut();
 
-                // (size_in_bytes * 8, align_in_bytes * 8)
+                // Get target from triple
+                let target_triple_result =
+                    LLVMGetTargetFromTriple(target_triple, &mut target, &mut error_message);
+
+                if target_triple_result != 0 {
+                    // Failed to get target
+                    let c_str = CStr::from_ptr(error_message);
+                    eprintln!("Failed to get target: {}", c_str.to_string_lossy());
+                    LLVMDisposeMessage(error_message);
+                    LLVMDisposeMessage(target_triple);
+                }
+
+                let features = CString::new("").unwrap();
+                let generic = CString::new("generic").unwrap();
+
+                let target_machine = LLVMCreateTargetMachine(
+                    target,
+                    target_triple,
+                    generic.as_ptr(),
+                    features.as_ptr(),
+                    LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault,
+                    LLVMRelocMode::LLVMRelocDefault,
+                    LLVMCodeModel::LLVMCodeModelDefault,
+                );
+
+                let layout = LLVMCreateTargetDataLayout(target_machine);
+
+                let struct_type = struct_type.as_type_ref();
+
+                let ty_size = LLVMStoreSizeOfType(layout, struct_type);
+                let alignment = LLVMABIAlignmentOfType(layout, struct_type);
+
+                // Free memory allocated by unsafe calls
+                LLVMDisposeMessage(target_triple);
+                LLVMDisposeErrorMessage(error_message);
+                LLVMDisposeTargetMachine(target_machine);
+                LLVMDisposeTargetData(layout);
+
+                (ty_size, alignment)
             };
 
             debug_info_builder
                 .create_struct_type(
                     scope,
                     &struct_name,
-                    file.clone(),
+                    file,
                     69,
                     size_bits,
                     align_bits,
@@ -253,6 +295,8 @@ fn generate_debug_type_from_type_disc<'ctx>(
     Ok(debug_type)
 }
 
+/// Creates a basic debug type from a simple type.
+/// A simple type is basically any primitive which encoding is int or uint.
 fn get_basic_debug_type_from_ty<'ctx>(
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     custom_types: Arc<IndexMap<String, CustomType>>,
@@ -316,73 +360,28 @@ fn generate_ir<'ctx>(
             custom_types.clone(),
         )?;
 
-        let return_type = function_definition.function_sig.return_type.clone();
-
-        let return_type = if return_type == TypeDiscriminant::Void {
-            None
-        } else {
-            Some(
-                generate_debug_type_from_type_disc(
-                    context,
-                    module,
-                    &debug_info_builder,
-                    &custom_types,
-                    return_type,
-                    debug_scope,
-                    debug_info_file,
-                    &mut unique_id_source,
-                )
-                .unwrap(),
-            )
-        };
-
-        let mut param_types: Vec<inkwell::debug_info::DIType<'ctx>> = Vec::new();
-
-        generate_debug_inforamtion_types(
-            context,
-            module,
-            &mut param_types,
-            &debug_info_builder,
-            function_definition
-                .function_sig
-                .args
-                .arguments_list
-                .iter()
-                .map(|(_key, value)| value.clone())
-                .collect::<Vec<TypeDiscriminant>>(),
-            custom_types.clone(),
-            debug_scope,
-            debug_info_file,
-            &mut unique_id_source,
-        )
-        .unwrap();
-
-        let debug_subroutine_type: inkwell::debug_info::DISubroutineType<'_> = debug_info_builder
-            .create_subroutine_type(
-                debug_info_file,
-                return_type,
-                &param_types,
-                DIFlagsConstants::ZERO,
-            );
-
-        let debug_subprogram = debug_info_builder.create_function(
-            debug_scope,
-            &function_name,
-            None,
-            debug_info_file,
-            69,
-            debug_subroutine_type,
-            true,
-            true,
-            69,
-            DIFlagsConstants::ZERO,
-            is_optimized,
-        );
-
         // Create function signature
         let function = module.add_function(function_name, function_type, None);
 
-        function.set_subprogram(debug_subprogram);
+        let return_type = function_definition.function_sig.return_type.clone();
+
+        if !is_optimized {
+            let debug_subprogram = create_subprogram_debug_information(
+                context,
+                module,
+                &custom_types,
+                is_optimized,
+                &debug_info_builder,
+                debug_info_file,
+                debug_scope,
+                &mut unique_id_source,
+                function_name,
+                function_definition,
+                return_type,
+            );
+
+            function.set_subprogram(debug_subprogram);
+        }
 
         // Create a BasicBlock to store the IR in
         let basic_block = context.append_basic_block(function, "main_fn_entry");
@@ -439,6 +438,83 @@ fn generate_ir<'ctx>(
     }
 
     Ok(())
+}
+
+/// Creates a subprogram from a [`FunctionDefinition`] which can be used later to create a debug signatures and information.
+/// Please note that this function should only really be used when compiling a debug build by the user.
+fn create_subprogram_debug_information<'ctx>(
+    context: &'ctx Context,
+    module: &Module<'ctx>,
+    custom_types: &Arc<IndexMap<String, CustomType>>,
+    is_optimized: bool,
+    debug_info_builder: &DebugInfoBuilder<'ctx>,
+    debug_info_file: DIFile<'ctx>,
+    debug_scope: DIScope<'ctx>,
+    unique_id_source: &mut u32,
+    function_name: &String,
+    function_definition: &FunctionDefinition,
+    return_type: TypeDiscriminant,
+) -> inkwell::debug_info::DISubprogram<'ctx> {
+    let debug_return_type = if return_type == TypeDiscriminant::Void {
+        None
+    } else {
+        Some(
+            generate_debug_type_from_type_disc(
+                context,
+                module,
+                debug_info_builder,
+                custom_types,
+                return_type,
+                debug_scope,
+                debug_info_file,
+                unique_id_source,
+            )
+            .unwrap(),
+        )
+    };
+
+    let mut param_types: Vec<inkwell::debug_info::DIType<'ctx>> = Vec::new();
+
+    generate_debug_inforamtion_types(
+        context,
+        module,
+        &mut param_types,
+        debug_info_builder,
+        function_definition
+            .function_sig
+            .args
+            .arguments_list
+            .iter()
+            .map(|(_key, value)| value.clone())
+            .collect::<Vec<TypeDiscriminant>>(),
+        custom_types.clone(),
+        debug_scope,
+        debug_info_file,
+        unique_id_source,
+    )
+    .unwrap();
+
+    let debug_subroutine_type: inkwell::debug_info::DISubroutineType<'_> = debug_info_builder
+        .create_subroutine_type(
+            debug_info_file,
+            debug_return_type,
+            &param_types,
+            DIFlagsConstants::ZERO,
+        );
+
+    debug_info_builder.create_function(
+        debug_scope,
+        function_name,
+        None,
+        debug_info_file,
+        69,
+        debug_subroutine_type,
+        true,
+        true,
+        69,
+        DIFlagsConstants::ZERO,
+        is_optimized,
+    )
 }
 
 pub fn import_user_lib_functions<'a>(

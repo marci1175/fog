@@ -5,19 +5,16 @@ struct fing {
 }
 
 function finggen(): fing {
-    fing tmp = fing { asd: 0 };
-    return tmp;
+    return fing { asd: 35 };
 }
 
 # [debug_attr: "Main function"]
 # [hot]
 # [no_mangle]
 function main(): int {
-    int szamok = 2;
-
     fing marci = finggen();
 
-    printf("Number %s", szamok);
+    printf("Number %i", marci.asd);
 
     return 0;
 }

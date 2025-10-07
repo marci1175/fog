@@ -16,7 +16,7 @@ use strum::EnumTryAs;
 use strum_macros::Display;
 
 use crate::app::{
-    codegen::codegen::struct_field_to_ty_list,
+    codegen::codegen::{generate_debug_type_from_type_disc, struct_field_to_ty_list},
     parser::{
         error::ParserError,
         types::{CustomType, Token},
@@ -209,6 +209,7 @@ impl TypeDiscriminant {
         )
     }
 
+    /// Returns DWARF encoding for a type. For more complex types see: [`generate_debug_type_from_type_disc`].
     /// Reference arcticle: https://dwarfstd.org/doc/DWARF5.pdf
     pub fn get_dwarf_encoding(&self) -> u32 {
         match self {
