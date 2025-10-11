@@ -326,7 +326,6 @@ fn generate_ir<'ctx>(
 ) -> Result<(), anyhow::Error> {
     let (debug_info_builder, debug_info_compile_uint) = module.create_debug_info_builder(
         false,
-        // Im lying hehe but who cares
         DWARFSourceLanguage::C,
         module.get_name().to_str()?,
         "src/",
