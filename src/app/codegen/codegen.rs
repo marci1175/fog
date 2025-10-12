@@ -2,6 +2,7 @@ use core::panic;
 use std::{
     collections::{HashMap, VecDeque},
     ffi::{CStr, CString},
+    fs,
     io::ErrorKind,
     path::PathBuf,
     ptr,
@@ -52,18 +53,19 @@ use crate::{
 
 use super::error::CodeGenError;
 
-pub fn codegen_main(
+pub fn codegen_main<'ctx>(
+    context: &'ctx Context,
+    builder: &'ctx Builder<'ctx>,
+    module: &Module<'ctx>,
+
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    path_to_output: PathBuf,
+    path_to_ir_output: PathBuf,
+    path_to_o_output: PathBuf,
     is_optimized: bool,
-    imported_functions: &HashMap<String, FunctionSignature>,
+    imported_functions: &'ctx HashMap<String, FunctionSignature>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     flags_passed_in: &str,
-) -> Result<()> {
-    let context = Context::create();
-    let builder = context.create_builder();
-    let module = context.create_module("main");
-
+) -> Result<TargetMachine> {
     // Import functions defined by the user via llvm
     import_user_lib_functions(
         &context,
@@ -104,7 +106,7 @@ pub fn codegen_main(
             inkwell::targets::CodeModel::Default,
         )
         .unwrap();
-
+        
     // Create opt passes list
     let passes = ["globaldce", "sink", "mem2reg"].join(",");
 
@@ -118,17 +120,42 @@ pub fn codegen_main(
             .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
     }
 
-    println!("Writing LLVM-IR to output file...");
+    println!("Writing LLVM-IR to output...");
 
     // Write LLVM IR to a file.
-    module.print_to_file(path_to_output).map_err(|err| {
+    module.print_to_file(&path_to_ir_output).map_err(|err| {
         ApplicationError::FileError(std::io::Error::new(
             ErrorKind::ExecutableFileBusy,
             err.to_string(),
         ))
     })?;
 
-    Ok(())
+    println!(
+        "Compilation finished, llvm-ir output is located at: {:?}",
+        fs::canonicalize(path_to_ir_output).unwrap_or_default()
+    );
+
+    println!("Writing LLVM object code to output...");
+
+    target_machine
+        .write_to_file(
+            &module,
+            inkwell::targets::FileType::Object,
+            &path_to_o_output,
+        )
+        .map_err(|err| {
+            ApplicationError::FileError(std::io::Error::new(
+                ErrorKind::ExecutableFileBusy,
+                err.to_string(),
+            ))
+        })?;
+
+    println!(
+        "Compilation finished, object code output is located at: {:?}",
+        fs::canonicalize(path_to_o_output).unwrap_or_default()
+    );
+
+    Ok(target_machine)
 }
 
 /// Stores the DebugInformation type equivalents of the passed in [`TypeDiscriminant`]s.
@@ -237,11 +264,11 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
                 if target_triple_result != 0 {
                     // Failed to get target
                     let c_str = CStr::from_ptr(error_message);
-                    eprintln!("Failed to get target: {}", c_str.to_string_lossy());
+
                     LLVMDisposeMessage(error_message);
                     LLVMDisposeMessage(target_triple);
 
-                    return Err(c_str.to_string_lossy().to_string());
+                    return Err(format!("An error occured while getting the target: {}", c_str.to_string_lossy().to_string()));
                 }
 
                 let features = CString::new("").unwrap();

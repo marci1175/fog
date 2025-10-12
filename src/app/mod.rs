@@ -3,3 +3,4 @@ pub mod codegen;
 pub mod compiler;
 pub mod parser;
 pub mod type_system;
+pub mod linking;

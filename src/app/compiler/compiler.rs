@@ -1,21 +1,27 @@
 use std::{path::PathBuf, rc::Rc};
 
-use inkwell::llvm_sys::target::{
+use inkwell::{context::Context, llvm_sys::target::{
     LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters, LLVM_InitializeAllTargetInfos,
     LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets,
-};
+}};
 use serde::{Deserialize, Serialize};
 
-use crate::app::{
-    codegen::{codegen::codegen_main, error::CodeGenError},
-    parser::{parser::ParserState, tokenizer::tokenize},
-    type_system::type_system::TypeDiscriminant,
-};
+use crate::{app::{
+    codegen::{codegen::codegen_main, error::CodeGenError}, linking::linker::link_llvm_to_target, parser::{parser::ParserState, tokenizer::tokenize}, type_system::type_system::TypeDiscriminant
+}, ApplicationError};
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct LibraryImport {
+    pub name: String,
+    pub version: i32,
+}
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct CompilerConfig {
     pub name: String,
     pub is_library: bool,
+    pub version: i32,
+    pub imports: Vec<LibraryImport>,
 }
 
 impl Default for CompilerConfig {
@@ -23,13 +29,15 @@ impl Default for CompilerConfig {
         Self {
             name: "project".to_string(),
             is_library: false,
+            version: 0,
+            imports: Vec::new()
         }
     }
 }
 
 impl CompilerConfig {
-    pub fn new(name: String, is_library: bool) -> Self {
-        Self { name, is_library }
+    pub fn new(name: String, is_library: bool, version: i32, imports: Vec<LibraryImport>) -> Self {
+        Self { name, is_library, version, imports }
     }
 }
 
@@ -45,7 +53,8 @@ impl CompilerState {
     pub fn compilation_process(
         &self,
         file_contents: &str,
-        target_path: PathBuf,
+        target_ir_path: PathBuf,
+        target_o_path: PathBuf,
         optimization: bool,
         is_lib: bool,
     ) -> anyhow::Result<()> {
@@ -84,15 +93,28 @@ impl CompilerState {
         }
 
         println!("LLVM-IR generation...");
-        codegen_main(
+
+        // Create LLVM context
+        let context = Context::create();
+        let builder = context.create_builder();
+        let module = context.create_module("main");
+
+        let target = codegen_main(
+            &context,
+            &builder,
+            &module,
             Rc::new(function_table.clone()),
-            target_path,
+            target_ir_path,
+            target_o_path.clone(),
             optimization,
             imported_functions,
             parser_state.custom_types(),
             // We should make it so that this argument will contain all of the flags the user has passed in
             "",
         )?;
+        
+        // Linking the object file
+        // link_llvm_to_target(&module, target, target_o_path)?;
 
         Ok(())
     }

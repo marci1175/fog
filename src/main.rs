@@ -48,8 +48,14 @@ fn main() -> anyhow::Result<()> {
 
             let compiler_state = CompilerState::new(compiler_config.clone());
 
-            let target_path = PathBuf::from(format!(
+            let target_ir_path = PathBuf::from(format!(
                 "{}/output/{}.ll",
+                current_working_dir.display(),
+                compiler_config.name.clone()
+            ));
+
+            let target_o_path = PathBuf::from(format!(
+                "{}/output/{}.obj",
                 current_working_dir.display(),
                 compiler_config.name.clone()
             ));
@@ -58,15 +64,11 @@ fn main() -> anyhow::Result<()> {
 
             compiler_state.compilation_process(
                 &source_file,
-                target_path.clone(),
+                target_ir_path.clone(),
+                target_o_path.clone(),
                 release_flag == "release" || release_flag == "r",
                 compiler_config.is_library,
             )?;
-
-            println!(
-                "Compilation finished, output file is located at: {:?}",
-                fs::canonicalize(target_path).unwrap_or_default()
-            );
         }
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),
@@ -99,6 +101,8 @@ fn main() -> anyhow::Result<()> {
                 toml::to_string(&CompilerConfig::new(
                     arg.file_name().unwrap().to_string_lossy().to_string(),
                     false,
+                    0,
+                    Vec::new(),
                 ))?,
             )
             .map_err(ApplicationError::FileError)?;
@@ -129,7 +133,7 @@ fn main() -> anyhow::Result<()> {
             println!("Creating config file...");
             fs::write(
                 format!("{}/config.toml", current_working_dir.display()),
-                toml::to_string(&CompilerConfig::new(get_folder_name.to_string(), false))?,
+                toml::to_string(&CompilerConfig::new(get_folder_name.to_string(), false, 0, Vec::new()))?,
             )
             .map_err(ApplicationError::FileError)?;
 
