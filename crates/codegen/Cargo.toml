@@ -1,0 +1,9 @@
+[package]
+name = "fog-codegen"
+version = "0.1.0"
+edition = "2024"
+description = "LLVM codegen utilities for the Fog programming language ecosystem"
+
+[dependencies]
+inkwell = { version = "0.6.0", features = ["llvm18-1", "target-x86"], default-features = false }
+num = "0.4.3"

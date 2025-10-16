@@ -1,0 +1,13 @@
+[package]
+name = "fog-common"
+version = "0.1.0"
+edition = "2024"
+description = "Common utilities and types for the Fog programming language ecosystem"
+
+[dependencies]
+anyhow = {version = "1.0.98", features = ["backtrace"]}
+strum = {version = "0.27.1", features = ["derive"]}
+strum_macros = "0.27.1"
+inkwell = { version = "0.6.0", features = ["llvm18-1", "target-x86"], default-features = false }
+num = "0.4.3"
+indexmap = "2.9.0"

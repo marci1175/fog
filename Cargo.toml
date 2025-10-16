@@ -3,10 +3,6 @@ name = "fog"
 version = "0.1.0"
 edition = "2024"
 
-[[test]]
-name = "compiler_tests"
-path = "src/test.rs"
-
 [dependencies]
 anyhow = {version = "1.0.98", features = ["backtrace"]}
 strum = {version = "0.27.1", features = ["derive"]}
@@ -24,7 +20,7 @@ indexmap = "2.9.0"
 toml = "0.8.22"
 serde = {version = "1.0.219", features = ["serde_derive"]}
 ordered-float = "5.0.0"
-lld-rx = "0.1.1"
+# lld-rx = "0.1.1"
 
 [profile.dev]
 panic = "abort"

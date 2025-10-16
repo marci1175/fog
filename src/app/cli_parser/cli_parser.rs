@@ -13,7 +13,7 @@ pub fn parse_args(arg1: String, arg2: String) -> (CliCommand, PathBuf) {
 
 #[derive(Debug, strum_macros::VariantArray, strum_macros::Display, strum_macros::EnumMessage)]
 pub enum CliCommand {
-    #[strum(message = "`c |release|` - Compile a file.")]
+    #[strum(message = "`c |release/r|` - Compile a file.")]
     Compile,
     #[strum(message = "`h` - Display this help screen.")]
     Help,
