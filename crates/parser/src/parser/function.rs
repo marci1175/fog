@@ -382,7 +382,7 @@ pub fn parse_functions(
     Ok(parsed_functions)
 }
 
-fn parse_function_block(
+pub fn parse_function_block(
     tokens: Vec<Token>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     this_function_signature: FunctionSignature,

@@ -125,7 +125,7 @@ name = "fog-linker"
 version = "0.1.0"
 
 [[package]]
-name = "fog-package-mgr"
+name = "fog-package-mngr"
 version = "0.1.0"
 
 [[package]]

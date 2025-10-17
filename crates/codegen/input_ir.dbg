@@ -1,0 +1,41 @@
+[COMPILER IR]
+[
+    FunctionCall(
+        (
+            FunctionSignature {
+                args: FunctionArguments {
+                    arguments_list: OrdMap(
+                        {
+                            "buf": String,
+                        },
+                    ),
+                    ellipsis_present: true,
+                },
+                return_type: I32,
+                debug_attributes: None,
+            },
+            "printf",
+        ),
+        OrdMap(
+            {
+                Identifier(
+                    "buf",
+                ): (
+                    Literal(
+                        String(
+                            "Szia!",
+                        ),
+                    ),
+                    String,
+                ),
+            },
+        ),
+    ),
+    ReturnValue(
+        Literal(
+            I32(
+                0,
+            ),
+        ),
+    ),
+]

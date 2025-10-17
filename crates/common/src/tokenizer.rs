@@ -75,6 +75,10 @@ pub enum Token {
     For,
     Continue,
     Break,
+
+    Private,
+    Public,
+    LibraryPublic,
 }
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.

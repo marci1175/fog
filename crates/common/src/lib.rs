@@ -5,6 +5,7 @@ pub mod error;
 pub mod parser;
 pub mod tokenizer;
 pub mod ty;
+pub mod pkg_mngr;
 
 pub use anyhow;
 pub use indexmap;

@@ -296,8 +296,6 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
 
                 let list_type = &char_list[char_idx..closing_idx + char_idx];
 
-                let comma_count = list_type.iter().filter(|char| **char == ',').count();
-
                 let comma_pos = list_type.len()
                     - list_type.iter().rev().position(|char| *char == ',').ok_or(
                         ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
@@ -431,6 +429,10 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
         "for" => Token::For,
         "break" => Token::Break,
         "continue" => Token::Continue,
+
+        "priv" => Token::Private,
+        "pub" => Token::Public,
+        "libpub" => Token::LibraryPublic,
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }
