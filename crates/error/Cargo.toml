@@ -1,9 +1,0 @@
-[package]
-name = "fog-error"
-version = "0.1.0"
-edition = "2024"
-description = "Error definitions for the Fog programming language ecosystem"
-
-[dependencies]
-anyhow = {version = "1.0.98", features = ["backtrace"]}
-thiserror = "2.0.12"

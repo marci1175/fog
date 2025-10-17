@@ -7,3 +7,6 @@ description = "LLVM codegen utilities for the Fog programming language ecosystem
 [dependencies]
 inkwell = { version = "0.6.0", features = ["llvm18-1", "target-x86"], default-features = false }
 num = "0.4.3"
+fog-common = { path = "../common" }
+anyhow = {version = "1.0.98", features = ["backtrace"]}
+indexmap = "2.9.0"

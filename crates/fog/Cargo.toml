@@ -2,7 +2,9 @@
 name = "fog"
 version = "0.1.0"
 edition = "2024"
-default-run = "fog"
 
 [dependencies]
-anyhow = {version = "1.0.98", features = ["backtrace"]}
+fog-common = { path = "../common" }
+fog-compiler = { path = "../compiler" }
+strum = {version = "0.27.2", features = ["derive"]}
+strum_macros = "0.27.2"

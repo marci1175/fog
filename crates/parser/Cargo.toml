@@ -2,7 +2,7 @@
 name = "fog-parser"
 version = "0.1.0"
 edition = "2024"
-default-run = "fog"
 description = "Common utilities and types for the Fog programming language ecosystem"
 
 [dependencies]
+fog-common = { path = "../common" }
