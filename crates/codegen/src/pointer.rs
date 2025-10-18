@@ -1,12 +1,6 @@
-use anyhow::Result;
-use fog_common::{
-    codegen::{CustomType, LoopBodyBlocks, ty_to_llvm_ty},
-    error::codegen::CodeGenError,
-    parser::{FunctionDefinition, ParsedToken},
-    ty::{Type, TypeDiscriminant, token_to_ty},
-};
-use indexmap::IndexMap;
-use inkwell::{
+use fog_common::anyhow::Result;
+use fog_common::indexmap::IndexMap;
+use fog_common::inkwell::{
     AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
@@ -14,6 +8,12 @@ use inkwell::{
     module::Module,
     types::{BasicMetadataTypeEnum, BasicTypeEnum},
     values::{FunctionValue, PointerValue},
+};
+use fog_common::{
+    codegen::{CustomType, LoopBodyBlocks, ty_to_llvm_ty},
+    error::codegen::CodeGenError,
+    parser::{FunctionDefinition, ParsedToken},
+    ty::{Type, TypeDiscriminant, token_to_ty},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -52,7 +52,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: &Arc<IndexMap<String, CustomType>>,
     parsed_token: ParsedToken,
-) -> anyhow::Result<(
+) -> Result<(
     (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
     TypeDiscriminant,
 )> {
@@ -120,7 +120,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
             }
             fog_common::parser::VariableReference::BasicReference(basic_reference) => {
                 let variable_ref = variable_map.get(&basic_reference).ok_or_else(|| {
-                    anyhow::Error::from(CodeGenError::InternalVariableNotFound(
+                    fog_common::anyhow::Error::from(CodeGenError::InternalVariableNotFound(
                         basic_reference.clone(),
                     ))
                 })?;
@@ -239,7 +239,7 @@ pub fn set_value_of_ptr<'ctx>(
     module: &Module<'ctx>,
     value: Type,
     v_ptr: PointerValue<'_>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let bool_type = ctx.bool_type();
     let i8_type = ctx.i8_type();
     let i32_type = ctx.i32_type();

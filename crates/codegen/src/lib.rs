@@ -1,7 +1,34 @@
 pub mod allocate;
 pub mod pointer;
 
-use anyhow::Result;
+use fog_common::anyhow::Result;
+use fog_common::indexmap::IndexMap;
+use fog_common::inkwell::{
+    AddressSpace,
+    basic_block::BasicBlock,
+    builder::Builder,
+    context::Context,
+    debug_info::{
+        AsDIScope, DIFile, DIFlagsConstants, DIScope, DIType, DWARFEmissionKind,
+        DWARFSourceLanguage, DebugInfoBuilder,
+    },
+    llvm_sys::{
+        core::LLVMDisposeMessage,
+        error::LLVMDisposeErrorMessage,
+        target::{LLVMABIAlignmentOfType, LLVMDisposeTargetData, LLVMStoreSizeOfType},
+        target_machine::{
+            LLVMCodeGenOptLevel, LLVMCodeModel, LLVMCreateTargetDataLayout,
+            LLVMCreateTargetMachine, LLVMDisposeTargetMachine, LLVMGetDefaultTargetTriple,
+            LLVMGetTargetFromTriple, LLVMRelocMode,
+        },
+    },
+    module::Module,
+    passes::PassBuilderOptions,
+    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
+    types::AsTypeRef,
+    types::BasicMetadataTypeEnum,
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue},
+};
 use fog_common::{
     codegen::{
         CustomType, FunctionArgumentIdentifier, LoopBodyBlocks, create_fn_type_from_ty_disc,
@@ -10,15 +37,6 @@ use fog_common::{
     error::{application::ApplicationError, codegen::CodeGenError},
     parser::{FunctionDefinition, FunctionSignature, ParsedToken},
     ty::{OrdMap, TypeDiscriminant, token_to_ty},
-};
-use indexmap::IndexMap;
-use inkwell::{
-    basic_block::BasicBlock,
-    builder::Builder,
-    context::Context,
-    module::Module,
-    types::BasicMetadataTypeEnum,
-    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -34,27 +52,6 @@ use std::{
 use crate::{
     allocate::{allocate_string, create_alloca_table, create_new_variable},
     pointer::{access_nested_struct_field_ptr, access_variable_ptr, set_value_of_ptr},
-};
-
-use inkwell::{
-    AddressSpace,
-    debug_info::{
-        AsDIScope, DIFile, DIFlagsConstants, DIScope, DIType, DWARFEmissionKind,
-        DWARFSourceLanguage, DebugInfoBuilder,
-    },
-    llvm_sys::{
-        core::LLVMDisposeMessage,
-        error::LLVMDisposeErrorMessage,
-        target::{LLVMABIAlignmentOfType, LLVMDisposeTargetData, LLVMStoreSizeOfType},
-        target_machine::{
-            LLVMCodeGenOptLevel, LLVMCodeModel, LLVMCreateTargetDataLayout,
-            LLVMCreateTargetMachine, LLVMDisposeTargetMachine, LLVMGetDefaultTargetTriple,
-            LLVMGetTargetFromTriple, LLVMRelocMode,
-        },
-    },
-    passes::PassBuilderOptions,
-    targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    types::AsTypeRef,
 };
 
 pub fn codegen_main<'ctx>(
@@ -97,7 +94,7 @@ pub fn codegen_main<'ctx>(
 
     // Create target
     let target = Target::from_triple(&traget_triple)
-        .map_err(|_| anyhow::Error::from(CodeGenError::FaliedToAcquireTargetTriple))?;
+        .map_err(|_| fog_common::anyhow::Error::from(CodeGenError::FaliedToAcquireTargetTriple))?;
 
     // Create target machine
     let target_machine = target
@@ -105,9 +102,9 @@ pub fn codegen_main<'ctx>(
             &traget_triple,
             "generic",
             "",
-            inkwell::OptimizationLevel::Aggressive,
+            fog_common::inkwell::OptimizationLevel::Aggressive,
             RelocMode::PIC,
-            inkwell::targets::CodeModel::Default,
+            fog_common::inkwell::targets::CodeModel::Default,
         )
         .unwrap();
 
@@ -144,7 +141,7 @@ pub fn codegen_main<'ctx>(
     target_machine
         .write_to_file(
             module,
-            inkwell::targets::FileType::Object,
+            fog_common::inkwell::targets::FileType::Object,
             &path_to_o_output,
         )
         .map_err(|err| {
@@ -166,7 +163,7 @@ pub fn codegen_main<'ctx>(
 fn generate_debug_inforamtion_types<'ctx>(
     ctx: &'ctx Context,
     module: &Module<'ctx>,
-    types_buffer: &mut Vec<inkwell::debug_info::DIType<'ctx>>,
+    types_buffer: &mut Vec<fog_common::inkwell::debug_info::DIType<'ctx>>,
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     type_discriminants: Vec<TypeDiscriminant>,
     custom_types: Arc<IndexMap<String, CustomType>>,
@@ -337,7 +334,7 @@ fn get_basic_debug_type_from_ty<'ctx>(
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     type_disc: TypeDiscriminant,
-) -> Result<inkwell::debug_info::DIBasicType<'ctx>, &'static str> {
+) -> Result<fog_common::inkwell::debug_info::DIBasicType<'ctx>, &'static str> {
     let debug_type = debug_info_builder.create_basic_type(
         &type_disc.to_string(),
         type_disc.sizeof(custom_types.clone()) as u64,
@@ -357,7 +354,7 @@ fn generate_ir<'ctx>(
     custom_types: Arc<IndexMap<String, CustomType>>,
     is_optimized: bool,
     flags_passed_in: &str,
-) -> Result<(), anyhow::Error> {
+) -> Result<()> {
     let (debug_info_builder, debug_info_compile_uint) = module.create_debug_info_builder(
         false,
         DWARFSourceLanguage::C,
@@ -490,7 +487,7 @@ fn create_subprogram_debug_information<'ctx>(
     function_name: &String,
     function_definition: &FunctionDefinition,
     return_type: TypeDiscriminant,
-) -> Result<inkwell::debug_info::DISubprogram<'ctx>, String> {
+) -> Result<fog_common::inkwell::debug_info::DISubprogram<'ctx>, String> {
     let debug_return_type = if return_type == TypeDiscriminant::Void {
         None
     } else {
@@ -506,7 +503,7 @@ fn create_subprogram_debug_information<'ctx>(
         )?)
     };
 
-    let mut param_types: Vec<inkwell::debug_info::DIType<'ctx>> = Vec::new();
+    let mut param_types: Vec<fog_common::inkwell::debug_info::DIType<'ctx>> = Vec::new();
 
     generate_debug_inforamtion_types(
         context,
@@ -526,8 +523,8 @@ fn create_subprogram_debug_information<'ctx>(
         unique_id_source,
     )?;
 
-    let debug_subroutine_type: inkwell::debug_info::DISubroutineType<'_> = debug_info_builder
-        .create_subroutine_type(
+    let debug_subroutine_type: fog_common::inkwell::debug_info::DISubroutineType<'_> =
+        debug_info_builder.create_subroutine_type(
             debug_info_file,
             debug_return_type,
             &param_types,
@@ -771,7 +768,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> anyhow::Result<
+) -> Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
     // The return value is None if the `variable_reference` of the function is `Some`, as the variable will have its value set to the value of the returned value.
     Option<(
@@ -3076,14 +3073,11 @@ pub fn access_array_index<'main, 'ctx>(
         TypeDiscriminant,
     ),
     index: Box<ParsedToken>,
-) -> Result<
-    (
-        PointerValue<'ctx>,
-        BasicMetadataTypeEnum<'ctx>,
-        TypeDiscriminant,
-    ),
-    anyhow::Error,
->
+) -> Result<(
+    PointerValue<'ctx>,
+    BasicMetadataTypeEnum<'ctx>,
+    TypeDiscriminant,
+)>
 where
     'main: 'ctx,
 {
@@ -3171,7 +3165,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-) -> Result<(), anyhow::Error>
+) -> Result<()>
 where
     'main: 'ctx,
 {

@@ -10,14 +10,6 @@ use strum::{EnumMessage, VariantArray};
 
 use crate::cli::{CliCommand, parse_args};
 
-// fn display_help_prompt() {
-//     println!("Commands available to use:");
-
-//     for (idx, command) in CliCommand::VARIANTS.iter().enumerate() {
-//         println!("{}. {}", idx + 1, command.get_message().unwrap())
-//     }
-// }
-
 fn main() -> fog_common::anyhow::Result<()> {
     let mut args = std::env::args();
 

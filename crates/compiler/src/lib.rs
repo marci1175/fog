@@ -2,12 +2,16 @@ use std::{path::PathBuf, rc::Rc};
 
 use fog_codegen::codegen_main;
 use fog_common::{
-    anyhow::Result, error::codegen::CodeGenError, inkwell::{
+    anyhow::Result,
+    error::codegen::CodeGenError,
+    inkwell::{
         context::Context,
         llvm_sys::target::{
             LLVM_InitializeAllAsmParsers, LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargets,
         },
-    }, pkg_mngr::LibraryImport, ty::TypeDiscriminant
+    },
+    pkg_mngr::LibraryImport,
+    ty::TypeDiscriminant,
 };
 use fog_parser::{parser_instance::ParserState, tokenizer::tokenize};
 use serde::{Deserialize, Serialize};

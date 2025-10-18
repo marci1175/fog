@@ -88,10 +88,7 @@ dependencies = [
 name = "fog-codegen"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "fog-common",
- "indexmap",
- "inkwell",
  "num",
 ]
 

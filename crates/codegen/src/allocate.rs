@@ -4,21 +4,21 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
-use fog_common::{
-    codegen::{CustomType, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty},
-    error::codegen::CodeGenError,
-    parser::{FunctionDefinition, ParsedToken},
-    ty::TypeDiscriminant,
-};
-use indexmap::IndexMap;
-use inkwell::{
+use fog_common::anyhow::Result;
+use fog_common::indexmap::IndexMap;
+use fog_common::inkwell::{
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
     types::{ArrayType, BasicMetadataTypeEnum},
     values::{FunctionValue, IntValue, PointerValue},
+};
+use fog_common::{
+    codegen::{CustomType, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty},
+    error::codegen::CodeGenError,
+    parser::{FunctionDefinition, ParsedToken},
+    ty::TypeDiscriminant,
 };
 
 use crate::{create_ir_from_parsed_token, pointer::access_nested_struct_field_ptr};
@@ -51,7 +51,6 @@ pub fn create_alloca_table<'main, 'ctx>(
         BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,
     )>,
-    anyhow::Error,
 >
 where
     'main: 'ctx,
@@ -104,7 +103,7 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> anyhow::Result<
+) -> Result<
     Vec<(
         ParsedToken,
         PointerValue<'ctx>,
@@ -1223,9 +1222,9 @@ where
 
 pub fn allocate_string<'a>(
     builder: &'a Builder<'_>,
-    i8_type: inkwell::types::IntType<'a>,
+    i8_type: fog_common::inkwell::types::IntType<'a>,
     string_buffer: String,
-) -> Result<(PointerValue<'a>, ArrayType<'a>), anyhow::Error> {
+) -> Result<(PointerValue<'a>, ArrayType<'a>)> {
     // Create a buffer from the String
     let mut string_bytes = string_buffer.as_bytes().to_vec();
 
@@ -1267,7 +1266,7 @@ pub fn create_new_variable<'a, 'b>(
     var_name: &str,
     var_type: &TypeDiscriminant,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>), anyhow::Error> {
+) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>)> {
     // Turn a `TypeDiscriminant` into an LLVM type
     let var_type = ty_to_llvm_ty(ctx, var_type, custom_types.clone())?;
 

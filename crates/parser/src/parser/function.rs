@@ -414,7 +414,7 @@ pub fn parse_function_block(
                             .iter()
                             .skip(token_idx + 2)
                             .position(|token| *token == Token::SemiColon)
-                            .ok_or(ParserError::SyntaxError(SyntaxError::MissingLineBreak) )?
+                            .ok_or(ParserError::SyntaxError(SyntaxError::MissingLineBreak))?
                             + token_idx
                             + 2;
 

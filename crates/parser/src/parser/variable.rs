@@ -6,9 +6,8 @@ use fog_common::codegen::{CustomType, Order};
 use fog_common::error::parser::ParserError;
 use fog_common::error::syntax::SyntaxError;
 use fog_common::parser::{
-    FunctionSignature, MathematicalSymbol,
-    ParsedToken, StructFieldReference, UnparsedFunctionDefinition, VariableReference,
-    find_closing_braces, find_closing_paren,
+    FunctionSignature, MathematicalSymbol, ParsedToken, StructFieldReference,
+    UnparsedFunctionDefinition, VariableReference, find_closing_braces, find_closing_paren,
 };
 use fog_common::ty::{
     OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe,
@@ -602,7 +601,7 @@ pub fn parse_variable_expression(
                 .iter()
                 .skip(*token_idx)
                 .position(|token| *token == Token::SemiColon)
-                .ok_or(ParserError::SyntaxError(SyntaxError::MissingLineBreak) )?
+                .ok_or(ParserError::SyntaxError(SyntaxError::MissingLineBreak))?
                 + *token_idx;
 
             let selected_tokens = &tokens[*token_idx + 1..line_break_idx];
@@ -773,7 +772,9 @@ pub fn parse_variable_expression(
                     .iter()
                     .skip(*token_idx)
                     .position(|token| *token == Token::CloseSquareBrackets)
-                    .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets) )?
+                    .ok_or(ParserError::SyntaxError(
+                        SyntaxError::LeftOpenSquareBrackets,
+                    ))?
                     + *token_idx;
 
                 let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
@@ -936,7 +937,9 @@ fn handle_variable(
             .iter()
             .skip(*token_idx)
             .position(|token| *token == Token::CloseSquareBrackets)
-            .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets) )?
+            .ok_or(ParserError::SyntaxError(
+                SyntaxError::LeftOpenSquareBrackets,
+            ))?
             + *token_idx;
 
         let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
