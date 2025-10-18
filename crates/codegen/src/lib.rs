@@ -1,31 +1,30 @@
+/// Handles everything allocation related. (Strings, Variables, etc.)
 pub mod allocate;
+/// Handles pointers in the programming language
 pub mod pointer;
+/// Generates the llvm-ir from language code.
 pub mod irgen;
+/// Handles the llvm-ir generation od debug symbols and information.
 pub mod debug;
+/// Handles the llvm-ir generation of external libaries / functions
 pub mod import;
 
 use fog_common::{
     anyhow::Result,
-    codegen::{
-        CustomType, LoopBodyBlocks, ty_to_llvm_ty,
-    },
+    codegen::CustomType,
     error::{application::ApplicationError, codegen::CodeGenError},
     indexmap::IndexMap,
     inkwell::{
-        basic_block::BasicBlock,
         builder::Builder,
         context::Context,
         module::Module,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-        types::BasicMetadataTypeEnum,
-        values::{FunctionValue, PointerValue},
     },
-    parser::{FunctionDefinition, FunctionSignature, ParsedToken},
-    ty::{TypeDiscriminant, token_to_ty},
+    parser::{FunctionDefinition, FunctionSignature},
 };
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     fs,
     io::ErrorKind,
     path::PathBuf,
@@ -37,6 +36,8 @@ use crate::{
     import::import_user_lib_functions, irgen::{create_ir_from_parsed_token, generate_ir}
 };
 
+/// Main function to the codegen module.
+/// This function handles everything IR generation related.
 pub fn codegen_main<'ctx>(
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
@@ -143,165 +144,11 @@ pub fn codegen_main<'ctx>(
     Ok(target_machine)
 }
 
+/// This function takes in a mutable reference to a number and increments it while returning the current number.
+/// This can be used to create incrementing identification numbers.
 pub fn get_unique_id(source: &mut u32) -> u32
 {
     *source += 1;
 
     *source
-}
-
-pub fn access_array_index<'main, 'ctx>(
-    ctx: &'main Context,
-    module: &Module<'ctx>,
-    builder: &'ctx Builder<'ctx>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            TypeDiscriminant,
-        ),
-    >,
-    fn_ret_ty: &TypeDiscriminant,
-    this_fn_block: BasicBlock<'ctx>,
-    this_fn: FunctionValue<'ctx>,
-    allocation_list: &mut VecDeque<(
-        ParsedToken,
-        PointerValue<'ctx>,
-        BasicMetadataTypeEnum<'ctx>,
-        TypeDiscriminant,
-    )>,
-    is_loop_body: &Option<LoopBodyBlocks<'_>>,
-    parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: &Arc<IndexMap<String, CustomType>>,
-    ((array_ptr, _ptr_ty), ty_disc): (
-        (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-        TypeDiscriminant,
-    ),
-    index: Box<ParsedToken>,
-) -> Result<(
-    PointerValue<'ctx>,
-    BasicMetadataTypeEnum<'ctx>,
-    TypeDiscriminant,
-)>
-where
-    'main: 'ctx,
-{
-    let index_val = create_ir_from_parsed_token(
-        ctx,
-        module,
-        builder,
-        *index.clone(),
-        variable_map,
-        None,
-        fn_ret_ty.clone(),
-        this_fn_block,
-        this_fn,
-        allocation_list,
-        is_loop_body.clone(),
-        parsed_functions.clone(),
-        custom_types.clone(),
-    )?;
-
-    if let Some((idx_ptr, ptr_ty, idx_ty_disc)) = index_val {
-        let idx = builder.build_load(
-            ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
-            idx_ptr,
-            "array_idx_val",
-        )?;
-
-        let pointee_ty = ty_disc
-            .clone()
-            .to_basic_type_enum(ctx, custom_types.clone())?;
-
-        let gep_ptr = unsafe {
-            builder.build_gep(
-                pointee_ty,
-                array_ptr,
-                &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
-                "array_idx_elem_ptr",
-            )?
-        };
-
-        let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
-        let inner_ty = token_to_ty(*inner_ty_token, custom_types.clone())?;
-
-        Ok((
-            gep_ptr,
-            inner_ty
-                .clone()
-                .to_basic_type_enum(ctx, custom_types.clone())?
-                .into(),
-            inner_ty.clone(),
-        ))
-    }
-    else {
-        Err(CodeGenError::InvalidIndexValue(*index.clone()).into())
-    }
-}
-
-pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
-    module: &Module<'ctx>,
-    // Inkwell IR builder
-    builder: &'ctx Builder<'ctx>,
-    // Inkwell Context
-    ctx: &'main Context,
-    // The list of ParsedToken-s
-    parsed_tokens: Vec<ParsedToken>,
-    // Type returned type of the Function
-    fn_ret_ty: TypeDiscriminant,
-    this_fn_block: BasicBlock<'ctx>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            TypeDiscriminant,
-        ),
-    >,
-    this_fn: FunctionValue<'ctx>,
-    // Allocation tables are used when the ParsedTokens run in a loop
-    // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow
-    // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
-    // If the code we are running is not in a loop we can pass in `None`.
-    alloca_table: &mut VecDeque<(
-        ParsedToken,
-        PointerValue<'ctx>,
-        BasicMetadataTypeEnum<'ctx>,
-        TypeDiscriminant,
-    )>,
-    is_loop_body: Option<LoopBodyBlocks>,
-    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
-) -> Result<()>
-where
-    'main: 'ctx,
-{
-    #[cfg(debug_assertions)]
-    {
-        use std::fs;
-
-        fs::write(
-            format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")),
-            format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()),
-        )?;
-    }
-
-    for token in parsed_tokens {
-        create_ir_from_parsed_token(
-            ctx,
-            module,
-            builder,
-            token.clone(),
-            variable_map,
-            None,
-            fn_ret_ty.clone(),
-            this_fn_block,
-            this_fn,
-            alloca_table,
-            is_loop_body.clone(),
-            parsed_functions.clone(),
-            custom_items.clone(),
-        )?;
-    }
-
-    Ok(())
 }

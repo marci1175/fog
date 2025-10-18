@@ -22,7 +22,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{access_array_index, create_ir_from_parsed_token};
+use crate::create_ir_from_parsed_token;
 
 /// This function accesses any kind of variable.
 /// This is a recursive function so that nested variables i.e nested variables inside arrays and structs can be fetched.
@@ -381,4 +381,93 @@ pub fn set_value_of_ptr<'ctx>(
     }
 
     Ok(())
+}
+
+pub fn access_array_index<'main, 'ctx>(
+    ctx: &'main Context,
+    module: &Module<'ctx>,
+    builder: &'ctx Builder<'ctx>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            TypeDiscriminant,
+        ),
+    >,
+    fn_ret_ty: &TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
+    this_fn: FunctionValue<'ctx>,
+    allocation_list: &mut VecDeque<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )>,
+    is_loop_body: &Option<LoopBodyBlocks<'_>>,
+    parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
+    custom_types: &Arc<IndexMap<String, CustomType>>,
+    ((array_ptr, _ptr_ty), ty_disc): (
+        (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+        TypeDiscriminant,
+    ),
+    index: Box<ParsedToken>,
+) -> Result<(
+    PointerValue<'ctx>,
+    BasicMetadataTypeEnum<'ctx>,
+    TypeDiscriminant,
+)>
+where
+    'main: 'ctx,
+{
+    let index_val = create_ir_from_parsed_token(
+        ctx,
+        module,
+        builder,
+        *index.clone(),
+        variable_map,
+        None,
+        fn_ret_ty.clone(),
+        this_fn_block,
+        this_fn,
+        allocation_list,
+        is_loop_body.clone(),
+        parsed_functions.clone(),
+        custom_types.clone(),
+    )?;
+
+    if let Some((idx_ptr, ptr_ty, idx_ty_disc)) = index_val {
+        let idx = builder.build_load(
+            ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
+            idx_ptr,
+            "array_idx_val",
+        )?;
+
+        let pointee_ty = ty_disc
+            .clone()
+            .to_basic_type_enum(ctx, custom_types.clone())?;
+
+        let gep_ptr = unsafe {
+            builder.build_gep(
+                pointee_ty,
+                array_ptr,
+                &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
+                "array_idx_elem_ptr",
+            )?
+        };
+
+        let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
+        let inner_ty = token_to_ty(*inner_ty_token, custom_types.clone())?;
+
+        Ok((
+            gep_ptr,
+            inner_ty
+                .clone()
+                .to_basic_type_enum(ctx, custom_types.clone())?
+                .into(),
+            inner_ty.clone(),
+        ))
+    }
+    else {
+        Err(CodeGenError::InvalidIndexValue(*index.clone()).into())
+    }
 }

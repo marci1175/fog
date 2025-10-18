@@ -27,7 +27,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{access_array_index, allocate::{allocate_string, create_alloca_table, create_new_variable}, create_ir_from_parsed_token_list, debug::create_subprogram_debug_information, pointer::{access_nested_struct_field_ptr, access_variable_ptr, set_value_of_ptr}};
+use crate::{pointer::access_array_index, allocate::{allocate_string, create_alloca_table, create_new_variable}, debug::create_subprogram_debug_information, pointer::{access_nested_struct_field_ptr, access_variable_ptr, set_value_of_ptr}};
 
 pub fn create_ir<'main, 'ctx>(
     module: &Module<'ctx>,
@@ -2635,6 +2635,73 @@ pub fn generate_ir<'ctx>(
             function,
             parsed_functions.clone(),
             custom_types.clone(),
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
+    module: &Module<'ctx>,
+    // Inkwell IR builder
+    builder: &'ctx Builder<'ctx>,
+    // Inkwell Context
+    ctx: &'main Context,
+    // The list of ParsedToken-s
+    parsed_tokens: Vec<ParsedToken>,
+    // Type returned type of the Function
+    fn_ret_ty: TypeDiscriminant,
+    this_fn_block: BasicBlock<'ctx>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            TypeDiscriminant,
+        ),
+    >,
+    this_fn: FunctionValue<'ctx>,
+    // Allocation tables are used when the ParsedTokens run in a loop
+    // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow
+    // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
+    // If the code we are running is not in a loop we can pass in `None`.
+    alloca_table: &mut VecDeque<(
+        ParsedToken,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        TypeDiscriminant,
+    )>,
+    is_loop_body: Option<LoopBodyBlocks>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
+    custom_items: Arc<IndexMap<String, CustomType>>,
+) -> Result<()>
+where
+    'main: 'ctx,
+{
+    #[cfg(debug_assertions)]
+    {
+        use std::fs;
+
+        fs::write(
+            format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")),
+            format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()),
+        )?;
+    }
+
+    for token in parsed_tokens {
+        create_ir_from_parsed_token(
+            ctx,
+            module,
+            builder,
+            token.clone(),
+            variable_map,
+            None,
+            fn_ret_ty.clone(),
+            this_fn_block,
+            this_fn,
+            alloca_table,
+            is_loop_body.clone(),
+            parsed_functions.clone(),
+            custom_items.clone(),
         )?;
     }
 
