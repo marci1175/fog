@@ -4,7 +4,8 @@ use thiserror::Error;
 use crate::{parser::ParsedToken, ty::TypeDiscriminant};
 
 #[derive(Debug, Error)]
-pub enum CodeGenError {
+pub enum CodeGenError
+{
     #[error("Output path `{0}` is unavailable.")]
     InvalidOutPath(PathBuf),
     #[error("[INTERNAL ERROR] Function `{0}` was not found in the module at codegen.")]

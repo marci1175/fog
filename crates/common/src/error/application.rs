@@ -4,7 +4,8 @@ use thiserror::Error;
 use crate::error::cliparser::CliParseError;
 
 #[derive(Debug, Error)]
-pub enum ApplicationError {
+pub enum ApplicationError
+{
     #[error("File could not be accessed: {0}")]
     FileError(Error),
 

@@ -4,11 +4,13 @@ use fog_common::{
     ty::{Type, TypeDiscriminant},
 };
 
-fn only_contains_digits(s: &str) -> bool {
+fn only_contains_digits(s: &str) -> bool
+{
     s.chars().all(|c| c.is_ascii_digit())
 }
 
-pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
+pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError>
+{
     let mut char_idx: usize = 0;
 
     let mut token_list: Vec<Token> = Vec::new();
@@ -46,7 +48,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             token_list.push(single_char_token);
 
             string_buffer.clear();
-        } else if current_char == '.' {
+        }
+        else if current_char == '.' {
             let next_char = char_list.get(char_idx + 1);
             let next_char_2 = char_list.get(char_idx + 2);
 
@@ -56,11 +59,13 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                 char_idx += 3;
 
                 continue;
-            } else if only_contains_digits(&string_buffer) && !string_buffer.is_empty()
+            }
+            else if only_contains_digits(&string_buffer) && !string_buffer.is_empty()
             /* This might break ellpisis parsing */
             {
                 string_buffer.push(current_char);
-            } else {
+            }
+            else {
                 if !string_buffer.is_empty() {
                     // Push the chars we have collected as an ident
                     let token = match_multi_character_expression(string_buffer.clone());
@@ -72,7 +77,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
 
                 token_list.push(Token::Dot);
             }
-        } else if current_char == '-' {
+        }
+        else if current_char == '-' {
             let last_token = &token_list[token_list.len() - 1];
 
             // If the last token was a number we know that we are subtracting
@@ -87,7 +93,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             else {
                 string_buffer.push(current_char);
             }
-        } else if current_char == '#' {
+        }
+        else if current_char == '#' {
             let mut comment_buffer = String::new();
 
             let mut comment_idx = char_idx + 1;
@@ -108,7 +115,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             continue;
-        } else if current_char == '"' {
+        }
+        else if current_char == '"' {
             let mut quotes_buffer = String::new();
 
             let mut quote_idx = char_idx + 1;
@@ -126,34 +134,34 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                                     quote_idx += 2;
 
                                     continue;
-                                }
+                                },
                                 Some('r') => {
                                     quotes_buffer.push('\r');
 
                                     quote_idx += 2;
 
                                     continue;
-                                }
+                                },
                                 Some('t') => {
                                     quotes_buffer.push('\t');
 
                                     quote_idx += 2;
 
                                     continue;
-                                }
+                                },
                                 Some('0') => {
                                     quotes_buffer.push('\0');
 
                                     quote_idx += 2;
 
                                     continue;
-                                }
+                                },
                                 Some('\\') => {
                                     quotes_buffer.push('\\');
                                     quote_idx += 2;
 
                                     continue;
-                                }
+                                },
                                 Some(char) => {
                                     quotes_buffer.push('\\');
                                     quotes_buffer.push(*char);
@@ -161,9 +169,9 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                                     quote_idx += 2;
 
                                     continue;
-                                }
+                                },
 
-                                None => {}
+                                None => {},
                             }
                         }
 
@@ -178,59 +186,61 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                         quotes_buffer.push(*quote_char);
 
                         quote_idx += 1;
-                    }
+                    },
                     // If there are no more tokens left and we are still in the quote
                     None => {
                         return Err(ParserError::SyntaxError(SyntaxError::OpenQuotes));
-                    }
+                    },
                 }
             }
 
             continue;
-        } else if current_char == '=' {
+        }
+        else if current_char == '=' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 match *next_char {
                     '=' => {
                         token_list.push(Token::Equal);
 
                         char_idx += 2;
-                    }
+                    },
                     '+' => {
                         token_list.push(Token::SetValueAddition);
 
                         char_idx += 2;
-                    }
+                    },
                     '-' => {
                         token_list.push(Token::SetValueSubtraction);
 
                         char_idx += 2;
-                    }
+                    },
                     '*' => {
                         token_list.push(Token::SetValueMultiplication);
 
                         char_idx += 2;
-                    }
+                    },
                     '/' => {
                         token_list.push(Token::SetValueDivision);
 
                         char_idx += 2;
-                    }
+                    },
                     '%' => {
                         token_list.push(Token::SetValueModulo);
 
                         char_idx += 2;
-                    }
+                    },
 
                     _ => {
                         token_list.push(Token::SetValue);
 
                         char_idx += 1;
-                    }
+                    },
                 }
 
                 continue;
             }
-        } else if current_char == ':' {
+        }
+        else if current_char == ':' {
             if !string_buffer.trim().is_empty() {
                 let token = match_multi_character_expression(string_buffer.clone());
 
@@ -249,7 +259,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::Colon);
-        } else if current_char == '&' {
+        }
+        else if current_char == '&' {
             if let Some(next_char) = char_list.get(char_idx + 1)
                 && *next_char == '&'
             {
@@ -260,7 +271,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::BitAnd);
-        } else if current_char == '!' {
+        }
+        else if current_char == '!' {
             if let Some(next_char) = char_list.get(char_idx + 1)
                 && *next_char == '='
             {
@@ -271,14 +283,16 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::Not);
-        } else if current_char == '>' {
+        }
+        else if current_char == '>' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '>' {
                     token_list.push(Token::BitRight);
 
                     char_idx += 2;
                     continue;
-                } else if *next_char == '=' {
+                }
+                else if *next_char == '=' {
                     token_list.push(Token::EqBigger);
 
                     char_idx += 2;
@@ -288,7 +302,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::Bigger);
-        } else if string_buffer.trim() == "array" {
+        }
+        else if string_buffer.trim() == "array" {
             if current_char == '<' {
                 char_idx += 1;
 
@@ -332,7 +347,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
 
                 char_idx += closing_idx;
             }
-        } else if current_char == '<' {
+        }
+        else if current_char == '<' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '<' {
                     token_list.push(Token::BitLeft);
@@ -340,7 +356,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
                     char_idx += 2;
 
                     continue;
-                } else if *next_char == '=' {
+                }
+                else if *next_char == '=' {
                     token_list.push(Token::EqSmaller);
 
                     char_idx += 2;
@@ -350,7 +367,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::Smaller);
-        } else if current_char == '|' {
+        }
+        else if current_char == '|' {
             if let Some(next_char) = char_list.get(char_idx + 1)
                 && *next_char == '|'
             {
@@ -361,13 +379,15 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             }
 
             token_list.push(Token::BitOr);
-        } else if current_char == ' ' && !string_buffer.trim().is_empty() {
+        }
+        else if current_char == ' ' && !string_buffer.trim().is_empty() {
             let token = match_multi_character_expression(string_buffer.clone());
 
             token_list.push(token);
 
             string_buffer.clear();
-        } else if string_buffer.len() + 1 == char_list.len() {
+        }
+        else if string_buffer.len() + 1 == char_list.len() {
             string_buffer.push(char_list[char_list.len() - 1]);
 
             let token = match_multi_character_expression(string_buffer.clone());
@@ -375,7 +395,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
             token_list.push(token);
 
             string_buffer.clear();
-        } else if current_char != ' ' {
+        }
+        else if current_char != ' ' {
             string_buffer.push(current_char);
         }
 
@@ -385,7 +406,8 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError> {
     Ok(token_list)
 }
 
-fn match_multi_character_expression(string_buffer: String) -> Token {
+fn match_multi_character_expression(string_buffer: String) -> Token
+{
     let trimmed_string = string_buffer.trim();
 
     match trimmed_string {
@@ -439,14 +461,16 @@ fn match_multi_character_expression(string_buffer: String) -> Token {
 }
 
 // I guess this works too lol
-pub fn eval_constant_definition(raw_string: String) -> Token {
+pub fn eval_constant_definition(raw_string: String) -> Token
+{
     if raw_string.parse::<u8>().is_ok()
         || raw_string.parse::<u32>().is_ok()
         || raw_string.parse::<f32>().is_ok()
         || raw_string.parse::<i32>().is_ok()
     {
         Token::UnparsedLiteral(raw_string)
-    } else {
+    }
+    else {
         Token::Identifier(raw_string)
     }
 }

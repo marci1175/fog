@@ -1,16 +1,16 @@
 mod cli;
-use fog_common::error::application::ApplicationError;
-use fog_common::error::cliparser::CliParseError;
-use fog_common::error::codegen::CodeGenError;
-use fog_common::toml;
+use fog_common::{
+    error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError},
+    toml,
+};
 use fog_compiler::{CompilerConfig, CompilerState};
-use std::env;
-use std::{fs, path::PathBuf};
+use std::{env, fs, path::PathBuf};
 use strum::{EnumMessage, VariantArray};
 
 use crate::cli::{CliCommand, parse_args};
 
-fn main() -> fog_common::anyhow::Result<()> {
+fn main() -> fog_common::anyhow::Result<()>
+{
     let mut args = std::env::args();
 
     let _path_to_file = args.next().unwrap_or_default();
@@ -65,7 +65,7 @@ fn main() -> fog_common::anyhow::Result<()> {
                 release_flag == "release" || release_flag == "r",
                 compiler_config.is_library,
             )?;
-        }
+        },
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),
         CliCommand::New => {
@@ -80,7 +80,8 @@ fn main() -> fog_common::anyhow::Result<()> {
                     if let Some(argument) = args.next() {
                         if argument == "demo" {
                             return Ok(include_str!("../../../defaults/default_code.f"));
-                        } else {
+                        }
+                        else {
                             return Err(ApplicationError::CliParseError(
                                 CliParseError::InvalidArg(argument),
                             ));
@@ -104,7 +105,7 @@ fn main() -> fog_common::anyhow::Result<()> {
             .map_err(ApplicationError::FileError)?;
 
             fs::create_dir_all(format!("{}/output", working_folder))?;
-        }
+        },
         CliCommand::Init => {
             println!("Getting folder name...");
 
@@ -142,13 +143,14 @@ fn main() -> fog_common::anyhow::Result<()> {
                 "Successfully initalized a project at: {}",
                 current_working_dir.display()
             );
-        }
+        },
     }
 
     Ok(())
 }
 
-fn display_help_prompt() {
+fn display_help_prompt()
+{
     println!("Commands available to use:");
 
     for (idx, command) in CliCommand::VARIANTS.iter().enumerate() {

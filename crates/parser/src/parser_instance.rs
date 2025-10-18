@@ -1,9 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
-use fog_common::anyhow::Result;
-use fog_common::indexmap::IndexMap;
 use fog_common::{
+    anyhow::Result,
     codegen::CustomType,
+    indexmap::IndexMap,
     parser::{FunctionDefinition, FunctionSignature},
     tokenizer::Token,
 };
@@ -11,7 +11,8 @@ use fog_common::{
 use crate::parser::function::{create_signature_table, parse_functions};
 
 #[derive(Debug, Clone)]
-pub struct ParserState {
+pub struct ParserState
+{
     tokens: Vec<Token>,
 
     function_table: IndexMap<String, FunctionDefinition>,
@@ -21,8 +22,10 @@ pub struct ParserState {
     imported_functions: Arc<HashMap<String, FunctionSignature>>,
 }
 
-impl ParserState {
-    pub fn parse_tokens(&mut self) -> Result<()> {
+impl ParserState
+{
+    pub fn parse_tokens(&mut self) -> Result<()>
+    {
         println!("Creating signature table...");
         // Create user defined signature table
         // Create an import table which can be used later by other functions
@@ -56,7 +59,8 @@ impl ParserState {
         Ok(())
     }
 
-    pub fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(tokens: Vec<Token>) -> Self
+    {
         Self {
             tokens,
             function_table: IndexMap::new(),
@@ -65,15 +69,18 @@ impl ParserState {
         }
     }
 
-    pub fn function_table(&self) -> &IndexMap<String, FunctionDefinition> {
+    pub fn function_table(&self) -> &IndexMap<String, FunctionDefinition>
+    {
         &self.function_table
     }
 
-    pub fn imported_functions(&self) -> &HashMap<String, FunctionSignature> {
+    pub fn imported_functions(&self) -> &HashMap<String, FunctionSignature>
+    {
         &self.imported_functions
     }
 
-    pub fn custom_types(&self) -> Arc<IndexMap<String, CustomType>> {
+    pub fn custom_types(&self) -> Arc<IndexMap<String, CustomType>>
+    {
         self.custom_types.clone()
     }
 }

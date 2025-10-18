@@ -23,7 +23,8 @@ use strum::Display;
 
 /// All of the custom types implemented by the User are defined here
 #[derive(Debug, Clone, PartialEq, Display)]
-pub enum CustomType {
+pub enum CustomType
+{
     Struct((String, OrdMap<String, TypeDiscriminant>)),
     Enum(OrdMap<String, TypeDiscriminant>),
     // First argument is the struct's name which the Extend extends
@@ -36,22 +37,27 @@ pub enum CustomType {
 #[derive(Debug, Clone, Default)]
 pub struct Imports(HashMap<String, FunctionSignature>);
 
-impl DerefMut for Imports {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+impl DerefMut for Imports
+{
+    fn deref_mut(&mut self) -> &mut Self::Target
+    {
         &mut self.0
     }
 }
 
-impl Deref for Imports {
+impl Deref for Imports
+{
     type Target = HashMap<String, FunctionSignature>;
 
-    fn deref(&self) -> &Self::Target {
+    fn deref(&self) -> &Self::Target
+    {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct If {
+pub struct If
+{
     pub condition: Box<ParsedToken>,
 
     pub complete_body: Vec<ParsedToken>,
@@ -59,7 +65,8 @@ pub struct If {
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
-pub enum Order {
+pub enum Order
+{
     Equal,
     NotEqual,
     Bigger,
@@ -68,8 +75,10 @@ pub enum Order {
     EqSmaller,
 }
 
-impl Order {
-    pub fn from_token(token: &Token) -> anyhow::Result<Self> {
+impl Order
+{
+    pub fn from_token(token: &Token) -> anyhow::Result<Self>
+    {
         match token {
             Token::Equal => Ok(Self::Equal),
             Token::NotEqual => Ok(Self::Equal),
@@ -78,13 +87,18 @@ impl Order {
             Token::Smaller => Ok(Self::Smaller),
             Token::EqSmaller => Ok(Self::EqSmaller),
 
-            _ => Err(
-                ParserError::SyntaxError(SyntaxError::InvalidTokenComparisonUsage(token.clone()))
+            _ => {
+                Err(
+                    ParserError::SyntaxError(SyntaxError::InvalidTokenComparisonUsage(
+                        token.clone(),
+                    ))
                     .into(),
-            ),
+                )
+            },
         }
     }
-    pub fn into_int_predicate(&self, signed: bool) -> IntPredicate {
+    pub fn into_int_predicate(&self, signed: bool) -> IntPredicate
+    {
         if signed {
             match self {
                 Order::Equal => IntPredicate::EQ,
@@ -94,7 +108,8 @@ impl Order {
                 Order::Smaller => IntPredicate::SLT,
                 Order::EqSmaller => IntPredicate::SLE,
             }
-        } else {
+        }
+        else {
             match self {
                 Order::Equal => IntPredicate::EQ,
                 Order::NotEqual => IntPredicate::NE,
@@ -106,7 +121,8 @@ impl Order {
         }
     }
 
-    pub fn into_float_predicate(&self) -> FloatPredicate {
+    pub fn into_float_predicate(&self) -> FloatPredicate
+    {
         match self {
             Order::Equal => FloatPredicate::OEQ,
             Order::NotEqual => FloatPredicate::ONE,
@@ -119,7 +135,8 @@ impl Order {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum PreAllocationEntry<'ctx> {
+pub enum PreAllocationEntry<'ctx>
+{
     AllocationMap(HashMap<ParsedToken, PreAllocationEntry<'ctx>>),
     PreAllocationPtr(
         (
@@ -131,7 +148,8 @@ pub enum PreAllocationEntry<'ctx> {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum FunctionArgumentIdentifier<IDENT, IDX> {
+pub enum FunctionArgumentIdentifier<IDENT, IDX>
+{
     Identifier(IDENT),
     Index(IDX),
 }
@@ -142,7 +160,8 @@ pub fn struct_field_to_ty_list<'a>(
     ctx: &'a Context,
     struct_inner: &IndexMap<String, TypeDiscriminant>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<Vec<BasicTypeEnum<'a>>> {
+) -> Result<Vec<BasicTypeEnum<'a>>>
+{
     // Allocate a new list for storing the types
     let mut type_list = Vec::new();
 
@@ -163,7 +182,8 @@ pub fn ty_to_llvm_ty<'a>(
     ctx: &'a Context,
     ty: &TypeDiscriminant,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<BasicTypeEnum<'a>> {
+) -> Result<BasicTypeEnum<'a>>
+{
     let bool_type = ctx.bool_type();
     let i8_type = ctx.i8_type();
     let i16_type = ctx.i16_type();
@@ -184,7 +204,7 @@ pub fn ty_to_llvm_ty<'a>(
         TypeDiscriminant::Boolean => BasicTypeEnum::IntType(bool_type),
         TypeDiscriminant::Void => {
             return Err(CodeGenError::InvalidVoidValue.into());
-        }
+        },
         TypeDiscriminant::Struct((struct_name, struct_inner)) => {
             // If we are creating a new struct based on the TypeDiscriminant, we should first check if there is a struct created with the name
             let struct_type = if let Some(struct_type) = ctx.get_struct_type(struct_name) {
@@ -207,7 +227,7 @@ pub fn ty_to_llvm_ty<'a>(
             };
 
             BasicTypeEnum::StructType(struct_type)
-        }
+        },
         TypeDiscriminant::I64 => BasicTypeEnum::IntType(i64_type),
         TypeDiscriminant::F64 => BasicTypeEnum::FloatType(f64_type),
         TypeDiscriminant::U64 => BasicTypeEnum::IntType(i64_type),
@@ -224,41 +244,42 @@ pub fn ty_to_llvm_ty<'a>(
             let array_ty = llvm_ty.array_type(*len as u32);
 
             inkwell::types::BasicTypeEnum::ArrayType(array_ty)
-        }
+        },
     };
 
     Ok(field_ty)
 }
 
-pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataTypeEnum<'_> {
+pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataTypeEnum<'_>
+{
     match ty_enum {
         BasicTypeEnum::ArrayType(array_type) => BasicMetadataTypeEnum::ArrayType(array_type),
         BasicTypeEnum::FloatType(float_type) => BasicMetadataTypeEnum::FloatType(float_type),
         BasicTypeEnum::IntType(int_type) => BasicMetadataTypeEnum::IntType(int_type),
         BasicTypeEnum::PointerType(pointer_type) => {
             BasicMetadataTypeEnum::PointerType(pointer_type)
-        }
+        },
         BasicTypeEnum::StructType(struct_type) => BasicMetadataTypeEnum::StructType(struct_type),
         BasicTypeEnum::VectorType(vector_type) => BasicMetadataTypeEnum::VectorType(vector_type),
         BasicTypeEnum::ScalableVectorType(scalable_vector_type) => todo!(),
     }
 }
 
-pub fn fn_arg_to_string(
-    fn_name: &str,
-    fn_arg: &FunctionArgumentIdentifier<String, usize>,
-) -> String {
+pub fn fn_arg_to_string(fn_name: &str, fn_arg: &FunctionArgumentIdentifier<String, usize>)
+-> String
+{
     match fn_arg {
         FunctionArgumentIdentifier::Identifier(ident) => ident.to_string(),
         FunctionArgumentIdentifier::Index(idx) => {
             format!("{fn_name}_idx_{idx}_arg")
-        }
+        },
     }
 }
 
 /// Serves as a way to store information about the current loop body we are currently in.
 #[derive(Debug, Clone)]
-pub struct LoopBodyBlocks<'ctx> {
+pub struct LoopBodyBlocks<'ctx>
+{
     /// The BasicBlock of the loop's body
     pub loop_body: BasicBlock<'ctx>,
 
@@ -266,8 +287,10 @@ pub struct LoopBodyBlocks<'ctx> {
     pub loop_body_exit: BasicBlock<'ctx>,
 }
 
-impl<'ctx> LoopBodyBlocks<'ctx> {
-    pub fn new(loop_body: BasicBlock<'ctx>, loop_body_exit: BasicBlock<'ctx>) -> Self {
+impl<'ctx> LoopBodyBlocks<'ctx>
+{
+    pub fn new(loop_body: BasicBlock<'ctx>, loop_body_exit: BasicBlock<'ctx>) -> Self
+    {
         Self {
             loop_body,
             loop_body_exit,
@@ -281,7 +304,8 @@ pub fn create_fn_type_from_ty_disc(
     ctx: &Context,
     fn_sig: FunctionSignature,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<FunctionType<'_>> {
+) -> Result<FunctionType<'_>>
+{
     // Make an exception if the return type is Void
     if fn_sig.return_type == TypeDiscriminant::Void {
         return Ok(ctx.void_type().fn_type(
@@ -305,7 +329,8 @@ pub fn get_args_from_sig(
     ctx: &Context,
     fn_sig: FunctionSignature,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<Vec<BasicMetadataTypeEnum<'_>>> {
+) -> Result<Vec<BasicMetadataTypeEnum<'_>>>
+{
     // Create an iterator over the function's arguments
     let fn_args = fn_sig.args.arguments_list.iter();
 

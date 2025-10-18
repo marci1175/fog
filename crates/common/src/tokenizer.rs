@@ -4,7 +4,8 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
-pub enum Token {
+pub enum Token
+{
     Literal(Type),
 
     UnparsedLiteral(String),
@@ -85,7 +86,8 @@ pub enum Token {
 pub fn find_closing_angled_bracket_char(
     paren_start_slice: &[char],
     angled_bracket_count: usize,
-) -> Result<usize, ParserError> {
+) -> Result<usize, ParserError>
+{
     let mut paren_layer_counter = 1;
     for (idx, token) in paren_start_slice.iter().enumerate() {
         match token {
@@ -95,7 +97,7 @@ pub fn find_closing_angled_bracket_char(
                 if paren_layer_counter == angled_bracket_count {
                     return Ok(idx);
                 }
-            }
+            },
             _ => continue,
         }
     }

@@ -1,17 +1,17 @@
-use fog_common::anyhow::Result;
-use fog_common::indexmap::IndexMap;
-use fog_common::inkwell::{
-    AddressSpace,
-    basic_block::BasicBlock,
-    builder::Builder,
-    context::Context,
-    module::Module,
-    types::{BasicMetadataTypeEnum, BasicTypeEnum},
-    values::{FunctionValue, PointerValue},
-};
 use fog_common::{
+    anyhow::Result,
     codegen::{CustomType, LoopBodyBlocks, ty_to_llvm_ty},
     error::codegen::CodeGenError,
+    indexmap::IndexMap,
+    inkwell::{
+        AddressSpace,
+        basic_block::BasicBlock,
+        builder::Builder,
+        context::Context,
+        module::Module,
+        types::{BasicMetadataTypeEnum, BasicTypeEnum},
+        values::{FunctionValue, PointerValue},
+    },
     parser::{FunctionDefinition, ParsedToken},
     ty::{Type, TypeDiscriminant, token_to_ty},
 };
@@ -55,7 +55,8 @@ pub fn access_variable_ptr<'main, 'ctx>(
 ) -> Result<(
     (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
     TypeDiscriminant,
-)> {
+)>
+{
     match parsed_token {
         ParsedToken::ArrayIndexing(var_ref, index) => {
             // This variable is supposed to fetch the inner value of this array indexing, this is how this function is recursive.
@@ -93,97 +94,102 @@ pub fn access_variable_ptr<'main, 'ctx>(
             )?;
 
             Ok(((array_val_ptr.0, array_val_ptr.1), array_val_ptr.2))
-        }
-        ParsedToken::VariableReference(variable_reference) => match variable_reference {
-            fog_common::parser::VariableReference::StructFieldReference(
-                struct_field_reference,
-                (_struct_name, struct_definition),
-            ) => {
-                let mut field_stack_iter = struct_field_reference.field_stack.iter();
+        },
+        ParsedToken::VariableReference(variable_reference) => {
+            match variable_reference {
+                fog_common::parser::VariableReference::StructFieldReference(
+                    struct_field_reference,
+                    (_struct_name, struct_definition),
+                ) => {
+                    let mut field_stack_iter = struct_field_reference.field_stack.iter();
 
-                if let Some(main_struct_var_name) = field_stack_iter.next()
-                    && let Some(((ptr, ty), _ty_disc)) = variable_map.get(main_struct_var_name)
-                {
-                    let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
+                    if let Some(main_struct_var_name) = field_stack_iter.next()
+                        && let Some(((ptr, ty), _ty_disc)) = variable_map.get(main_struct_var_name)
+                    {
+                        let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
+                            ctx,
+                            builder,
+                            &mut field_stack_iter,
+                            &struct_definition,
+                            (*ptr, *ty),
+                            custom_types.clone(),
+                        )?;
+
+                        Ok(((f_ptr, f_ty.into()), ty_disc))
+                    }
+                    else {
+                        Err(CodeGenError::InternalInvalidStructReference.into())
+                    }
+                },
+                fog_common::parser::VariableReference::BasicReference(basic_reference) => {
+                    let variable_ref = variable_map.get(&basic_reference).ok_or_else(|| {
+                        fog_common::anyhow::Error::from(CodeGenError::InternalVariableNotFound(
+                            basic_reference.clone(),
+                        ))
+                    })?;
+
+                    Ok(variable_ref.clone())
+                },
+                fog_common::parser::VariableReference::ArrayReference(array_name, indexing) => {
+                    let ((ptr, ptr_ty), ty_disc) = variable_map.get(&array_name).unwrap().clone();
+
+                    let index_val = create_ir_from_parsed_token(
                         ctx,
+                        module,
                         builder,
-                        &mut field_stack_iter,
-                        &struct_definition,
-                        (*ptr, *ty),
+                        (*indexing).clone(),
+                        variable_map,
+                        None,
+                        fn_ret_ty.clone(),
+                        this_fn_block,
+                        this_fn,
+                        allocation_list,
+                        is_loop_body.clone(),
+                        parsed_functions.clone(),
                         custom_types.clone(),
                     )?;
 
-                    Ok(((f_ptr, f_ty.into()), ty_disc))
-                } else {
-                    Err(CodeGenError::InternalInvalidStructReference.into())
-                }
-            }
-            fog_common::parser::VariableReference::BasicReference(basic_reference) => {
-                let variable_ref = variable_map.get(&basic_reference).ok_or_else(|| {
-                    fog_common::anyhow::Error::from(CodeGenError::InternalVariableNotFound(
-                        basic_reference.clone(),
-                    ))
-                })?;
+                    if let Some((idx_ptr, _idx_ptr_val, idx_ty_disc)) = index_val {
+                        let idx = builder.build_load(
+                            ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
+                            idx_ptr,
+                            "array_idx_val",
+                        )?;
 
-                Ok(variable_ref.clone())
-            }
-            fog_common::parser::VariableReference::ArrayReference(array_name, indexing) => {
-                let ((ptr, ptr_ty), ty_disc) = variable_map.get(&array_name).unwrap().clone();
-
-                let index_val = create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    (*indexing).clone(),
-                    variable_map,
-                    None,
-                    fn_ret_ty.clone(),
-                    this_fn_block,
-                    this_fn,
-                    allocation_list,
-                    is_loop_body.clone(),
-                    parsed_functions.clone(),
-                    custom_types.clone(),
-                )?;
-
-                if let Some((idx_ptr, _idx_ptr_val, idx_ty_disc)) = index_val {
-                    let idx = builder.build_load(
-                        ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
-                        idx_ptr,
-                        "array_idx_val",
-                    )?;
-
-                    let gep_ptr = unsafe {
-                        builder.build_gep(
-                            ty_disc
-                                .clone()
-                                .to_basic_type_enum(ctx, custom_types.clone())?,
-                            ptr,
-                            &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
-                            "array_idx_elem_ptr",
-                        )?
-                    };
-
-                    if let TypeDiscriminant::Array((inner_ty, _len)) = &ty_disc {
-                        let array_inner_type =
-                            token_to_ty((**inner_ty).clone(), custom_types.clone())?;
-
-                        return Ok((
-                            (
-                                gep_ptr,
-                                array_inner_type
+                        let gep_ptr = unsafe {
+                            builder.build_gep(
+                                ty_disc
                                     .clone()
-                                    .to_basic_type_enum(ctx, custom_types.clone())?
-                                    .into(),
-                            ),
-                            array_inner_type.clone(),
-                        ));
-                    } else {
-                        unreachable!("This must be an `Array`.");
+                                    .to_basic_type_enum(ctx, custom_types.clone())?,
+                                ptr,
+                                &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
+                                "array_idx_elem_ptr",
+                            )?
+                        };
+
+                        if let TypeDiscriminant::Array((inner_ty, _len)) = &ty_disc {
+                            let array_inner_type =
+                                token_to_ty((**inner_ty).clone(), custom_types.clone())?;
+
+                            return Ok((
+                                (
+                                    gep_ptr,
+                                    array_inner_type
+                                        .clone()
+                                        .to_basic_type_enum(ctx, custom_types.clone())?
+                                        .into(),
+                                ),
+                                array_inner_type.clone(),
+                            ));
+                        }
+                        else {
+                            unreachable!("This must be an `Array`.");
+                        }
                     }
-                } else {
-                    Err(CodeGenError::InvalidIndexValue((*indexing).clone()).into())
-                }
+                    else {
+                        Err(CodeGenError::InvalidIndexValue((*indexing).clone()).into())
+                    }
+                },
             }
         },
         _ => Err(CodeGenError::InvalidVariableReference(parsed_token.clone()).into()),
@@ -198,7 +204,8 @@ pub fn access_nested_struct_field_ptr<'a>(
     struct_definition: &IndexMap<String, TypeDiscriminant>,
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, TypeDiscriminant)> {
+) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, TypeDiscriminant)>
+{
     if let Some(field_stack_entry) = field_stack_iter.next() {
         if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry) {
             if let TypeDiscriminant::Struct((_, struct_def)) = field_ty {
@@ -218,15 +225,18 @@ pub fn access_nested_struct_field_ptr<'a>(
                     (struct_field_ptr, pointee_ty.into()),
                     custom_types.clone(),
                 )
-            } else {
+            }
+            else {
                 let pointee_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
 
                 Ok((last_field_ptr.0, pointee_ty, field_ty.clone()))
             }
-        } else {
+        }
+        else {
             Err(CodeGenError::InternalStructFieldNotFound.into())
         }
-    } else {
+    }
+    else {
         panic!()
     }
 }
@@ -239,7 +249,8 @@ pub fn set_value_of_ptr<'ctx>(
     module: &Module<'ctx>,
     value: Type,
     v_ptr: PointerValue<'_>,
-) -> Result<()> {
+) -> Result<()>
+{
     let bool_type = ctx.bool_type();
     let i8_type = ctx.i8_type();
     let i32_type = ctx.i32_type();
@@ -256,70 +267,70 @@ pub fn set_value_of_ptr<'ctx>(
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::F64(inner) => {
             // Initialize const value
             let init_val = f64_type.const_float(*inner);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::U64(inner) => {
             // Initialize const value
             let init_val = i64_type.const_int(inner, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::I16(inner) => {
             // Initialize const value
             let init_val = i16_type.const_int(inner as u64, true);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::F16(inner) => {
             // Initialize const value
             let init_val = f16_type.const_float(*inner as f64);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::U16(inner) => {
             // Initialize const value
             let init_val = i16_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::I32(inner) => {
             // Initialize const value
             let init_val = i32_type.const_int(inner as u64, true);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::F32(inner) => {
             // Initialize const value
             let init_val = f32_type.const_float(*inner as f64);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::U32(inner) => {
             // Initialize const value
             let init_val = i32_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::U8(inner) => {
             // Initialize const value
             let init_val = i8_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::String(inner) => {
             let string_bytes = inner.as_bytes();
 
@@ -328,7 +339,8 @@ pub fn set_value_of_ptr<'ctx>(
 
             let global_string_handle = if let Some(global_string) = module.get_global(&inner) {
                 global_string
-            } else {
+            }
+            else {
                 let handle =
                     module.add_global(char_array.get_type(), Some(AddressSpace::default()), &inner);
 
@@ -351,20 +363,20 @@ pub fn set_value_of_ptr<'ctx>(
 
             // Store const
             builder.build_store(v_ptr, input_ptr)?;
-        }
+        },
         Type::Boolean(inner) => {
             // Initialize const value
             let init_val = bool_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
-        }
+        },
         Type::Void => {
             unreachable!()
-        }
+        },
         Type::Struct((struct_name, struct_inner)) => {
             unreachable!()
-        }
+        },
         Type::Array(inner_ty) => unimplemented!(),
     }
 

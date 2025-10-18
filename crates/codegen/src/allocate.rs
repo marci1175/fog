@@ -4,19 +4,19 @@ use std::{
     sync::Arc,
 };
 
-use fog_common::anyhow::Result;
-use fog_common::indexmap::IndexMap;
-use fog_common::inkwell::{
-    basic_block::BasicBlock,
-    builder::Builder,
-    context::Context,
-    module::Module,
-    types::{ArrayType, BasicMetadataTypeEnum},
-    values::{FunctionValue, IntValue, PointerValue},
-};
 use fog_common::{
+    anyhow::Result,
     codegen::{CustomType, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty},
     error::codegen::CodeGenError,
+    indexmap::IndexMap,
+    inkwell::{
+        basic_block::BasicBlock,
+        builder::Builder,
+        context::Context,
+        module::Module,
+        types::{ArrayType, BasicMetadataTypeEnum},
+        values::{FunctionValue, IntValue, PointerValue},
+    },
     parser::{FunctionDefinition, ParsedToken},
     ty::TypeDiscriminant,
 };
@@ -120,7 +120,8 @@ where
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             let (ptr, ty) = if let Some(((ptr, ty), _)) = variable_map.get(&var_name) {
                 (*ptr, *ty)
-            } else {
+            }
+            else {
                 let (ptr, ty) =
                     create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
 
@@ -155,7 +156,8 @@ where
                 )?;
 
                 pre_allocation_list.push(((*var_set_val).clone(), ptr, ty, var_type.clone()));
-            } else {
+            }
+            else {
                 let allocas = fetch_alloca_ptr(
                     ctx,
                     module,
@@ -171,48 +173,52 @@ where
 
                 pre_allocation_list.extend(allocas);
             }
-        }
-        ParsedToken::VariableReference(var_ref) => match var_ref {
-            fog_common::parser::VariableReference::StructFieldReference(
-                struct_field_stack,
-                (struct_name, struct_def),
-            ) => {
-                let mut field_stack_iter = struct_field_stack.field_stack.iter();
+        },
+        ParsedToken::VariableReference(var_ref) => {
+            match var_ref {
+                fog_common::parser::VariableReference::StructFieldReference(
+                    struct_field_stack,
+                    (struct_name, struct_def),
+                ) => {
+                    let mut field_stack_iter = struct_field_stack.field_stack.iter();
 
-                if let Some(main_struct_var_name) = field_stack_iter.next() {
-                    if let Some(((ptr, ty), _)) = variable_map.get(main_struct_var_name) {
-                        let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
-                            ctx,
-                            builder,
-                            &mut field_stack_iter,
-                            &struct_def,
-                            (*ptr, *ty),
-                            custom_types.clone(),
-                        )?;
+                    if let Some(main_struct_var_name) = field_stack_iter.next() {
+                        if let Some(((ptr, ty), _)) = variable_map.get(main_struct_var_name) {
+                            let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
+                                ctx,
+                                builder,
+                                &mut field_stack_iter,
+                                &struct_def,
+                                (*ptr, *ty),
+                                custom_types.clone(),
+                            )?;
 
-                        pre_allocation_list.push((
-                            parsed_token.clone(),
-                            f_ptr,
-                            ty_enum_to_metadata_ty_enum(f_ty),
-                            ty_disc,
-                        ));
-                    } else {
-                        return Err(CodeGenError::InternalVariableNotFound(
-                            main_struct_var_name.clone(),
-                        )
-                        .into());
+                            pre_allocation_list.push((
+                                parsed_token.clone(),
+                                f_ptr,
+                                ty_enum_to_metadata_ty_enum(f_ty),
+                                ty_disc,
+                            ));
+                        }
+                        else {
+                            return Err(CodeGenError::InternalVariableNotFound(
+                                main_struct_var_name.clone(),
+                            )
+                            .into());
+                        }
                     }
-                } else {
-                    return Err(CodeGenError::InternalInvalidStructReference.into());
-                }
-            }
-            fog_common::parser::VariableReference::BasicReference(name) => {
-                if let Some(((ptr, ty), disc)) = variable_map.get(&name) {
-                    pre_allocation_list.push((parsed_token.clone(), *ptr, *ty, disc.clone()));
-                }
-            }
-            fog_common::parser::VariableReference::ArrayReference(_, parsed_tokens) => {
-                todo!()
+                    else {
+                        return Err(CodeGenError::InternalInvalidStructReference.into());
+                    }
+                },
+                fog_common::parser::VariableReference::BasicReference(name) => {
+                    if let Some(((ptr, ty), disc)) = variable_map.get(&name) {
+                        pre_allocation_list.push((parsed_token.clone(), *ptr, *ty, disc.clone()));
+                    }
+                },
+                fog_common::parser::VariableReference::ArrayReference(_, parsed_tokens) => {
+                    todo!()
+                },
             }
         },
         ParsedToken::Literal(literal) => {
@@ -221,7 +227,7 @@ where
             let (ptr, ty) = create_new_variable(ctx, builder, "", &var_type, custom_types.clone())?;
 
             pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type));
-        }
+        },
         ParsedToken::TypeCast(parsed_token, desired_type) => {
             let created_var = create_ir_from_parsed_token(
                 ctx,
@@ -265,7 +271,7 @@ where
                                     BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::U64 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
@@ -284,7 +290,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::I32 | TypeDiscriminant::U32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
@@ -306,7 +312,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::F32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
@@ -328,7 +334,7 @@ where
                                     BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::I16 | TypeDiscriminant::U16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
@@ -350,7 +356,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::F16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
@@ -372,7 +378,7 @@ where
                                     BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::U8 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
@@ -394,7 +400,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::String => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
@@ -412,7 +418,7 @@ where
                                     BasicMetadataTypeEnum::ArrayType(buf_ty),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::Boolean => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
@@ -423,7 +429,8 @@ where
                                 let bool_value = if value.get_sign_extended_constant().unwrap() == 0
                                 {
                                     bool_ty.const_int(0, false)
-                                } else {
+                                }
+                                else {
                                     bool_ty.const_int(1, false)
                                 };
 
@@ -437,24 +444,24 @@ where
                                     BasicMetadataTypeEnum::IntType(bool_value.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::Void => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
-                            }
+                            },
                             TypeDiscriminant::Struct(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
-                            }
+                            },
                             TypeDiscriminant::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
-                            }
+                            },
                         }
-                    }
+                    },
                     TypeDiscriminant::F64 | TypeDiscriminant::F32 | TypeDiscriminant::F16 => {
                         match desired_type {
                             TypeDiscriminant::I64 => {
@@ -476,7 +483,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::F64 => Some((var_ptr, var_ty, TypeDiscriminant::F64)),
                             TypeDiscriminant::U64 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
@@ -497,7 +504,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::I32 => {
                                 let cast_res = builder.build_float_to_signed_int(
                                     builder
@@ -516,7 +523,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::F32 => {
                                 let value = builder
                                     .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -535,7 +542,7 @@ where
                                     BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::U32 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
@@ -554,7 +561,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::I16 => {
                                 let cast_res = builder.build_float_to_signed_int(
                                     builder
@@ -573,7 +580,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::F16 => {
                                 let value = builder
                                     .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -592,7 +599,7 @@ where
                                     BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::U16 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
@@ -611,7 +618,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::U8 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
@@ -630,7 +637,7 @@ where
                                     BasicMetadataTypeEnum::IntType(cast_res.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::String => {
                                 let value = builder
                                     .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -648,7 +655,7 @@ where
                                     BasicMetadataTypeEnum::ArrayType(buf_ty),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::Boolean => {
                                 let value = builder
                                     .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -658,7 +665,8 @@ where
 
                                 let bool_value = if value.get_constant().unwrap().0 == 0.0 {
                                     bool_ty.const_int(0, false)
-                                } else {
+                                }
+                                else {
                                     bool_ty.const_int(1, false)
                                 };
 
@@ -672,347 +680,373 @@ where
                                     BasicMetadataTypeEnum::IntType(bool_value.get_type()),
                                     desired_type,
                                 ))
-                            }
+                            },
                             TypeDiscriminant::Void => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
-                            }
+                            },
                             TypeDiscriminant::Struct(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
-                            }
+                            },
                             TypeDiscriminant::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
-                            }
+                            },
                         }
-                    }
+                    },
                     TypeDiscriminant::U64
                     | TypeDiscriminant::U32
                     | TypeDiscriminant::U16
-                    | TypeDiscriminant::U8 => match desired_type {
-                        TypeDiscriminant::I64 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                    | TypeDiscriminant::U8 => {
+                        match desired_type {
+                            TypeDiscriminant::I64 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = ctx.i64_type().const_int(
-                                value.get_sign_extended_constant().unwrap() as u64,
-                                true,
-                            );
+                                let cast_res = ctx.i64_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    true,
+                                );
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::F64 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::F64 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = builder.build_unsigned_int_to_float(
-                                value,
-                                ctx.f64_type(),
-                                "casted_value",
-                            )?;
+                                let cast_res = builder.build_unsigned_int_to_float(
+                                    value,
+                                    ctx.f64_type(),
+                                    "casted_value",
+                                )?;
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::U64 => Some((var_ptr, var_ty, TypeDiscriminant::U64)),
-                        TypeDiscriminant::I32 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::U64 => Some((var_ptr, var_ty, TypeDiscriminant::U64)),
+                            TypeDiscriminant::I32 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = ctx.i32_type().const_int(
-                                value.get_sign_extended_constant().unwrap() as u64,
-                                true,
-                            );
+                                let cast_res = ctx.i32_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    true,
+                                );
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::F32 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::F32 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = builder.build_unsigned_int_to_float(
-                                value,
-                                ctx.f32_type(),
-                                "casted_value",
-                            )?;
+                                let cast_res = builder.build_unsigned_int_to_float(
+                                    value,
+                                    ctx.f32_type(),
+                                    "casted_value",
+                                )?;
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::U32 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::U32 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = ctx.i32_type().const_int(
-                                value.get_sign_extended_constant().unwrap() as u64,
-                                false,
-                            );
+                                let cast_res = ctx.i32_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    false,
+                                );
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::I16 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::I16 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = ctx.i16_type().const_int(
-                                value.get_sign_extended_constant().unwrap() as u64,
-                                true,
-                            );
+                                let cast_res = ctx.i16_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    true,
+                                );
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::F16 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::F16 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = builder.build_unsigned_int_to_float(
-                                value,
-                                ctx.f16_type(),
-                                "casted_value",
-                            )?;
+                                let cast_res = builder.build_unsigned_int_to_float(
+                                    value,
+                                    ctx.f16_type(),
+                                    "casted_value",
+                                )?;
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::U16 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::FloatType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::U16 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = ctx.i16_type().const_int(
-                                value.get_sign_extended_constant().unwrap() as u64,
-                                false,
-                            );
+                                let cast_res = ctx.i16_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    false,
+                                );
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::U8 => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::U8 => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let cast_res = ctx.i8_type().const_int(
-                                value.get_sign_extended_constant().unwrap() as u64,
-                                false,
-                            );
+                                let cast_res = ctx.i8_type().const_int(
+                                    value.get_sign_extended_constant().unwrap() as u64,
+                                    false,
+                                );
 
-                            let allocation =
-                                builder.build_alloca(cast_res.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(cast_res.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, cast_res)?;
+                                builder.build_store(allocation, cast_res)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::IntType(cast_res.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::String => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(cast_res.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::String => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let raw_val = value.get_sign_extended_constant().unwrap();
+                                let raw_val = value.get_sign_extended_constant().unwrap();
 
-                            let int_string = raw_val.to_string();
+                                let int_string = raw_val.to_string();
 
-                            let (buf_ptr, buf_ty) =
-                                allocate_string(builder, ctx.i8_type(), int_string)?;
+                                let (buf_ptr, buf_ty) =
+                                    allocate_string(builder, ctx.i8_type(), int_string)?;
 
-                            Some((
-                                buf_ptr,
-                                BasicMetadataTypeEnum::ArrayType(buf_ty),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::Boolean => {
-                            let value = builder
-                                .build_load(var_ty.into_int_type(), var_ptr, "")?
-                                .into_int_value();
+                                Some((
+                                    buf_ptr,
+                                    BasicMetadataTypeEnum::ArrayType(buf_ty),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::Boolean => {
+                                let value = builder
+                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .into_int_value();
 
-                            let bool_ty = ctx.bool_type();
+                                let bool_ty = ctx.bool_type();
 
-                            let bool_value = if value.get_sign_extended_constant().unwrap() == 0 {
-                                bool_ty.const_int(0, false)
-                            } else {
-                                bool_ty.const_int(1, false)
-                            };
+                                let bool_value = if value.get_sign_extended_constant().unwrap() == 0
+                                {
+                                    bool_ty.const_int(0, false)
+                                }
+                                else {
+                                    bool_ty.const_int(1, false)
+                                };
 
-                            let allocation =
-                                builder.build_alloca(bool_value.get_type(), "cast_result")?;
+                                let allocation =
+                                    builder.build_alloca(bool_value.get_type(), "cast_result")?;
 
-                            builder.build_store(allocation, bool_value)?;
+                                builder.build_store(allocation, bool_value)?;
 
-                            Some((
-                                allocation,
-                                BasicMetadataTypeEnum::IntType(bool_value.get_type()),
-                                desired_type,
-                            ))
-                        }
-                        TypeDiscriminant::Void => {
-                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
-                        }
-                        TypeDiscriminant::Struct(_) => {
-                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
-                        }
-                        TypeDiscriminant::Array(_) => {
-                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
-                        }
-                    },
-                    TypeDiscriminant::String => match desired_type {
-                        TypeDiscriminant::I64 => todo!(),
-                        TypeDiscriminant::F64 => todo!(),
-                        TypeDiscriminant::U64 => todo!(),
-                        TypeDiscriminant::I32 => todo!(),
-                        TypeDiscriminant::F32 => todo!(),
-                        TypeDiscriminant::U32 => todo!(),
-                        TypeDiscriminant::I16 => todo!(),
-                        TypeDiscriminant::F16 => todo!(),
-                        TypeDiscriminant::U16 => todo!(),
-                        TypeDiscriminant::U8 => todo!(),
-                        TypeDiscriminant::String => todo!(),
-                        TypeDiscriminant::Boolean => todo!(),
-                        TypeDiscriminant::Void => todo!(),
-                        TypeDiscriminant::Struct(_) => todo!(),
-                        TypeDiscriminant::Array(_) => {
-                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                                Some((
+                                    allocation,
+                                    BasicMetadataTypeEnum::IntType(bool_value.get_type()),
+                                    desired_type,
+                                ))
+                            },
+                            TypeDiscriminant::Void => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
+                            TypeDiscriminant::Struct(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
+                            TypeDiscriminant::Array(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
-                    TypeDiscriminant::Boolean => match desired_type {
-                        TypeDiscriminant::I64 => todo!(),
-                        TypeDiscriminant::F64 => todo!(),
-                        TypeDiscriminant::U64 => todo!(),
-                        TypeDiscriminant::I32 => todo!(),
-                        TypeDiscriminant::F32 => todo!(),
-                        TypeDiscriminant::U32 => todo!(),
-                        TypeDiscriminant::I16 => todo!(),
-                        TypeDiscriminant::F16 => todo!(),
-                        TypeDiscriminant::U16 => todo!(),
-                        TypeDiscriminant::U8 => todo!(),
-                        TypeDiscriminant::String => todo!(),
-                        TypeDiscriminant::Boolean => todo!(),
-                        TypeDiscriminant::Void => todo!(),
-                        TypeDiscriminant::Struct(_) => todo!(),
-                        TypeDiscriminant::Array(_) => {
-                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                    TypeDiscriminant::String => {
+                        match desired_type {
+                            TypeDiscriminant::I64 => todo!(),
+                            TypeDiscriminant::F64 => todo!(),
+                            TypeDiscriminant::U64 => todo!(),
+                            TypeDiscriminant::I32 => todo!(),
+                            TypeDiscriminant::F32 => todo!(),
+                            TypeDiscriminant::U32 => todo!(),
+                            TypeDiscriminant::I16 => todo!(),
+                            TypeDiscriminant::F16 => todo!(),
+                            TypeDiscriminant::U16 => todo!(),
+                            TypeDiscriminant::U8 => todo!(),
+                            TypeDiscriminant::String => todo!(),
+                            TypeDiscriminant::Boolean => todo!(),
+                            TypeDiscriminant::Void => todo!(),
+                            TypeDiscriminant::Struct(_) => todo!(),
+                            TypeDiscriminant::Array(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
-                    TypeDiscriminant::Void => match desired_type {
-                        TypeDiscriminant::I64 => todo!(),
-                        TypeDiscriminant::F64 => todo!(),
-                        TypeDiscriminant::U64 => todo!(),
-                        TypeDiscriminant::I32 => todo!(),
-                        TypeDiscriminant::F32 => todo!(),
-                        TypeDiscriminant::U32 => todo!(),
-                        TypeDiscriminant::I16 => todo!(),
-                        TypeDiscriminant::F16 => todo!(),
-                        TypeDiscriminant::U16 => todo!(),
-                        TypeDiscriminant::U8 => todo!(),
-                        TypeDiscriminant::String => todo!(),
-                        TypeDiscriminant::Boolean => todo!(),
-                        TypeDiscriminant::Void => todo!(),
-                        TypeDiscriminant::Struct(_) => todo!(),
-                        TypeDiscriminant::Array(_) => {
-                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                    TypeDiscriminant::Boolean => {
+                        match desired_type {
+                            TypeDiscriminant::I64 => todo!(),
+                            TypeDiscriminant::F64 => todo!(),
+                            TypeDiscriminant::U64 => todo!(),
+                            TypeDiscriminant::I32 => todo!(),
+                            TypeDiscriminant::F32 => todo!(),
+                            TypeDiscriminant::U32 => todo!(),
+                            TypeDiscriminant::I16 => todo!(),
+                            TypeDiscriminant::F16 => todo!(),
+                            TypeDiscriminant::U16 => todo!(),
+                            TypeDiscriminant::U8 => todo!(),
+                            TypeDiscriminant::String => todo!(),
+                            TypeDiscriminant::Boolean => todo!(),
+                            TypeDiscriminant::Void => todo!(),
+                            TypeDiscriminant::Struct(_) => todo!(),
+                            TypeDiscriminant::Array(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
-                    TypeDiscriminant::Struct(_) => match desired_type {
-                        TypeDiscriminant::I64 => todo!(),
-                        TypeDiscriminant::F64 => todo!(),
-                        TypeDiscriminant::U64 => todo!(),
-                        TypeDiscriminant::I32 => todo!(),
-                        TypeDiscriminant::F32 => todo!(),
-                        TypeDiscriminant::U32 => todo!(),
-                        TypeDiscriminant::I16 => todo!(),
-                        TypeDiscriminant::F16 => todo!(),
-                        TypeDiscriminant::U16 => todo!(),
-                        TypeDiscriminant::U8 => todo!(),
-                        TypeDiscriminant::String => todo!(),
-                        TypeDiscriminant::Boolean => todo!(),
-                        TypeDiscriminant::Void => todo!(),
-                        TypeDiscriminant::Struct(_) => todo!(),
-                        TypeDiscriminant::Array(_) => {
-                            return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                    TypeDiscriminant::Void => {
+                        match desired_type {
+                            TypeDiscriminant::I64 => todo!(),
+                            TypeDiscriminant::F64 => todo!(),
+                            TypeDiscriminant::U64 => todo!(),
+                            TypeDiscriminant::I32 => todo!(),
+                            TypeDiscriminant::F32 => todo!(),
+                            TypeDiscriminant::U32 => todo!(),
+                            TypeDiscriminant::I16 => todo!(),
+                            TypeDiscriminant::F16 => todo!(),
+                            TypeDiscriminant::U16 => todo!(),
+                            TypeDiscriminant::U8 => todo!(),
+                            TypeDiscriminant::String => todo!(),
+                            TypeDiscriminant::Boolean => todo!(),
+                            TypeDiscriminant::Void => todo!(),
+                            TypeDiscriminant::Struct(_) => todo!(),
+                            TypeDiscriminant::Array(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
+                        }
+                    },
+                    TypeDiscriminant::Struct(_) => {
+                        match desired_type {
+                            TypeDiscriminant::I64 => todo!(),
+                            TypeDiscriminant::F64 => todo!(),
+                            TypeDiscriminant::U64 => todo!(),
+                            TypeDiscriminant::I32 => todo!(),
+                            TypeDiscriminant::F32 => todo!(),
+                            TypeDiscriminant::U32 => todo!(),
+                            TypeDiscriminant::I16 => todo!(),
+                            TypeDiscriminant::F16 => todo!(),
+                            TypeDiscriminant::U16 => todo!(),
+                            TypeDiscriminant::U8 => todo!(),
+                            TypeDiscriminant::String => todo!(),
+                            TypeDiscriminant::Boolean => todo!(),
+                            TypeDiscriminant::Void => todo!(),
+                            TypeDiscriminant::Struct(_) => todo!(),
+                            TypeDiscriminant::Array(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
 
@@ -1022,10 +1056,11 @@ where
                 if let Some((ptr, ptr_ty, var_type)) = returned_alloca {
                     pre_allocation_list.push((*parsed_token.clone(), ptr, ptr_ty, var_type));
                 }
-            } else {
+            }
+            else {
                 return Err(CodeGenError::InternalParsingError.into());
             }
-        }
+        },
         ParsedToken::FunctionCall((fn_sig, fn_name), arguments) => {
             for (arg_idx, (arg_name, (arg, arg_ty))) in arguments.iter().enumerate() {
                 // We create a pre allocated temp variable for the function's arguments, we use the function arg's name to indicate which temp variable is for which argument.
@@ -1036,10 +1071,10 @@ where
                     &match arg_name.clone() {
                         fog_common::codegen::FunctionArgumentIdentifier::Identifier(ident) => {
                             ident.to_string()
-                        }
+                        },
                         fog_common::codegen::FunctionArgumentIdentifier::Index(idx) => {
                             format!("{fn_name}_idx_{idx}_arg")
-                        }
+                        },
                     },
                     arg_ty,
                     custom_types.clone(),
@@ -1061,7 +1096,7 @@ where
 
                 pre_allocation_list.push((parsed_token.clone(), ptr, ty, fn_sig.return_type));
             }
-        }
+        },
         ParsedToken::SetValue(_var_ref, value) => {
             let allocation_list = fetch_alloca_ptr(
                 ctx,
@@ -1077,7 +1112,7 @@ where
             )?;
 
             pre_allocation_list.extend(allocation_list);
-        }
+        },
         ParsedToken::MathematicalExpression(lhs_token, _expr, rhs_token) => {
             let lhs_alloca = create_ir_from_parsed_token(
                 ctx,
@@ -1117,10 +1152,11 @@ where
             {
                 pre_allocation_list.push((*(lhs_token.clone()), l_ptr, l_ty, l_ty_disc));
                 pre_allocation_list.push((*(rhs_token.clone()), r_ptr, r_ty, r_ty_disc));
-            } else {
+            }
+            else {
                 return Err(CodeGenError::InvalidMathematicalValue.into());
             }
-        }
+        },
         ParsedToken::If(inner) => {
             let condition_allocations = fetch_alloca_ptr(
                 ctx,
@@ -1170,7 +1206,7 @@ where
 
                 pre_allocation_list.extend(body_pre_allocs);
             }
-        }
+        },
         ParsedToken::Comparison(lhs, _, rhs, _) => {
             let lhs_allocations = fetch_alloca_ptr(
                 ctx,
@@ -1209,12 +1245,12 @@ where
                 ctx.bool_type().into(),
                 TypeDiscriminant::Boolean,
             ));
-        }
+        },
         // We can safely ignore this variant as it doesn't allocate anything
         ParsedToken::ControlFlow(_) => (),
         _ => {
             unimplemented!()
-        }
+        },
     };
 
     Ok(pre_allocation_list)
@@ -1224,7 +1260,8 @@ pub fn allocate_string<'a>(
     builder: &'a Builder<'_>,
     i8_type: fog_common::inkwell::types::IntType<'a>,
     string_buffer: String,
-) -> Result<(PointerValue<'a>, ArrayType<'a>)> {
+) -> Result<(PointerValue<'a>, ArrayType<'a>)>
+{
     // Create a buffer from the String
     let mut string_bytes = string_buffer.as_bytes().to_vec();
 
@@ -1266,7 +1303,8 @@ pub fn create_new_variable<'a, 'b>(
     var_name: &str,
     var_type: &TypeDiscriminant,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>)> {
+) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>)>
+{
     // Turn a `TypeDiscriminant` into an LLVM type
     let var_type = ty_to_llvm_ty(ctx, var_type, custom_types.clone())?;
 

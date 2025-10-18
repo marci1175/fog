@@ -10,7 +10,8 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum MathematicalSymbol {
+pub enum MathematicalSymbol
+{
     Addition,
     Subtraction,
     Division,
@@ -18,10 +19,12 @@ pub enum MathematicalSymbol {
     Modulo,
 }
 
-impl TryInto<MathematicalSymbol> for Token {
+impl TryInto<MathematicalSymbol> for Token
+{
     type Error = ParserError;
 
-    fn try_into(self) -> Result<MathematicalSymbol, Self::Error> {
+    fn try_into(self) -> Result<MathematicalSymbol, Self::Error>
+    {
         let expr = match self {
             Self::Addition => MathematicalSymbol::Addition,
             Self::Subtraction => MathematicalSymbol::Subtraction,
@@ -37,7 +40,8 @@ impl TryInto<MathematicalSymbol> for Token {
 }
 
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
-pub enum ParsedToken {
+pub enum ParsedToken
+{
     NewVariable(String, TypeDiscriminant, Box<ParsedToken>),
 
     /// This is the token for referencing a variable. This is the lowest layer of referencing a variable.
@@ -88,7 +92,8 @@ pub enum ParsedToken {
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
-pub enum ControlFlowType {
+pub enum ControlFlowType
+{
     Break,
     Continue,
 }
@@ -96,7 +101,8 @@ pub enum ControlFlowType {
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
 /// VariableReferences are the lowest layer of referencing a variable. This is enum wrapped in a ParsedToken, consult the documentation of that enum variant for more information.ű
 /// VariableReferences should not contain themselves as they are only for referencing a variable, there is not much more to it.
-pub enum VariableReference {
+pub enum VariableReference
+{
     /// Variable name, (struct_name, struct_type)
     StructFieldReference(
         StructFieldReference,
@@ -111,32 +117,39 @@ pub enum VariableReference {
 /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
 /// The functions which take the iterator of the `field_stack` field should not be passed the first item of the iterator, since the first item is used to look up the name of the variable which stores the struct.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StructFieldReference {
+pub struct StructFieldReference
+{
     /// The name of the fields which get referenced
     pub field_stack: Vec<String>,
 }
 
-impl Default for StructFieldReference {
-    fn default() -> Self {
+impl Default for StructFieldReference
+{
+    fn default() -> Self
+    {
         Self::new()
     }
 }
 
-impl StructFieldReference {
+impl StructFieldReference
+{
     /// Creates an instnace from a single entry
-    pub fn from_single_entry(field_name: String) -> Self {
+    pub fn from_single_entry(field_name: String) -> Self
+    {
         Self {
             field_stack: vec![field_name],
         }
     }
 
     /// Initializes an instance from a list of field entries
-    pub fn from_stack(field_stack: Vec<String>) -> Self {
+    pub fn from_stack(field_stack: Vec<String>) -> Self
+    {
         Self { field_stack }
     }
 
     /// Creates an instnace from an empty list
-    pub fn new() -> Self {
+    pub fn new() -> Self
+    {
         Self {
             field_stack: vec![],
         }
@@ -144,26 +157,31 @@ impl StructFieldReference {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct UnparsedFunctionDefinition {
+pub struct UnparsedFunctionDefinition
+{
     pub function_sig: FunctionSignature,
     pub inner: Vec<Token>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FunctionDefinition {
+pub struct FunctionDefinition
+{
     pub function_sig: FunctionSignature,
     pub inner: Vec<ParsedToken>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct FunctionSignature {
+pub struct FunctionSignature
+{
     pub args: FunctionArguments,
     pub return_type: TypeDiscriminant,
     pub debug_attributes: Option<String>,
 }
 
-impl Display for FunctionSignature {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for FunctionSignature
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
         f.write_str(&format!(
             "Arguments: {:?}, Return type: {}, Debug Attributes: {:?}",
             self.args, self.return_type, self.debug_attributes
@@ -172,13 +190,16 @@ impl Display for FunctionSignature {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct FunctionArguments {
+pub struct FunctionArguments
+{
     pub arguments_list: OrdMap<String, TypeDiscriminant>,
     pub ellipsis_present: bool,
 }
 
-impl FunctionArguments {
-    pub fn new() -> Self {
+impl FunctionArguments
+{
+    pub fn new() -> Self
+    {
         Self {
             arguments_list: OrdMap::new(),
             ellipsis_present: false,
@@ -187,7 +208,8 @@ impl FunctionArguments {
 }
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.
-pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) -> Result<usize> {
+pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) -> Result<usize>
+{
     let mut paren_layer_counter = 1;
     let iter = paren_start_slice.iter().enumerate();
 
@@ -199,7 +221,7 @@ pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) 
                 if paren_layer_counter == open_paren_count {
                     return Ok(idx);
                 }
-            }
+            },
             _ => continue,
         }
     }
@@ -207,7 +229,8 @@ pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) 
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
-pub fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments> {
+pub fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments>
+{
     // Create a list of args which the function will take, we will return this later
     let mut args: FunctionArguments = FunctionArguments::new();
 
@@ -233,7 +256,8 @@ pub fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments> {
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {
                         args_idx += 4;
-                    } else {
+                    }
+                    else {
                         args_idx += 3;
                     }
 
@@ -265,7 +289,8 @@ pub fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments> {
     Ok(args)
 }
 
-pub fn parse_signature_argument_tokens(tokens: &[Token]) -> Result<(usize, FunctionArguments)> {
+pub fn parse_signature_argument_tokens(tokens: &[Token]) -> Result<(usize, FunctionArguments)>
+{
     let bracket_closing_idx =
         find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidSignatureDefinition)?;
 
@@ -279,10 +304,9 @@ pub fn parse_signature_argument_tokens(tokens: &[Token]) -> Result<(usize, Funct
 }
 
 /// Pass in 0 for the `open_braces_count` if you're searching for the very next closing token on the same level.
-pub fn find_closing_braces(
-    braces_start_slice: &[Token],
-    open_braces_count: usize,
-) -> Result<usize> {
+pub fn find_closing_braces(braces_start_slice: &[Token], open_braces_count: usize)
+-> Result<usize>
+{
     let mut braces_layer_counter = 1;
     let iter = braces_start_slice.iter().enumerate();
 
@@ -294,7 +318,7 @@ pub fn find_closing_braces(
                 if braces_layer_counter == open_braces_count {
                     return Ok(idx);
                 }
-            }
+            },
             _ => continue,
         }
     }
@@ -302,13 +326,15 @@ pub fn find_closing_braces(
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
-pub fn find_closing_comma(slice: &[Token]) -> Result<usize> {
+pub fn find_closing_comma(slice: &[Token]) -> Result<usize>
+{
     let mut paren_level = 0;
 
     for (idx, item) in slice.iter().enumerate() {
         if *item == Token::OpenParentheses {
             paren_level += 1;
-        } else if *item == Token::CloseParentheses {
+        }
+        else if *item == Token::CloseParentheses {
             paren_level -= 1;
         }
 

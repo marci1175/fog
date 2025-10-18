@@ -1,23 +1,24 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
-use fog_common::anyhow::Result;
-use fog_common::codegen::{CustomType, FunctionArgumentIdentifier, If};
-use fog_common::error::parser::ParserError;
-use fog_common::error::syntax::SyntaxError;
-use fog_common::parser::{
-    ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature, ParsedToken,
-    UnparsedFunctionDefinition, VariableReference, find_closing_braces, find_closing_comma,
-    find_closing_paren, parse_signature_argument_tokens,
+use fog_common::{
+    anyhow::Result,
+    codegen::{CustomType, FunctionArgumentIdentifier, If},
+    error::{parser::ParserError, syntax::SyntaxError},
+    indexmap::IndexMap,
+    parser::{
+        ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature, ParsedToken,
+        UnparsedFunctionDefinition, VariableReference, find_closing_braces, find_closing_comma,
+        find_closing_paren, parse_signature_argument_tokens,
+    },
+    tokenizer::Token,
+    ty::{OrdMap, Type, TypeDiscriminant},
 };
-use fog_common::ty::{OrdMap, Type, TypeDiscriminant};
-use fog_common::{indexmap::IndexMap, tokenizer::Token};
 
-use crate::parser::variable::{parse_value, parse_variable_expression};
-use crate::parser_instance::ParserState;
-use crate::tokenizer::tokenize;
+use crate::{
+    parser::variable::{parse_value, parse_variable_expression},
+    parser_instance::ParserState,
+    tokenizer::tokenize,
+};
 
 pub fn create_signature_table(
     tokens: Vec<Token>,
@@ -26,7 +27,8 @@ pub fn create_signature_table(
     HashMap<String, FunctionDefinition>,
     HashMap<String, FunctionSignature>,
     IndexMap<String, CustomType>,
-)> {
+)>
+{
     let mut token_idx = 0;
 
     let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
@@ -56,21 +58,24 @@ pub fn create_signature_table(
                             tokens[token_idx + 2].clone()
                         {
                             return_type
-                        } else if let Token::Identifier(identifier) = tokens[token_idx + 2].clone()
+                        }
+                        else if let Token::Identifier(identifier) = tokens[token_idx + 2].clone()
                         {
                             if let Some(custom_type) = custom_items.get(&identifier) {
                                 match custom_type {
                                     CustomType::Struct(struct_def) => {
                                         TypeDiscriminant::Struct(struct_def.clone())
-                                    }
+                                    },
                                     CustomType::Enum(index_map) => {
                                         unimplemented!()
-                                    }
+                                    },
                                 }
-                            } else {
+                            }
+                            else {
                                 return Err(ParserError::InvalidSignatureDefinition.into());
                             }
-                        } else {
+                        }
+                        else {
                             return Err(ParserError::InvalidSignatureDefinition.into());
                         };
 
@@ -153,13 +158,16 @@ pub fn create_signature_table(
                     }
 
                     return Err(ParserError::InvalidSignatureDefinition.into());
-                } else {
+                }
+                else {
                     return Err(ParserError::InvalidSignatureDefinition.into());
                 }
-            } else {
+            }
+            else {
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionName).into());
             }
-        } else if current_token == Token::Import {
+        }
+        else if current_token == Token::Import {
             if let Token::Identifier(identifier) = tokens[token_idx + 1].clone() {
                 if tokens[token_idx + 2] == Token::OpenParentheses {
                     let (bracket_close_idx, args) =
@@ -188,7 +196,8 @@ pub fn create_signature_table(
 
                             continue;
                         }
-                    } else {
+                    }
+                    else {
                         return Err(SyntaxError::ImportUnspecifiedReturnType.into());
                     }
                 }
@@ -212,7 +221,8 @@ pub fn create_signature_table(
                         continue;
                     }
                 }
-            } else if let Token::Literal(Type::String(path_to_linked_file)) =
+            }
+            else if let Token::Literal(Type::String(path_to_linked_file)) =
                 tokens[token_idx + 1].clone()
             {
                 // Turn the String literal into path
@@ -257,7 +267,8 @@ pub fn create_signature_table(
             }
 
             return Err(ParserError::SyntaxError(SyntaxError::InvalidImportDefinition).into());
-        } else if current_token == Token::Struct {
+        }
+        else if current_token == Token::Struct {
             if let Some(Token::Identifier(struct_name)) = tokens.get(token_idx + 1) {
                 if let Some(Token::OpenBraces) = tokens.get(token_idx + 2) {
                     // Search for the closing brace's index
@@ -297,7 +308,8 @@ pub fn create_signature_table(
 
                                     // Continue looping through, if the pattern doesnt match the syntax return an error
                                     continue;
-                                } else if let Token::Identifier(custom_type) =
+                                }
+                                else if let Token::Identifier(custom_type) =
                                     &struct_slice[token_idx + 2]
                                     && let Some(custom_item) = custom_items.get(custom_type)
                                 {
@@ -307,10 +319,10 @@ pub fn create_signature_table(
                                                 field_name.to_string(),
                                                 TypeDiscriminant::Struct(struct_def.clone()),
                                             );
-                                        }
+                                        },
                                         CustomType::Enum(index_map) => {
                                             todo!()
-                                        }
+                                        },
                                     }
 
                                     // Increment the token index
@@ -335,7 +347,8 @@ pub fn create_signature_table(
                         CustomType::Struct((struct_name.clone(), struct_fields.into())),
                     );
                 }
-            } else {
+            }
+            else {
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
             }
         }
@@ -355,7 +368,8 @@ pub fn parse_functions(
     unparsed_functions: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
-) -> Result<IndexMap<String, FunctionDefinition>> {
+) -> Result<IndexMap<String, FunctionDefinition>>
+{
     let mut parsed_functions = IndexMap::new();
 
     for (fn_idx, (fn_name, unparsed_function)) in unparsed_functions.clone().iter().enumerate() {
@@ -389,7 +403,8 @@ pub fn parse_function_block(
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
     this_fn_args: FunctionArguments,
-) -> Result<Vec<ParsedToken>> {
+) -> Result<Vec<ParsedToken>>
+{
     // Check if the function defined by the source code does not have an indeterminate amount of args
     if this_fn_args.ellipsis_present {
         return Err(ParserError::DeterminiateArgumentsFunction.into());
@@ -439,7 +454,8 @@ pub fn parse_function_block(
                         ));
 
                         variable_scope.insert(var_name, var_type.clone());
-                    } else {
+                    }
+                    else {
                         parsed_tokens.push(ParsedToken::NewVariable(
                             var_name.clone(),
                             var_type.clone(),
@@ -455,15 +471,18 @@ pub fn parse_function_block(
                         token_idx += 1;
 
                         continue;
-                    } else {
+                    }
+                    else {
                         return Err(ParserError::SyntaxError(SyntaxError::MissingLineBreak).into());
                     }
-                } else {
+                }
+                else {
                     return Err(
                         ParserError::SyntaxError(SyntaxError::InvalidStatementDefinition).into(),
                     );
                 }
-            } else if let Token::Identifier(ref ident_name) = current_token {
+            }
+            else if let Token::Identifier(ref ident_name) = current_token {
                 // If the variable exists in the current scope
                 if let Some(variable_type) = variable_scope.get(ident_name).cloned() {
                     // Increment the token index
@@ -484,7 +503,8 @@ pub fn parse_function_block(
                         ParsedToken::VariableReference(variable_ref),
                         &mut parsed_tokens,
                     )?;
-                } else if let Some(function_sig) = function_signatures.get(ident_name) {
+                }
+                else if let Some(function_sig) = function_signatures.get(ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
                     if tokens[token_idx + 1] != Token::OpenParentheses {
                         return Err(ParserError::SyntaxError(
@@ -512,7 +532,8 @@ pub fn parse_function_block(
                     ));
 
                     token_idx += jumped_idx + 2;
-                } else if let Some(function_sig) = function_imports.get(ident_name) {
+                }
+                else if let Some(function_sig) = function_imports.get(ident_name) {
                     // If after the function name the first thing isnt a `(` return a syntax error.
                     if tokens[token_idx + 1] != Token::OpenParentheses {
                         return Err(ParserError::SyntaxError(
@@ -540,7 +561,8 @@ pub fn parse_function_block(
                     ));
 
                     token_idx += jumped_idx + 2;
-                } else if let Some(custom_type) = custom_items.get(ident_name) {
+                }
+                else if let Some(custom_type) = custom_items.get(ident_name) {
                     match custom_type {
                         CustomType::Struct(struct_instance) => {
                             let variable_type = TypeDiscriminant::Struct(struct_instance.clone());
@@ -582,13 +604,15 @@ pub fn parse_function_block(
                                     TypeDiscriminant::Struct(struct_instance.clone()),
                                 );
                             }
-                        }
-                        CustomType::Enum(enum_types) => {}
+                        },
+                        CustomType::Enum(enum_types) => {},
                     };
-                } else {
+                }
+                else {
                     return Err(ParserError::VariableNotFound(ident_name.clone()).into());
                 }
-            } else if Token::Return == current_token {
+            }
+            else if Token::Return == current_token {
                 has_return = true;
 
                 token_idx += 1;
@@ -602,7 +626,8 @@ pub fn parse_function_block(
                         )
                         .into());
                     }
-                } else {
+                }
+                else {
                     let (returned_value, jmp_idx, _) = parse_value(
                         &tokens[token_idx..],
                         function_signatures.clone(),
@@ -616,7 +641,8 @@ pub fn parse_function_block(
 
                     parsed_tokens.push(ParsedToken::ReturnValue(Box::new(returned_value)));
                 }
-            } else if Token::If == current_token {
+            }
+            else if Token::If == current_token {
                 token_idx += 1;
 
                 if let Token::OpenParentheses = tokens[token_idx] {
@@ -703,7 +729,8 @@ pub fn parse_function_block(
                 return Err(
                     ParserError::SyntaxError(SyntaxError::InvalidIfConditionDefinition).into(),
                 );
-            } else if Token::Loop == current_token {
+            }
+            else if Token::Loop == current_token {
                 token_idx += 1;
 
                 if let Token::OpenBraces = tokens[token_idx] {
@@ -745,11 +772,13 @@ pub fn parse_function_block(
                 }
 
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidLoopBody).into());
-            } else if Token::Continue == current_token {
+            }
+            else if Token::Continue == current_token {
                 parsed_tokens.push(ParsedToken::ControlFlow(ControlFlowType::Continue));
 
                 token_idx += 1;
-            } else if Token::Break == current_token {
+            }
+            else if Token::Break == current_token {
                 parsed_tokens.push(ParsedToken::ControlFlow(ControlFlowType::Break));
 
                 token_idx += 1;
@@ -778,7 +807,8 @@ pub fn parse_function_call_args(
 ) -> Result<(
     OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)>,
     usize,
-)> {
+)>
+{
     let mut tokens_idx = 0;
 
     let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
@@ -829,9 +859,11 @@ pub fn parse_function_call_args(
 
                 continue;
             }
-        } else if Token::CloseParentheses == current_token {
+        }
+        else if Token::CloseParentheses == current_token {
             break;
-        } else if Token::Comma == current_token {
+        }
+        else if Token::Comma == current_token {
             tokens_idx += 1;
 
             continue;
@@ -846,7 +878,8 @@ pub fn parse_function_call_args(
 
             if *token == Token::OpenParentheses {
                 bracket_counter += 1;
-            } else if *token == Token::CloseParentheses {
+            }
+            else if *token == Token::CloseParentheses {
                 bracket_counter -= 1;
             }
 
@@ -879,7 +912,8 @@ pub fn parse_function_call_args(
 
                     // Remove the argument from the argument list
                     fn_argument.shift_remove();
-                } else {
+                }
+                else {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
                         function_signatures.clone(),
@@ -901,7 +935,8 @@ pub fn parse_function_call_args(
                 }
 
                 continue;
-            } else {
+            }
+            else {
                 token_buf.push(token.clone());
             }
 

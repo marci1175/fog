@@ -17,15 +17,18 @@ use fog_parser::{parser_instance::ParserState, tokenizer::tokenize};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone)]
-pub struct CompilerConfig {
+pub struct CompilerConfig
+{
     pub name: String,
     pub is_library: bool,
     pub version: i32,
     pub imports: Vec<LibraryImport>,
 }
 
-impl Default for CompilerConfig {
-    fn default() -> Self {
+impl Default for CompilerConfig
+{
+    fn default() -> Self
+    {
         Self {
             name: "project".to_string(),
             is_library: false,
@@ -35,8 +38,10 @@ impl Default for CompilerConfig {
     }
 }
 
-impl CompilerConfig {
-    pub fn new(name: String, is_library: bool, version: i32, imports: Vec<LibraryImport>) -> Self {
+impl CompilerConfig
+{
+    pub fn new(name: String, is_library: bool, version: i32, imports: Vec<LibraryImport>) -> Self
+    {
         Self {
             name,
             is_library,
@@ -46,12 +51,15 @@ impl CompilerConfig {
     }
 }
 
-pub struct CompilerState {
+pub struct CompilerState
+{
     pub config: CompilerConfig,
 }
 
-impl CompilerState {
-    pub fn new(config: CompilerConfig) -> Self {
+impl CompilerState
+{
+    pub fn new(config: CompilerConfig) -> Self
+    {
         Self { config }
     }
 
@@ -62,7 +70,8 @@ impl CompilerState {
         target_o_path: PathBuf,
         optimization: bool,
         is_lib: bool,
-    ) -> Result<()> {
+    ) -> Result<()>
+    {
         println!("Tokenizing...");
         let tokens = tokenize(file_contents)?;
 
@@ -81,10 +90,12 @@ impl CompilerState {
                 {
                     return Err(CodeGenError::InvalidMain.into());
                 }
-            } else {
+            }
+            else {
                 return Err(CodeGenError::NoMain.into());
             }
-        } else if function_table.contains_key("main") {
+        }
+        else if function_table.contains_key("main") {
             println!("A `main` function has been found, but the library flag is set to `true`.");
         }
 

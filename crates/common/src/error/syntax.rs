@@ -7,7 +7,8 @@ use crate::{
 };
 
 #[derive(Debug, Error)]
-pub enum SyntaxError {
+pub enum SyntaxError
+{
     #[error(r#"An open '{{' has been left in the code."#)]
     LeftOpenBraces,
     #[error("An open '(' has been left in the code.")]
