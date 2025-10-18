@@ -1,0 +1,108 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Fog Programming Language",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#fmt_variables"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#types"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#function_names"
+		},
+		{
+			"include": "#variables"
+		},
+		{
+			"include": "#literals"
+		},
+		{
+			"include": "#numeric_literals"
+		},
+		{
+			"include": "#math_operators"
+		},
+		{
+			"include": "#declarations"
+		},
+		{
+			"include": "#type_casts"
+		}
+	],
+	"repository": {
+		"comments": {
+			"name": "comment.line.Fog",
+			"begin": "#",
+			"end": "\n",
+			"patterns": [
+				{
+					"name": "constant.character.escape.Fog",
+					"match": "\\\\."
+				}
+			]
+		},
+		"fmt_variables": {
+			"name": "keyword.other",
+			"match": "%(?:[a-zA-Z_][a-zA-Z0-9_]*|)"
+		},
+		"strings": {
+			"name": "string.quoted.double.fog",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"include": "#fmt_variables"
+				},
+				{
+					"name": "constant.character.escape.Fog",
+					"match": "\\\\."
+				}
+			]
+		},
+		"type_casts": {
+			"patterns": [{
+				"name": "keyword.other",
+				"match": "\\b(as)\\b"
+			}]
+		},
+		"types": {
+			"patterns": [{
+				"name": "support.type",
+				"match": "\\b(int|float|uint|inthalf|floathalf|uinthalf|intlong|floatlong|uintlong|uintsmall|string|void|bool)\\b"
+			}]
+		},
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control.Fog",
+				"match": "\\b(import|if|else|elseif|while|for|return|loop|break|continue)\\b"
+			}]
+		},
+		"function_names": {
+			"patterns": [{
+				"name": "support.function",
+				"match": "\\b(\\w+)\\s*(?=\\()"
+			}]
+		},
+		"numeric_literals": {
+			"name": "constant.numeric.fog",
+			"match": "\\b\\d+(\\.\\d+)?\\b"
+		},
+		"declarations": {
+			"patterns": [{
+			"name": "keyword.other",
+			"match": "\\b(struct|function|impl|trait|enum|pub|priv)\\b"
+			}]
+		}
+	},
+	"scopeName": "source.f"
+}
