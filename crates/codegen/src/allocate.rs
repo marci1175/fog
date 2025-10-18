@@ -21,7 +21,7 @@ use fog_common::{
     ty::TypeDiscriminant,
 };
 
-use crate::{create_ir_from_parsed_token, pointer::access_nested_struct_field_ptr};
+use crate::{irgen::create_ir_from_parsed_token, pointer::access_nested_struct_field_ptr};
 
 pub fn create_alloca_table<'main, 'ctx>(
     module: &Module<'ctx>,
