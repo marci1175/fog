@@ -80,6 +80,7 @@ version = "0.1.0"
 dependencies = [
  "fog-common",
  "fog-compiler",
+ "fog-imports",
  "strum",
  "strum_macros",
 ]
@@ -89,6 +90,7 @@ name = "fog-codegen"
 version = "0.1.0"
 dependencies = [
  "fog-common",
+ "fog-parser",
  "num",
 ]
 
@@ -113,17 +115,26 @@ version = "0.1.0"
 dependencies = [
  "fog-codegen",
  "fog-common",
+ "fog-imports",
  "fog-parser",
  "serde",
 ]
 
 [[package]]
-name = "fog-linker"
+name = "fog-imports"
 version = "0.1.0"
+dependencies = [
+ "fog-codegen",
+ "fog-common",
+ "fog-parser",
+]
 
 [[package]]
-name = "fog-package-mngr"
+name = "fog-linker"
 version = "0.1.0"
+dependencies = [
+ "fog-common",
+]
 
 [[package]]
 name = "fog-parser"

@@ -3,6 +3,7 @@ use crate::{
     ty::{Type, TypeDiscriminant},
 };
 
+/// The basic output type of the tokenizer.
 #[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
 pub enum Token
 {
@@ -80,6 +81,9 @@ pub enum Token
     Private,
     Public,
     LibraryPublic,
+
+    /// Used to expose functions from a module into another one.
+    Export,
 }
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.

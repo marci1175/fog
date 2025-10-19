@@ -37,6 +37,9 @@
 		},
 		{
 			"include": "#type_casts"
+		},
+		{
+			"include": "#compiler_hints"
 		}
 	],
 	"repository": {
@@ -78,7 +81,7 @@
 		"types": {
 			"patterns": [{
 				"name": "support.type",
-				"match": "\\b(int|float|uint|inthalf|floathalf|uinthalf|intlong|floatlong|uintlong|uintsmall|string|void|bool)\\b"
+				"match": "\\b(int|float|uint|inthalf|floathalf|uinthalf|intlong|floatlong|uintlong|uintsmall|string|void|bool|array|vector)\\b"
 			}]
 		},
 		"keywords": {
@@ -100,8 +103,16 @@
 		"declarations": {
 			"patterns": [{
 			"name": "keyword.other",
-			"match": "\\b(struct|function|impl|trait|enum|pub|priv)\\b"
+			"match": "\\b(struct|function|impl|trait|enum|pub|publib|priv|exp)\\b"
 			}]
+		},
+		"compiler_hints": {
+			"patterns": [
+				{
+					"name": "keyword.other.unit",
+					"match": "@\\[(.*?)\\]"
+				}
+			]
 		}
 	},
 	"scopeName": "source.f"

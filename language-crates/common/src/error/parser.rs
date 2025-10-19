@@ -62,4 +62,8 @@ pub enum ParserError
     TypeMismatchNonIndexable(TypeDiscriminant),
     #[error("Array has type `{0:?}` as its initalizer type.")]
     InvalidArrayTypeDefinition(Vec<Token>),
+    #[error(
+        "A function must have its visibility explicitly set. Visibility options: `pub`, `publib`, `priv`."
+    )]
+    FunctionRequiresExplicitVisibility,
 }

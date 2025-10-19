@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 fog-common = { path = "../common" }
 fog-compiler = { path = "../compiler" }
+fog-imports = { path = "../imports" }
 strum = {version = "0.27.2", features = ["derive"]}
 strum_macros = "0.27.2"

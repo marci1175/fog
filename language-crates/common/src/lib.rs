@@ -1,9 +1,12 @@
 #![feature(f16)]
 
 pub mod codegen;
+pub mod compiler;
+pub mod dependency;
 pub mod error;
+pub mod imports;
+pub mod linker;
 pub mod parser;
-pub mod pkg_mngr;
 pub mod tokenizer;
 pub mod ty;
 

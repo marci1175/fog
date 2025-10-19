@@ -4,33 +4,43 @@ use fog_common::{
     anyhow::Result,
     codegen::CustomType,
     indexmap::IndexMap,
-    parser::{FunctionDefinition, FunctionSignature},
+    parser::{FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition},
     tokenizer::Token,
 };
 
 use crate::parser::function::{create_signature_table, parse_functions};
 
 #[derive(Debug, Clone)]
-pub struct ParserState
+pub struct Parser
 {
     tokens: Vec<Token>,
 
     function_table: IndexMap<String, FunctionDefinition>,
+
+    library_public_function_table: IndexMap<String, FunctionSignature>,
 
     custom_types: Arc<IndexMap<String, CustomType>>,
 
     imported_functions: Arc<HashMap<String, FunctionSignature>>,
 }
 
-impl ParserState
+impl Parser
 {
-    pub fn parse_tokens(&mut self) -> Result<()>
+    pub fn parse(
+        &mut self,
+        dep_fn_list: HashMap<String, IndexMap<String, FunctionSignature>>,
+    ) -> Result<()>
     {
         println!("Creating signature table...");
         // Create user defined signature table
         // Create an import table which can be used later by other functions
-        let (unparsed_functions, source_imports, mut external_imports, custom_types) =
-            create_signature_table(self.tokens.clone())?;
+        let (
+            library_public_function_table,
+            unparsed_functions,
+            source_imports,
+            mut external_imports,
+            custom_types,
+        ) = create_signature_table(self.tokens.clone())?;
 
         let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
 
@@ -41,10 +51,21 @@ impl ParserState
                 .map(|(fn_name, fn_def)| (fn_name.clone(), fn_def.function_sig.clone())),
         );
 
+        external_imports.extend(
+            dep_fn_list
+                .iter()
+                .map(|(_module_name, v)| {
+                    v.iter()
+                        .map(|(fn_name, sig)| (fn_name.clone(), sig.clone()))
+                })
+                .flatten(),
+        );
+
         let imports = Arc::new(external_imports);
 
         // Copy the the HashMap to this field
         self.imported_functions = imports.clone();
+        self.library_public_function_table = library_public_function_table.clone();
 
         println!("Parsing functions...");
         // Set the function table field of this struct
@@ -65,6 +86,7 @@ impl ParserState
             tokens,
             function_table: IndexMap::new(),
             imported_functions: Arc::new(HashMap::new()),
+            library_public_function_table: IndexMap::new(),
             custom_types: Arc::new(IndexMap::new()),
         }
     }
@@ -82,5 +104,10 @@ impl ParserState
     pub fn custom_types(&self) -> Arc<IndexMap<String, CustomType>>
     {
         self.custom_types.clone()
+    }
+
+    pub fn library_public_function_table(&self) -> &IndexMap<String, FunctionSignature>
+    {
+        &self.library_public_function_table
     }
 }

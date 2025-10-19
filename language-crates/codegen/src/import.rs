@@ -1,27 +1,17 @@
 use fog_common::{
     anyhow::Result,
-    codegen::{
-        CustomType, struct_field_to_ty_list, ty_enum_to_metadata_ty_enum,
-    },
+    codegen::{CustomType, struct_field_to_ty_list, ty_enum_to_metadata_ty_enum},
     indexmap::IndexMap,
-    inkwell::{
-        AddressSpace,
-        context::Context,
-        module::Module,
-    },
+    inkwell::{AddressSpace, context::Context, module::Module},
     parser::{FunctionDefinition, FunctionSignature},
     ty::TypeDiscriminant,
 };
-use std::{
-    collections::HashMap,
-    rc::Rc,
-    sync::Arc,
-};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 pub fn import_user_lib_functions<'a>(
     ctx: &'a Context,
     module: &Module<'a>,
-    imported_functions: &'a HashMap<String, FunctionSignature>,
+    imported_functions: Rc<HashMap<String, FunctionSignature>>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<()>

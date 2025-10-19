@@ -1,13 +1,13 @@
 /// Handles everything allocation related. (Strings, Variables, etc.)
 pub mod allocate;
-/// Handles pointers in the programming language
-pub mod pointer;
-/// Generates the llvm-ir from language code.
-pub mod irgen;
 /// Handles the llvm-ir generation od debug symbols and information.
 pub mod debug;
 /// Handles the llvm-ir generation of external libaries / functions
 pub mod import;
+/// Generates the llvm-ir from language code.
+pub mod irgen;
+/// Handles pointers in the programming language
+pub mod pointer;
 
 use fog_common::{
     anyhow::Result,
@@ -17,37 +17,32 @@ use fog_common::{
     inkwell::{
         builder::Builder,
         context::Context,
+        llvm_sys::target::{LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargets},
         module::Module,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     },
     parser::{FunctionDefinition, FunctionSignature},
 };
-use std::{
-    collections::HashMap,
-    fs,
-    io::ErrorKind,
-    path::PathBuf,
-    rc::Rc,
-    sync::Arc,
-};
+use fog_parser::parser_instance::Parser;
+use std::{collections::HashMap, fs, io::ErrorKind, path::PathBuf, rc::Rc, sync::Arc};
 
 use crate::{
-    import::import_user_lib_functions, irgen::{create_ir_from_parsed_token, generate_ir}
+    import::import_user_lib_functions,
+    irgen::{create_ir_from_parsed_token, generate_ir},
 };
 
 /// Main function to the codegen module.
 /// This function handles everything IR generation related.
-pub fn codegen_main<'ctx>(
+pub fn llvm_codegen_main<'ctx>(
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
     module: &Module<'ctx>,
-
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     path_to_ir_output: PathBuf,
     path_to_o_output: PathBuf,
     is_optimized: bool,
-    imported_functions: &'ctx HashMap<String, FunctionSignature>,
+    imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     flags_passed_in: &str,
 ) -> Result<TargetMachine>
@@ -151,4 +146,46 @@ pub fn get_unique_id(source: &mut u32) -> u32
     *source += 1;
 
     *source
+}
+
+/// Wrapper function for the LLVM codegen init function.
+pub fn llvm_codegen<'ctx>(
+    target_ir_path: PathBuf,
+    target_o_path: PathBuf,
+    optimization: bool,
+    parser_state: Parser,
+    function_table: &fog_common::indexmap::IndexMap<String, fog_common::parser::FunctionDefinition>,
+    imported_functions: Rc<
+        std::collections::HashMap<String, fog_common::parser::FunctionSignature>,
+    >,
+    context: &'ctx Context,
+    builder: &'ctx fog_common::inkwell::builder::Builder<'ctx>,
+    module: fog_common::inkwell::module::Module<'ctx>,
+) -> Result<(), fog_common::anyhow::Error>
+{
+    println!("Initializing LLVM environment...");
+
+    unsafe {
+        LLVM_InitializeAllTargetInfos();
+        LLVM_InitializeAllTargetInfos();
+        LLVM_InitializeAllTargets();
+    }
+
+    println!("LLVM-IR generation...");
+
+    let _target = llvm_codegen_main(
+        &context,
+        &builder,
+        &module,
+        Rc::new(function_table.clone()),
+        target_ir_path,
+        target_o_path.clone(),
+        optimization,
+        imported_functions,
+        parser_state.custom_types(),
+        // We should make it so that this argument will contain all of the flags the user has passed in
+        "",
+    )?;
+
+    Ok(())
 }

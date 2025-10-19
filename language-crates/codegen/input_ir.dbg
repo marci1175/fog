@@ -1,0 +1,36 @@
+[COMPILER IR]
+[
+    ReturnValue(
+        FunctionCall(
+            (
+                FunctionSignature {
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "inp": String,
+                            },
+                        ),
+                        ellipsis_present: true,
+                    },
+                    return_type: I32,
+                    debug_attributes: None,
+                },
+                "printf",
+            ),
+            OrdMap(
+                {
+                    Identifier(
+                        "inp",
+                    ): (
+                        Literal(
+                            String(
+                                "Hello!",
+                            ),
+                        ),
+                        String,
+                    ),
+                },
+            ),
+        ),
+    ),
+]

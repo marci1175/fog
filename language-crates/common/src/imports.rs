@@ -4,5 +4,11 @@ use serde::{Deserialize, Serialize};
 pub struct LibraryImport
 {
     pub name: String,
-    pub version: i32,
+    pub version: String,
+}
+
+pub enum ImportItem
+{
+    Module(Box<ImportItem>),
+    Function(String),
 }

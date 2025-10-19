@@ -21,6 +21,9 @@ pub enum ApplicationError
     #[error("Error occured while generating LLVM-IR: {0}")]
     CodeGenError(anyhow::Error),
 
-    #[error("Invalid Config syntax.")]
+    #[error("Invalid Config syntax: {0}")]
     ConfigError(toml::de::Error),
+
+    #[error("An error occured while parsing the project's dependencies: {0}")]
+    DependencyError(anyhow::Error),
 }

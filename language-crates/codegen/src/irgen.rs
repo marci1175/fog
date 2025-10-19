@@ -10,10 +10,7 @@ use fog_common::{
         basic_block::BasicBlock,
         builder::Builder,
         context::Context,
-        debug_info::{
-            AsDIScope, DWARFEmissionKind,
-            DWARFSourceLanguage,
-        },
+        debug_info::{AsDIScope, DWARFEmissionKind, DWARFSourceLanguage},
         module::Module,
         types::BasicMetadataTypeEnum,
         values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue},
@@ -27,7 +24,13 @@ use std::{
     sync::Arc,
 };
 
-use crate::{pointer::access_array_index, allocate::{allocate_string, create_alloca_table, create_new_variable}, debug::create_subprogram_debug_information, pointer::{access_nested_struct_field_ptr, access_variable_ptr, set_value_of_ptr}};
+use crate::{
+    allocate::{allocate_string, create_alloca_table, create_new_variable},
+    debug::create_subprogram_debug_information,
+    pointer::{
+        access_array_index, access_nested_struct_field_ptr, access_variable_ptr, set_value_of_ptr,
+    },
+};
 
 pub fn create_ir<'main, 'ctx>(
     module: &Module<'ctx>,

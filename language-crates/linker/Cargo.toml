@@ -3,3 +3,6 @@ name = "fog-linker"
 version = "0.1.0"
 edition = "2024"
 description = "Linker tool provided by LLVM for the Fog programming language ecosystem"
+
+[dependencies]
+fog-common = { path = "../common" }

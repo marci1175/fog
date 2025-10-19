@@ -1,66 +1,37 @@
-use std::{path::PathBuf, rc::Rc};
+use std::{path::PathBuf, rc::Rc, sync::Arc};
 
-use fog_codegen::codegen_main;
+use fog_codegen::{llvm_codegen, llvm_codegen_main};
 use fog_common::{
     anyhow::Result,
+    compiler::ProjectConfig,
     error::codegen::CodeGenError,
+    imports::LibraryImport,
     inkwell::{
         context::Context,
         llvm_sys::target::{
             LLVM_InitializeAllAsmParsers, LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargets,
         },
     },
-    pkg_mngr::LibraryImport,
+    linker::BuildManifest,
     ty::TypeDiscriminant,
 };
-use fog_parser::{parser_instance::ParserState, tokenizer::tokenize};
-use serde::{Deserialize, Serialize};
-
-#[derive(Deserialize, Serialize, Clone)]
-pub struct CompilerConfig
-{
-    pub name: String,
-    pub is_library: bool,
-    pub version: i32,
-    pub imports: Vec<LibraryImport>,
-}
-
-impl Default for CompilerConfig
-{
-    fn default() -> Self
-    {
-        Self {
-            name: "project".to_string(),
-            is_library: false,
-            version: 0,
-            imports: Vec::new(),
-        }
-    }
-}
-
-impl CompilerConfig
-{
-    pub fn new(name: String, is_library: bool, version: i32, imports: Vec<LibraryImport>) -> Self
-    {
-        Self {
-            name,
-            is_library,
-            version,
-            imports,
-        }
-    }
-}
+use fog_imports::dependency_list_manager::create_dependency_functions_list;
+use fog_parser::{parser_instance::Parser, tokenizer::tokenize};
 
 pub struct CompilerState
 {
-    pub config: CompilerConfig,
+    pub config: ProjectConfig,
+    pub working_dir: PathBuf,
 }
 
 impl CompilerState
 {
-    pub fn new(config: CompilerConfig) -> Self
+    pub fn new(config: ProjectConfig, working_dir: PathBuf) -> Self
     {
-        Self { config }
+        Self {
+            config,
+            working_dir,
+        }
     }
 
     pub fn compilation_process(
@@ -68,20 +39,40 @@ impl CompilerState
         file_contents: &str,
         target_ir_path: PathBuf,
         target_o_path: PathBuf,
+        build_path: PathBuf,
         optimization: bool,
         is_lib: bool,
-    ) -> Result<()>
+    ) -> Result<BuildManifest>
     {
         println!("Tokenizing...");
         let tokens = tokenize(file_contents)?;
 
-        let mut parser_state = ParserState::new(tokens);
+        println!("Creating LLVM context...");
+        let context = Context::create();
+        let builder = context.create_builder();
+        let module = context.create_module("main");
+
+        let mut dependency_output_paths = Vec::new();
+
+        println!("Analyzing dependencies...");
+        // Create dependency imports
+        let dependency_fn_list = create_dependency_functions_list(
+            &mut dependency_output_paths,
+            self.config.dependencies.clone(),
+            PathBuf::from(format!("{}\\deps", self.working_dir.display())),
+            optimization,
+            &context,
+            &builder,
+            &module,
+        )?;
+
+        let mut parser = Parser::new(tokens);
 
         println!("Parsing Tokens...");
-        parser_state.parse_tokens()?;
+        parser.parse(dependency_fn_list)?;
 
-        let function_table = parser_state.function_table();
-        let imported_functions = parser_state.imported_functions();
+        let function_table = parser.function_table();
+        let imported_functions = parser.imported_functions().clone();
 
         if !is_lib {
             if let Some(fn_sig) = function_table.get("main") {
@@ -99,39 +90,25 @@ impl CompilerState
             println!("A `main` function has been found, but the library flag is set to `true`.");
         }
 
-        println!("Initializing LLVM environment...");
-        unsafe {
-            LLVM_InitializeAllTargetInfos();
-            LLVM_InitializeAllTargets();
-            LLVM_InitializeAllTargetInfos();
-            LLVM_InitializeAllAsmParsers();
-            LLVM_InitializeAllTargets();
-        }
-
-        println!("LLVM-IR generation...");
-
-        // Create LLVM context
-        let context = Context::create();
-        let builder = context.create_builder();
-        let module = context.create_module("main");
-
-        let target = codegen_main(
+        llvm_codegen(
+            target_ir_path.clone(),
+            target_o_path,
+            optimization,
+            parser.clone(),
+            function_table,
+            Rc::new(imported_functions),
             &context,
             &builder,
-            &module,
-            Rc::new(function_table.clone()),
-            target_ir_path,
-            target_o_path.clone(),
-            optimization,
-            imported_functions,
-            parser_state.custom_types(),
-            // We should make it so that this argument will contain all of the flags the user has passed in
-            "",
+            module,
         )?;
 
         // Linking the object file
         // link_llvm_to_target(&module, target, target_o_path)?;
+        dependency_output_paths.push(target_ir_path.clone());
 
-        Ok(())
+        Ok(BuildManifest {
+            build_output_paths: dependency_output_paths,
+            output_path: build_path,
+        })
     }
 }

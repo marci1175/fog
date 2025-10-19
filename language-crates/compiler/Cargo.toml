@@ -8,3 +8,4 @@ fog-common = { path = "../common" }
 fog-codegen = { path = "../codegen" }
 fog-parser = { path = "../parser" }
 serde = { version = "1.0.228", features = ["derive"] }
+fog-imports = { path = "../imports" }

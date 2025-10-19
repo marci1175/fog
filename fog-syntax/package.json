@@ -13,16 +13,28 @@
   ],
   "icon": "icon.png",
   "contributes": {
-    "languages": [{
-      "id": "Fog",
-      "aliases": ["Fog Programming Language", "Fog"],
-      "extensions": [".f"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "Fog",
-      "scopeName": "source.f",
-      "path": "./syntaxes/Fog.tmLanguage.json"
-    }]
+    "languages": [
+      {
+        "id": "Fog",
+        "aliases": [
+          "Fog Programming Language",
+          "Fog"
+        ],
+        "extensions": [
+          ".f"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "Fog",
+        "scopeName": "source.f",
+        "path": "./syntaxes/Fog.tmLanguage.json"
+      }
+    ]
+  },
+  "dependencies": {
+    "vsce": "^2.15.0"
   }
 }

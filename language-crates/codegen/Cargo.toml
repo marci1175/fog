@@ -7,3 +7,4 @@ description = "LLVM codegen utilities for the Fog programming language ecosystem
 [dependencies]
 num = "0.4.3"
 fog-common = { path = "../common" }
+fog-parser = { path = "../parser" }

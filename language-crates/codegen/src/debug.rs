@@ -5,8 +5,7 @@ use fog_common::{
     inkwell::{
         context::Context,
         debug_info::{
-            DIFile, DIFlagsConstants, DIScope, DIType,
-            DWARFSourceLanguage, DebugInfoBuilder,
+            DIFile, DIFlagsConstants, DIScope, DIType, DWARFSourceLanguage, DebugInfoBuilder,
         },
         llvm_sys::{
             core::LLVMDisposeMessage,
@@ -31,7 +30,6 @@ use std::{
 };
 
 use crate::get_unique_id;
-
 
 /// Stores the DebugInformation type equivalents of the passed in [`TypeDiscriminant`]s.
 pub fn generate_debug_inforamtion_types<'ctx>(
@@ -217,7 +215,6 @@ fn get_basic_debug_type_from_ty<'ctx>(
 
     Ok(debug_type)
 }
-
 
 /// Creates a subprogram from a [`FunctionDefinition`] which can be used later to create a debug signatures and information.
 /// Please note that this function should only really be used when compiling a debug build by the user.

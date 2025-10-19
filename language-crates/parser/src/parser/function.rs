@@ -16,13 +16,14 @@ use fog_common::{
 
 use crate::{
     parser::variable::{parse_value, parse_variable_expression},
-    parser_instance::ParserState,
+    parser_instance::Parser,
     tokenizer::tokenize,
 };
 
 pub fn create_signature_table(
     tokens: Vec<Token>,
 ) -> Result<(
+    IndexMap<String, FunctionSignature>,
     IndexMap<String, UnparsedFunctionDefinition>,
     HashMap<String, FunctionDefinition>,
     HashMap<String, FunctionSignature>,
@@ -32,6 +33,8 @@ pub fn create_signature_table(
     let mut token_idx = 0;
 
     let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
+    let mut public_function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
+    let mut library_public_function_list: IndexMap<String, FunctionSignature> = IndexMap::new();
 
     let mut source_imports: HashMap<String, FunctionDefinition> = HashMap::new();
     let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
@@ -44,128 +47,207 @@ pub fn create_signature_table(
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
 
-        if current_token == Token::Function {
-            if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
-                if tokens[token_idx + 2] == Token::OpenParentheses {
-                    let (bracket_close_idx, args) =
-                        parse_signature_argument_tokens(&tokens[token_idx + 3..])?;
+        if current_token == Token::Private
+            || current_token == Token::Public
+            || current_token == Token::LibraryPublic
+        {
+            token_idx += 1;
 
-                    token_idx += bracket_close_idx + 3;
+            if tokens[token_idx] == Token::Function {
+                if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
+                    if tokens[token_idx + 2] == Token::OpenParentheses {
+                        let (bracket_close_idx, args) =
+                            parse_signature_argument_tokens(&tokens[token_idx + 3..])?;
 
-                    // Fetch the returned type of the function
-                    if tokens[token_idx + 1] == Token::Colon {
-                        let return_type = if let Token::TypeDefinition(return_type) =
-                            tokens[token_idx + 2].clone()
-                        {
-                            return_type
-                        }
-                        else if let Token::Identifier(identifier) = tokens[token_idx + 2].clone()
-                        {
-                            if let Some(custom_type) = custom_items.get(&identifier) {
-                                match custom_type {
-                                    CustomType::Struct(struct_def) => {
-                                        TypeDiscriminant::Struct(struct_def.clone())
-                                    },
-                                    CustomType::Enum(index_map) => {
-                                        unimplemented!()
-                                    },
+                        token_idx += bracket_close_idx + 3;
+
+                        // Fetch the returned type of the function
+                        if tokens[token_idx + 1] == Token::Colon {
+                            let return_type = if let Token::TypeDefinition(return_type) =
+                                tokens[token_idx + 2].clone()
+                            {
+                                return_type
+                            }
+                            else if let Token::Identifier(identifier) =
+                                tokens[token_idx + 2].clone()
+                            {
+                                if let Some(custom_type) = custom_items.get(&identifier) {
+                                    match custom_type {
+                                        CustomType::Struct(struct_def) => {
+                                            TypeDiscriminant::Struct(struct_def.clone())
+                                        },
+                                        CustomType::Enum(index_map) => {
+                                            unimplemented!()
+                                        },
+                                    }
+                                }
+                                else {
+                                    return Err(ParserError::InvalidSignatureDefinition.into());
                                 }
                             }
                             else {
                                 return Err(ParserError::InvalidSignatureDefinition.into());
-                            }
-                        }
-                        else {
-                            return Err(ParserError::InvalidSignatureDefinition.into());
-                        };
+                            };
 
-                        if tokens[token_idx + 3] == Token::OpenBraces {
-                            // Create a variable which stores the level of braces we are in
-                            let mut brace_layer_counter = 1;
+                            if tokens[token_idx + 3] == Token::OpenBraces {
+                                // Create a variable which stores the level of braces we are in
+                                let mut brace_layer_counter = 1;
 
-                            // Get the slice of the list which may contain the braces' scope
-                            let tokens_slice = &tokens[token_idx + 4..];
+                                // Get the slice of the list which may contain the braces' scope
+                                let tokens_slice = &tokens[token_idx + 4..];
 
-                            // Create an index which indexes the tokens slice
-                            let mut token_braces_idx = 0;
+                                // Create an index which indexes the tokens slice
+                                let mut token_braces_idx = 0;
 
-                            // Create a list which contains all the tokens inside the two braces
-                            let mut braces_contains: Vec<Token> = vec![];
+                                // Create a list which contains all the tokens inside the two braces
+                                let mut braces_contains: Vec<Token> = vec![];
 
-                            // Find the scope of this function
-                            loop {
-                                // We have itered through the whole function and its still not found, it may be an open brace.
-                                if tokens_slice.len() == token_braces_idx {
+                                // Find the scope of this function
+                                loop {
+                                    // We have itered through the whole function and its still not found, it may be an open brace.
+                                    if tokens_slice.len() == token_braces_idx {
+                                        return Err(ParserError::SyntaxError(
+                                            SyntaxError::LeftOpenParentheses,
+                                        )
+                                        .into());
+                                    }
+
+                                    // If a bracket is closed the layer counter should be incremented
+                                    if tokens_slice[token_braces_idx] == Token::OpenBraces {
+                                        brace_layer_counter += 1;
+                                    }
+                                    // If a bracket is closed the layer counter should be decreased
+                                    else if tokens_slice[token_braces_idx] == Token::CloseBraces {
+                                        brace_layer_counter -= 1;
+                                    }
+
+                                    // If we have arrived at the end of the braces this is when we know that this is the end of the function's scope
+                                    if brace_layer_counter == 0 {
+                                        break;
+                                    }
+
+                                    // Store the current item in the token buffer
+                                    braces_contains.push(tokens_slice[token_braces_idx].clone());
+
+                                    // Increment the index
+                                    token_braces_idx += 1;
+                                }
+
+                                let braces_contains_len = braces_contains.len();
+
+                                // Store the function
+                                let insertion = {
+                                    match current_token {
+                                        Token::Public => {
+                                            function_list.insert(
+                                                function_name.clone(),
+                                                UnparsedFunctionDefinition {
+                                                    inner: braces_contains.clone(),
+                                                    function_sig: FunctionSignature {
+                                                        args: args.clone(),
+                                                        return_type: return_type.clone(),
+                                                        debug_attributes: None,
+                                                    },
+                                                },
+                                            );
+
+                                            public_function_list.insert(
+                                                function_name.clone(),
+                                                UnparsedFunctionDefinition {
+                                                    inner: braces_contains,
+                                                    function_sig: FunctionSignature {
+                                                        args,
+                                                        return_type,
+                                                        debug_attributes: None,
+                                                    },
+                                                },
+                                            )
+                                        },
+                                        Token::Private => {
+                                            function_list.insert(
+                                                function_name.clone(),
+                                                UnparsedFunctionDefinition {
+                                                    inner: braces_contains,
+                                                    function_sig: FunctionSignature {
+                                                        args,
+                                                        return_type,
+                                                        debug_attributes: None,
+                                                    },
+                                                },
+                                            )
+                                        },
+                                        Token::LibraryPublic => {
+                                            function_list.insert(
+                                                function_name.clone(),
+                                                UnparsedFunctionDefinition {
+                                                    inner: braces_contains.clone(),
+                                                    function_sig: FunctionSignature {
+                                                        args: args.clone(),
+                                                        return_type: return_type.clone(),
+                                                        debug_attributes: None,
+                                                    },
+                                                },
+                                            );
+
+                                            library_public_function_list.insert(
+                                                function_name.clone(),
+                                                FunctionSignature {
+                                                    args: args.clone(),
+                                                    return_type: return_type.clone(),
+                                                    debug_attributes: None,
+                                                },
+                                            );
+
+                                            // We retuern this cuz i dont want to create another struct
+                                            public_function_list.insert(
+                                                function_name.clone(),
+                                                UnparsedFunctionDefinition {
+                                                    inner: braces_contains.clone(),
+                                                    function_sig: FunctionSignature {
+                                                        args: args.clone(),
+                                                        return_type: return_type.clone(),
+                                                        debug_attributes: None,
+                                                    },
+                                                },
+                                            )
+                                        },
+
+                                        _ => panic!(),
+                                    }
+                                };
+
+                                // If a function with a similar name exists throw an error as there is no function overloading
+                                if let Some(overwritten_function) = insertion {
                                     return Err(ParserError::SyntaxError(
-                                        SyntaxError::LeftOpenParentheses,
+                                        SyntaxError::DuplicateFunctions(
+                                            function_name,
+                                            overwritten_function.function_sig,
+                                        ),
                                     )
                                     .into());
                                 }
 
-                                // If a bracket is closed the layer counter should be incremented
-                                if tokens_slice[token_braces_idx] == Token::OpenBraces {
-                                    brace_layer_counter += 1;
-                                }
-                                // If a bracket is closed the layer counter should be decreased
-                                else if tokens_slice[token_braces_idx] == Token::CloseBraces {
-                                    brace_layer_counter -= 1;
-                                }
+                                // Set the iterator index
+                                token_idx += braces_contains_len + 4;
 
-                                // If we have arrived at the end of the braces this is when we know that this is the end of the function's scope
-                                if brace_layer_counter == 0 {
-                                    break;
-                                }
-
-                                // Store the current item in the token buffer
-                                braces_contains.push(tokens_slice[token_braces_idx].clone());
-
-                                // Increment the index
-                                token_braces_idx += 1;
+                                // Countinue with the loop
+                                continue;
                             }
-
-                            let braces_contains_len = braces_contains.len();
-
-                            // Store the function
-                            let insertion = function_list.insert(
-                                function_name.clone(),
-                                UnparsedFunctionDefinition {
-                                    inner: braces_contains,
-                                    function_sig: FunctionSignature {
-                                        args,
-                                        return_type,
-                                        debug_attributes: None,
-                                    },
-                                },
-                            );
-
-                            // If a function with a similar name exists throw an error as there is no function overloading
-                            if let Some(overwritten_function) = insertion {
-                                return Err(ParserError::SyntaxError(
-                                    SyntaxError::DuplicateFunctions(
-                                        function_name,
-                                        overwritten_function.function_sig,
-                                    ),
-                                )
-                                .into());
-                            }
-
-                            // Set the iterator index
-                            token_idx += braces_contains_len + 4;
-
-                            // Countinue with the loop
-                            continue;
                         }
-                    }
 
-                    return Err(ParserError::InvalidSignatureDefinition.into());
+                        return Err(ParserError::InvalidSignatureDefinition.into());
+                    }
+                    else {
+                        return Err(ParserError::InvalidSignatureDefinition.into());
+                    }
                 }
                 else {
-                    return Err(ParserError::InvalidSignatureDefinition.into());
+                    return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionName).into());
                 }
             }
-            else {
-                return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionName).into());
-            }
+        }
+        else if current_token == Token::Function {
+            return Err(ParserError::FunctionRequiresExplicitVisibility.into());
         }
         else if current_token == Token::Import {
             if let Token::Identifier(identifier) = tokens[token_idx + 1].clone() {
@@ -249,7 +331,7 @@ pub fn create_signature_table(
                 let tokens = tokenize(&file_contents)?;
 
                 // Create a new Parser state
-                let mut parser_state = ParserState::new(tokens);
+                let mut parser_state = Parser::new(tokens);
 
                 println!(
                     "Imported file from `{}`. Parsing source file...",
@@ -257,7 +339,9 @@ pub fn create_signature_table(
                 );
 
                 // Parse the tokens
-                parser_state.parse_tokens()?;
+                parser_state.parse(HashMap::new())?;
+
+                panic!();
 
                 // Save the file's name and the functions it contains so that we can refer to it later.
                 imported_file_list.insert(file_name, parser_state.function_table().clone());
@@ -357,6 +441,7 @@ pub fn create_signature_table(
     }
 
     Ok((
+        library_public_function_list,
         function_list,
         source_imports,
         external_imports,
