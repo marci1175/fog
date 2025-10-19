@@ -440,11 +440,15 @@ fn match_multi_character_expression(string_buffer: String) -> Token
         "%=" => Token::SetValueModulo,
         "false" => Token::Literal(Type::Boolean(false)),
         "true" => Token::Literal(Type::Boolean(true)),
+        "external" => Token::External,
         "import" => Token::Import,
         "function" => Token::Function,
         "return" => Token::Return,
         "as" => Token::As,
+
+        // Unused
         "extend" => Token::Extend,
+        
         "struct" => Token::Struct,
         "else" => Token::Else,
         "loop" => Token::Loop,

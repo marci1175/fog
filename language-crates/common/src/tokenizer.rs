@@ -70,6 +70,7 @@ pub enum Token
     BitLeft,
     BitRight,
 
+    External,
     Import,
 
     Loop,

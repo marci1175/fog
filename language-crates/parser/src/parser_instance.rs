@@ -44,6 +44,24 @@ impl Parser
 
         let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
 
+        let external_import_clone = external_imports.clone();
+
+        // Only import the functions which have been specifically import by the user too
+        external_imports.extend(
+            dep_fn_list
+                .iter()
+                .map(|(_module_name, v)| {
+                    v.iter()
+                        .filter(|(fn_name, fn_sig)| external_import_clone.get(*fn_name).is_some_and(|import_sig| {
+                            let res = **dbg!(fn_sig) == *dbg!(import_sig);
+
+                            dbg!(res)
+                        }))
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                })
+                .flatten(),
+        );
+
         // Extend the list of external imports with source imports aka imports from Fog source files.
         external_imports.extend(
             source_imports
@@ -51,17 +69,7 @@ impl Parser
                 .map(|(fn_name, fn_def)| (fn_name.clone(), fn_def.function_sig.clone())),
         );
 
-        external_imports.extend(
-            dep_fn_list
-                .iter()
-                .map(|(_module_name, v)| {
-                    v.iter()
-                        .map(|(fn_name, sig)| (fn_name.clone(), sig.clone()))
-                })
-                .flatten(),
-        );
-
-        let imports = Arc::new(external_imports);
+        let imports = Arc::new(dbg!(external_imports));
 
         // Copy the the HashMap to this field
         self.imported_functions = imports.clone();

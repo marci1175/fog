@@ -1,9 +1,7 @@
 mod cli;
 use fog_common::{
     compiler::ProjectConfig,
-    error::{
-        application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError,
-    },
+    error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError},
     toml,
 };
 use fog_compiler::CompilerState;
