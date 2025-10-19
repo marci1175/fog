@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{dependency::DependencyInfo, imports::LibraryImport};
+use crate::dependency::DependencyInfo;
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ProjectConfig
 {
     pub name: String,

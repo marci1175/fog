@@ -448,7 +448,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token
 
         // Unused
         "extend" => Token::Extend,
-        
+
         "struct" => Token::Struct,
         "else" => Token::Else,
         "loop" => Token::Loop,

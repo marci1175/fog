@@ -1,17 +1,9 @@
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use fog_common::{
-    anyhow::Result,
-    codegen::{CustomType, FunctionArgumentIdentifier, If},
-    error::{parser::ParserError, syntax::SyntaxError},
-    indexmap::IndexMap,
-    parser::{
-        ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature, ParsedToken,
-        UnparsedFunctionDefinition, VariableReference, find_closing_braces, find_closing_comma,
-        find_closing_paren, parse_signature_argument_tokens,
-    },
-    tokenizer::Token,
-    ty::{OrdMap, Type, TypeDiscriminant},
+    anyhow::Result, codegen::{CustomType, FunctionArgumentIdentifier, If}, compiler::ProjectConfig, error::{parser::ParserError, syntax::SyntaxError}, indexmap::IndexMap, parser::{
+        find_closing_braces, find_closing_comma, find_closing_paren, parse_signature_argument_tokens, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature, ParsedToken, UnparsedFunctionDefinition, VariableReference
+    }, tokenizer::Token, ty::{OrdMap, Type, TypeDiscriminant}
 };
 
 use crate::{
@@ -39,8 +31,7 @@ pub fn create_signature_table(
     let mut source_imports: HashMap<String, FunctionDefinition> = HashMap::new();
     let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
 
-    let mut imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> =
-        HashMap::new();
+    let imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> = HashMap::new();
 
     let mut custom_items: IndexMap<String, CustomType> = IndexMap::new();
 
@@ -330,8 +321,10 @@ pub fn create_signature_table(
                 // Tokenize the raw source file
                 let tokens = tokenize(&file_contents)?;
 
+                panic!("Rework this when working on modules");
+
                 // Create a new Parser state
-                let mut parser_state = Parser::new(tokens);
+                let mut parser_state = Parser::new(tokens, ProjectConfig::default());
 
                 println!(
                     "Imported file from `{}`. Parsing source file...",
@@ -340,8 +333,6 @@ pub fn create_signature_table(
 
                 // Parse the tokens
                 parser_state.parse(HashMap::new())?;
-
-                panic!();
 
                 // Save the file's name and the functions it contains so that we can refer to it later.
                 imported_file_list.insert(file_name, parser_state.function_table().clone());
@@ -450,6 +441,7 @@ pub fn create_signature_table(
 }
 
 pub fn parse_functions(
+    config: ProjectConfig,
     unparsed_functions: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
@@ -471,7 +463,9 @@ pub fn parse_functions(
         };
 
         println!(
-            "Parsed function `{fn_name}` ({}/{})",
+            "Parsed function `{}({}) :: {fn_name}` ({}/{})",
+            config.name,
+            config.version,
             fn_idx + 1,
             unparsed_functions.len()
         );

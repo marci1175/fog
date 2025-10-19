@@ -101,8 +101,6 @@ pub fn llvm_codegen_main<'ctx>(
             .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
     }
 
-    println!("Writing LLVM-IR to output...");
-
     // Write LLVM IR to a file.
     module.print_to_file(&path_to_ir_output).map_err(|err| {
         ApplicationError::FileError(std::io::Error::new(
@@ -110,13 +108,6 @@ pub fn llvm_codegen_main<'ctx>(
             err.to_string(),
         ))
     })?;
-
-    println!(
-        "Compilation finished, llvm-ir output is located at: {:?}",
-        fs::canonicalize(path_to_ir_output).unwrap_or_default()
-    );
-
-    println!("Writing LLVM object code to output...");
 
     target_machine
         .write_to_file(
@@ -130,11 +121,6 @@ pub fn llvm_codegen_main<'ctx>(
                 err.to_string(),
             ))
         })?;
-
-    println!(
-        "Compilation finished, object code output is located at: {:?}",
-        fs::canonicalize(path_to_o_output).unwrap_or_default()
-    );
 
     Ok(target_machine)
 }
@@ -163,19 +149,9 @@ pub fn llvm_codegen<'ctx>(
     module: fog_common::inkwell::module::Module<'ctx>,
 ) -> Result<(), fog_common::anyhow::Error>
 {
-    println!("Initializing LLVM environment...");
-
-    unsafe {
-        LLVM_InitializeAllTargetInfos();
-        LLVM_InitializeAllTargetInfos();
-        LLVM_InitializeAllTargets();
-    }
-
-    println!("LLVM-IR generation...");
-
     let _target = llvm_codegen_main(
-        &context,
-        &builder,
+        context,
+        builder,
         &module,
         Rc::new(function_table.clone()),
         target_ir_path,

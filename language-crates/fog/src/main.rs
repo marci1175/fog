@@ -1,10 +1,9 @@
 mod cli;
 use fog_common::{
-    compiler::ProjectConfig,
-    error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError},
-    toml,
+    anyhow, compiler::ProjectConfig, error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError}, toml
 };
 use fog_compiler::CompilerState;
+use fog_linker::link;
 use std::{collections::HashMap, env, fs, path::PathBuf};
 use strum::{EnumMessage, VariantArray};
 
@@ -84,6 +83,13 @@ fn main() -> fog_common::anyhow::Result<()>
 
             // Write build manifest to disc
             fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
+
+            println!("All build artifacts have been saved.");
+
+            // Link automaticly
+            link(&build_manifest).map_err(|err| anyhow::Error::from(err))?;
+
+            println!("Linking finished successfully! Binary output is available at: {}", build_path.display());
         },
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),

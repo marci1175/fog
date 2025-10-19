@@ -1,19 +1,9 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::{path::PathBuf, rc::Rc};
 
-use fog_codegen::{llvm_codegen, llvm_codegen_main};
+use fog_codegen::llvm_codegen;
 use fog_common::{
-    anyhow::Result,
-    compiler::ProjectConfig,
-    error::codegen::CodeGenError,
-    imports::LibraryImport,
-    inkwell::{
-        context::Context,
-        llvm_sys::target::{
-            LLVM_InitializeAllAsmParsers, LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargets,
-        },
-    },
-    linker::BuildManifest,
-    ty::TypeDiscriminant,
+    anyhow::Result, compiler::ProjectConfig, error::codegen::CodeGenError,
+    inkwell::{context::Context, llvm_sys::target::{LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters, LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets}}, linker::BuildManifest, ty::TypeDiscriminant,
 };
 use fog_imports::dependency_list_manager::create_dependency_functions_list;
 use fog_parser::{parser_instance::Parser, tokenizer::tokenize};
@@ -52,6 +42,15 @@ impl CompilerState
         let builder = context.create_builder();
         let module = context.create_module("main");
 
+        println!("Initializing LLVM environment...");
+        unsafe {
+            LLVM_InitializeAllTargetInfos();
+            LLVM_InitializeAllTargets();
+            LLVM_InitializeAllTargetMCs();
+            LLVM_InitializeAllAsmParsers();
+            LLVM_InitializeAllAsmPrinters();
+        }
+
         let mut dependency_output_paths = Vec::new();
 
         println!("Analyzing dependencies...");
@@ -66,9 +65,8 @@ impl CompilerState
             &module,
         )?;
 
-        let mut parser = Parser::new(tokens);
+        let mut parser = Parser::new(tokens, self.config.clone());
 
-        println!("Parsing Tokens...");
         parser.parse(dependency_fn_list)?;
 
         let function_table = parser.function_table();

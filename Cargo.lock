@@ -81,6 +81,7 @@ dependencies = [
  "fog-common",
  "fog-compiler",
  "fog-imports",
+ "fog-linker",
  "strum",
  "strum_macros",
 ]

@@ -1,12 +1,11 @@
-use std::{collections::HashMap, fs, path::PathBuf, rc::Rc, sync::Arc};
+use std::{collections::HashMap, fs, path::PathBuf, rc::Rc};
 
 use fog_codegen::llvm_codegen;
 use fog_common::{
     anyhow::{self, ensure},
     compiler::ProjectConfig,
     dependency::DependencyInfo,
-    error::{application::ApplicationError, dependency::DependencyError},
-    imports::ImportItem,
+    error::dependency::DependencyError,
     indexmap::IndexMap,
     inkwell::{builder::Builder, context::Context, module::Module},
     parser::FunctionSignature,
@@ -49,9 +48,9 @@ pub fn create_dependency_functions_list<'ctx>(
             &mut deps,
             dependency_path,
             optimization,
-            &context,
-            &builder,
-            &root_module,
+            context,
+            builder,
+            root_module,
         )?;
     }
 
@@ -139,7 +138,7 @@ fn scan_dependency<'ctx>(
 
                 // Parse library for public items
                 let parser_state =
-                    analyze_dependency(&lib_src_file_content, dependency_dependencies.clone())?;
+                    analyze_dependency(&lib_src_file_content, dependency_dependencies.clone(), dependency_config.clone())?;
 
                 deps.insert(
                     dependency_config.name.clone(),
@@ -166,8 +165,8 @@ fn scan_dependency<'ctx>(
                     parser_state.clone(),
                     parser_state.function_table(),
                     imported_functions,
-                    &context,
-                    &builder,
+                    context,
+                    builder,
                     lib_module.clone(),
                 )?;
 

@@ -549,9 +549,11 @@ impl<K: PartialEq + Hash, V: PartialEq> PartialEq for OrdMap<K, V>
     {
         self.iter()
             .enumerate()
-            .all(|(idx, (k, v))| other.get_index(idx) == Some((k, v))) && other.iter()
-            .enumerate()
-            .all(|(idx, (k, v))| self.get_index(idx) == Some((k, v)))
+            .all(|(idx, (k, v))| other.get_index(idx) == Some((k, v)))
+            && other
+                .iter()
+                .enumerate()
+                .all(|(idx, (k, v))| self.get_index(idx) == Some((k, v)))
     }
 }
 
