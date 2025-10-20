@@ -1,6 +1,9 @@
 mod cli;
 use fog_common::{
-    anyhow, compiler::ProjectConfig, error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError}, toml
+    anyhow,
+    compiler::ProjectConfig,
+    error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError},
+    toml,
 };
 use fog_compiler::CompilerState;
 use fog_linker::link;
@@ -79,6 +82,7 @@ fn main() -> fog_common::anyhow::Result<()>
                 build_path.clone(),
                 release_flag == "release" || release_flag == "r",
                 compiler_config.is_library,
+                &format!("{}\\src", current_working_dir.display(),),
             )?;
 
             // Write build manifest to disc
@@ -89,7 +93,10 @@ fn main() -> fog_common::anyhow::Result<()>
             // Link automaticly
             link(&build_manifest).map_err(|err| anyhow::Error::from(err))?;
 
-            println!("Linking finished successfully! Binary output is available at: {}", build_path.display());
+            println!(
+                "Linking finished successfully! Binary output is available at: {}",
+                build_path.display()
+            );
         },
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),

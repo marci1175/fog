@@ -1,9 +1,18 @@
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use fog_common::{
-    anyhow::Result, codegen::{CustomType, FunctionArgumentIdentifier, If}, compiler::ProjectConfig, error::{parser::ParserError, syntax::SyntaxError}, indexmap::IndexMap, parser::{
-        find_closing_braces, find_closing_comma, find_closing_paren, parse_signature_argument_tokens, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature, ParsedToken, UnparsedFunctionDefinition, VariableReference
-    }, tokenizer::Token, ty::{OrdMap, Type, TypeDiscriminant}
+    anyhow::Result,
+    codegen::{CustomType, FunctionArgumentIdentifier, If},
+    compiler::ProjectConfig,
+    error::{parser::ParserError, syntax::SyntaxError},
+    indexmap::IndexMap,
+    parser::{
+        ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature, ParsedToken,
+        UnparsedFunctionDefinition, VariableReference, find_closing_braces, find_closing_comma,
+        find_closing_paren, parse_signature_argument_tokens,
+    },
+    tokenizer::Token,
+    ty::{OrdMap, Type, TypeDiscriminant},
 };
 
 use crate::{
@@ -14,8 +23,8 @@ use crate::{
 
 pub fn create_signature_table(
     tokens: Vec<Token>,
+    module_path: Vec<String>,
 ) -> Result<(
-    IndexMap<String, FunctionSignature>,
     IndexMap<String, UnparsedFunctionDefinition>,
     HashMap<String, FunctionDefinition>,
     HashMap<String, FunctionSignature>,
@@ -25,13 +34,12 @@ pub fn create_signature_table(
     let mut token_idx = 0;
 
     let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
-    let mut public_function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
-    let mut library_public_function_list: IndexMap<String, FunctionSignature> = IndexMap::new();
 
     let mut source_imports: HashMap<String, FunctionDefinition> = HashMap::new();
     let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
 
-    let imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> = HashMap::new();
+    let mut imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> =
+        HashMap::new();
 
     let mut custom_items: IndexMap<String, CustomType> = IndexMap::new();
 
@@ -40,7 +48,7 @@ pub fn create_signature_table(
 
         if current_token == Token::Private
             || current_token == Token::Public
-            || current_token == Token::LibraryPublic
+            || current_token == Token::PublicLibrary
         {
             token_idx += 1;
 
@@ -127,85 +135,19 @@ pub fn create_signature_table(
                                 let braces_contains_len = braces_contains.len();
 
                                 // Store the function
-                                let insertion = {
-                                    match current_token {
-                                        Token::Public => {
-                                            function_list.insert(
-                                                function_name.clone(),
-                                                UnparsedFunctionDefinition {
-                                                    inner: braces_contains.clone(),
-                                                    function_sig: FunctionSignature {
-                                                        args: args.clone(),
-                                                        return_type: return_type.clone(),
-                                                        debug_attributes: None,
-                                                    },
-                                                },
-                                            );
-
-                                            public_function_list.insert(
-                                                function_name.clone(),
-                                                UnparsedFunctionDefinition {
-                                                    inner: braces_contains,
-                                                    function_sig: FunctionSignature {
-                                                        args,
-                                                        return_type,
-                                                        debug_attributes: None,
-                                                    },
-                                                },
-                                            )
+                                let insertion = function_list.insert(
+                                    function_name.clone(),
+                                    UnparsedFunctionDefinition {
+                                        inner: braces_contains.clone(),
+                                        function_sig: FunctionSignature {
+                                            args: args.clone(),
+                                            return_type: return_type.clone(),
+                                            debug_attributes: None,
+                                            visibility: current_token.try_into()?,
+                                            module_path: module_path.clone(),
                                         },
-                                        Token::Private => {
-                                            function_list.insert(
-                                                function_name.clone(),
-                                                UnparsedFunctionDefinition {
-                                                    inner: braces_contains,
-                                                    function_sig: FunctionSignature {
-                                                        args,
-                                                        return_type,
-                                                        debug_attributes: None,
-                                                    },
-                                                },
-                                            )
-                                        },
-                                        Token::LibraryPublic => {
-                                            function_list.insert(
-                                                function_name.clone(),
-                                                UnparsedFunctionDefinition {
-                                                    inner: braces_contains.clone(),
-                                                    function_sig: FunctionSignature {
-                                                        args: args.clone(),
-                                                        return_type: return_type.clone(),
-                                                        debug_attributes: None,
-                                                    },
-                                                },
-                                            );
-
-                                            library_public_function_list.insert(
-                                                function_name.clone(),
-                                                FunctionSignature {
-                                                    args: args.clone(),
-                                                    return_type: return_type.clone(),
-                                                    debug_attributes: None,
-                                                },
-                                            );
-
-                                            // We retuern this cuz i dont want to create another struct
-                                            public_function_list.insert(
-                                                function_name.clone(),
-                                                UnparsedFunctionDefinition {
-                                                    inner: braces_contains.clone(),
-                                                    function_sig: FunctionSignature {
-                                                        args: args.clone(),
-                                                        return_type: return_type.clone(),
-                                                        debug_attributes: None,
-                                                    },
-                                                },
-                                            )
-                                        },
-
-                                        _ => panic!(),
-                                    }
-                                };
+                                    },
+                                );
 
                                 // If a function with a similar name exists throw an error as there is no function overloading
                                 if let Some(overwritten_function) = insertion {
@@ -264,6 +206,10 @@ pub fn create_signature_table(
                                     args,
                                     return_type,
                                     debug_attributes: None,
+                                    module_path: module_path.clone(),
+                                    // Imported functions can only be accessed at the source file they were imported at
+                                    // I might change this later to smth like pub import similar to pub mod in rust
+                                    visibility: fog_common::parser::FunctionVisibility::Private,
                                 },
                             );
 
@@ -305,7 +251,7 @@ pub fn create_signature_table(
                 if !fs::exists(&path)?
                     || path.extension().unwrap_or_default().to_string_lossy() == ".f"
                 {
-                    return Err(ParserError::LinkedSourceFileMissing(path).into());
+                    return Err(ParserError::LinkedSourceFileError(path).into());
                 }
 
                 // Get the File's content
@@ -321,10 +267,19 @@ pub fn create_signature_table(
                 // Tokenize the raw source file
                 let tokens = tokenize(&file_contents)?;
 
-                panic!("Rework this when working on modules");
+                // panic!("Rework this when working on modules");
+                let mut imported_file_mod_path = module_path.clone();
+
+                imported_file_mod_path.push(
+                    path.file_name()
+                        .ok_or(ParserError::LinkedSourceFileError(path.clone()))?
+                        .to_string_lossy()
+                        .to_string(),
+                );
 
                 // Create a new Parser state
-                let mut parser_state = Parser::new(tokens, ProjectConfig::default());
+                let mut parser_state =
+                    Parser::new(tokens, ProjectConfig::default(), imported_file_mod_path);
 
                 println!(
                     "Imported file from `{}`. Parsing source file...",
@@ -432,7 +387,6 @@ pub fn create_signature_table(
     }
 
     Ok((
-        library_public_function_list,
         function_list,
         source_imports,
         external_imports,
@@ -445,6 +399,7 @@ pub fn parse_functions(
     unparsed_functions: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
+    module_path: Vec<String>,
 ) -> Result<IndexMap<String, FunctionDefinition>>
 {
     let mut parsed_functions = IndexMap::new();
@@ -459,12 +414,13 @@ pub fn parse_functions(
                 function_imports.clone(),
                 custom_items.clone(),
                 unparsed_function.function_sig.args.clone(),
+                module_path.clone(),
             )?,
         };
 
         println!(
-            "Parsed function `{}({}) :: {fn_name}` ({}/{})",
-            config.name,
+            "Parsed function `{}({})::{fn_name}` ({}/{})",
+            module_path.join("::"),
             config.version,
             fn_idx + 1,
             unparsed_functions.len()
@@ -482,6 +438,7 @@ pub fn parse_function_block(
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
     this_fn_args: FunctionArguments,
+    module_path: Vec<String>,
 ) -> Result<Vec<ParsedToken>>
 {
     // Check if the function defined by the source code does not have an indeterminate amount of args
@@ -757,10 +714,13 @@ pub fn parse_function_block(
                                 args: FunctionArguments::new(),
                                 return_type: TypeDiscriminant::Void,
                                 debug_attributes: None,
+                                module_path: module_path.clone(),
+                                visibility: fog_common::parser::FunctionVisibility::Branch,
                             },
                             function_imports.clone(),
                             custom_items.clone(),
                             this_fn_args.clone(),
+                            module_path.clone(),
                         )?;
 
                         let mut else_condition_branch = Vec::new();
@@ -785,10 +745,13 @@ pub fn parse_function_block(
                                         args: FunctionArguments::new(),
                                         return_type: TypeDiscriminant::Void,
                                         debug_attributes: None,
+                                        visibility: fog_common::parser::FunctionVisibility::Branch,
+                                        module_path: module_path.clone(),
                                     },
                                     function_imports.clone(),
                                     custom_items.clone(),
                                     this_fn_args.clone(),
+                                    module_path.clone(),
                                 )?;
 
                                 token_idx = paren_close_idx + 1;
@@ -837,10 +800,13 @@ pub fn parse_function_block(
                             args: FunctionArguments::new(),
                             return_type: TypeDiscriminant::Void,
                             debug_attributes: None,
+                            visibility: fog_common::parser::FunctionVisibility::Branch,
+                            module_path: module_path.clone(),
                         },
                         function_imports.clone(),
                         custom_items.clone(),
                         loop_body_arguments,
+                        module_path.clone(),
                     )?;
 
                     token_idx = paren_close_idx + 1;

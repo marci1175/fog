@@ -171,11 +171,40 @@ pub struct FunctionDefinition
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub enum FunctionVisibility
+{
+    #[default]
+    Private,
+    Public,
+    PublicLibrary,
+    /// Branches are parsed like function, and this type is supposed to indicate that the function is actually a branch.
+    /// A branch does not have any visibility.
+    Branch,
+}
+
+impl TryFrom<Token> for FunctionVisibility
+{
+    type Error = ParserError;
+
+    fn try_from(value: Token) -> Result<Self, Self::Error>
+    {
+        Ok(match value {
+            Token::Public => Self::Public,
+            Token::PublicLibrary => Self::PublicLibrary,
+            Token::Private => Self::Private,
+            _ => return Err(ParserError::InvalidSignatureDefinition),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionSignature
 {
     pub args: FunctionArguments,
     pub return_type: TypeDiscriminant,
     pub debug_attributes: Option<String>,
+    pub module_path: Vec<String>,
+    pub visibility: FunctionVisibility,
 }
 
 impl Display for FunctionSignature

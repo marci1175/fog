@@ -7,11 +7,12 @@ pub fn analyze_dependency(
     source_file_contents: &str,
     deps: HashMap<String, IndexMap<String, FunctionSignature>>,
     config: ProjectConfig,
+    module_path: Vec<String>,
 ) -> anyhow::Result<Parser>
 {
     let tokens = tokenize(source_file_contents)?;
 
-    let mut parser = Parser::new(tokens, config);
+    let mut parser = Parser::new(tokens, config, module_path);
 
     parser.parse(deps)?;
 

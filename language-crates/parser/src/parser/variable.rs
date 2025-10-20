@@ -352,7 +352,7 @@ pub fn parse_token_as_value(
                 // Return the function call
                 let parsed_token: ParsedToken = ParsedToken::FunctionCall(
                     (function.function_sig.clone(), identifier.clone()),
-                    call_arguments,
+                    dbg!(call_arguments),
                 );
 
                 // Increment the token index, and add the offset
@@ -452,19 +452,23 @@ pub fn parse_token_as_value(
                     }
                 }
                 else {
-                    let desired_variable_type =
-                        desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
+                    // If there is a desired variable type then check if the two types match
+                    if let Some(desired_variable_type) = desired_variable_type {
+                        // If the function's return type doesn't match the variable's return type return an error
+                        if function_sig.return_type != desired_variable_type {
+                            return Err(ParserError::TypeError(
+                                function_sig.return_type.clone(),
+                                desired_variable_type,
+                            )
+                            .into());
+                        }
 
-                    // If the function's return type doesn't match the variable's return type return an error
-                    if function_sig.return_type != desired_variable_type {
-                        return Err(ParserError::TypeError(
-                            function_sig.return_type.clone(),
-                            desired_variable_type,
-                        )
-                        .into());
+                        (parsed_token, desired_variable_type)
                     }
-
-                    (parsed_token, desired_variable_type)
+                    // If there were no explicit type definitions, return the type which is produced by the function
+                    else {
+                        (parsed_token, function_sig.return_type.clone())
+                    }
                 }
             }
             else if let Some(custom_type) = custom_types.get(identifier) {

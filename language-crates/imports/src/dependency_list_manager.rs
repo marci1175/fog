@@ -27,8 +27,41 @@ pub fn create_dependency_functions_list<'ctx>(
 {
     let mut deps = HashMap::new();
 
-    let mut dir_entries = fs::read_dir(deps_path)?;
+    let mut module_path = vec![root_module.get_name().to_string_lossy().to_string()];
 
+    let dir_entries = fs::read_dir(deps_path)?;
+
+    scan_dependencies(
+        dependency_output_path_list,
+        &mut dependency_list,
+        optimization,
+        context,
+        builder,
+        root_module,
+        &mut deps,
+        &mut module_path,
+        dir_entries,
+    )?;
+
+    if !dependency_list.is_empty() {
+        return Err(DependencyError::MissingDependencies(dependency_list.clone()).into());
+    }
+
+    Ok(deps)
+}
+
+fn scan_dependencies<'ctx>(
+    dependency_output_path_list: &mut Vec<PathBuf>,
+    dependency_list: &mut HashMap<String, DependencyInfo>,
+    optimization: bool,
+    context: &'ctx Context,
+    builder: &'ctx Builder<'ctx>,
+    root_module: &Module<'ctx>,
+    deps: &mut HashMap<String, IndexMap<String, FunctionSignature>>,
+    module_path: &mut Vec<String>,
+    mut dir_entries: fs::ReadDir,
+) -> Result<(), anyhow::Error>
+{
     while let Some(Ok(dir_entry)) = dir_entries.next() {
         let metadat = dir_entry
             .metadata()
@@ -40,36 +73,34 @@ pub fn create_dependency_functions_list<'ctx>(
             continue;
         }
 
-        let dependency_path = dir_entry.path();
+        let mut dependency_path = dir_entry.path();
 
         scan_dependency(
             dependency_output_path_list,
-            &mut dependency_list,
-            &mut deps,
-            dependency_path,
+            dependency_list,
+            deps,
+            &mut dependency_path,
             optimization,
             context,
             builder,
             root_module,
+            module_path,
         )?;
     }
 
-    if !dependency_list.is_empty() {
-        return Err(DependencyError::MissingDependencies(dependency_list.clone()).into());
-    }
-
-    Ok(deps)
+    Ok(())
 }
 
 fn scan_dependency<'ctx>(
     dependency_output_path_list: &mut Vec<PathBuf>,
     dependency_list: &mut HashMap<String, DependencyInfo>,
     deps: &mut HashMap<String, IndexMap<String, FunctionSignature>>,
-    dependency_path: PathBuf,
+    dependency_path: &mut PathBuf,
     optimization: bool,
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
     root_module: &Module<'ctx>,
+    module_path: &mut Vec<String>,
 ) -> Result<(), anyhow::Error>
 {
     let mut project_dir = fs::read_dir(dependency_path.clone())
@@ -106,26 +137,33 @@ fn scan_dependency<'ctx>(
                 }
 
                 let lib_src_file_content =
-                    fs::read_to_string(format!("{}/src/main.f", dependency_path.display()))
+                    fs::read_to_string(format!("{}\\src\\main.f", dependency_path.display()))
                         .map_err(|err| DependencyError::FileError(err.into()))?;
-
-                // Create a hashmap of the dependency's dependencies
-                let mut dependency_dependencies = HashMap::new();
 
                 // Create context for the dependency
                 let lib_module = context.create_module(&dependency_config.name);
 
+                
+                module_path.push(dependency_config.name.clone());
+                
+                let current_module_path = module_path.clone();
+
+                let original_dep_path_root = dependency_path.clone();
+
+                dependency_path.push(format!("deps"));
+
                 // Parse the library's dependecies
                 // We pass in the things mutable because this is how we are checking that every dependency is covered. (See: create_dependency_functions_list)
-                scan_dependency(
+                scan_dependencies(
                     dependency_output_path_list,
                     &mut dependency_config.dependencies,
-                    &mut dependency_dependencies,
-                    dependency_path.clone(),
                     optimization,
                     context,
                     builder,
-                    &lib_module,
+                    root_module,
+                    deps,
+                    module_path,
+                    fs::read_dir(dependency_path.clone())?,
                 )?;
 
                 if !dependency_config.dependencies.is_empty() {
@@ -137,8 +175,12 @@ fn scan_dependency<'ctx>(
                 }
 
                 // Parse library for public items
-                let parser_state =
-                    analyze_dependency(&lib_src_file_content, dependency_dependencies.clone(), dependency_config.clone())?;
+                let parser_state = analyze_dependency(
+                    &lib_src_file_content,
+                    deps.clone(),
+                    dependency_config.clone(),
+                    current_module_path.clone(),
+                )?;
 
                 deps.insert(
                     dependency_config.name.clone(),
@@ -147,18 +189,18 @@ fn scan_dependency<'ctx>(
 
                 let imported_functions = Rc::new(parser_state.imported_functions().clone());
 
+                // Generate LLVM-IR for the dependency
                 let target_ir_path = PathBuf::from(format!(
                     "{}\\output\\{}.ll",
-                    dependency_path.display(),
+                    original_dep_path_root.display(),
                     dependency_config.name
                 ));
 
-                // Generate LLVM-IR for the dependency
                 llvm_codegen(
                     target_ir_path.clone(),
                     PathBuf::from(format!(
                         "{}\\output\\{}.o",
-                        dependency_path.display(),
+                        original_dep_path_root.display(),
                         dependency_config.name
                     )),
                     optimization,
@@ -168,6 +210,7 @@ fn scan_dependency<'ctx>(
                     context,
                     builder,
                     lib_module.clone(),
+                    &format!("{}\\src", dependency_path.display()),
                 )?;
 
                 dependency_output_path_list.push(target_ir_path);
@@ -178,7 +221,7 @@ fn scan_dependency<'ctx>(
             }
         },
         None => {
-            return Err(DependencyError::DependencyMissingConfig(dependency_path).into());
+            return Err(DependencyError::DependencyMissingConfig(dependency_path.clone()).into());
         },
     };
 

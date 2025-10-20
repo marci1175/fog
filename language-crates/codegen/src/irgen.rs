@@ -2523,13 +2523,14 @@ pub fn generate_ir<'ctx>(
     custom_types: Arc<IndexMap<String, CustomType>>,
     is_optimized: bool,
     flags_passed_in: &str,
+    path_to_src_file: &str,
 ) -> Result<()>
 {
     let (debug_info_builder, debug_info_compile_uint) = module.create_debug_info_builder(
         false,
         DWARFSourceLanguage::C,
         module.get_name().to_str()?,
-        "src/",
+        path_to_src_file,
         &format!("Fog (ver.: {}) with LLVM 18-1-8", env!("CARGO_PKG_VERSION")),
         is_optimized,
         flags_passed_in,

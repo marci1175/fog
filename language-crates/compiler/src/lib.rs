@@ -2,8 +2,18 @@ use std::{path::PathBuf, rc::Rc};
 
 use fog_codegen::llvm_codegen;
 use fog_common::{
-    anyhow::Result, compiler::ProjectConfig, error::codegen::CodeGenError,
-    inkwell::{context::Context, llvm_sys::target::{LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters, LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets}}, linker::BuildManifest, ty::TypeDiscriminant,
+    anyhow::Result,
+    compiler::ProjectConfig,
+    error::codegen::CodeGenError,
+    inkwell::{
+        context::Context,
+        llvm_sys::target::{
+            LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters,
+            LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets,
+        },
+    },
+    linker::BuildManifest,
+    ty::TypeDiscriminant,
 };
 use fog_imports::dependency_list_manager::create_dependency_functions_list;
 use fog_parser::{parser_instance::Parser, tokenizer::tokenize};
@@ -32,6 +42,7 @@ impl CompilerState
         build_path: PathBuf,
         optimization: bool,
         is_lib: bool,
+        path_to_src: &str,
     ) -> Result<BuildManifest>
     {
         println!("Tokenizing...");
@@ -65,7 +76,7 @@ impl CompilerState
             &module,
         )?;
 
-        let mut parser = Parser::new(tokens, self.config.clone());
+        let mut parser = Parser::new(tokens, self.config.clone(), vec![self.config.name.clone()]);
 
         parser.parse(dependency_fn_list)?;
 
@@ -98,6 +109,7 @@ impl CompilerState
             &context,
             &builder,
             module,
+            path_to_src,
         )?;
 
         // Linking the object file

@@ -1,7 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fog_common::{
-    anyhow::Result, codegen::CustomType, compiler::ProjectConfig, indexmap::IndexMap, parser::{FunctionDefinition, FunctionSignature}, tokenizer::Token
+    anyhow::Result,
+    codegen::CustomType,
+    compiler::ProjectConfig,
+    indexmap::IndexMap,
+    parser::{FunctionDefinition, FunctionSignature, FunctionVisibility},
+    tokenizer::Token,
 };
 
 use crate::parser::function::{create_signature_table, parse_functions};
@@ -20,6 +25,8 @@ pub struct Parser
     imported_functions: Arc<HashMap<String, FunctionSignature>>,
 
     config: ProjectConfig,
+
+    module_path: Vec<String>,
 }
 
 impl Parser
@@ -31,27 +38,20 @@ impl Parser
     {
         // Create user defined signature table
         // Create an import table which can be used later by other functions
-        let (
-            library_public_function_table,
-            unparsed_functions,
-            source_imports,
-            mut external_imports,
-            custom_types,
-        ) = create_signature_table(self.tokens.clone())?;
+        let (unparsed_functions, source_imports, mut external_imports, custom_types) =
+            create_signature_table(self.tokens.clone(), self.module_path.clone())?;
 
         let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
 
         let external_import_clone = external_imports.clone();
 
-        // Only import the functions which have been specifically import by the user too
+        // Only import the functions which have been specifically imported by the user too
         external_imports.extend(dep_fn_list.values().flat_map(|v| {
             v.iter()
                 .filter(|(fn_name, fn_sig)| {
                     external_import_clone
                         .get(*fn_name)
-                        .is_some_and(|import_sig| {
-                            **fn_sig == *import_sig
-                        })
+                        .is_some_and(|import_sig| **fn_sig == *import_sig)
                 })
                 .map(|(k, v)| (k.clone(), v.clone()))
         }));
@@ -67,7 +67,12 @@ impl Parser
 
         // Copy the the HashMap to this field
         self.imported_functions = imports.clone();
-        self.library_public_function_table = library_public_function_table.clone();
+        self.library_public_function_table = IndexMap::from_iter(unparsed_functions
+            .iter()
+            .filter(|(_fn_name, unparsed_fn)| {
+                unparsed_fn.function_sig.visibility == FunctionVisibility::PublicLibrary
+            })
+            .map(|(fn_name, unparsed_fn)| (fn_name.clone(), unparsed_fn.function_sig.clone())));
 
         // Set the function table field of this struct
         self.function_table = parse_functions(
@@ -75,6 +80,7 @@ impl Parser
             Arc::new(unparsed_functions),
             imports.clone(),
             custom_types.clone(),
+            self.module_path.clone(),
         )?;
 
         self.custom_types = custom_types.clone();
@@ -82,7 +88,7 @@ impl Parser
         Ok(())
     }
 
-    pub fn new(tokens: Vec<Token>, config: ProjectConfig) -> Self
+    pub fn new(tokens: Vec<Token>, config: ProjectConfig, module_path: Vec<String>) -> Self
     {
         Self {
             tokens,
@@ -91,6 +97,7 @@ impl Parser
             library_public_function_table: IndexMap::new(),
             custom_types: Arc::new(IndexMap::new()),
             config,
+            module_path,
         }
     }
 

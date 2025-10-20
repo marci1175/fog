@@ -45,6 +45,7 @@ pub fn llvm_codegen_main<'ctx>(
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     flags_passed_in: &str,
+    path_to_src: &str,
 ) -> Result<TargetMachine>
 {
     // Import functions defined by the user via llvm
@@ -64,6 +65,7 @@ pub fn llvm_codegen_main<'ctx>(
         custom_types,
         is_optimized,
         flags_passed_in,
+        path_to_src,
     )?;
 
     // Init target
@@ -147,6 +149,7 @@ pub fn llvm_codegen<'ctx>(
     context: &'ctx Context,
     builder: &'ctx fog_common::inkwell::builder::Builder<'ctx>,
     module: fog_common::inkwell::module::Module<'ctx>,
+    path_to_src: &str,
 ) -> Result<(), fog_common::anyhow::Error>
 {
     let _target = llvm_codegen_main(
@@ -161,6 +164,7 @@ pub fn llvm_codegen<'ctx>(
         parser_state.custom_types(),
         // We should make it so that this argument will contain all of the flags the user has passed in
         "",
+        path_to_src,
     )?;
 
     Ok(())

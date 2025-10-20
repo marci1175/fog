@@ -458,7 +458,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token
 
         "priv" => Token::Private,
         "pub" => Token::Public,
-        "libpub" => Token::LibraryPublic,
+        "libpub" => Token::PublicLibrary,
         "exp" => Token::Export,
 
         _ => eval_constant_definition(trimmed_string.to_string()),
