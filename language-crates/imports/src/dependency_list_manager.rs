@@ -143,9 +143,8 @@ fn scan_dependency<'ctx>(
                 // Create context for the dependency
                 let lib_module = context.create_module(&dependency_config.name);
 
-                
                 module_path.push(dependency_config.name.clone());
-                
+
                 let current_module_path = module_path.clone();
 
                 let original_dep_path_root = dependency_path.clone();

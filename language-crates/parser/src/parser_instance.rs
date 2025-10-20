@@ -67,12 +67,14 @@ impl Parser
 
         // Copy the the HashMap to this field
         self.imported_functions = imports.clone();
-        self.library_public_function_table = IndexMap::from_iter(unparsed_functions
-            .iter()
-            .filter(|(_fn_name, unparsed_fn)| {
-                unparsed_fn.function_sig.visibility == FunctionVisibility::PublicLibrary
-            })
-            .map(|(fn_name, unparsed_fn)| (fn_name.clone(), unparsed_fn.function_sig.clone())));
+        self.library_public_function_table = IndexMap::from_iter(
+            unparsed_functions
+                .iter()
+                .filter(|(_fn_name, unparsed_fn)| {
+                    unparsed_fn.function_sig.visibility == FunctionVisibility::PublicLibrary
+                })
+                .map(|(fn_name, unparsed_fn)| (fn_name.clone(), unparsed_fn.function_sig.clone())),
+        );
 
         // Set the function table field of this struct
         self.function_table = parse_functions(

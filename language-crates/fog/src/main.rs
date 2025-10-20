@@ -91,7 +91,7 @@ fn main() -> fog_common::anyhow::Result<()>
             println!("All build artifacts have been saved.");
 
             // Link automaticly
-            link(&build_manifest).map_err(|err| anyhow::Error::from(err))?;
+            link(&build_manifest).map_err(anyhow::Error::from)?;
 
             println!(
                 "Linking finished successfully! Binary output is available at: {}",
