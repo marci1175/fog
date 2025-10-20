@@ -2,7 +2,7 @@ mod cli;
 use fog_common::{
     anyhow,
     compiler::ProjectConfig,
-    error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError},
+    error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError, linker::LinkerError},
     toml,
 };
 use fog_compiler::CompilerState;
@@ -91,7 +91,11 @@ fn main() -> fog_common::anyhow::Result<()>
             println!("All build artifacts have been saved.");
 
             // Link automaticly
-            link(&build_manifest).map_err(anyhow::Error::from)?;
+            let link_res = link(&build_manifest).map_err(anyhow::Error::from)?;
+            
+            if !link_res.status.success() {
+                return Err(LinkerError::Other(String::from_utf8(link_res.stderr)?.into()).into());
+            }
 
             println!(
                 "Linking finished successfully! Binary output is available at: {}",

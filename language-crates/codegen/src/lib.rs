@@ -17,7 +17,6 @@ use fog_common::{
     inkwell::{
         builder::Builder,
         context::Context,
-        llvm_sys::target::{LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargets},
         module::Module,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
@@ -102,6 +101,12 @@ pub fn llvm_codegen_main<'ctx>(
             .run_passes(passes, &target_machine, PassBuilderOptions::create())
             .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
     }
+    
+    // Set target triple
+    module.set_triple(&target_machine.get_triple());
+
+    // Set target data layout
+    module.set_data_layout(&target_machine.get_target_data().get_data_layout());
 
     // Write LLVM IR to a file.
     module.print_to_file(&path_to_ir_output).map_err(|err| {

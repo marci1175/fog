@@ -1,40 +1,5 @@
 [COMPILER IR]
 [
-    FunctionCall(
-        (
-            FunctionSignature {
-                args: FunctionArguments {
-                    arguments_list: OrdMap(
-                        {
-                            "a": I32,
-                        },
-                    ),
-                    ellipsis_present: false,
-                },
-                return_type: I32,
-                debug_attributes: None,
-                module_path: [
-                    "test_project",
-                ],
-                visibility: Private,
-            },
-            "szia",
-        ),
-        OrdMap(
-            {
-                Identifier(
-                    "a",
-                ): (
-                    Literal(
-                        I32(
-                            10,
-                        ),
-                    ),
-                    I32,
-                ),
-            },
-        ),
-    ),
     ReturnValue(
         Literal(
             I32(

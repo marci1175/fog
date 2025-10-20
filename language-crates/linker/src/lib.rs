@@ -1,5 +1,5 @@
 use fog_common::{error::linker::LinkerError, linker::BuildManifest, toml};
-use std::{env, fs, path::PathBuf, process::Command};
+use std::{env, fs, path::PathBuf, process::{Command, Output}};
 
 pub fn link_from_manifest(build_manifest_path: PathBuf) -> Result<(), LinkerError>
 {
@@ -34,7 +34,7 @@ pub fn link_from_manifest(build_manifest_path: PathBuf) -> Result<(), LinkerErro
     Ok(())
 }
 
-pub fn link(build_manifest: &BuildManifest) -> Result<(), LinkerError>
+pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>
 {
     let mut args: Vec<String> = Vec::new();
 
@@ -49,10 +49,10 @@ pub fn link(build_manifest: &BuildManifest) -> Result<(), LinkerError>
 
     println!("Linking...");
 
-    Command::new("clang")
+    let clang_out = Command::new("clang")
         .args(args.iter())
         .output()
         .map_err(|err| LinkerError::ClangError(Box::new(err)))?;
 
-    Ok(())
+    Ok(clang_out)
 }
