@@ -78,6 +78,20 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug 'fog-lsp'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=lsp",
+                    "--package=lsp",
+                ]
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

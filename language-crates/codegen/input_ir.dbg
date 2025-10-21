@@ -1,5 +1,80 @@
 [COMPILER IR]
 [
+    FunctionCall(
+        (
+            FunctionSignature {
+                args: FunctionArguments {
+                    arguments_list: OrdMap(
+                        {
+                            "a": String,
+                        },
+                    ),
+                    ellipsis_present: true,
+                },
+                return_type: I32,
+                debug_attributes: None,
+                module_path: [
+                    "test_project",
+                ],
+                visibility: Private,
+            },
+            "printf",
+        ),
+        OrdMap(
+            {
+                Identifier(
+                    "a",
+                ): (
+                    Literal(
+                        String(
+                            "Number %i\n",
+                        ),
+                    ),
+                    String,
+                ),
+                Index(
+                    1,
+                ): (
+                    FunctionCall(
+                        (
+                            FunctionSignature {
+                                args: FunctionArguments {
+                                    arguments_list: OrdMap(
+                                        {
+                                            "x": I32,
+                                        },
+                                    ),
+                                    ellipsis_present: false,
+                                },
+                                return_type: I32,
+                                debug_attributes: None,
+                                module_path: [
+                                    "test_project",
+                                ],
+                                visibility: Public,
+                            },
+                            "factorial",
+                        ),
+                        OrdMap(
+                            {
+                                Identifier(
+                                    "x",
+                                ): (
+                                    Literal(
+                                        I32(
+                                            10,
+                                        ),
+                                    ),
+                                    I32,
+                                ),
+                            },
+                        ),
+                    ),
+                    I32,
+                ),
+            },
+        ),
+    ),
     ReturnValue(
         Literal(
             I32(

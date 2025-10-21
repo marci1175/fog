@@ -81,7 +81,7 @@ impl Order
     {
         match token {
             Token::Equal => Ok(Self::Equal),
-            Token::NotEqual => Ok(Self::Equal),
+            Token::NotEqual => Ok(Self::NotEqual),
             Token::Bigger => Ok(Self::Bigger),
             Token::EqBigger => Ok(Self::EqBigger),
             Token::Smaller => Ok(Self::Smaller),

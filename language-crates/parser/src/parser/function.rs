@@ -415,6 +415,7 @@ pub fn parse_functions(
                 custom_items.clone(),
                 unparsed_function.function_sig.args.clone(),
                 module_path.clone(),
+                OrdMap::new(),
             )?,
         };
 
@@ -439,6 +440,8 @@ pub fn parse_function_block(
     custom_items: Arc<IndexMap<String, CustomType>>,
     this_fn_args: FunctionArguments,
     module_path: Vec<String>,
+
+    additional_variables: OrdMap<String, TypeDiscriminant>,
 ) -> Result<Vec<ParsedToken>>
 {
     // Check if the function defined by the source code does not have an indeterminate amount of args
@@ -449,6 +452,8 @@ pub fn parse_function_block(
     let mut token_idx = 0;
 
     let mut variable_scope = this_fn_args.arguments_list.clone();
+    
+    variable_scope.extend(additional_variables.iter().map(|(var_name, var_ty)| (var_name.clone(), var_ty.clone())));
 
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
 
@@ -721,6 +726,7 @@ pub fn parse_function_block(
                             custom_items.clone(),
                             this_fn_args.clone(),
                             module_path.clone(),
+                            variable_scope.clone(),
                         )?;
 
                         let mut else_condition_branch = Vec::new();
@@ -752,6 +758,7 @@ pub fn parse_function_block(
                                     custom_items.clone(),
                                     this_fn_args.clone(),
                                     module_path.clone(),
+                            variable_scope.clone(),
                                 )?;
 
                                 token_idx = paren_close_idx + 1;
@@ -783,16 +790,6 @@ pub fn parse_function_block(
                     // This is what we have to evaulate in order to execute the appropriate branch of the if statement
                     let loop_body_tokens = &tokens[token_idx..paren_close_idx];
 
-                    // Create a custom FunctionArguments instance for the loop
-                    let loop_body_arguments = FunctionArguments {
-                        // Pass in the variable scope of the previous "closure" to the loop so that variables defined above are still accessible inside the loop.
-                        // We do this instead of modifying the function entirely.
-                        arguments_list: this_fn_args
-                            .arguments_list
-                            .extend_clone(variable_scope.clone()),
-                        ellipsis_present: this_fn_args.ellipsis_present,
-                    };
-
                     let loop_body = parse_function_block(
                         loop_body_tokens.to_vec(),
                         function_signatures.clone(),
@@ -805,8 +802,9 @@ pub fn parse_function_block(
                         },
                         function_imports.clone(),
                         custom_items.clone(),
-                        loop_body_arguments,
+                        this_fn_args.clone(),
                         module_path.clone(),
+                            variable_scope.clone(),
                     )?;
 
                     token_idx = paren_close_idx + 1;
