@@ -1,9 +1,6 @@
 mod cli;
 use fog_common::{
-    anyhow,
-    compiler::ProjectConfig,
-    error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError, linker::LinkerError},
-    toml,
+    anyhow, compiler::ProjectConfig, error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError, linker::LinkerError}, linker::BuildManifest, toml
 };
 use fog_compiler::CompilerState;
 use fog_linker::link;
@@ -27,11 +24,27 @@ fn main() -> fog_common::anyhow::Result<()>
     let (command, arg) = parse_args(command, argument);
 
     match command {
-        CliCommand::Compile => {
-            println!("Reading Path...");
+        CliCommand::Link => {
+            println!("Reading file on: `{}`", arg.display());
 
+            let manifest_string = fs::read_to_string(&arg)?;
+
+            let manifest = toml::from_str::<BuildManifest>(&manifest_string)?;
+
+            let link_res = link(&manifest)?;
+
+            if !link_res.status.success() {
+                return Err(LinkerError::Other(String::from_utf8(link_res.stderr)?.into()).into());
+            }
+
+            println!(
+                "Linking finished successfully! Binary output is available at: {}",
+                manifest.output_path.display()
+            );
+        }
+        CliCommand::Compile => {
             // Check for the main source file
-            println!("Reading File...");
+            println!("Reading Files...");
 
             // Read config file
             let config_file =

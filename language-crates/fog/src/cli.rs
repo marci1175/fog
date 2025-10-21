@@ -13,16 +13,18 @@ pub fn parse_args(arg1: String, arg2: String) -> (CliCommand, PathBuf)
 #[derive(Debug, strum::VariantArray, strum_macros::Display, strum_macros::EnumMessage)]
 pub enum CliCommand
 {
-    #[strum(message = "`c |release/r|` - Compile a file.")]
-    Compile,
     #[strum(message = "`h` - Display this help screen.")]
     Help,
     #[strum(message = "`v` - Display the version of this build.")]
     Version,
+    #[strum(message = "`l <path-to-manifest>` - Links an executable based on a `.manifest` file.")]
+    Link,
+    #[strum(message = "`c |release/r|` - Compile a file.")]
+    Compile,
+    #[strum(message = "`i` - Initialize a new Fog project.")]
+    Init,
     #[strum(message = "`n <path-to-folder>` - Create a new Fog project.")]
     New,
-    #[strum(message = "`init` - Initialize a new Fog project.")]
-    Init,
 }
 
 impl TryFrom<String> for CliCommand
@@ -32,11 +34,12 @@ impl TryFrom<String> for CliCommand
     fn try_from(value: String) -> Result<CliCommand, Self::Error>
     {
         match value.as_str() {
-            "c" => Ok(Self::Compile),
-            "h" => Ok(Self::Help),
-            "v" => Ok(Self::Version),
-            "n" => Ok(Self::New),
-            "init" => Ok(Self::Init),
+            "c" | "compile" => Ok(Self::Compile),
+            "h" | "help" => Ok(Self::Help),
+            "v" | "version" => Ok(Self::Version),
+            "n" | "new" => Ok(Self::New),
+            "i" | "init" => Ok(Self::Init),
+            "l" | "link" => Ok(Self::Link),
 
             _ => {
                 println!("Invalid Argument: `{value}`");
