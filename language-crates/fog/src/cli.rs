@@ -10,7 +10,9 @@ pub fn parse_args(arg1: String, arg2: String) -> (CliCommand, PathBuf)
     )
 }
 
-#[derive(Debug, strum::VariantArray, strum_macros::Display, strum_macros::EnumMessage)]
+#[derive(
+    Debug, strum::VariantArray, strum_macros::Display, strum_macros::EnumMessage, PartialEq, Eq,
+)]
 pub enum CliCommand
 {
     #[strum(message = "`h` - Display this help screen.")]
@@ -19,8 +21,10 @@ pub enum CliCommand
     Version,
     #[strum(message = "`l <path-to-manifest>` - Links an executable based on a `.manifest` file.")]
     Link,
-    #[strum(message = "`c |release/r|` - Compile a file.")]
+    #[strum(message = "`c |release/r|` - Compile executable.")]
     Compile,
+    #[strum(message = "`r |release/r|` - Compile and run executable.")]
+    Run,
     #[strum(message = "`i` - Initialize a new Fog project.")]
     Init,
     #[strum(message = "`n <path-to-folder>` - Create a new Fog project.")]
@@ -35,6 +39,7 @@ impl TryFrom<String> for CliCommand
     {
         match value.as_str() {
             "c" | "compile" => Ok(Self::Compile),
+            "r" | "run" => Ok(Self::Run),
             "h" | "help" => Ok(Self::Help),
             "v" | "version" => Ok(Self::Version),
             "n" | "new" => Ok(Self::New),

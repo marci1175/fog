@@ -1,6 +1,14 @@
 mod cli;
+
 use fog_common::{
-    anyhow, compiler::ProjectConfig, error::{application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError, linker::LinkerError}, linker::BuildManifest, toml
+    anyhow,
+    compiler::ProjectConfig,
+    error::{
+        application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError,
+        linker::LinkerError,
+    },
+    linker::BuildManifest,
+    toml,
 };
 use fog_compiler::CompilerState;
 use fog_linker::link;
@@ -41,8 +49,8 @@ fn main() -> fog_common::anyhow::Result<()>
                 "Linking finished successfully! Binary output is available at: {}",
                 manifest.output_path.display()
             );
-        }
-        CliCommand::Compile => {
+        },
+        CliCommand::Compile | CliCommand::Run => {
             // Check for the main source file
             println!("Reading Files...");
 
@@ -61,32 +69,40 @@ fn main() -> fog_common::anyhow::Result<()>
             let compiler_state =
                 CompilerState::new(compiler_config.clone(), current_working_dir.clone());
 
+            fs::create_dir_all(compiler_config.build_path)?;
+
             let target_ir_path = PathBuf::from(format!(
-                "{}\\output\\{}.ll",
+                "{}\\{}\\{}.ll",
                 current_working_dir.display(),
+                compiler_state.config.build_path,
                 compiler_config.name.clone()
             ));
 
             let target_o_path = PathBuf::from(format!(
-                "{}\\output\\{}.obj",
+                "{}\\{}\\{}.obj",
                 current_working_dir.display(),
+                compiler_state.config.build_path,
                 compiler_config.name.clone()
             ));
 
             // Make this not so specific later
             let build_path = PathBuf::from(format!(
-                "{}\\output\\{}.exe",
+                "{}\\{}\\{}.exe",
                 current_working_dir.display(),
+                compiler_state.config.build_path,
                 compiler_config.name.clone()
             ));
 
             let build_manifest_path = PathBuf::from(format!(
-                "{}\\output\\{}.manifest",
+                "{}\\{}\\{}.manifest",
                 current_working_dir.display(),
+                compiler_state.config.build_path,
                 compiler_config.name.clone()
             ));
 
             let release_flag = arg.display().to_string();
+
+            let compiler_startup_instant = std::time::Instant::now();
 
             let build_manifest = compiler_state.compilation_process(
                 &source_file,
@@ -95,7 +111,7 @@ fn main() -> fog_common::anyhow::Result<()>
                 build_path.clone(),
                 release_flag == "release" || release_flag == "r",
                 compiler_config.is_library,
-                &format!("{}\\src", current_working_dir.display(),),
+                &format!("{}\\src", current_working_dir.display()),
             )?;
 
             // Write build manifest to disc
@@ -105,7 +121,7 @@ fn main() -> fog_common::anyhow::Result<()>
 
             // Link automaticly
             let link_res = link(&build_manifest).map_err(anyhow::Error::from)?;
-            
+
             if !link_res.status.success() {
                 return Err(LinkerError::Other(String::from_utf8(link_res.stderr)?.into()).into());
             }
@@ -114,6 +130,33 @@ fn main() -> fog_common::anyhow::Result<()>
                 "Linking finished successfully! Binary output is available at: {}",
                 build_path.display()
             );
+
+            println!(
+                "Building finished in {:.2?}.",
+                compiler_startup_instant.elapsed()
+            );
+
+            if command == CliCommand::Run {
+                let args: Vec<String> = Vec::new();
+
+                println!(
+                    "Running `{} {}`",
+                    build_path.display(),
+                    /* Pass in the arguments inherited (TODO) */ args.join(" ")
+                );
+
+                let exit_status =
+                    build_manifest.run_build_output(current_working_dir.clone(), args)?;
+
+                if !exit_status.success() {
+                    if let Some(exit_code) = exit_status.code() {
+                        println!("Process failed with exit code: {exit_code}")
+                    }
+                    else {
+                        println!("Process was interrupted")
+                    }
+                }
+            }
         },
         CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),
@@ -123,7 +166,7 @@ fn main() -> fog_common::anyhow::Result<()>
             println!("Creating project folders...");
 
             fs::create_dir_all(&working_folder).map_err(ApplicationError::FileError)?;
-            fs::create_dir(format!("{working_folder}/output"))?;
+            fs::create_dir(format!("{working_folder}/out"))?;
             fs::create_dir(format!("{working_folder}/deps"))?;
             fs::create_dir(format!("{working_folder}/src"))?;
 
@@ -148,11 +191,8 @@ fn main() -> fog_common::anyhow::Result<()>
 
             fs::write(
                 format!("{}/config.toml", working_folder),
-                toml::to_string(&ProjectConfig::new(
+                toml::to_string(&ProjectConfig::new_from_name(
                     arg.file_name().unwrap().to_string_lossy().to_string(),
-                    false,
-                    "0.0.1".to_string(),
-                    HashMap::new(),
                 ))?,
             )
             .map_err(ApplicationError::FileError)?;
@@ -184,12 +224,7 @@ fn main() -> fog_common::anyhow::Result<()>
             println!("Creating config file...");
             fs::write(
                 format!("{}/config.toml", current_working_dir.display()),
-                toml::to_string(&ProjectConfig::new(
-                    get_folder_name.to_string(),
-                    false,
-                    "0.0.1".to_string(),
-                    HashMap::new(),
-                ))?,
+                toml::to_string(&ProjectConfig::new_from_name(get_folder_name.to_string()))?,
             )
             .map_err(ApplicationError::FileError)?;
 

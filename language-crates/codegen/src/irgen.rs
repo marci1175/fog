@@ -1,7 +1,8 @@
 use fog_common::{
     anyhow::Result,
     codegen::{
-        create_fn_type_from_ty_disc, fn_arg_to_string, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty, CustomType, FunctionArgumentIdentifier, LoopBodyBlocks
+        CustomType, FunctionArgumentIdentifier, LoopBodyBlocks, create_fn_type_from_ty_disc,
+        fn_arg_to_string, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty,
     },
     error::codegen::CodeGenError,
     indexmap::IndexMap,
@@ -12,10 +13,13 @@ use fog_common::{
         debug_info::{AsDIScope, DWARFEmissionKind, DWARFSourceLanguage},
         module::Module,
         types::BasicMetadataTypeEnum,
-        values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, MetadataValue, PointerValue},
+        values::{
+            BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, MetadataValue,
+            PointerValue,
+        },
     },
     parser::{FunctionDefinition, ParsedToken},
-    ty::{token_to_ty, OrdMap, TypeDiscriminant},
+    ty::{OrdMap, TypeDiscriminant, token_to_ty},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -1261,7 +1265,7 @@ where
             let parsed_lhs =
                 (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
-                        dbg!(allocation_list.front().cloned())
+                        allocation_list.front().cloned()
                         && *lhs == current_token
                     {
                         allocation_list.pop_front();
@@ -1272,7 +1276,7 @@ where
                         ctx,
                         module,
                         builder,
-                        dbg!(*lhs.clone()),
+                        *lhs.clone(),
                         variable_map,
                         None,
                         fn_ret_ty.clone(),
@@ -2549,10 +2553,12 @@ pub fn generate_ir<'ctx>(
         "",
         "",
     );
-    
+
     let dbg_version = context.i32_type().const_int(1, false);
     let dbg_version_md = context.metadata_node(&[dbg_version.as_basic_value_enum().into()]);
-    module.add_global_metadata("llvm.debug.version", &dbg_version_md).unwrap();
+    module
+        .add_global_metadata("llvm.debug.version", &dbg_version_md)
+        .unwrap();
 
     let debug_info_file = debug_info_compile_uint.get_file();
 

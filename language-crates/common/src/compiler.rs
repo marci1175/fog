@@ -10,6 +10,7 @@ pub struct ProjectConfig
     pub name: String,
     pub is_library: bool,
     pub version: String,
+    pub build_path: String,
     pub dependencies: HashMap<String, DependencyInfo>,
 }
 
@@ -21,6 +22,7 @@ impl Default for ProjectConfig
             name: "project".to_string(),
             is_library: false,
             version: "0.0.1".to_string(),
+            build_path: "out".to_string(),
             dependencies: HashMap::new(),
         }
     }
@@ -28,18 +30,11 @@ impl Default for ProjectConfig
 
 impl ProjectConfig
 {
-    pub fn new(
-        name: String,
-        is_library: bool,
-        version: String,
-        imports: HashMap<String, DependencyInfo>,
-    ) -> Self
+    pub fn new_from_name(name: String) -> Self
     {
         Self {
             name,
-            is_library,
-            version,
-            dependencies: imports,
+            ..Default::default()
         }
     }
 }

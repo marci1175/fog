@@ -1,8 +1,13 @@
-use std::{path::PathBuf, rc::Rc};
+use std::{
+    io::{Stderr, Stdout},
+    path::PathBuf,
+    process::{ExitStatus, Stdio},
+    rc::Rc,
+};
 
 use fog_codegen::llvm_codegen;
 use fog_common::{
-    anyhow::Result,
+    anyhow::{self, Result},
     compiler::ProjectConfig,
     error::codegen::CodeGenError,
     inkwell::{
@@ -17,6 +22,7 @@ use fog_common::{
 };
 use fog_imports::dependency_list_manager::create_dependency_functions_list;
 use fog_parser::{parser_instance::Parser, tokenizer::tokenize};
+use std::process::Command;
 
 pub struct CompilerState
 {

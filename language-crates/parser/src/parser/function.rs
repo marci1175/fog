@@ -452,8 +452,12 @@ pub fn parse_function_block(
     let mut token_idx = 0;
 
     let mut variable_scope = this_fn_args.arguments_list.clone();
-    
-    variable_scope.extend(additional_variables.iter().map(|(var_name, var_ty)| (var_name.clone(), var_ty.clone())));
+
+    variable_scope.extend(
+        additional_variables
+            .iter()
+            .map(|(var_name, var_ty)| (var_name.clone(), var_ty.clone())),
+    );
 
     let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
 
@@ -758,7 +762,7 @@ pub fn parse_function_block(
                                     custom_items.clone(),
                                     this_fn_args.clone(),
                                     module_path.clone(),
-                            variable_scope.clone(),
+                                    variable_scope.clone(),
                                 )?;
 
                                 token_idx = paren_close_idx + 1;
@@ -804,7 +808,7 @@ pub fn parse_function_block(
                         custom_items.clone(),
                         this_fn_args.clone(),
                         module_path.clone(),
-                            variable_scope.clone(),
+                        variable_scope.clone(),
                     )?;
 
                     token_idx = paren_close_idx + 1;

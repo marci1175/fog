@@ -352,7 +352,7 @@ pub fn parse_token_as_value(
                 // Return the function call
                 let parsed_token: ParsedToken = ParsedToken::FunctionCall(
                     (function.function_sig.clone(), identifier.clone()),
-                    dbg!(call_arguments),
+                    call_arguments,
                 );
 
                 // Increment the token index, and add the offset

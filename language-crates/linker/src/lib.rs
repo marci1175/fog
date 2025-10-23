@@ -1,5 +1,9 @@
 use fog_common::{error::linker::LinkerError, linker::BuildManifest, toml};
-use std::{env, fs, path::PathBuf, process::{Command, Output}};
+use std::{
+    env, fs,
+    path::PathBuf,
+    process::{Command, Output},
+};
 
 pub fn link_from_manifest(build_manifest_path: PathBuf) -> Result<(), LinkerError>
 {

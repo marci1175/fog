@@ -101,7 +101,7 @@ pub fn llvm_codegen_main<'ctx>(
             .run_passes(passes, &target_machine, PassBuilderOptions::create())
             .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
     }
-    
+
     // Set target triple
     module.set_triple(&target_machine.get_triple());
 

@@ -27,7 +27,7 @@
                 ): (
                     Literal(
                         String(
-                            "Number %i\n",
+                            "Number %llu\n",
                         ),
                     ),
                     String,
@@ -41,12 +41,12 @@
                                 args: FunctionArguments {
                                     arguments_list: OrdMap(
                                         {
-                                            "x": I32,
+                                            "x": U64,
                                         },
                                     ),
                                     ellipsis_present: false,
                                 },
-                                return_type: I32,
+                                return_type: U64,
                                 debug_attributes: None,
                                 module_path: [
                                     "test_project",
@@ -61,16 +61,16 @@
                                     "x",
                                 ): (
                                     Literal(
-                                        I32(
-                                            10,
+                                        U64(
+                                            15,
                                         ),
                                     ),
-                                    I32,
+                                    U64,
                                 ),
                             },
                         ),
                     ),
-                    I32,
+                    U64,
                 ),
             },
         ),
