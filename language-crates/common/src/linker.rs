@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct BuildManifest
 {
     pub build_output_paths: Vec<PathBuf>,
+    pub additional_linking_material: Vec<PathBuf>,
     pub output_path: PathBuf,
 }
 

@@ -124,6 +124,7 @@ impl CompilerState
 
         Ok(BuildManifest {
             build_output_paths: dependency_output_paths,
+            additional_linking_material: self.config.additional_linking_material.clone(),
             output_path: build_path,
         })
     }

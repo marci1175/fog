@@ -1,3 +1,5 @@
+#![feature(iterator_try_collect)]
+
 use fog_common::{error::linker::LinkerError, linker::BuildManifest, toml};
 use std::{
     env, fs,
@@ -48,6 +50,21 @@ pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>
             .iter()
             .map(|p| p.display().to_string()),
     );
+
+    args.extend(
+        build_manifest
+            .additional_linking_material
+            .iter()
+            .map(|p| {
+                if let Ok(path) = fs::canonicalize(p) {
+                    return Ok(path.display().to_string());
+                }
+                else {
+                    return Err(LinkerError::AdditionalLinkingMaterialNotFound(p.clone()));
+                }
+            }).try_collect::<Vec<String>>()?,
+    );
+
     args.push("-o".to_string());
     args.push(build_manifest.output_path.display().to_string());
 

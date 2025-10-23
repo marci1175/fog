@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +11,7 @@ pub struct ProjectConfig
     pub is_library: bool,
     pub version: String,
     pub build_path: String,
+    pub additional_linking_material: Vec<PathBuf>,
     pub dependencies: HashMap<String, DependencyInfo>,
 }
 
@@ -23,6 +24,7 @@ impl Default for ProjectConfig
             is_library: false,
             version: "0.0.1".to_string(),
             build_path: "out".to_string(),
+            additional_linking_material: Vec::new(),
             dependencies: HashMap::new(),
         }
     }
