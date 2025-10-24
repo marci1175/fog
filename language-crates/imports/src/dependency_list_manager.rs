@@ -190,16 +190,18 @@ fn scan_dependency<'ctx>(
 
                 // Generate LLVM-IR for the dependency
                 let target_ir_path = PathBuf::from(format!(
-                    "{}\\output\\{}.ll",
+                    "{}\\{}\\{}.ll",
                     original_dep_path_root.display(),
+                    dependency_config.build_path.clone(),
                     dependency_config.name
                 ));
 
                 llvm_codegen(
                     target_ir_path.clone(),
                     PathBuf::from(format!(
-                        "{}\\output\\{}.o",
+                        "{}\\{}\\{}.o",
                         original_dep_path_root.display(),
+                        dependency_config.build_path.clone(),
                         dependency_config.name
                     )),
                     optimization,

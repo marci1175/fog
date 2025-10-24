@@ -1,0 +1,8 @@
+name = "test_project"
+is_library = false
+version = "0.0.1"
+build_path = "out"
+additional_linking_material = []
+
+[dependencies]
+# library1 = { version = "0.0.1", features = [] }

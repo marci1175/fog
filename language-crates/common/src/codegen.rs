@@ -246,7 +246,7 @@ pub fn ty_to_llvm_ty<'a>(
             inkwell::types::BasicTypeEnum::ArrayType(array_ty)
         },
     };
-
+    
     Ok(field_ty)
 }
 

@@ -1,15 +1,15 @@
 # Logic Gates and Comparisons
 
-**Please note that this part of the languge is not finished, I cannot grant the reliability of the code that is provided. This part of the language is subject to change.**
+**Please note that this part of the language is not finished. I cannot guarantee the reliability of the code provided. This part of the language is subject to change.**
 
-Logic Gates work **almost** perfectly, the issue is with comparisons, as every comparison "trait" is hardcoded into the language. Im aiming to implement traits or something similar to rust's solution so that cmp traits are more flexible and easier to use.
+Logic gates work **almost** perfectly. The issue is with comparisons, as every comparison "trait" is hardcoded into the language. I am aiming to implement traits or something similar to Rust's solution so that comparison traits are more flexible and easier to use.
 
-**An example for using Logic Gates:**
+**An example of using logic gates:**
 
 ```fog
 import printf(msg: string): void;
 
-function main(): int {
+pub function main(): int {
     if (3 > 8) {
         printf("Oh no! Math broke!");
     }
@@ -21,11 +21,11 @@ function main(): int {
 }
 ```
 
-The following comparison operators are implemented currently (for all types):
+The following comparison operators are currently implemented (for all types):
 
-- `!=`
-- `==`
-- `>`
-- `>=`
-- `<`
-- `<=`
+* `!=`
+* `==`
+* `>`
+* `>=`
+* `<`
+* `<=`

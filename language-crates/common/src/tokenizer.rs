@@ -16,6 +16,7 @@ pub enum Token
 
     Identifier(String),
     Comment(String),
+    MultilineComment,
 
     Struct,
     Extend,
@@ -40,6 +41,7 @@ pub enum Token
 
     If,
     Else,
+    ElseIf,
 
     Equal,
     NotEqual,

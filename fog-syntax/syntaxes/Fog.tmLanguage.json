@@ -3,6 +3,9 @@
 	"name": "Fog Programming Language",
 	"patterns": [
 		{
+			"include": "#multiline_comments"
+		},
+		{
 			"include": "#comments"
 		},
 		{
@@ -43,13 +46,24 @@
 		}
 	],
 	"repository": {
+		"multiline_comments": {
+			"name": "comment.block",
+			"begin": "#->",
+			"end": "#->",
+			"patterns": [
+				{
+					"match": ".",
+					"name": "comment.block"
+				}
+			]
+		},
 		"comments": {
-			"name": "comment.line.Fog",
+			"name": "comment.line",
 			"begin": "#",
 			"end": "\n",
 			"patterns": [
 				{
-					"name": "constant.character.escape.Fog",
+					"name": "constant.character.escape",
 					"match": "\\\\."
 				}
 			]
@@ -59,7 +73,7 @@
 			"match": "%(?:[a-zA-Z_][a-zA-Z0-9_]*|)"
 		},
 		"strings": {
-			"name": "string.quoted.double.fog",
+			"name": "string.quoted.double",
 			"begin": "\"",
 			"end": "\"",
 			"patterns": [
@@ -67,7 +81,7 @@
 					"include": "#fmt_variables"
 				},
 				{
-					"name": "constant.character.escape.Fog",
+					"name": "constant.character.escape",
 					"match": "\\\\."
 				}
 			]
@@ -86,7 +100,7 @@
 		},
 		"keywords": {
 			"patterns": [{
-				"name": "keyword.control.Fog",
+				"name": "keyword.control",
 				"match": "\\b(import|if|else|elseif|while|for|return|loop|break|continue)\\b"
 			}]
 		},
@@ -97,7 +111,7 @@
 			}]
 		},
 		"numeric_literals": {
-			"name": "constant.numeric.fog",
+			"name": "constant.numeric",
 			"match": "\\b\\d+(\\.\\d+)?\\b"
 		},
 		"declarations": {

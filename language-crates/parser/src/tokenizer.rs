@@ -432,7 +432,6 @@ fn match_multi_character_expression(string_buffer: String) -> Token
         "==" => Token::Equal,
         "&&" => Token::And,
         "||" => Token::Or,
-        "if" => Token::If,
         "=+" => Token::SetValueAddition,
         "=-" => Token::SetValueSubtraction,
         "=*" => Token::SetValueMultiplication,
@@ -450,7 +449,11 @@ fn match_multi_character_expression(string_buffer: String) -> Token
         "extend" => Token::Extend,
 
         "struct" => Token::Struct,
+
+        "if" => Token::If,
         "else" => Token::Else,
+        "elseif" => Token::ElseIf,
+
         "loop" => Token::Loop,
         "for" => Token::For,
         "break" => Token::Break,
@@ -460,6 +463,8 @@ fn match_multi_character_expression(string_buffer: String) -> Token
         "pub" => Token::Public,
         "libpub" => Token::PublicLibrary,
         "exp" => Token::Export,
+
+        "#->" => Token::MultilineComment,
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }

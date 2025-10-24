@@ -116,18 +116,18 @@ pub fn llvm_codegen_main<'ctx>(
         ))
     })?;
 
-    target_machine
-        .write_to_file(
-            module,
-            fog_common::inkwell::targets::FileType::Object,
-            &path_to_o_output,
-        )
-        .map_err(|err| {
-            ApplicationError::FileError(std::io::Error::new(
-                ErrorKind::ExecutableFileBusy,
-                err.to_string(),
-            ))
-        })?;
+    // target_machine
+    //     .write_to_file(
+    //         module,
+    //         fog_common::inkwell::targets::FileType::Object,
+    //         &path_to_o_output,
+    //     )
+    //     .map_err(|err| {
+    //         ApplicationError::FileError(std::io::Error::new(
+    //             ErrorKind::ExecutableFileBusy,
+    //             err.to_string(),
+    //         ))
+    //     })?;
 
     Ok(target_machine)
 }

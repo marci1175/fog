@@ -2,14 +2,14 @@
 
 [The Fog Programming Language](./introduction/0_main.md)
 
-# Introduction
+## Introduction
 
 - [Introduction](./introduction/1_introduction.md)
 - [Getting Started](./introduction/2_getting_started.md)
 
 ---
 
-# Language Concepts
+## Language Concepts
 
 [Language Concepts](./concepts/0_language_concepts.md)
 
@@ -17,4 +17,11 @@
 - [Variables](./concepts/2_variables.md)
 - [Functions](./concepts/3_functions.md)
 - [Logic Gates and Comparisons](./concepts/4_logic_gates_and_cmp.md)
-- [Hello World](./concepts/5_hello_world.md)
+- [Control Flow Statements](./concepts/5_control_flow_statements.md)
+- [Hello World](./concepts/8_hello_world.md)
+
+## Project Management
+
+[Project Management](./project_management/0_project_management.md)
+
+- [Project Configuration](./project_management/1_project_configuration.md)

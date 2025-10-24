@@ -38,8 +38,8 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
-            "cwd": "${workspaceFolder}"
+            "args": ["r"],
+            "cwd": "${workspaceFolder}\\test_project"
         },
         {
             "type": "lldb",

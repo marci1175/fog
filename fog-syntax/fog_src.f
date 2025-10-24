@@ -1,3 +1,7 @@
+#-> 
+asd
+#->
+
 @[config = "Release"]
 @[cold]
 function main(): int {
