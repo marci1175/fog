@@ -43,6 +43,9 @@
 		},
 		{
 			"include": "#compiler_hints"
+		},
+		{
+			"include": "#identifiers"
 		}
 	],
 	"repository": {
@@ -127,6 +130,14 @@
 					"match": "@\\[(.*?)\\]"
 				}
 			]
+		},
+		"identifiers": {
+			"patterns": [
+				{
+					"name": "variable.name",
+					"match": "\\b[A-Za-z0-9_]+\\b"
+				}
+			]	
 		}
 	},
 	"scopeName": "source.f"

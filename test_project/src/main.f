@@ -16,6 +16,6 @@ pub function main(): int {
     marci = marci + 1;
 
     printf("Woah, marci: %i", marci);
-
+    
     return 0;
 }
