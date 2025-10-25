@@ -19,7 +19,7 @@ use fog_common::{
         context::Context,
         module::Module,
         passes::PassBuilderOptions,
-        targets::{InitializationConfig, RelocMode, Target, TargetMachine},
+        targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
     },
     parser::{FunctionDefinition, FunctionSignature},
 };
@@ -45,6 +45,9 @@ pub fn llvm_codegen_main<'ctx>(
     custom_types: Arc<IndexMap<String, CustomType>>,
     flags_passed_in: &str,
     path_to_src: &str,
+    target_triple_name: Option<String>,
+    cpu_name: Option<String>,
+    cpu_features: Option<String>,
 ) -> Result<TargetMachine>
 {
     // Import functions defined by the user via llvm
@@ -71,18 +74,23 @@ pub fn llvm_codegen_main<'ctx>(
     Target::initialize_x86(&InitializationConfig::default());
 
     // create target triple
-    let traget_triple = TargetMachine::get_default_triple();
+    let target_triple = if let Some(target_triple_name) = target_triple_name {
+        TargetTriple::create(&target_triple_name)
+    }
+    else {
+        TargetMachine::get_default_triple()
+    };
 
     // Create target
-    let target = Target::from_triple(&traget_triple)
+    let target = Target::from_triple(&target_triple)
         .map_err(|_| fog_common::anyhow::Error::from(CodeGenError::FaliedToAcquireTargetTriple))?;
 
     // Create target machine
     let target_machine = target
         .create_target_machine(
-            &traget_triple,
-            "generic",
-            "",
+            &target_triple,
+            &cpu_name.unwrap_or_else(|| TargetMachine::get_host_cpu_name().to_string()),
+            &cpu_features.unwrap_or_else(|| TargetMachine::get_host_cpu_features().to_string()),
             fog_common::inkwell::OptimizationLevel::Aggressive,
             RelocMode::PIC,
             fog_common::inkwell::targets::CodeModel::Default,
@@ -155,6 +163,10 @@ pub fn llvm_codegen<'ctx>(
     builder: &'ctx fog_common::inkwell::builder::Builder<'ctx>,
     module: fog_common::inkwell::module::Module<'ctx>,
     path_to_src: &str,
+    flags_passed_in: &str,
+    target_triple: Option<String>,
+    cpu_name: Option<String>,
+    cpu_features: Option<String>,
 ) -> Result<(), fog_common::anyhow::Error>
 {
     let _target = llvm_codegen_main(
@@ -167,9 +179,11 @@ pub fn llvm_codegen<'ctx>(
         optimization,
         imported_functions,
         parser_state.custom_types(),
-        // We should make it so that this argument will contain all of the flags the user has passed in
-        "",
+        flags_passed_in,
         path_to_src,
+        target_triple,
+        cpu_name,
+        cpu_features,
     )?;
 
     Ok(())

@@ -11,6 +11,7 @@ pub mod tokenizer;
 pub mod ty;
 
 pub use anyhow;
+pub use clap;
 pub use indexmap;
 pub use inkwell;
 pub use serde;

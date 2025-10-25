@@ -9,7 +9,10 @@ fn only_contains_digits(s: &str) -> bool
     s.chars().all(|c| c.is_ascii_digit())
 }
 
-pub fn tokenize(raw_input: &str, stop_at_token: Option<Token>) -> Result<(Vec<Token>, usize), ParserError>
+pub fn tokenize(
+    raw_input: &str,
+    stop_at_token: Option<Token>,
+) -> Result<(Vec<Token>, usize), ParserError>
 {
     let mut char_idx: usize = 0;
 
@@ -21,7 +24,10 @@ pub fn tokenize(raw_input: &str, stop_at_token: Option<Token>) -> Result<(Vec<To
 
     while char_idx < char_list.len() {
         if let Some(stop_at_token) = &stop_at_token {
-            if token_list.last().is_some_and(|last_token| last_token == stop_at_token) {
+            if token_list
+                .last()
+                .is_some_and(|last_token| last_token == stop_at_token)
+            {
                 return Ok((token_list, char_idx));
             }
         }
@@ -118,8 +124,9 @@ pub fn tokenize(raw_input: &str, stop_at_token: Option<Token>) -> Result<(Vec<To
                         // The reason im passing this into a tokenizer function is because the MultilineComment token could be in quotes and that would be invalid to capture.
                         // We can ignore the captured tokens, we increment the char_idx by the chars parsed.
                         // The captured output does not contain the contents of the multiline comment.
-                        let (_, idx) = tokenize(&raw_input[char_idx..], Some(Token::MultilineComment))?;
-                        
+                        let (_, idx) =
+                            tokenize(&raw_input[char_idx..], Some(Token::MultilineComment))?;
+
                         char_idx += idx;
 
                         // Continue looping through the tokens
@@ -135,7 +142,8 @@ pub fn tokenize(raw_input: &str, stop_at_token: Option<Token>) -> Result<(Vec<To
                             let quote_char = char_list[char_idx + 1];
 
                             if quote_char == '\n' {
-                                token_list.push(Token::DocComment(comment_buffer.trim().to_string()));
+                                token_list
+                                    .push(Token::DocComment(comment_buffer.trim().to_string()));
 
                                 char_idx += 2;
 

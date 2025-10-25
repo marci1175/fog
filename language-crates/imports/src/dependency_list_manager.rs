@@ -23,6 +23,10 @@ pub fn create_dependency_functions_list<'ctx>(
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
     root_module: &Module<'ctx>,
+    flags_passed_in: &str,
+    target_triple: Option<String>,
+    cpu_name: Option<String>,
+    cpu_features: Option<String>,
 ) -> anyhow::Result<HashMap<String, IndexMap<String, FunctionSignature>>>
 {
     let mut deps = HashMap::new();
@@ -41,6 +45,10 @@ pub fn create_dependency_functions_list<'ctx>(
         &mut deps,
         &mut module_path,
         dir_entries,
+        flags_passed_in,
+        target_triple.clone(),
+        cpu_name.clone(),
+        cpu_features.clone(),
     )?;
 
     if !dependency_list.is_empty() {
@@ -60,6 +68,10 @@ fn scan_dependencies<'ctx>(
     deps: &mut HashMap<String, IndexMap<String, FunctionSignature>>,
     module_path: &mut Vec<String>,
     mut dir_entries: fs::ReadDir,
+    flags_passed_in: &str,
+    target_triple: Option<String>,
+    cpu_name: Option<String>,
+    cpu_features: Option<String>,
 ) -> Result<(), anyhow::Error>
 {
     while let Some(Ok(dir_entry)) = dir_entries.next() {
@@ -85,6 +97,10 @@ fn scan_dependencies<'ctx>(
             builder,
             root_module,
             module_path,
+            flags_passed_in,
+            target_triple.clone(),
+            cpu_name.clone(),
+            cpu_features.clone(),
         )?;
     }
 
@@ -101,6 +117,10 @@ fn scan_dependency<'ctx>(
     builder: &'ctx Builder<'ctx>,
     root_module: &Module<'ctx>,
     module_path: &mut Vec<String>,
+    flags_passed_in: &str,
+    target_triple: Option<String>,
+    cpu_name: Option<String>,
+    cpu_features: Option<String>,
 ) -> Result<(), anyhow::Error>
 {
     let mut project_dir = fs::read_dir(dependency_path.clone())
@@ -163,6 +183,10 @@ fn scan_dependency<'ctx>(
                     deps,
                     module_path,
                     fs::read_dir(dependency_path.clone())?,
+                    flags_passed_in,
+                    target_triple.clone(),
+                    cpu_name.clone(),
+                    cpu_features.clone(),
                 )?;
 
                 if !dependency_config.dependencies.is_empty() {
@@ -212,6 +236,10 @@ fn scan_dependency<'ctx>(
                     builder,
                     lib_module.clone(),
                     &format!("{}\\src", dependency_path.display()),
+                    flags_passed_in,
+                    target_triple,
+                    cpu_name,
+                    cpu_features,
                 )?;
 
                 dependency_output_path_list.push(target_ir_path);

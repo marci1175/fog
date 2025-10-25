@@ -1,7 +1,9 @@
 mod cli;
 
+use crate::cli::CliCommand;
+use clap::Parser;
 use fog_common::{
-    anyhow,
+    anyhow, clap,
     compiler::ProjectConfig,
     error::{
         application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError,
@@ -12,30 +14,31 @@ use fog_common::{
 };
 use fog_compiler::CompilerState;
 use fog_linker::link;
-use std::{collections::HashMap, env, fs, path::PathBuf};
-use strum::{EnumMessage, VariantArray};
+use std::{env, fs, path::PathBuf};
+use strum::{VariantArray, VariantNames};
 
-use crate::cli::{CliCommand, parse_args};
+#[derive(Parser, Debug)]
+#[command(version, about, long_about)]
+pub struct CompilerArgs
+{
+    #[command(subcommand)]
+    command: CliCommand,
+}
 
 fn main() -> fog_common::anyhow::Result<()>
 {
     let mut args = std::env::args();
 
-    let _path_to_file = args.next().unwrap_or_default();
-
     let current_working_dir = env::current_dir()?;
 
-    let command = args.next().unwrap_or_default();
+    let compiler_args = CompilerArgs::parse();
+    let compiler_command = compiler_args.command;
 
-    let argument = args.next().unwrap_or_default();
+    match compiler_command.clone() {
+        CliCommand::Link { path } => {
+            println!("Reading file on: `{}`", path.display());
 
-    let (command, arg) = parse_args(command, argument);
-
-    match command {
-        CliCommand::Link => {
-            println!("Reading file on: `{}`", arg.display());
-
-            let manifest_string = fs::read_to_string(&arg)?;
+            let manifest_string = fs::read_to_string(&path)?;
 
             let manifest = toml::from_str::<BuildManifest>(&manifest_string)?;
 
@@ -50,37 +53,56 @@ fn main() -> fog_common::anyhow::Result<()>
                 manifest.output_path.display()
             );
         },
-        CliCommand::Compile | CliCommand::Run => {
+        CliCommand::Compile {
+            path: compile_path,
+            release: is_release,
+            target_triple,
+            llvm_flags,
+            cpu_name,
+            cpu_features,
+        }
+        | CliCommand::Run {
+            path: compile_path,
+            release: is_release,
+            target_triple,
+            llvm_flags,
+            cpu_name,
+            cpu_features,
+        } => {
+            let path = if let Some(path) = compile_path.clone() {
+                path
+            }
+            else {
+                current_working_dir
+            };
+
             // Check for the main source file
             println!("Reading Files...");
 
             // Read config file
-            let config_file =
-                fs::read_to_string(format!("{}/config.toml", current_working_dir.display()))
-                    .map_err(|_| ApplicationError::ConfigNotFound(current_working_dir.clone()))?;
+            let config_file = fs::read_to_string(format!("{}/config.toml", path.display()))
+                .map_err(|_| ApplicationError::ConfigNotFound(path.clone()))?;
 
-            let source_file =
-                fs::read_to_string(format!("{}/src/main.f", current_working_dir.display()))
-                    .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
+            let source_file = fs::read_to_string(format!("{}/src/main.f", path.display()))
+                .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
 
             let compiler_config = toml::from_str::<ProjectConfig>(&config_file)
                 .map_err(ApplicationError::ConfigError)?;
 
-            let compiler_state =
-                CompilerState::new(compiler_config.clone(), current_working_dir.clone());
+            let compiler_state = CompilerState::new(compiler_config.clone(), path.clone());
 
             fs::create_dir_all(compiler_config.build_path)?;
 
             let target_ir_path = PathBuf::from(format!(
                 "{}\\{}\\{}.ll",
-                current_working_dir.display(),
+                path.display(),
                 compiler_state.config.build_path,
                 compiler_config.name.clone()
             ));
 
             let target_o_path = PathBuf::from(format!(
                 "{}\\{}\\{}.obj",
-                current_working_dir.display(),
+                path.display(),
                 compiler_state.config.build_path,
                 compiler_config.name.clone()
             ));
@@ -88,19 +110,17 @@ fn main() -> fog_common::anyhow::Result<()>
             // Make this not so specific later
             let build_path = PathBuf::from(format!(
                 "{}\\{}\\{}.exe",
-                current_working_dir.display(),
+                path.display(),
                 compiler_state.config.build_path,
                 compiler_config.name.clone()
             ));
 
             let build_manifest_path = PathBuf::from(format!(
                 "{}\\{}\\{}.manifest",
-                current_working_dir.display(),
+                path.display(),
                 compiler_state.config.build_path,
                 compiler_config.name.clone()
             ));
-
-            let release_flag = arg.display().to_string();
 
             let compiler_startup_instant = std::time::Instant::now();
 
@@ -109,9 +129,13 @@ fn main() -> fog_common::anyhow::Result<()>
                 target_ir_path.clone(),
                 target_o_path.clone(),
                 build_path.clone(),
-                release_flag == "release" || release_flag == "r",
+                is_release,
                 compiler_config.is_library,
-                &format!("{}\\src", current_working_dir.display()),
+                &format!("{}\\src", path.display()),
+                &llvm_flags,
+                target_triple,
+                cpu_name,
+                cpu_features,
             )?;
 
             // Write build manifest to disc
@@ -136,7 +160,7 @@ fn main() -> fog_common::anyhow::Result<()>
                 compiler_startup_instant.elapsed()
             );
 
-            if command == CliCommand::Run {
+            if matches!(compiler_command.clone(), CliCommand::Run { .. }) {
                 let args: Vec<String> = Vec::new();
 
                 println!(
@@ -145,8 +169,7 @@ fn main() -> fog_common::anyhow::Result<()>
                     /* Pass in the arguments inherited (TODO) */ args.join(" ")
                 );
 
-                let exit_status =
-                    build_manifest.run_build_output(current_working_dir.clone(), args)?;
+                let exit_status = build_manifest.run_build_output(path.clone(), args)?;
 
                 if !exit_status.success() {
                     if let Some(exit_code) = exit_status.code() {
@@ -158,20 +181,18 @@ fn main() -> fog_common::anyhow::Result<()>
                 }
             }
         },
-        CliCommand::Help => display_help_prompt(),
         CliCommand::Version => println!("Build version: {}", env!("CARGO_PKG_VERSION")),
-        CliCommand::New => {
-            let working_folder = format!("{}/{}", current_working_dir.display(), arg.display());
-
+        CliCommand::New { path } => {
             println!("Creating project folders...");
+            let path_s = path.display();
 
-            fs::create_dir_all(&working_folder).map_err(ApplicationError::FileError)?;
-            fs::create_dir(format!("{working_folder}/out"))?;
-            fs::create_dir(format!("{working_folder}/deps"))?;
-            fs::create_dir(format!("{working_folder}/src"))?;
+            fs::create_dir_all(path_s.to_string()).map_err(ApplicationError::FileError)?;
+            fs::create_dir(format!("{path_s}/out"))?;
+            fs::create_dir(format!("{path_s}/deps"))?;
+            fs::create_dir(format!("{path_s}/src"))?;
 
             fs::write(
-                format!("{}/src/main.f", working_folder),
+                format!("{}/src/main.f", path_s),
                 (|| {
                     if let Some(argument) = args.next() {
                         if argument == "demo" {
@@ -190,16 +211,16 @@ fn main() -> fog_common::anyhow::Result<()>
             .map_err(ApplicationError::FileError)?;
 
             fs::write(
-                format!("{}/config.toml", working_folder),
+                format!("{}/config.toml", path_s),
                 toml::to_string(&ProjectConfig::new_from_name(
-                    arg.file_name().unwrap().to_string_lossy().to_string(),
+                    path.file_name().unwrap().to_string_lossy().to_string(),
                 ))?,
             )
             .map_err(ApplicationError::FileError)?;
 
-            fs::create_dir_all(format!("{}/output", working_folder))?;
+            fs::create_dir_all(format!("{}/output", path_s))?;
         },
-        CliCommand::Init => {
+        CliCommand::Init { path } => {
             println!("Getting folder name...");
 
             let get_folder_name = current_working_dir
@@ -243,6 +264,6 @@ fn display_help_prompt()
     println!("Commands available to use:");
 
     for (idx, command) in CliCommand::VARIANTS.iter().enumerate() {
-        println!("{}. {}", idx + 1, command.get_message().unwrap())
+        println!("{}. {}", idx + 1, command)
     }
 }

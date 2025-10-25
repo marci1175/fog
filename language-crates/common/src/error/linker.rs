@@ -13,6 +13,8 @@ pub enum LinkerError
     InvalidManifestFormat,
     #[error("Linking with Clang failed: `{0}`")]
     ClangError(Box<dyn std::error::Error + Send + Sync>),
-    #[error("Additional linking material included in the project's config (path: `{0}`) has not been found or is invalid.")]
+    #[error(
+        "Additional linking material included in the project's config (path: `{0}`) has not been found or is invalid."
+    )]
     AdditionalLinkingMaterialNotFound(PathBuf),
 }

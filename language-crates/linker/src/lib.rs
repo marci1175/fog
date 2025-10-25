@@ -62,7 +62,8 @@ pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>
                 else {
                     return Err(LinkerError::AdditionalLinkingMaterialNotFound(p.clone()));
                 }
-            }).try_collect::<Vec<String>>()?,
+            })
+            .try_collect::<Vec<String>>()?,
     );
 
     args.push("-o".to_string());

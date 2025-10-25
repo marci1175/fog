@@ -49,6 +49,10 @@ impl CompilerState
         optimization: bool,
         is_lib: bool,
         path_to_src: &str,
+        flags_passed_in: &str,
+        target_triple: Option<String>,
+        cpu_name: Option<String>,
+        cpu_features: Option<String>,
     ) -> Result<BuildManifest>
     {
         println!("Tokenizing...");
@@ -80,6 +84,10 @@ impl CompilerState
             &context,
             &builder,
             &module,
+            flags_passed_in,
+            target_triple.clone(),
+            cpu_name.clone(),
+            cpu_features.clone(),
         )?;
 
         let mut parser = Parser::new(tokens, self.config.clone(), vec![self.config.name.clone()]);
@@ -116,6 +124,10 @@ impl CompilerState
             &builder,
             module,
             path_to_src,
+            flags_passed_in,
+            target_triple,
+            cpu_name,
+            cpu_features,
         )?;
 
         // Linking the object file

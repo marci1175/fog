@@ -42,7 +42,7 @@ pub fn create_signature_table(
         HashMap::new();
 
     let mut custom_items: IndexMap<String, CustomType> = IndexMap::new();
-    
+
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
 
@@ -381,9 +381,6 @@ pub fn create_signature_table(
             else {
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
             }
-        }
-        else if current_token == Token::MultilineComment {
-            dbg!("asd");
         }
 
         token_idx += 1;
