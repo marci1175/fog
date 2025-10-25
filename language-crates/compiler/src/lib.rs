@@ -52,7 +52,7 @@ impl CompilerState
     ) -> Result<BuildManifest>
     {
         println!("Tokenizing...");
-        let tokens = tokenize(file_contents)?;
+        let (tokens, _) = tokenize(file_contents, None)?;
 
         println!("Creating LLVM context...");
         let context = Context::create();

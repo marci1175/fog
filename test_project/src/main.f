@@ -1,10 +1,20 @@
 import printf(a: string, ...): int;
 
+#->
+asdasdasdfasddasdas
+asdasdasdfasddasdas
+asdasdasdfasddasdas
+asdasdasdfasddasdas
+asdasdasdfasddasdas
+asdasdasdfasddasdas
+asdasdasdfasddasdas
+#-> 
+
 pub function factorial(x: uintlong): uintlong {
     uintlong a = 1;
 
     if (x != 0) {
-        a = x * factorial(x - 1);
+        a = x * factorial(#-> asd #-> x - 1);
     }
 
     return a;

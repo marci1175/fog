@@ -9,7 +9,7 @@ fn only_contains_digits(s: &str) -> bool
     s.chars().all(|c| c.is_ascii_digit())
 }
 
-pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError>
+pub fn tokenize(raw_input: &str, stop_at_token: Option<Token>) -> Result<(Vec<Token>, usize), ParserError>
 {
     let mut char_idx: usize = 0;
 
@@ -20,6 +20,12 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError>
     let mut string_buffer = String::new();
 
     while char_idx < char_list.len() {
+        if let Some(stop_at_token) = &stop_at_token {
+            if token_list.last().is_some_and(|last_token| last_token == stop_at_token) {
+                return Ok((token_list, char_idx));
+            }
+        }
+
         let current_char = char_list[char_idx];
 
         let single_char = match current_char {
@@ -97,24 +103,46 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError>
         else if current_char == '#' {
             let mut comment_buffer = String::new();
 
-            let mut comment_idx = char_idx + 1;
+            if let Some(char) = char_list.get(char_idx + 1) {
+                if *char == '-' {
+                    if matches!(char_list.get(char_idx + 2), Some('>')) {
+                        char_idx += 3;
 
-            loop {
-                let quote_char = char_list[comment_idx];
-                if quote_char == '\n' {
-                    token_list.push(Token::Comment(comment_buffer.trim().to_string()));
+                        if stop_at_token.is_some() {
+                            token_list.push(Token::MultilineComment);
 
-                    char_idx = comment_idx + 1;
+                            continue;
+                        }
 
-                    break;
+                        // Capture everything until the finishing #->
+                        // The reason im passing this into a tokenizer function is because the MultilineComment token could be in quotes and that would be invalid to capture.
+                        // We can ignore the captured tokens, we increment the char_idx by the chars parsed.
+                        // The captured output does not contain the contents of the multiline comment.
+                        let (_, idx) = tokenize(&raw_input[char_idx..], Some(Token::MultilineComment))?;
+                        
+                        char_idx += idx;
+                    }
                 }
+                else {
+                    loop {
+                        let quote_char = char_list[char_idx + 1];
 
-                comment_buffer.push(quote_char);
+                        if quote_char == '\n' {
+                            token_list.push(Token::Comment(comment_buffer.trim().to_string()));
 
-                comment_idx += 1;
+                            char_idx += 2;
+
+                            break;
+                        }
+
+                        comment_buffer.push(quote_char);
+
+                        char_idx += 2;
+                    }
+
+                    continue;
+                }
             }
-
-            continue;
         }
         else if current_char == '"' {
             let mut quotes_buffer = String::new();
@@ -328,7 +356,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError>
                     .trim()
                     .to_string();
 
-                let inner_token = tokenize(&list_type_def)?;
+                let (inner_token, _) = tokenize(&list_type_def, None)?;
 
                 if inner_token.len() > 1 {
                     return Err(ParserError::InvalidArrayTypeDefinition(inner_token));
@@ -403,7 +431,7 @@ pub fn tokenize(raw_input: &str) -> Result<Vec<Token>, ParserError>
         char_idx += 1;
     }
 
-    Ok(token_list)
+    Ok((token_list, char_idx))
 }
 
 fn match_multi_character_expression(string_buffer: String) -> Token

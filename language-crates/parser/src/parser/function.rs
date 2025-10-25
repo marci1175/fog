@@ -42,7 +42,7 @@ pub fn create_signature_table(
         HashMap::new();
 
     let mut custom_items: IndexMap<String, CustomType> = IndexMap::new();
-
+    
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
 
@@ -265,7 +265,7 @@ pub fn create_signature_table(
                     .to_string();
 
                 // Tokenize the raw source file
-                let tokens = tokenize(&file_contents)?;
+                let (tokens, _) = tokenize(&file_contents, None)?;
 
                 // panic!("Rework this when working on modules");
                 let mut imported_file_mod_path = module_path.clone();
@@ -382,6 +382,9 @@ pub fn create_signature_table(
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
             }
         }
+        else if current_token == Token::MultilineComment {
+            dbg!("asd");
+        }
 
         token_idx += 1;
     }
@@ -402,7 +405,7 @@ pub fn parse_functions(
     module_path: Vec<String>,
 ) -> Result<IndexMap<String, FunctionDefinition>>
 {
-    let mut parsed_functions = IndexMap::new();
+    let mut parsed_functions: IndexMap<String, FunctionDefinition> = IndexMap::new();
 
     for (fn_idx, (fn_name, unparsed_function)) in unparsed_functions.clone().iter().enumerate() {
         let function_definition = FunctionDefinition {

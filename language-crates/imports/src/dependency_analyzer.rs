@@ -10,7 +10,7 @@ pub fn analyze_dependency(
     module_path: Vec<String>,
 ) -> anyhow::Result<Parser>
 {
-    let tokens = tokenize(source_file_contents)?;
+    let (tokens, _) = tokenize(source_file_contents, None)?;
 
     let mut parser = Parser::new(tokens, config, module_path);
 
