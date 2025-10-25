@@ -16,6 +16,7 @@ pub enum Token
 
     Identifier(String),
     Comment(String),
+    DocComment(String),
     MultilineComment,
 
     Struct,

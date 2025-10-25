@@ -105,7 +105,7 @@ pub fn tokenize(raw_input: &str, stop_at_token: Option<Token>) -> Result<(Vec<To
 
             if let Some(char) = char_list.get(char_idx + 1) {
                 if *char == '-' {
-                    if matches!(char_list.get(char_idx + 2), Some('>')) {
+                    if char_list.get(char_idx + 2) == Some(&'>') {
                         char_idx += 3;
 
                         if stop_at_token.is_some() {
@@ -121,13 +121,40 @@ pub fn tokenize(raw_input: &str, stop_at_token: Option<Token>) -> Result<(Vec<To
                         let (_, idx) = tokenize(&raw_input[char_idx..], Some(Token::MultilineComment))?;
                         
                         char_idx += idx;
+
+                        // Continue looping through the tokens
+                        // We continue here because we dont want to increment the char_idx one more time.
+                        continue;
+                    }
+                }
+                if *char == '#' {
+                    if char_list.get(char_idx + 2) == Some(&'#') {
+                        char_idx += 3;
+
+                        loop {
+                            let quote_char = char_list[char_idx + 1];
+
+                            if quote_char == '\n' {
+                                token_list.push(Token::DocComment(comment_buffer.trim().to_string()));
+
+                                char_idx += 2;
+
+                                break;
+                            }
+
+                            comment_buffer.push(quote_char);
+
+                            char_idx += 1;
+                        }
+
+                        continue;
                     }
                 }
                 else {
                     loop {
                         let quote_char = char_list[char_idx + 1];
 
-                        if quote_char == '\n' {
+                        if quote_char == '\r' {
                             token_list.push(Token::Comment(comment_buffer.trim().to_string()));
 
                             char_idx += 2;
@@ -137,7 +164,7 @@ pub fn tokenize(raw_input: &str, stop_at_token: Option<Token>) -> Result<(Vec<To
 
                         comment_buffer.push(quote_char);
 
-                        char_idx += 2;
+                        char_idx += 1;
                     }
 
                     continue;

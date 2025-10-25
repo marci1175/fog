@@ -1,31 +1,23 @@
 import printf(a: string, ...): int;
 
-#->
-asdasdasdfasddasdas
-asdasdasdfasddasdas
-asdasdasdfasddasdas
-asdasdasdfasddasdas
-asdasdasdfasddasdas
-asdasdasdfasddasdas
-asdasdasdfasddasdas
-#-> 
-
+### 12345
+# 12345
 pub function factorial(x: uintlong): uintlong {
     uintlong a = 1;
 
     if (x != 0) {
-        a = x * factorial(#-> asd #-> x - 1);
+        a = x * factorial(#-> szia #-> x - 1);
     }
 
     return a;
 }
 
 pub function main(): int {
-    int marci = 0;
+    uintlong marci = 10;
 
-    marci = marci + 1;
+    marci = factorial(marci);
 
-    printf("Woah, marci: %i", marci);
+    printf("Woah, marci: %ull", marci);
     
     return 0;
 }

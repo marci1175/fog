@@ -2,10 +2,10 @@
 [
     NewVariable(
         "marci",
-        I32,
+        U64,
         Literal(
-            I32(
-                0,
+            U64(
+                10,
             ),
         ),
     ),
@@ -15,17 +15,39 @@
                 "marci",
             ),
         ),
-        MathematicalExpression(
-            VariableReference(
-                BasicReference(
-                    "marci",
-                ),
+        FunctionCall(
+            (
+                FunctionSignature {
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "x": U64,
+                            },
+                        ),
+                        ellipsis_present: false,
+                    },
+                    return_type: U64,
+                    debug_attributes: None,
+                    module_path: [
+                        "test_project",
+                    ],
+                    visibility: Public,
+                },
+                "factorial",
             ),
-            Addition,
-            Literal(
-                I32(
-                    1,
-                ),
+            OrdMap(
+                {
+                    Identifier(
+                        "x",
+                    ): (
+                        VariableReference(
+                            BasicReference(
+                                "marci",
+                            ),
+                        ),
+                        U64,
+                    ),
+                },
             ),
         ),
     ),
@@ -56,7 +78,7 @@
                 ): (
                     Literal(
                         String(
-                            "Woah, marci: %i",
+                            "Woah, marci: %ull",
                         ),
                     ),
                     String,
@@ -69,7 +91,7 @@
                             "marci",
                         ),
                     ),
-                    I32,
+                    U64,
                 ),
             },
         ),
