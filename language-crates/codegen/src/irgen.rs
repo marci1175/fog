@@ -14,7 +14,7 @@ use fog_common::{
         module::Module,
         types::BasicMetadataTypeEnum,
         values::{
-            BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, MetadataValue,
+            BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue,
             PointerValue,
         },
     },

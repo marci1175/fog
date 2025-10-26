@@ -86,6 +86,8 @@ pub enum Token
     Public,
     PublicLibrary,
 
+    CompilerHintSymbol, // @
+
     /// Used to expose functions from a module into another one.
     Export,
 }

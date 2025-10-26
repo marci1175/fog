@@ -47,6 +47,7 @@ pub fn tokenize(
             ';' => Some(Token::SemiColon),
             ',' => Some(Token::Comma),
             '%' => Some(Token::Modulo),
+            '@' => Some(Token::CompilerHintSymbol),
             _ => None,
         };
 
