@@ -66,4 +66,6 @@ pub enum ParserError
         "A function must have its visibility explicitly set. Visibility options: `pub`, `publib`, `priv`."
     )]
     FunctionRequiresExplicitVisibility,
+    #[error("Token `{0}` is not a valid compiler hint.")]
+    InvalidCompilerHint(Token),
 }

@@ -2,6 +2,7 @@ import printf(a: string, ...): int;
 
 ### 12345
 # 12345
+@inline
 pub function factorial(x: uintlong): uintlong {
     uintlong a = 1;
 
@@ -12,6 +13,7 @@ pub function factorial(x: uintlong): uintlong {
     return a;
 }
 
+@nofree
 pub function main(): int {
     uintlong marci = 10;
 

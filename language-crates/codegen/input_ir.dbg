@@ -32,6 +32,9 @@
                         "test_project",
                     ],
                     visibility: Public,
+                    compiler_hints: [
+                        Inline,
+                    ],
                 },
                 "factorial",
             ),
@@ -68,6 +71,7 @@
                     "test_project",
                 ],
                 visibility: Private,
+                compiler_hints: [],
             },
             "printf",
         ),

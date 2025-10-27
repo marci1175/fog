@@ -1,5 +1,6 @@
 use crate::{
     error::{parser::ParserError, syntax::SyntaxError},
+    parser::CompilerHint,
     ty::{Type, TypeDiscriminant},
 };
 
@@ -87,6 +88,7 @@ pub enum Token
     PublicLibrary,
 
     CompilerHintSymbol, // @
+    CompilerHint(CompilerHint),
 
     /// Used to expose functions from a module into another one.
     Export,

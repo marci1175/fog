@@ -1,5 +1,8 @@
 use anyhow::Result;
-use std::fmt::Display;
+use std::{
+    collections::{BTreeSet, HashSet},
+    fmt::Display,
+};
 use strum_macros::Display;
 
 use crate::{
@@ -205,6 +208,7 @@ pub struct FunctionSignature
     pub debug_attributes: Option<String>,
     pub module_path: Vec<String>,
     pub visibility: FunctionVisibility,
+    pub compiler_hints: Vec<CompilerHint>,
 }
 
 impl Display for FunctionSignature
@@ -373,4 +377,14 @@ pub fn find_closing_comma(slice: &[Token]) -> Result<usize>
     }
 
     Err(ParserError::InvalidFunctionCallArguments.into())
+}
+
+#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
+pub enum CompilerHint
+{
+    Cold,
+    NoFree,
+    Inline,
+    NoUnWind,
+    Feature(String), // Unused
 }

@@ -4,7 +4,7 @@
   "publisher": "marci1175",
   "repository": "https://github.com/marci1175/fog-vscode-extension",
   "description": "Syntax highlighting support for the Fog programming language",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "engines": {
     "vscode": "^1.100.0"
   },

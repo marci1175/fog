@@ -7,16 +7,14 @@ use fog_common::{
     error::codegen::CodeGenError,
     indexmap::IndexMap,
     inkwell::{
+        attributes::Attribute,
         basic_block::BasicBlock,
         builder::Builder,
         context::Context,
         debug_info::{AsDIScope, DWARFEmissionKind, DWARFSourceLanguage},
         module::Module,
         types::BasicMetadataTypeEnum,
-        values::{
-            BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue,
-            PointerValue,
-        },
+        values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     },
     parser::{FunctionDefinition, ParsedToken},
     ty::{OrdMap, TypeDiscriminant, token_to_ty},
@@ -2575,6 +2573,50 @@ pub fn generate_ir<'ctx>(
 
         // Create function signature
         let function = module.add_function(function_name, function_type, None);
+
+        for hint in &function_definition.function_sig.compiler_hints {
+            match hint {
+                fog_common::parser::CompilerHint::Cold => {
+                    let attr =
+                        context.create_enum_attribute(Attribute::get_named_enum_kind_id("cold"), 0);
+
+                    function.add_attribute(
+                        fog_common::inkwell::attributes::AttributeLoc::Function,
+                        attr,
+                    );
+                },
+                fog_common::parser::CompilerHint::NoFree => {
+                    let attr = context
+                        .create_enum_attribute(Attribute::get_named_enum_kind_id("nofree"), 0);
+
+                    function.add_attribute(
+                        fog_common::inkwell::attributes::AttributeLoc::Function,
+                        attr,
+                    );
+                },
+                fog_common::parser::CompilerHint::Inline => {
+                    let attr = context
+                        .create_enum_attribute(Attribute::get_named_enum_kind_id("inlinehint"), 0);
+
+                    function.add_attribute(
+                        fog_common::inkwell::attributes::AttributeLoc::Function,
+                        attr,
+                    );
+                },
+                fog_common::parser::CompilerHint::NoUnWind => {
+                    let attr = context
+                        .create_enum_attribute(Attribute::get_named_enum_kind_id("nounwind"), 0);
+
+                    function.add_attribute(
+                        fog_common::inkwell::attributes::AttributeLoc::Function,
+                        attr,
+                    );
+                },
+                fog_common::parser::CompilerHint::Feature(_) => {
+                    unimplemented!("Check enum definition.");
+                },
+            }
+        }
 
         let return_type = function_definition.function_sig.return_type.clone();
 

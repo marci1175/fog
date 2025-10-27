@@ -444,7 +444,8 @@ pub fn tokenize(
 
             token_list.push(Token::BitOr);
         }
-        else if current_char == ' ' && !string_buffer.trim().is_empty() {
+        else if (current_char == ' ' || current_char == '\n') && !string_buffer.trim().is_empty()
+        {
             let token = match_multi_character_expression(string_buffer.clone());
 
             token_list.push(token);
@@ -460,7 +461,7 @@ pub fn tokenize(
 
             string_buffer.clear();
         }
-        else if current_char != ' ' {
+        else if current_char != ' ' && current_char != '\n' && current_char != '\r' {
             string_buffer.push(current_char);
         }
 
@@ -529,6 +530,11 @@ fn match_multi_character_expression(string_buffer: String) -> Token
         "exp" => Token::Export,
 
         "#->" => Token::MultilineComment,
+
+        "cold" => Token::CompilerHint(fog_common::parser::CompilerHint::Cold),
+        "nofree" => Token::CompilerHint(fog_common::parser::CompilerHint::NoFree),
+        "nounwind" => Token::CompilerHint(fog_common::parser::CompilerHint::NoUnWind),
+        "inline" => Token::CompilerHint(fog_common::parser::CompilerHint::Inline),
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }

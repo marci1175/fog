@@ -1,4 +1,9 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    fs, mem,
+    path::PathBuf,
+    sync::Arc,
+};
 
 use fog_common::{
     anyhow::Result,
@@ -7,9 +12,9 @@ use fog_common::{
     error::{parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature, ParsedToken,
-        UnparsedFunctionDefinition, VariableReference, find_closing_braces, find_closing_comma,
-        find_closing_paren, parse_signature_argument_tokens,
+        CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
+        ParsedToken, UnparsedFunctionDefinition, VariableReference, find_closing_braces,
+        find_closing_comma, find_closing_paren, parse_signature_argument_tokens,
     },
     tokenizer::Token,
     ty::{OrdMap, Type, TypeDiscriminant},
@@ -40,6 +45,8 @@ pub fn create_signature_table(
 
     let mut imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> =
         HashMap::new();
+
+    let mut function_compiler_hint_buffer: Vec<CompilerHint> = Vec::new();
 
     let mut custom_items: IndexMap<String, CustomType> = IndexMap::new();
 
@@ -145,6 +152,9 @@ pub fn create_signature_table(
                                             debug_attributes: None,
                                             visibility: current_token.try_into()?,
                                             module_path: module_path.clone(),
+                                            compiler_hints: mem::take(
+                                                &mut function_compiler_hint_buffer,
+                                            ),
                                         },
                                     },
                                 );
@@ -210,6 +220,7 @@ pub fn create_signature_table(
                                     // Imported functions can only be accessed at the source file they were imported at
                                     // I might change this later to smth like pub import similar to pub mod in rust
                                     visibility: fog_common::parser::FunctionVisibility::Private,
+                                    compiler_hints: Vec::new(),
                                 },
                             );
 
@@ -380,6 +391,16 @@ pub fn create_signature_table(
             }
             else {
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
+            }
+        }
+        else if current_token == Token::CompilerHintSymbol {
+            token_idx += 1;
+
+            if let Token::CompilerHint(compiler_hint) = &tokens[token_idx] {
+                function_compiler_hint_buffer.push(compiler_hint.clone());
+            }
+            else {
+                return Err(ParserError::InvalidCompilerHint(tokens[token_idx].clone()).into());
             }
         }
 
@@ -725,6 +746,7 @@ pub fn parse_function_block(
                                 debug_attributes: None,
                                 module_path: module_path.clone(),
                                 visibility: fog_common::parser::FunctionVisibility::Branch,
+                                compiler_hints: Vec::new(),
                             },
                             function_imports.clone(),
                             custom_items.clone(),
@@ -757,6 +779,7 @@ pub fn parse_function_block(
                                         debug_attributes: None,
                                         visibility: fog_common::parser::FunctionVisibility::Branch,
                                         module_path: module_path.clone(),
+                                        compiler_hints: Vec::new(),
                                     },
                                     function_imports.clone(),
                                     custom_items.clone(),
@@ -803,6 +826,7 @@ pub fn parse_function_block(
                             debug_attributes: None,
                             visibility: fog_common::parser::FunctionVisibility::Branch,
                             module_path: module_path.clone(),
+                            compiler_hints: Vec::new(),
                         },
                         function_imports.clone(),
                         custom_items.clone(),
