@@ -2612,7 +2612,7 @@ pub fn generate_ir<'ctx>(
                         attr,
                     );
                 },
-                fog_common::parser::CompilerHint::Feature(_) => {
+                fog_common::parser::CompilerHint::Feature => {
                     unimplemented!("Check enum definition.");
                 },
             }

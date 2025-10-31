@@ -382,9 +382,14 @@ pub fn find_closing_comma(slice: &[Token]) -> Result<usize>
 #[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
 pub enum CompilerHint
 {
+    /// See llvm function attributes
     Cold,
+    /// See llvm function attributes
     NoFree,
+    /// See llvm function attributes
     Inline,
+    /// See llvm function attributes
     NoUnWind,
-    Feature(String), // Unused
+
+    Feature,
 }

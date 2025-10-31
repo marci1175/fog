@@ -124,10 +124,20 @@
 			}]
 		},
 		"compiler_hints": {
-			"patterns": [
+		"patterns": [
 				{
-					"name": "keyword.other",
-					"match": "@(.+)"
+				"name": "keyword.other.annotation",
+				"begin": "@[A-Za-z_][A-Za-z0-9_]*",
+				"end": "(?=$|\\n|@|#|\\s+\\w)",
+				"patterns": [
+					{
+					"include": "#strings"
+					},
+					{
+					"name": "comment.line.annotation-hash",
+					"match": "#[A-Za-z0-9_]+"
+					}
+				]
 				}
 			]
 		},

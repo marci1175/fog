@@ -14,6 +14,7 @@ pub function factorial(x: uintlong): uintlong {
 }
 
 @nofree
+@feature "marci"
 pub function main(): int {
     uintlong marci = 10;
 

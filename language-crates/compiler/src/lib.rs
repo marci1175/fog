@@ -57,7 +57,7 @@ impl CompilerState
     {
         println!("Tokenizing...");
         let (tokens, _) = tokenize(file_contents, None)?;
-
+        dbg!(&tokens);
         println!("Creating LLVM context...");
         let context = Context::create();
         let builder = context.create_builder();

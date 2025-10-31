@@ -9,6 +9,9 @@ pub struct ProjectConfig
 {
     pub name: String,
     pub is_library: bool,
+    // This is only enabled if its a library
+    pub features: Option<Vec<String>>,
+
     pub version: String,
     pub build_path: String,
     pub additional_linking_material: Vec<PathBuf>,
@@ -22,6 +25,7 @@ impl Default for ProjectConfig
         Self {
             name: "project".to_string(),
             is_library: false,
+            features: None,
             version: "0.0.1".to_string(),
             build_path: "out".to_string(),
             additional_linking_material: Vec::new(),

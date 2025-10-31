@@ -83,11 +83,15 @@ fn main() -> fog_common::anyhow::Result<()>
             let config_file = fs::read_to_string(format!("{}/config.toml", path.display()))
                 .map_err(|_| ApplicationError::ConfigNotFound(path.clone()))?;
 
-            let source_file = fs::read_to_string(format!("{}/src/main.f", path.display()))
-                .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
-
             let compiler_config = toml::from_str::<ProjectConfig>(&config_file)
                 .map_err(ApplicationError::ConfigError)?;
+
+            if !compiler_config.is_library && compiler_config.features.is_some() {
+                println!("WARNING: Project `{}({})` is not a library, but has features. These features {:?} will be ignored.", compiler_config.name, compiler_config.version, compiler_config.features.clone().unwrap());
+            }
+
+            let source_file = fs::read_to_string(format!("{}/src/main.f", path.display()))
+                .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
 
             let compiler_state = CompilerState::new(compiler_config.clone(), path.clone());
 
