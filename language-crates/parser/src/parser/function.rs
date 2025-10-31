@@ -397,7 +397,19 @@ pub fn create_signature_table(
             token_idx += 1;
 
             if let Token::CompilerHint(compiler_hint) = &tokens[token_idx] {
-                function_compiler_hint_buffer.push(compiler_hint.clone());
+                if matches!(*compiler_hint, CompilerHint::Feature(_)) {
+                    token_idx += 1;
+
+                    if let Some(Token::Literal(Type::String(feat_name))) = tokens.get(token_idx) {
+                        function_compiler_hint_buffer.push(CompilerHint::Feature(feat_name.clone()));
+                    }
+                    else {
+                        return Err(ParserError::InvalidFunctionFeature(tokens.get(token_idx).cloned()).into());
+                    }
+                }
+                else {
+                    function_compiler_hint_buffer.push(compiler_hint.clone());
+                }
             }
             else {
                 return Err(ParserError::InvalidCompilerHint(tokens[token_idx].clone()).into());

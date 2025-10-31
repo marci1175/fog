@@ -391,5 +391,5 @@ pub enum CompilerHint
     /// See llvm function attributes
     NoUnWind,
 
-    Feature,
+    Feature(String),
 }
