@@ -21,21 +21,26 @@ additional_linking_material = []
 | version                     | Specifies the version of a project. This is used to identify multiple editions of the same dependency.       |
 | build_path                  | Tells the compiler where to place the build artifacts.                                                       |
 | additional_linking_material | Tells the linker which additional files to link the object files with.                                       |
+| features                    | Sets the enabled features for the project, if it is not library these are ignored.                           |
 | dependencies                | Specifies the dependencies the project uses.                                                                 |
 
 **Config file composition:**
+
+> Optional fields are marked with `*`.
 
 ```toml
 name = <string>
 is_library = <bool>
 version = <version> # This must follow the semver specification.
 build_path = <path>
+*features = [<feature>, <feature>]
 additional_linking_material = [<path>, <path>, ...]
 
 [dependencies]
 <dependency name> = { version = <version>, features = [<feature name>, <feature name>, ...] }
 <dependency name> = { version = <version>, features = [<feature name>, <feature name>, ...] }
 ...
+
 ```
 
 > Learn more about [SemVer here](https://semver.org/).
