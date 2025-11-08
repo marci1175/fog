@@ -1,2 +1,38 @@
 [COMPILER IR]
-[]
+[
+    FunctionCall(
+        (
+            FunctionSignature {
+                args: FunctionArguments {
+                    arguments_list: OrdMap(
+                        {},
+                    ),
+                    ellipsis_present: false,
+                },
+                return_type: Void,
+                debug_attributes: None,
+                module_path: [
+                    "test_project",
+                ],
+                visibility: Private,
+                compiler_hints: OrdSet(
+                    {},
+                ),
+                enabling_features: OrdSet(
+                    {},
+                ),
+            },
+            "kedvenc",
+        ),
+        OrdMap(
+            {},
+        ),
+    ),
+    ReturnValue(
+        Literal(
+            I32(
+                0,
+            ),
+        ),
+    ),
+]

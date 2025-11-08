@@ -7,6 +7,7 @@ use fog_common::{
     indexmap::IndexMap,
     parser::{FunctionDefinition, FunctionSignature, FunctionVisibility},
     tokenizer::Token,
+    ty::OrdSet,
 };
 
 use crate::parser::function::{create_signature_table, parse_functions};
@@ -26,6 +27,8 @@ pub struct Parser
 
     config: ProjectConfig,
 
+    enabled_features: OrdSet<String>,
+
     module_path: Vec<String>,
 }
 
@@ -39,7 +42,12 @@ impl Parser
         // Create user defined signature table
         // Create an import table which can be used later by other functions
         let (unparsed_functions, source_imports, mut external_imports, custom_types) =
-            create_signature_table(self.tokens.clone(), self.module_path.clone())?;
+            create_signature_table(
+                self.tokens.clone(),
+                self.module_path.clone(),
+                self.enabled_features.clone(),
+                self.config.clone(),
+            )?;
 
         let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
 
@@ -90,13 +98,14 @@ impl Parser
         Ok(())
     }
 
-    pub fn new(tokens: Vec<Token>, config: ProjectConfig, module_path: Vec<String>) -> Self
+    pub fn new(tokens: Vec<Token>, config: ProjectConfig, module_path: Vec<String>, enabled_features: OrdSet<String>) -> Self
     {
         Self {
             tokens,
             function_table: IndexMap::new(),
             imported_functions: Arc::new(HashMap::new()),
             library_public_function_table: IndexMap::new(),
+            enabled_features,
             custom_types: Arc::new(IndexMap::new()),
             config,
             module_path,
@@ -121,5 +130,15 @@ impl Parser
     pub fn library_public_function_table(&self) -> &IndexMap<String, FunctionSignature>
     {
         &self.library_public_function_table
+    }
+
+    pub fn config(&self) -> &ProjectConfig
+    {
+        &self.config
+    }
+
+    pub fn enabled_features(&self) -> &OrdSet<String>
+    {
+        &self.enabled_features
     }
 }

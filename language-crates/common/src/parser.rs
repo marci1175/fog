@@ -9,7 +9,7 @@ use crate::{
     codegen::{FunctionArgumentIdentifier, If, Order},
     error::{parser::ParserError, syntax::SyntaxError},
     tokenizer::Token,
-    ty::{OrdMap, Type, TypeDiscriminant},
+    ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -208,7 +208,8 @@ pub struct FunctionSignature
     pub debug_attributes: Option<String>,
     pub module_path: Vec<String>,
     pub visibility: FunctionVisibility,
-    pub compiler_hints: Vec<CompilerHint>,
+    pub compiler_hints: OrdSet<CompilerHint>,
+    pub enabling_features: OrdSet<String>,
 }
 
 impl Display for FunctionSignature
@@ -391,5 +392,5 @@ pub enum CompilerHint
     /// See llvm function attributes
     NoUnWind,
 
-    Feature(String),
+    Feature,
 }

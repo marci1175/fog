@@ -535,7 +535,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token
         "nofree" => Token::CompilerHint(fog_common::parser::CompilerHint::NoFree),
         "nounwind" => Token::CompilerHint(fog_common::parser::CompilerHint::NoUnWind),
         "inline" => Token::CompilerHint(fog_common::parser::CompilerHint::Inline),
-        "feature" => Token::CompilerHint(fog_common::parser::CompilerHint::Feature(String::new())),
+        "feature" => Token::CompilerHint(fog_common::parser::CompilerHint::Feature),
 
         _ => eval_constant_definition(trimmed_string.to_string()),
     }

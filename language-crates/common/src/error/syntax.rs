@@ -36,7 +36,7 @@ pub enum SyntaxError
     #[error("Function requires a returned value.")]
     FunctionRequiresReturn,
     #[error(
-        "Duplicate function definitions have been found with function `{0}`. Signature: `{1}`."
+        "Duplicate function definitions have been found with function `{0}`. Signature: `{1}`. Functions with matching names are only available when they are allowed under different features."
     )]
     DuplicateFunctions(String, FunctionSignature),
     #[error("The import's signature is invalid.")]

@@ -12,6 +12,7 @@ pub mod pointer;
 use fog_common::{
     anyhow::Result,
     codegen::CustomType,
+    compiler::ProjectConfig,
     error::{application::ApplicationError, codegen::CodeGenError},
     indexmap::IndexMap,
     inkwell::{
@@ -22,6 +23,7 @@ use fog_common::{
         targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
     },
     parser::{FunctionDefinition, FunctionSignature},
+    ty::OrdSet,
 };
 use fog_parser::parser_instance::Parser;
 use std::{collections::HashMap, fs, io::ErrorKind, path::PathBuf, rc::Rc, sync::Arc};
@@ -43,6 +45,7 @@ pub fn llvm_codegen_main<'ctx>(
     is_optimized: bool,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
+    enabled_features: &OrdSet<String>,
     flags_passed_in: &str,
     path_to_src: &str,
     target_triple_name: Option<String>,
@@ -66,6 +69,7 @@ pub fn llvm_codegen_main<'ctx>(
         builder,
         custom_types,
         is_optimized,
+        enabled_features,
         flags_passed_in,
         path_to_src,
     )?;
@@ -179,6 +183,7 @@ pub fn llvm_codegen<'ctx>(
         optimization,
         imported_functions,
         parser_state.custom_types(),
+        parser_state.enabled_features(),
         flags_passed_in,
         path_to_src,
         target_triple,

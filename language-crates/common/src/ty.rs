@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use inkwell::{
     AddressSpace,
     context::Context,
@@ -596,6 +596,73 @@ impl<K, V> From<IndexMap<K, V>> for OrdMap<K, V>
     fn from(value: IndexMap<K, V>) -> Self
     {
         Self(value)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OrdSet<T>(IndexSet<T>);
+
+impl<T> Deref for OrdSet<T>
+{
+    type Target = IndexSet<T>;
+
+    fn deref(&self) -> &Self::Target
+    {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for OrdSet<T>
+{
+    fn deref_mut(&mut self) -> &mut Self::Target
+    {
+        &mut self.0
+    }
+}
+
+impl<T: Eq> PartialEq for OrdSet<T>
+{
+    fn eq(&self, other: &Self) -> bool
+    {
+        if self.0.len() != other.0.len() {
+            return false;
+        }
+
+        self.0.iter().zip(other.0.iter()).all(|(a, b)| a == b)
+    }
+}
+
+/// Blanket implementation of the `Eq` trait.
+impl<T: Eq> Eq for OrdSet<T> {}
+
+impl<T> Default for OrdSet<T>
+{
+    fn default() -> Self
+    {
+        Self(IndexSet::default())
+    }
+}
+
+impl<T: Hash> Hash for OrdSet<T>
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H)
+    {
+        for elem in self.0.iter() {
+            elem.hash(state);
+        }
+    }
+}
+
+impl<T> OrdSet<T>
+{
+    pub fn new() -> Self
+    {
+        Self::default()
+    }
+
+    pub fn wrap(inner: IndexSet<T>) -> Self
+    {
+        Self(inner)
     }
 }
 

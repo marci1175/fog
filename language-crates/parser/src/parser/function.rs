@@ -9,7 +9,7 @@ use fog_common::{
     anyhow::Result,
     codegen::{CustomType, FunctionArgumentIdentifier, If},
     compiler::ProjectConfig,
-    error::{parser::ParserError, syntax::SyntaxError},
+    error::{dependency::DependencyError, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
@@ -17,7 +17,7 @@ use fog_common::{
         find_closing_comma, find_closing_paren, parse_signature_argument_tokens,
     },
     tokenizer::Token,
-    ty::{OrdMap, Type, TypeDiscriminant},
+    ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
 };
 
 use crate::{
@@ -29,6 +29,8 @@ use crate::{
 pub fn create_signature_table(
     tokens: Vec<Token>,
     module_path: Vec<String>,
+    enabled_features: OrdSet<String>,
+    project_config: ProjectConfig,
 ) -> Result<(
     IndexMap<String, UnparsedFunctionDefinition>,
     HashMap<String, FunctionDefinition>,
@@ -46,7 +48,8 @@ pub fn create_signature_table(
     let mut imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> =
         HashMap::new();
 
-    let mut function_compiler_hint_buffer: Vec<CompilerHint> = Vec::new();
+    let mut function_compiler_hint_buffer: OrdSet<CompilerHint> = OrdSet::new();
+    let mut function_enabling_feature: OrdSet<String> = OrdSet::new();
 
     let mut custom_items: IndexMap<String, CustomType> = IndexMap::new();
 
@@ -141,33 +144,43 @@ pub fn create_signature_table(
 
                                 let braces_contains_len = braces_contains.len();
 
-                                // Store the function
-                                let insertion = function_list.insert(
-                                    function_name.clone(),
-                                    UnparsedFunctionDefinition {
-                                        inner: braces_contains.clone(),
-                                        function_sig: FunctionSignature {
-                                            args: args.clone(),
-                                            return_type: return_type.clone(),
-                                            debug_attributes: None,
-                                            visibility: current_token.try_into()?,
-                                            module_path: module_path.clone(),
-                                            compiler_hints: mem::take(
-                                                &mut function_compiler_hint_buffer,
-                                            ),
-                                        },
-                                    },
-                                );
+                                // Extract the compiler hints for the function
+                                let compiler_hints = mem::take(&mut function_compiler_hint_buffer);
 
-                                // If a function with a similar name exists throw an error as there is no function overloading
-                                if let Some(overwritten_function) = insertion {
-                                    return Err(ParserError::SyntaxError(
-                                        SyntaxError::DuplicateFunctions(
-                                            function_name,
-                                            overwritten_function.function_sig,
-                                        ),
-                                    )
-                                    .into());
+                                let function_enabling_features =
+                                    mem::take(&mut function_enabling_feature);
+
+                                if !function_enabling_features.is_disjoint(&enabled_features)
+                                    || function_enabling_features.is_empty()
+                                {
+                                    // Store the function
+                                    let insertion = function_list.insert(
+                                        function_name.clone(),
+                                        UnparsedFunctionDefinition {
+                                            inner: braces_contains.clone(),
+                                            function_sig: FunctionSignature {
+                                                args: args.clone(),
+                                                return_type: return_type.clone(),
+                                                debug_attributes: None,
+                                                visibility: current_token.try_into()?,
+                                                module_path: module_path.clone(),
+                                                compiler_hints: compiler_hints.clone(),
+                                                enabling_features: function_enabling_features
+                                                    .clone(),
+                                            },
+                                        },
+                                    );
+
+                                    // If a function with a similar name exists throw an error as there is no function overloading an excpetion is when they are covered under different features
+                                    if let Some(overwritten_function) = insertion {
+                                        return Err(ParserError::SyntaxError(
+                                            SyntaxError::DuplicateFunctions(
+                                                function_name,
+                                                overwritten_function.function_sig,
+                                            ),
+                                        )
+                                        .into());
+                                    }
                                 }
 
                                 // Set the iterator index
@@ -220,7 +233,8 @@ pub fn create_signature_table(
                                     // Imported functions can only be accessed at the source file they were imported at
                                     // I might change this later to smth like pub import similar to pub mod in rust
                                     visibility: fog_common::parser::FunctionVisibility::Private,
-                                    compiler_hints: Vec::new(),
+                                    compiler_hints: OrdSet::new(),
+                                    enabling_features: OrdSet::new(),
                                 },
                             );
 
@@ -290,7 +304,7 @@ pub fn create_signature_table(
 
                 // Create a new Parser state
                 let mut parser_state =
-                    Parser::new(tokens, ProjectConfig::default(), imported_file_mod_path);
+                    Parser::new(tokens, ProjectConfig::default(), imported_file_mod_path, enabled_features.clone());
 
                 println!(
                     "Imported file from `{}`. Parsing source file...",
@@ -397,18 +411,26 @@ pub fn create_signature_table(
             token_idx += 1;
 
             if let Token::CompilerHint(compiler_hint) = &tokens[token_idx] {
-                if matches!(*compiler_hint, CompilerHint::Feature(_)) {
+                if *compiler_hint == CompilerHint::Feature {
                     token_idx += 1;
 
-                    if let Some(Token::Literal(Type::String(feat_name))) = tokens.get(token_idx) {
-                        function_compiler_hint_buffer.push(CompilerHint::Feature(feat_name.clone()));
+                    if let Some(Token::Literal(Type::String(feature_name))) = tokens.get(token_idx) {
+                        if let Some(available_features) = &project_config.features {
+                            if !available_features.contains(&feature_name) {
+                                return Err(ParserError::InvalidFeatureRequirement(feature_name.clone(), available_features.clone()).into());
+                            }
+                        }
+                        function_enabling_feature.insert(feature_name.clone());
                     }
                     else {
-                        return Err(ParserError::InvalidFunctionFeature(tokens.get(token_idx).cloned()).into());
+                        return Err(ParserError::InvalidFunctionFeature(
+                            tokens.get(token_idx).cloned(),
+                        )
+                        .into());
                     }
                 }
                 else {
-                    function_compiler_hint_buffer.push(compiler_hint.clone());
+                    function_compiler_hint_buffer.insert(compiler_hint.clone());
                 }
             }
             else {
@@ -758,7 +780,8 @@ pub fn parse_function_block(
                                 debug_attributes: None,
                                 module_path: module_path.clone(),
                                 visibility: fog_common::parser::FunctionVisibility::Branch,
-                                compiler_hints: Vec::new(),
+                                compiler_hints: OrdSet::new(),
+                                enabling_features: OrdSet::new(),
                             },
                             function_imports.clone(),
                             custom_items.clone(),
@@ -791,7 +814,8 @@ pub fn parse_function_block(
                                         debug_attributes: None,
                                         visibility: fog_common::parser::FunctionVisibility::Branch,
                                         module_path: module_path.clone(),
-                                        compiler_hints: Vec::new(),
+                                        compiler_hints: OrdSet::new(),
+                                        enabling_features: OrdSet::new(),
                                     },
                                     function_imports.clone(),
                                     custom_items.clone(),
@@ -838,7 +862,8 @@ pub fn parse_function_block(
                             debug_attributes: None,
                             visibility: fog_common::parser::FunctionVisibility::Branch,
                             module_path: module_path.clone(),
-                            compiler_hints: Vec::new(),
+                            compiler_hints: OrdSet::new(),
+                            enabling_features: OrdSet::new(),
                         },
                         function_imports.clone(),
                         custom_items.clone(),

@@ -3,7 +3,6 @@ is_library = false
 version = "0.0.1"
 build_path = "out"
 additional_linking_material = []
-features = ["hi", "marci"]
 
 [dependencies]
-# library1 = { version = "0.0.1", features = [] }
+dep1 = { version = "0.0.1", features = ["alma"] }

@@ -10,7 +10,7 @@ use fog_common::{
         linker::LinkerError,
     },
     linker::BuildManifest,
-    toml,
+    toml, ty::OrdSet,
 };
 use fog_compiler::CompilerState;
 use fog_linker::link;
@@ -87,13 +87,18 @@ fn main() -> fog_common::anyhow::Result<()>
                 .map_err(ApplicationError::ConfigError)?;
 
             if !compiler_config.is_library && compiler_config.features.is_some() {
-                println!("WARNING: Project `{}({})` is not a library, but has features. These features {:?} will be ignored.", compiler_config.name, compiler_config.version, compiler_config.features.clone().unwrap());
+                println!(
+                    "WARNING: Project `{}({})` is not a library, but has features. Features {:?} will be ignored.",
+                    compiler_config.name,
+                    compiler_config.version,
+                    compiler_config.features.clone().unwrap()
+                );
             }
 
             let source_file = fs::read_to_string(format!("{}/src/main.f", path.display()))
                 .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
 
-            let compiler_state = CompilerState::new(compiler_config.clone(), path.clone());
+            let compiler_state = CompilerState::new(compiler_config.clone(), path.clone(), OrdSet::new());
 
             fs::create_dir_all(compiler_config.build_path)?;
 
@@ -197,20 +202,7 @@ fn main() -> fog_common::anyhow::Result<()>
 
             fs::write(
                 format!("{}/src/main.f", path_s),
-                (|| {
-                    if let Some(argument) = args.next() {
-                        if argument == "demo" {
-                            return Ok(include_str!("../../../defaults/default_code.f"));
-                        }
-                        else {
-                            return Err(ApplicationError::CliParseError(
-                                CliParseError::InvalidArg(argument),
-                            ));
-                        }
-                    }
-
-                    Ok("")
-                })()?,
+                include_str!("../../../defaults/default_code.f"),
             )
             .map_err(ApplicationError::FileError)?;
 
@@ -221,8 +213,6 @@ fn main() -> fog_common::anyhow::Result<()>
                 ))?,
             )
             .map_err(ApplicationError::FileError)?;
-
-            fs::create_dir_all(format!("{}/output", path_s))?;
         },
         CliCommand::Init { path } => {
             println!("Getting folder name...");

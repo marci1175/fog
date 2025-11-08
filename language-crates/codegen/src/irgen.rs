@@ -4,8 +4,9 @@ use fog_common::{
         CustomType, FunctionArgumentIdentifier, LoopBodyBlocks, create_fn_type_from_ty_disc,
         fn_arg_to_string, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty,
     },
+    compiler::ProjectConfig,
     error::codegen::CodeGenError,
-    indexmap::IndexMap,
+    indexmap::{IndexMap, IndexSet},
     inkwell::{
         attributes::Attribute,
         basic_block::BasicBlock,
@@ -17,7 +18,7 @@ use fog_common::{
         values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     },
     parser::{FunctionDefinition, ParsedToken},
-    ty::{OrdMap, TypeDiscriminant, token_to_ty},
+    ty::{OrdMap, OrdSet, TypeDiscriminant, token_to_ty},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -2523,6 +2524,7 @@ pub fn generate_ir<'ctx>(
     builder: &'ctx Builder<'ctx>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     is_optimized: bool,
+    features_enabled: &OrdSet<String>,
     flags_passed_in: &str,
     path_to_src_file: &str,
 ) -> Result<()>
@@ -2565,6 +2567,24 @@ pub fn generate_ir<'ctx>(
     let mut unique_id_source = 0;
 
     for (function_name, function_definition) in parsed_functions.iter() {
+        // Check if this is enabled with the enabled features.
+        // If the function has no feature requirements then it is automaticly included.
+        // We dont have to check for function name overlap here anymore.
+        let is_joint = !function_definition
+            .function_sig
+            .enabling_features
+            .is_disjoint(&features_enabled);
+
+        // if !is_joint
+        //     || (!is_joint
+        //         && !function_definition
+        //             .function_sig
+        //             .enabling_features
+        //             .is_empty())
+        // {
+        //     continue;
+        // }
+
         let function_type = create_fn_type_from_ty_disc(
             context,
             function_definition.function_sig.clone(),
@@ -2574,7 +2594,7 @@ pub fn generate_ir<'ctx>(
         // Create function signature
         let function = module.add_function(function_name, function_type, None);
 
-        for hint in &function_definition.function_sig.compiler_hints {
+        for hint in function_definition.function_sig.compiler_hints.iter() {
             match hint {
                 fog_common::parser::CompilerHint::Cold => {
                     let attr =
@@ -2612,8 +2632,11 @@ pub fn generate_ir<'ctx>(
                         attr,
                     );
                 },
-                fog_common::parser::CompilerHint::Feature(feat_name) => {
-                    // unimplemented!("Check enum definition.");
+                fog_common::parser::CompilerHint::Feature => {
+                    return Err(CodeGenError::InternalFunctionCompilerHintParsingError(
+                        hint.clone(),
+                    )
+                    .into());
                 },
             }
         }

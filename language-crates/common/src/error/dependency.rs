@@ -23,4 +23,8 @@ pub enum DependencyError
     MissingDependencies(HashMap<String, DependencyInfo>),
     #[error("Failed linking the libraries' module: `{0}`")]
     ModuleLinkingFailed(String),
+
+    /// The first argument is the dependency, the second is the available features, the third is the enabled features.
+    #[error("Dependency `{0}` has features `{1:?}`, but features {2:?} were enabled.")]
+    InvalidDependencyFeature(String, Vec<String>, Vec<String>),
 }

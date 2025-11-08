@@ -18,7 +18,7 @@ use fog_common::{
         },
     },
     linker::BuildManifest,
-    ty::TypeDiscriminant,
+    ty::{OrdSet, TypeDiscriminant},
 };
 use fog_imports::dependency_list_manager::create_dependency_functions_list;
 use fog_parser::{parser_instance::Parser, tokenizer::tokenize};
@@ -28,15 +28,17 @@ pub struct CompilerState
 {
     pub config: ProjectConfig,
     pub working_dir: PathBuf,
+    pub enabled_features: OrdSet<String>,
 }
 
 impl CompilerState
 {
-    pub fn new(config: ProjectConfig, working_dir: PathBuf) -> Self
+    pub fn new(config: ProjectConfig, working_dir: PathBuf, enabled_features: OrdSet<String>) -> Self
     {
         Self {
             config,
             working_dir,
+            enabled_features,
         }
     }
 
@@ -57,7 +59,7 @@ impl CompilerState
     {
         println!("Tokenizing...");
         let (tokens, _) = tokenize(file_contents, None)?;
-        dbg!(&tokens);
+
         println!("Creating LLVM context...");
         let context = Context::create();
         let builder = context.create_builder();
@@ -90,7 +92,7 @@ impl CompilerState
             cpu_features.clone(),
         )?;
 
-        let mut parser = Parser::new(tokens, self.config.clone(), vec![self.config.name.clone()]);
+        let mut parser = Parser::new(tokens, self.config.clone(), vec![self.config.name.clone()], self.enabled_features.clone());
 
         parser.parse(dependency_fn_list)?;
 

@@ -68,6 +68,11 @@ pub enum ParserError
     FunctionRequiresExplicitVisibility,
     #[error("Token `{0}` is not a valid compiler hint.")]
     InvalidCompilerHint(Token),
-    #[error("Function is only enabled when feature `{0:?}` is enabled, which is an invalid feature.")]
+    #[error(
+        "Function is only enabled when feature `{0:?}` is enabled, which is an invalid feature."
+    )]
     InvalidFunctionFeature(Option<Token>),
+
+    #[error("Function requires feature `{0}` to be enabled but project only has features `{1:?}` enabled.")]
+    InvalidFeatureRequirement(String, Vec<String>),
 }

@@ -1,15 +1,15 @@
-use std::{collections::HashMap, fs, path::PathBuf, rc::Rc};
+use std::{collections::{HashMap, HashSet}, fs, path::PathBuf, rc::Rc};
 
 use fog_codegen::llvm_codegen;
 use fog_common::{
     anyhow::{self, ensure},
     compiler::ProjectConfig,
     dependency::DependencyInfo,
-    error::dependency::DependencyError,
-    indexmap::IndexMap,
+    error::{codegen::CodeGenError, dependency::DependencyError},
+    indexmap::{IndexMap, IndexSet},
     inkwell::{builder::Builder, context::Context, module::Module},
     parser::FunctionSignature,
-    toml,
+    toml, ty::OrdSet,
 };
 
 use crate::dependency_analyzer::analyze_dependency;
@@ -150,11 +150,20 @@ fn scan_dependency<'ctx>(
                     )
                 );
 
+                let dep_features_enabled = project_dependency.features.clone();
+
                 if !dependency_config.is_library {
                     return Err(
                         DependencyError::InvalidDependencyType(dependency_config.name).into(),
                     );
                 }
+
+                if let Some(dep_available_features) = &dependency_config.features {
+                    // If there are more features enabled than there is available throw an error about invalid features.
+                    if !HashSet::<String>::from_iter(dep_features_enabled.iter().cloned()).is_subset(&HashSet::from_iter(dep_available_features.iter().cloned())) {
+                        return Err(DependencyError::InvalidDependencyFeature(dependency_config.name, dep_available_features.clone(), dep_features_enabled).into());
+                    }
+                } 
 
                 let lib_src_file_content =
                     fs::read_to_string(format!("{}\\src\\main.f", dependency_path.display()))
@@ -203,6 +212,7 @@ fn scan_dependency<'ctx>(
                     deps.clone(),
                     dependency_config.clone(),
                     current_module_path.clone(),
+                    OrdSet::wrap(IndexSet::from_iter(dep_features_enabled.iter().cloned())),
                 )?;
 
                 deps.insert(
