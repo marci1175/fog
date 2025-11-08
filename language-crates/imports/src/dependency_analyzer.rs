@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use fog_common::{anyhow, compiler::ProjectConfig, indexmap::IndexMap, parser::FunctionSignature, ty::OrdSet};
+use fog_common::{
+    anyhow, compiler::ProjectConfig, indexmap::IndexMap, parser::FunctionSignature, ty::OrdSet,
+};
 use fog_parser::{parser_instance::Parser, tokenizer::tokenize};
 
 pub fn analyze_dependency(

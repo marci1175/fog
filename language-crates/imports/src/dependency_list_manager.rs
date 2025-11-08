@@ -1,4 +1,9 @@
-use std::{collections::{HashMap, HashSet}, fs, path::PathBuf, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::PathBuf,
+    rc::Rc,
+};
 
 use fog_codegen::llvm_codegen;
 use fog_common::{
@@ -9,7 +14,8 @@ use fog_common::{
     indexmap::{IndexMap, IndexSet},
     inkwell::{builder::Builder, context::Context, module::Module},
     parser::FunctionSignature,
-    toml, ty::OrdSet,
+    toml,
+    ty::OrdSet,
 };
 
 use crate::dependency_analyzer::analyze_dependency;
@@ -160,10 +166,17 @@ fn scan_dependency<'ctx>(
 
                 if let Some(dep_available_features) = &dependency_config.features {
                     // If there are more features enabled than there is available throw an error about invalid features.
-                    if !HashSet::<String>::from_iter(dep_features_enabled.iter().cloned()).is_subset(&HashSet::from_iter(dep_available_features.iter().cloned())) {
-                        return Err(DependencyError::InvalidDependencyFeature(dependency_config.name, dep_available_features.clone(), dep_features_enabled).into());
+                    if !HashSet::<String>::from_iter(dep_features_enabled.iter().cloned())
+                        .is_subset(&HashSet::from_iter(dep_available_features.iter().cloned()))
+                    {
+                        return Err(DependencyError::InvalidDependencyFeature(
+                            dependency_config.name,
+                            dep_available_features.clone(),
+                            dep_features_enabled,
+                        )
+                        .into());
                     }
-                } 
+                }
 
                 let lib_src_file_content =
                     fs::read_to_string(format!("{}\\src\\main.f", dependency_path.display()))

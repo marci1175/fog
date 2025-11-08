@@ -5,12 +5,10 @@ use clap::Parser;
 use fog_common::{
     anyhow, clap,
     compiler::ProjectConfig,
-    error::{
-        application::ApplicationError, cliparser::CliParseError, codegen::CodeGenError,
-        linker::LinkerError,
-    },
+    error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError},
     linker::BuildManifest,
-    toml, ty::OrdSet,
+    toml,
+    ty::OrdSet,
 };
 use fog_compiler::CompilerState;
 use fog_linker::link;
@@ -27,7 +25,7 @@ pub struct CompilerArgs
 
 fn main() -> fog_common::anyhow::Result<()>
 {
-    let mut args = std::env::args();
+    let args = std::env::args();
 
     let current_working_dir = env::current_dir()?;
 
@@ -98,7 +96,8 @@ fn main() -> fog_common::anyhow::Result<()>
             let source_file = fs::read_to_string(format!("{}/src/main.f", path.display()))
                 .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
 
-            let compiler_state = CompilerState::new(compiler_config.clone(), path.clone(), OrdSet::new());
+            let compiler_state =
+                CompilerState::new(compiler_config.clone(), path.clone(), OrdSet::new());
 
             fs::create_dir_all(compiler_config.build_path)?;
 

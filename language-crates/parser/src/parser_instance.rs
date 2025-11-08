@@ -98,7 +98,12 @@ impl Parser
         Ok(())
     }
 
-    pub fn new(tokens: Vec<Token>, config: ProjectConfig, module_path: Vec<String>, enabled_features: OrdSet<String>) -> Self
+    pub fn new(
+        tokens: Vec<Token>,
+        config: ProjectConfig,
+        module_path: Vec<String>,
+        enabled_features: OrdSet<String>,
+    ) -> Self
     {
         Self {
             tokens,

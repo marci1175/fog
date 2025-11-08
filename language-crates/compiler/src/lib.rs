@@ -33,7 +33,11 @@ pub struct CompilerState
 
 impl CompilerState
 {
-    pub fn new(config: ProjectConfig, working_dir: PathBuf, enabled_features: OrdSet<String>) -> Self
+    pub fn new(
+        config: ProjectConfig,
+        working_dir: PathBuf,
+        enabled_features: OrdSet<String>,
+    ) -> Self
     {
         Self {
             config,
@@ -92,7 +96,12 @@ impl CompilerState
             cpu_features.clone(),
         )?;
 
-        let mut parser = Parser::new(tokens, self.config.clone(), vec![self.config.name.clone()], self.enabled_features.clone());
+        let mut parser = Parser::new(
+            tokens,
+            self.config.clone(),
+            vec![self.config.name.clone()],
+            self.enabled_features.clone(),
+        );
 
         parser.parse(dependency_fn_list)?;
 

@@ -303,8 +303,12 @@ pub fn create_signature_table(
                 );
 
                 // Create a new Parser state
-                let mut parser_state =
-                    Parser::new(tokens, ProjectConfig::default(), imported_file_mod_path, enabled_features.clone());
+                let mut parser_state = Parser::new(
+                    tokens,
+                    ProjectConfig::default(),
+                    imported_file_mod_path,
+                    enabled_features.clone(),
+                );
 
                 println!(
                     "Imported file from `{}`. Parsing source file...",
@@ -414,10 +418,15 @@ pub fn create_signature_table(
                 if *compiler_hint == CompilerHint::Feature {
                     token_idx += 1;
 
-                    if let Some(Token::Literal(Type::String(feature_name))) = tokens.get(token_idx) {
+                    if let Some(Token::Literal(Type::String(feature_name))) = tokens.get(token_idx)
+                    {
                         if let Some(available_features) = &project_config.features {
                             if !available_features.contains(&feature_name) {
-                                return Err(ParserError::InvalidFeatureRequirement(feature_name.clone(), available_features.clone()).into());
+                                return Err(ParserError::InvalidFeatureRequirement(
+                                    feature_name.clone(),
+                                    available_features.clone(),
+                                )
+                                .into());
                             }
                         }
                         function_enabling_feature.insert(feature_name.clone());

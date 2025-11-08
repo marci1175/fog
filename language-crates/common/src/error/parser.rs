@@ -73,6 +73,8 @@ pub enum ParserError
     )]
     InvalidFunctionFeature(Option<Token>),
 
-    #[error("Function requires feature `{0}` to be enabled but project only has features `{1:?}` enabled.")]
+    #[error(
+        "Function requires feature `{0}` to be enabled but project only has features `{1:?}` enabled."
+    )]
     InvalidFeatureRequirement(String, Vec<String>),
 }
