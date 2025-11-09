@@ -20,7 +20,7 @@ pub enum SyntaxError
     #[error(r#"An open '"' has been left in the code."#)]
     OpenQuotes,
     #[error("The code contains a missing `;`.")]
-    MissingLineBreak,
+    MissingSemiColon,
     #[error("The code contains generic syntax error, like an invalid signature of a statement.")]
     InvalidStatementDefinition,
     #[error("The code contains an invalid function definition.")]

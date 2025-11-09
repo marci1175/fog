@@ -37,7 +37,7 @@ pub fn create_dependency_functions_list<'ctx>(
 {
     let mut deps = HashMap::new();
 
-    let mut module_path = vec![root_module.get_name().to_string_lossy().to_string()];
+    let mut module_path = vec![];
 
     let dir_entries = fs::read_dir(deps_path)?;
 

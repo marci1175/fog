@@ -205,8 +205,8 @@ pub fn create_signature_table(
         else if current_token == Token::Function {
             return Err(ParserError::FunctionRequiresExplicitVisibility.into());
         }
-        else if current_token == Token::Import {
-            if let Token::Identifier(identifier) = tokens[token_idx + 1].clone() {
+        else if current_token == Token::External {
+            if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned() {
                 if tokens[token_idx + 2] == Token::OpenParentheses {
                     let (bracket_close_idx, args) =
                         parse_signature_argument_tokens(&tokens[token_idx + 3..])?;
@@ -245,26 +245,33 @@ pub fn create_signature_table(
                         return Err(SyntaxError::ImportUnspecifiedReturnType.into());
                     }
                 }
-                // This is matched when you are importing a named declaration from another fog source file
-                else if Token::DoubleColon == tokens[token_idx + 2]
-                    && let Token::Identifier(lib_function_name) = &tokens[token_idx + 3]
-                {
-                    let imported_file_query = imported_file_list.get(&identifier);
+                // // This is matched when you are importing a named declaration from another fog source file
+                // else if Token::DoubleColon == tokens[token_idx + 2]
+                //     && let Token::Identifier(lib_function_name) = &tokens[token_idx + 3]
+                // {
+                //     let imported_file_query = imported_file_list.get(&identifier);
 
-                    if Token::SemiColon == tokens[token_idx + 4]
-                        && let Some(imported_file) = imported_file_query
-                        && let Some(function_def) = imported_file.get(lib_function_name)
-                    {
-                        // Store the imported function
-                        source_imports.insert(lib_function_name.clone(), function_def.clone());
+                //     if Token::SemiColon == tokens[token_idx + 4]
+                //         && let Some(imported_file) = imported_file_query
+                //         && let Some(function_def) = imported_file.get(lib_function_name)
+                //     {
+                //         // Store the imported function
+                //         source_imports.insert(lib_function_name.clone(), function_def.clone());
 
-                        // Increment token index
-                        token_idx += 4;
+                //         // Increment token index
+                //         token_idx += 4;
 
-                        // Continue looping over the top-level tokens
-                        continue;
-                    }
-                }
+                //         // Continue looping over the top-level tokens
+                //         continue;
+                //     }
+                // }
+            }
+        }
+        else if current_token == Token::Import {
+            if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1) {
+                let import_path = parse_import_path(&tokens[token_idx..]);
+
+                
             }
             else if let Token::Literal(Type::String(path_to_linked_file)) =
                 tokens[token_idx + 1].clone()
@@ -538,7 +545,7 @@ pub fn parse_function_block(
                             .iter()
                             .skip(token_idx + 2)
                             .position(|token| *token == Token::SemiColon)
-                            .ok_or(ParserError::SyntaxError(SyntaxError::MissingLineBreak))?
+                            .ok_or(ParserError::SyntaxError(SyntaxError::MissingSemiColon))?
                             + token_idx
                             + 2;
 
@@ -582,7 +589,7 @@ pub fn parse_function_block(
                         continue;
                     }
                     else {
-                        return Err(ParserError::SyntaxError(SyntaxError::MissingLineBreak).into());
+                        return Err(ParserError::SyntaxError(SyntaxError::MissingSemiColon).into());
                     }
                 }
                 else {
@@ -685,7 +692,7 @@ pub fn parse_function_block(
                                     .skip(token_idx)
                                     .position(|token| *token == Token::SemiColon)
                                     .ok_or({
-                                        ParserError::SyntaxError(SyntaxError::MissingLineBreak)
+                                        ParserError::SyntaxError(SyntaxError::MissingSemiColon)
                                     })?
                                     + token_idx;
 
@@ -1066,4 +1073,37 @@ pub fn parse_function_call_args(
     }
 
     Ok((arguments, tokens_idx))
+}
+
+/// Make sure to pass in a slice of the tokens in which the first token is an `Token::Identifier`.
+pub fn parse_import_path(tokens: &[Token]) -> Result<Vec<String>> {
+    let mut import_path = vec![];
+    let mut idx = 0;
+
+    while idx < tokens.len() {
+        // Check if the module definition path contains the correct tokens
+        if let Some(Token::Identifier(module_name)) = tokens.get(idx) {
+            import_path.push(module_name.clone());
+        }
+        else {
+            return Err(ParserError::InvalidModulePathDefinition(tokens.get(idx).unwrap().clone()).into());
+        }
+        
+        // Check if there is another double colon, that means that the module path is not fully definied yet.
+        if let Some(Token::DoubleColon) = tokens.get(idx + 1) {
+            idx += 1;
+        }
+        // If there are no more double colons after the identifier, that is the last item in the path list.
+        // That will be the item's name at the specified module path.
+        else if let Some(Token::SemiColon) = tokens.get(idx + 1) {
+            break;
+        }
+        // Return a missing semi colon error
+        else {
+            return Err(SyntaxError::MissingSemiColon.into());
+        }
+    }
+
+
+    Ok(import_path)
 }

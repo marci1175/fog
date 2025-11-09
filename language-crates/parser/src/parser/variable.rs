@@ -621,7 +621,7 @@ pub fn parse_variable_expression(
                 .iter()
                 .skip(*token_idx)
                 .position(|token| *token == Token::SemiColon)
-                .ok_or(ParserError::SyntaxError(SyntaxError::MissingLineBreak))?
+                .ok_or(ParserError::SyntaxError(SyntaxError::MissingSemiColon))?
                 + *token_idx;
 
             let selected_tokens = &tokens[*token_idx + 1..line_break_idx];
@@ -783,7 +783,7 @@ pub fn parse_variable_expression(
                 *token_idx += idx;
             }
             else {
-                return Err(ParserError::SyntaxError(SyntaxError::MissingLineBreak).into());
+                return Err(ParserError::SyntaxError(SyntaxError::MissingSemiColon).into());
             }
         },
         Token::OpenSquareBrackets => {

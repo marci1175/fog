@@ -2524,7 +2524,6 @@ pub fn generate_ir<'ctx>(
     builder: &'ctx Builder<'ctx>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     is_optimized: bool,
-    features_enabled: &OrdSet<String>,
     flags_passed_in: &str,
     path_to_src_file: &str,
 ) -> Result<()>
@@ -2567,24 +2566,6 @@ pub fn generate_ir<'ctx>(
     let mut unique_id_source = 0;
 
     for (function_name, function_definition) in parsed_functions.iter() {
-        // Check if this is enabled with the enabled features.
-        // If the function has no feature requirements then it is automaticly included.
-        // We dont have to check for function name overlap here anymore.
-        let is_joint = !function_definition
-            .function_sig
-            .enabling_features
-            .is_disjoint(&features_enabled);
-
-        // if !is_joint
-        //     || (!is_joint
-        //         && !function_definition
-        //             .function_sig
-        //             .enabling_features
-        //             .is_empty())
-        // {
-        //     continue;
-        // }
-
         let function_type = create_fn_type_from_ty_disc(
             context,
             function_definition.function_sig.clone(),

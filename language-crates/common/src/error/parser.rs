@@ -77,4 +77,6 @@ pub enum ParserError
         "Function requires feature `{0}` to be enabled but project only has features `{1:?}` enabled."
     )]
     InvalidFeatureRequirement(String, Vec<String>),
+    #[error("Module path contains an invalid token: `{0}`.")]
+    InvalidModulePathDefinition(Token),
 }
