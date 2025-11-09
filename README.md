@@ -18,9 +18,9 @@
 | FFI support | Partially Supported ⚠️ |
 | Structs, custom types | Partially Supported ⚠️ |
 | Debug information in binaries | Partially Supported ⚠️ |
-| Function Generics | In Progress ❌ |
+| Function Generics | Planned 🔵 |
 | Dynamic memory allocation | Planned 🔵 |
-| Asnyc support | Planned 🔵 |
+| Async support | Planned 🔵 |
 
 **Documentation is available [here](https://marci1175.github.io/fog/book/).**
 
