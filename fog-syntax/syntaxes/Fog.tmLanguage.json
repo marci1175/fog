@@ -104,7 +104,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control",
-				"match": "\\b(import|if|else|elseif|while|for|return|loop|break|continue)\\b"
+				"match": "\\b(import|if|else|elseif|while|for|return|loop|break|continue|external)\\b"
 			}]
 		},
 		"function_names": {

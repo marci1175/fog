@@ -11,7 +11,7 @@ Navigate to: `%project-name%/src/main.f`
 And enter the code:
 
 ```fog
-import puts(msg: string): int;
+external puts(msg: string): int;
 
 function main(): int {
     puts("Hello World!");

@@ -206,9 +206,6 @@ pub fn create_signature_table(
             return Err(ParserError::FunctionRequiresExplicitVisibility.into());
         }
         else if current_token == Token::External {
-            if let Some(Token::Import) = tokens.get(token_idx + 1) {
-                token_idx += 1;
-
                 if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned() {
                     if tokens[token_idx + 2] == Token::OpenParentheses {
                         let (bracket_close_idx, args) =
@@ -267,7 +264,6 @@ pub fn create_signature_table(
                     //     }
                     // }
                 }
-            }
         }
         else if current_token == Token::Import {
             if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1) {

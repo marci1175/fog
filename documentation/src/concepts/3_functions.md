@@ -40,26 +40,40 @@ pub function name_2(arg1: int, arg2: float): int {
 
 ## Importing Functions
 
-We can import functions from other source files or from libc. To import functions, we can use the `import` keyword.
+We can import functions from other source files or from libc.
+
+- To import functions from pre-compiler libraries, we can use the `external` keyword.
+- When importing functions from dependencies or from other fog source files we can import the item via defining the the module path.
+- We can import source files by manually defining their paths on the host system.
 
 **Here is how to import both types of functions:**
 
 ```fog
-//other.f
+// -- other.f --
 pub function return_2(): int {
     return 2;
 } 
 
 // main.f
 import "other.f";
-// You can also import source files from different paths like
-// import "foo/bar/faz/test.f";
-// import test::some_fn;
-import printf(msg: string, ...): void;
+
+// Import with a fully defined path
+import "foo/bar/faz/test.f";
+
+// Importing from a precompiled library (libc in this case)
+external printf(msg: string, ...): void;
+
+// Importing from a source file
 import other::return_2;
+
+// Importing from a dependency
+import foo::bar::baz::hello;
 
 pub function main(): int {
     int num = return_2();
+
+    // Greet the user
+    hello();
 
     printf("Returned number: %i", num);
 
