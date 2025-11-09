@@ -1,5 +1,4 @@
-import printf(a: string, ...): int;
-import kedvenc(): void;
+import dep1::kedvencek::hello::kedvenc;
 
 pub function main(): int {
     kedvenc();

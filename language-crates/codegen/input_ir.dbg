@@ -5,14 +5,16 @@
             FunctionSignature {
                 args: FunctionArguments {
                     arguments_list: OrdMap(
-                        {},
+                        {
+                            "input": String,
+                        },
                     ),
-                    ellipsis_present: false,
+                    ellipsis_present: true,
                 },
-                return_type: Void,
+                return_type: I32,
                 debug_attributes: None,
                 module_path: [
-                    "test_project",
+                    "dep1",
                 ],
                 visibility: Private,
                 compiler_hints: OrdSet(
@@ -22,17 +24,21 @@
                     {},
                 ),
             },
-            "kedvenc",
+            "printf",
         ),
         OrdMap(
-            {},
-        ),
-    ),
-    ReturnValue(
-        Literal(
-            I32(
-                0,
-            ),
+            {
+                Identifier(
+                    "input",
+                ): (
+                    Literal(
+                        String(
+                            "Alma",
+                        ),
+                    ),
+                    String,
+                ),
+            },
         ),
     ),
 ]

@@ -206,72 +206,78 @@ pub fn create_signature_table(
             return Err(ParserError::FunctionRequiresExplicitVisibility.into());
         }
         else if current_token == Token::External {
-            if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned() {
-                if tokens[token_idx + 2] == Token::OpenParentheses {
-                    let (bracket_close_idx, args) =
-                        parse_signature_argument_tokens(&tokens[token_idx + 3..])?;
+            if let Some(Token::Import) = tokens.get(token_idx + 1) {
+                token_idx += 1;
 
-                    token_idx += bracket_close_idx + 3;
+                if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned() {
+                    if tokens[token_idx + 2] == Token::OpenParentheses {
+                        let (bracket_close_idx, args) =
+                            parse_signature_argument_tokens(&tokens[token_idx + 3..])?;
 
-                    if tokens[token_idx + 1] == Token::Colon {
-                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone()
-                            && tokens[token_idx + 3] == Token::SemiColon
-                        {
-                            if external_imports.get(&identifier).is_some()
-                                || function_list.get(&identifier).is_some()
+                        token_idx += bracket_close_idx + 3;
+
+                        if tokens[token_idx + 1] == Token::Colon {
+                            if let Token::TypeDefinition(return_type) =
+                                tokens[token_idx + 2].clone()
+                                && tokens[token_idx + 3] == Token::SemiColon
                             {
-                                return Err(ParserError::DuplicateSignatureImports.into());
+                                if external_imports.get(&identifier).is_some()
+                                    || function_list.get(&identifier).is_some()
+                                {
+                                    return Err(ParserError::DuplicateSignatureImports.into());
+                                }
+
+                                external_imports.insert(
+                                    identifier,
+                                    FunctionSignature {
+                                        args,
+                                        return_type,
+                                        debug_attributes: None,
+                                        module_path: module_path.clone(),
+                                        // Imported functions can only be accessed at the source file they were imported at
+                                        // I might change this later to smth like pub import similar to pub mod in rust
+                                        visibility: fog_common::parser::FunctionVisibility::Private,
+                                        compiler_hints: OrdSet::new(),
+                                        enabling_features: OrdSet::new(),
+                                    },
+                                );
+
+                                continue;
                             }
-
-                            external_imports.insert(
-                                identifier,
-                                FunctionSignature {
-                                    args,
-                                    return_type,
-                                    debug_attributes: None,
-                                    module_path: module_path.clone(),
-                                    // Imported functions can only be accessed at the source file they were imported at
-                                    // I might change this later to smth like pub import similar to pub mod in rust
-                                    visibility: fog_common::parser::FunctionVisibility::Private,
-                                    compiler_hints: OrdSet::new(),
-                                    enabling_features: OrdSet::new(),
-                                },
-                            );
-
-                            continue;
+                        }
+                        else {
+                            return Err(SyntaxError::ImportUnspecifiedReturnType.into());
                         }
                     }
-                    else {
-                        return Err(SyntaxError::ImportUnspecifiedReturnType.into());
-                    }
+                    // // This is matched when you are importing a named declaration from another fog source file
+                    // else if Token::DoubleColon == tokens[token_idx + 2]
+                    //     && let Token::Identifier(lib_function_name) = &tokens[token_idx + 3]
+                    // {
+                    //     let imported_file_query = imported_file_list.get(&identifier);
+                    //     if Token::SemiColon == tokens[token_idx + 4]
+                    //         && let Some(imported_file) = imported_file_query
+                    //         && let Some(function_def) = imported_file.get(lib_function_name)
+                    //     {
+                    //         // Store the imported function
+                    //         source_imports.insert(lib_function_name.clone(), function_def.clone());
+                    //         // Increment token index
+                    //         token_idx += 4;
+                    //         // Continue looping over the top-level tokens
+                    //         continue;
+                    //     }
+                    // }
                 }
-                // // This is matched when you are importing a named declaration from another fog source file
-                // else if Token::DoubleColon == tokens[token_idx + 2]
-                //     && let Token::Identifier(lib_function_name) = &tokens[token_idx + 3]
-                // {
-                //     let imported_file_query = imported_file_list.get(&identifier);
-
-                //     if Token::SemiColon == tokens[token_idx + 4]
-                //         && let Some(imported_file) = imported_file_query
-                //         && let Some(function_def) = imported_file.get(lib_function_name)
-                //     {
-                //         // Store the imported function
-                //         source_imports.insert(lib_function_name.clone(), function_def.clone());
-
-                //         // Increment token index
-                //         token_idx += 4;
-
-                //         // Continue looping over the top-level tokens
-                //         continue;
-                //     }
-                // }
             }
         }
         else if current_token == Token::Import {
             if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1) {
-                let import_path = parse_import_path(&tokens[token_idx..]);
+                let (import_path, idx) = parse_import_path(&tokens[token_idx + 1..])?;
 
-                
+                token_idx += idx + 1;
+
+                dbg!(&import_path);
+
+                continue;
             }
             else if let Token::Literal(Type::String(path_to_linked_file)) =
                 tokens[token_idx + 1].clone()
@@ -1076,7 +1082,8 @@ pub fn parse_function_call_args(
 }
 
 /// Make sure to pass in a slice of the tokens in which the first token is an `Token::Identifier`.
-pub fn parse_import_path(tokens: &[Token]) -> Result<Vec<String>> {
+pub fn parse_import_path(tokens: &[Token]) -> Result<(Vec<String>, usize)>
+{
     let mut import_path = vec![];
     let mut idx = 0;
 
@@ -1086,12 +1093,14 @@ pub fn parse_import_path(tokens: &[Token]) -> Result<Vec<String>> {
             import_path.push(module_name.clone());
         }
         else {
-            return Err(ParserError::InvalidModulePathDefinition(tokens.get(idx).unwrap().clone()).into());
+            return Err(
+                ParserError::InvalidModulePathDefinition(tokens.get(idx).unwrap().clone()).into(),
+            );
         }
-        
+
         // Check if there is another double colon, that means that the module path is not fully definied yet.
         if let Some(Token::DoubleColon) = tokens.get(idx + 1) {
-            idx += 1;
+            idx += 2;
         }
         // If there are no more double colons after the identifier, that is the last item in the path list.
         // That will be the item's name at the specified module path.
@@ -1104,6 +1113,5 @@ pub fn parse_import_path(tokens: &[Token]) -> Result<Vec<String>> {
         }
     }
 
-
-    Ok(import_path)
+    Ok((import_path, idx))
 }

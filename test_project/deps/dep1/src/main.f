@@ -1,4 +1,4 @@
-import printf(input: string, ...): int;
+external import printf(input: string, ...): int;
 
 @feature "alma"
 pub function kedvenc(): void {
