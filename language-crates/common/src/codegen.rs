@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::{
+    DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{FunctionSignature, ParsedToken},
     tokenizer::Token,
@@ -192,7 +193,7 @@ pub fn ty_to_llvm_ty<'a>(
     let f32_type = ctx.f32_type();
     let i64_type = ctx.i64_type();
     let f64_type = ctx.f64_type();
-    let ptr_type = ctx.ptr_type(AddressSpace::default());
+    let ptr_type = ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
 
     // Pattern match the type
     let field_ty = match ty {
@@ -245,6 +246,7 @@ pub fn ty_to_llvm_ty<'a>(
 
             inkwell::types::BasicTypeEnum::ArrayType(array_ty)
         },
+        TypeDiscriminant::Pointer => BasicTypeEnum::PointerType(ptr_type),
     };
 
     Ok(field_ty)

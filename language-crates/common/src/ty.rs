@@ -10,12 +10,14 @@ use inkwell::{
     AddressSpace,
     context::Context,
     types::{BasicType, BasicTypeEnum},
+    values::PointerValue,
 };
 use num::Float;
 use strum::EnumTryAs;
 use strum_macros::Display;
 
 use crate::{
+    DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     codegen::{CustomType, struct_field_to_ty_list},
     error::parser::ParserError,
     tokenizer::Token,
@@ -45,7 +47,12 @@ pub enum Type
     Void,
 
     Struct((String, OrdMap<String, Type>)),
+
+    /// First item is the type of the array
+    /// Second item is the length
     Array((Box<Token>, usize)),
+
+    Pointer(usize),
 }
 
 #[derive(Debug, Clone)]
@@ -192,6 +199,7 @@ impl Type
                 TypeDiscriminant::Struct((struct_name.clone(), struct_field_ty_list))
             },
             Type::Array(inner) => TypeDiscriminant::Array(inner.clone()),
+            Type::Pointer(_) => TypeDiscriminant::Pointer,
         }
     }
 }
@@ -221,7 +229,7 @@ pub enum TypeDiscriminant
 
     Struct((String, OrdMap<String, TypeDiscriminant>)),
     Array((Box<Token>, usize)),
-    // Pointer,
+    Pointer,
 }
 
 impl TypeDiscriminant
@@ -281,6 +289,7 @@ impl TypeDiscriminant
                     .unwrap()
                     .sizeof(custom_types.clone())
             },
+            Self::Pointer => std::mem::size_of::<usize>(),
         }
     }
 
@@ -302,7 +311,9 @@ impl TypeDiscriminant
             TypeDiscriminant::U16 => BasicTypeEnum::IntType(ctx.i16_type()),
             TypeDiscriminant::U8 => BasicTypeEnum::IntType(ctx.i8_type()),
             TypeDiscriminant::String => {
-                BasicTypeEnum::PointerType(ctx.ptr_type(AddressSpace::default()))
+                BasicTypeEnum::PointerType(
+                    ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE)),
+                )
             },
             TypeDiscriminant::Boolean => BasicTypeEnum::IntType(ctx.bool_type()),
             TypeDiscriminant::Void => unimplemented!("A BasicTypeEnum cannot be a `Void` type."),
@@ -317,6 +328,11 @@ impl TypeDiscriminant
                     token_to_ty(*array_ty, custom_types.clone())?
                         .to_basic_type_enum(ctx, custom_types.clone())?
                         .array_type(len as u32),
+                )
+            },
+            TypeDiscriminant::Pointer => {
+                BasicTypeEnum::PointerType(
+                    ctx.ptr_type(AddressSpace::from(size_of::<usize>() as u16)),
                 )
             },
         };
@@ -346,7 +362,8 @@ impl From<TypeDiscriminant> for Type
             TypeDiscriminant::Struct(_) => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
-            TypeDiscriminant::Array(_) => todo!(),
+            TypeDiscriminant::Array(array) => Self::Array(array),
+            TypeDiscriminant::Pointer => Self::Pointer(0),
         }
     }
 }
@@ -373,6 +390,7 @@ impl Display for TypeDiscriminant
             TypeDiscriminant::Array((inner_ty, len)) => {
                 format!("Array(ty: {inner_ty}, len:{len})")
             },
+            TypeDiscriminant::Pointer => "Ptr".to_string(),
         })
     }
 }
@@ -500,6 +518,17 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                     raw_string,
                     TypeDiscriminant::Array(inner),
                 ));
+            },
+            TypeDiscriminant::Pointer => {
+                if parsed_num.floor() != parsed_num {
+                    return Err(ParserError::InvalidTypeCast(
+                        parsed_num.to_string(),
+                        TypeDiscriminant::I16,
+                    ));
+                }
+                else {
+                    Type::Pointer(parsed_num as usize)
+                }
             },
         }
     }

@@ -1,4 +1,5 @@
 use fog_common::{
+    DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     anyhow::Result,
     codegen::{CustomType, LoopBodyBlocks, ty_to_llvm_ty},
     error::codegen::CodeGenError,
@@ -259,6 +260,7 @@ pub fn set_value_of_ptr<'ctx>(
     let i64_type = ctx.i64_type();
     let i16_type = ctx.i16_type();
     let f16_type = ctx.f16_type();
+    let ptr_type = ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
 
     match value {
         Type::I64(inner) => {
@@ -341,8 +343,11 @@ pub fn set_value_of_ptr<'ctx>(
                 global_string
             }
             else {
-                let handle =
-                    module.add_global(char_array.get_type(), Some(AddressSpace::default()), &inner);
+                let handle = module.add_global(
+                    char_array.get_type(),
+                    Some(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE)),
+                    &inner,
+                );
 
                 handle.set_initializer(&char_array);
                 handle.set_constant(true);
@@ -378,6 +383,19 @@ pub fn set_value_of_ptr<'ctx>(
             unreachable!()
         },
         Type::Array(inner_ty) => unimplemented!(),
+        Type::Pointer(inner) => {
+            let init_ptr = {
+                #[cfg(target_pointer_width = "64")]
+                {
+                    i64_type.const_int(inner as u64, false)
+                }
+
+                #[cfg(target_pointer_width = "32")]
+                {
+                    i32_type.const_int(inner as u32, false)
+                }
+            };
+        },
     }
 
     Ok(())

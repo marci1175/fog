@@ -1,4 +1,5 @@
 use fog_common::{
+    DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     anyhow::Result,
     codegen::{CustomType, struct_field_to_ty_list, ty_enum_to_metadata_ty_enum},
     indexmap::IndexMap,
@@ -57,7 +58,8 @@ pub fn import_user_lib_functions<'a>(
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
             TypeDiscriminant::String => {
-                let return_type = ctx.ptr_type(AddressSpace::default());
+                let return_type =
+                    ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
@@ -110,6 +112,12 @@ pub fn import_user_lib_functions<'a>(
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
             TypeDiscriminant::Array(_) => todo!(),
+            TypeDiscriminant::Pointer => {
+                let return_type =
+                    ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
+
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
+            },
         };
 
         module.add_function(import_name, function_type, None);

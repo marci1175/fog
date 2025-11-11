@@ -655,6 +655,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
+                            TypeDiscriminant::Pointer => todo!(),
                         }
                     },
                     TypeDiscriminant::F64 | TypeDiscriminant::F32 | TypeDiscriminant::F16 => {
@@ -800,6 +801,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
+                            TypeDiscriminant::Pointer => todo!(),
                         }
                     },
                     TypeDiscriminant::U64
@@ -970,6 +972,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
+                            TypeDiscriminant::Pointer => todo!(),
                         }
                     },
                     TypeDiscriminant::String => {
@@ -993,6 +996,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
+                            TypeDiscriminant::Pointer => todo!(),
                         }
                     },
                     TypeDiscriminant::Boolean => {
@@ -1173,6 +1177,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
+                            TypeDiscriminant::Pointer => todo!(),
                         }
                     },
                     TypeDiscriminant::Void => {
@@ -1196,6 +1201,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
+                            TypeDiscriminant::Pointer => todo!(),
                         }
                     },
                     TypeDiscriminant::Struct(_) => {
@@ -1219,6 +1225,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
+                            TypeDiscriminant::Pointer => todo!(),
                         }
                     },
                     TypeDiscriminant::Array(ref type_discriminant) => {
@@ -1244,8 +1251,10 @@ where
                                 )
                                 .into());
                             },
+                            TypeDiscriminant::Pointer => todo!(),
                         }
                     },
+                    TypeDiscriminant::Pointer => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1744,6 +1753,11 @@ where
 
                         builder.build_store(v_ptr, returned_struct)?;
                     },
+                    TypeDiscriminant::Pointer => {
+                        let returned_struct = returned.into_struct_value();
+
+                        builder.build_store(v_ptr, returned_struct)?;
+                    },
                 };
 
                 if let Some((variable_name, (var_ptr, _), ty_disc)) = variable_reference {
@@ -2208,6 +2222,7 @@ where
                     unimplemented!()
                 },
                 TypeDiscriminant::Array(type_discriminant) => unimplemented!(),
+                TypeDiscriminant::Pointer => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
