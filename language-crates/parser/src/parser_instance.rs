@@ -11,26 +11,17 @@ use fog_common::{
     ty::OrdSet,
 };
 
-use crate::parser::function::{create_signature_table, parse_functions};
-
 #[derive(Debug, Clone)]
 pub struct Parser
 {
-    tokens: Vec<Token>,
-
-    function_table: IndexMap<String, FunctionDefinition>,
-
-    library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
-
-    custom_types: Arc<IndexMap<String, CustomType>>,
-
-    imported_functions: Arc<HashMap<String, FunctionSignature>>,
-
-    config: ProjectConfig,
-
-    enabled_features: OrdSet<String>,
-
-    module_path: Vec<String>,
+    pub tokens: Vec<Token>,
+    pub function_table: IndexMap<String, FunctionDefinition>,
+    pub library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
+    pub custom_types: Arc<IndexMap<String, CustomType>>,
+    pub imported_functions: Arc<HashMap<String, FunctionSignature>>,
+    pub config: ProjectConfig,
+    pub enabled_features: OrdSet<String>,
+    pub module_path: Vec<String>,
 }
 
 impl Parser
@@ -39,28 +30,40 @@ impl Parser
     {
         // Create user defined signature table
         // Create an import table which can be used later by other functions
-        let (unparsed_functions, dep_imports, mut imports, custom_types) = create_signature_table(
-            self.tokens.clone(),
-            self.module_path.clone(),
-            self.enabled_features.clone(),
-            self.config.clone(),
-        )?;
+        let (
+            unparsed_functions,
+            dep_imports,
+            mut external_imports,
+            custom_types,
+            file_imported_functions,
+        ) = self.create_signature_table(&dep_fn_list)?;
 
         let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
 
         // Only import the functions which have been specifically imported by the user too
         for import in dep_imports.iter() {
-            if let Some(imported_fn_sig) = dep_fn_list.get(import) {
-                if let Some(reimported_function) =
-                    imports.insert(imported_fn_sig.name.clone(), imported_fn_sig.clone())
-                {
-                    return Err(
-                        ParserError::DuplicateSignatureImports(reimported_function.name).into(),
-                    );
-                }
+            let import_result = if let Some(imported_fn_sig) = dep_fn_list.get(import) {
+                external_imports.insert(imported_fn_sig.name.clone(), imported_fn_sig.clone())
+            }
+            else if let Some(file_imported_fn) = file_imported_functions.get(import) {
+                self.function_table.insert(
+                    file_imported_fn.function_sig.name.clone(),
+                    file_imported_fn.clone(),
+                );
+
+                external_imports.insert(
+                    file_imported_fn.function_sig.name.clone(),
+                    file_imported_fn.function_sig.clone(),
+                )
             }
             else {
                 return Err(ParserError::FunctionDependencyNotFound(import.clone()).into());
+            };
+
+            if let Some(reimported_function) = import_result {
+                return Err(
+                    ParserError::DuplicateSignatureImports(reimported_function.name).into(),
+                );
             }
         }
 
@@ -71,7 +74,7 @@ impl Parser
         //         .map(|(fn_name, fn_def)| (fn_name.clone(), fn_def.function_sig.clone())),
         // );
 
-        let imports = Arc::new(imports);
+        let imports = Arc::new(external_imports);
 
         // Copy the the HashMap to this field
         self.imported_functions = imports.clone();
@@ -82,7 +85,7 @@ impl Parser
                 .filter(|(_fn_name, unparsed_fn)| {
                     unparsed_fn.function_sig.visibility == FunctionVisibility::PublicLibrary
                 })
-                .map(|(fn_name, unparsed_fn)| {
+                .map(|(_fn_name, unparsed_fn)| {
                     (
                         unparsed_fn.function_sig.module_path.clone(),
                         unparsed_fn.function_sig.clone(),
@@ -91,13 +94,11 @@ impl Parser
         );
 
         // Set the function table field of this struct
-        self.function_table = parse_functions(
-            self.config.clone(),
+        self.function_table.extend(self.parse_functions(
             Arc::new(unparsed_functions),
             imports.clone(),
             custom_types.clone(),
-            self.module_path.clone(),
-        )?;
+        )?);
 
         self.custom_types = custom_types.clone();
 

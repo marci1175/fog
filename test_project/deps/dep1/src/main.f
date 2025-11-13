@@ -9,3 +9,7 @@ libpub function kedvenc(): void {
 libpub function kedvenc(): void {
     printf("Marci");
 }
+
+libpub function printn(x: int): int {
+    return printf("%i", x);
+}

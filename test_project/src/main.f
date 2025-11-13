@@ -1,8 +1,12 @@
-import dep1::kedvenc;
+import "masikmain.f";
+
+import dep1::printn;
+import masikmain::marci;
+
 external printf(a: string, ...): int;
 
 pub function main(): int {
-    kedvenc();
-    
+    printn(marci());
+
     return 0;
 }

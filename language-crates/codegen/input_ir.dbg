@@ -3,33 +3,67 @@
     FunctionCall(
         (
             FunctionSignature {
-                name: "kedvenc",
+                name: "printn",
                 args: FunctionArguments {
                     arguments_list: OrdMap(
-                        {},
+                        {
+                            "x": I32,
+                        },
                     ),
                     ellipsis_present: false,
                 },
-                return_type: Void,
-                debug_attributes: None,
+                return_type: I32,
                 module_path: [
                     "dep1",
-                    "kedvenc",
+                    "printn",
                 ],
                 visibility: PublicLibrary,
                 compiler_hints: OrdSet(
                     {},
                 ),
                 enabling_features: OrdSet(
-                    {
-                        "alma",
-                    },
+                    {},
                 ),
             },
-            "kedvenc",
+            "printn",
         ),
         OrdMap(
-            {},
+            {
+                Identifier(
+                    "x",
+                ): (
+                    FunctionCall(
+                        (
+                            FunctionSignature {
+                                name: "marci",
+                                args: FunctionArguments {
+                                    arguments_list: OrdMap(
+                                        {},
+                                    ),
+                                    ellipsis_present: false,
+                                },
+                                return_type: I32,
+                                module_path: [
+                                    "masikmain",
+                                    "marci",
+                                ],
+                                visibility: Public,
+                                compiler_hints: OrdSet(
+                                    {},
+                                ),
+                                enabling_features: OrdSet(
+                                    {},
+                                ),
+                            },
+                            "marci",
+                        ),
+                        OrdMap(
+                            {},
+                        ),
+                    ),
+                    I32,
+                ),
+            },
         ),
     ),
     ReturnValue(
