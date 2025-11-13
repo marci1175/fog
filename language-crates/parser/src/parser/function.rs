@@ -44,7 +44,7 @@ pub fn create_signature_table(
 
     let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
     let mut dependency_imports: HashSet<Vec<String>> = HashSet::new();
-    
+
     let mut imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> =
         HashMap::new();
 
@@ -155,7 +155,7 @@ pub fn create_signature_table(
                                 {
                                     // Create a clone of the module path so we can modifiy it locally
                                     let mut mod_path = module_path.clone();
-                                    
+
                                     // Store the function name in the module path
                                     mod_path.push(function_name.clone());
 
@@ -227,12 +227,14 @@ pub fn create_signature_table(
                             if external_imports.get(&identifier).is_some()
                                 || function_list.get(&identifier).is_some()
                             {
-                                return Err(ParserError::DuplicateSignatureImports(identifier).into());
+                                return Err(
+                                    ParserError::DuplicateSignatureImports(identifier).into()
+                                );
                             }
-                            
+
                             // Create a clone of the module path so we can modifiy it locally
                             let mut mod_path = module_path.clone();
-                            
+
                             // Store the function name in the module path
                             mod_path.push(identifier.clone());
 
@@ -890,7 +892,7 @@ pub fn parse_function_block(
                         loop_body_tokens.to_vec(),
                         function_signatures.clone(),
                         FunctionSignature {
-                                name: String::new(),
+                            name: String::new(),
                             args: FunctionArguments::new(),
                             return_type: TypeDiscriminant::Void,
                             debug_attributes: None,

@@ -1,7 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fog_common::{
-    anyhow::Result, codegen::CustomType, compiler::ProjectConfig, error::parser::ParserError, indexmap::IndexMap, parser::{FunctionDefinition, FunctionSignature, FunctionVisibility}, tokenizer::Token, ty::OrdSet
+    anyhow::Result,
+    codegen::CustomType,
+    compiler::ProjectConfig,
+    error::parser::ParserError,
+    indexmap::IndexMap,
+    parser::{FunctionDefinition, FunctionSignature, FunctionVisibility},
+    tokenizer::Token,
+    ty::OrdSet,
 };
 
 use crate::parser::function::{create_signature_table, parse_functions};
@@ -28,28 +35,28 @@ pub struct Parser
 
 impl Parser
 {
-    pub fn parse(
-        &mut self,
-        dep_fn_list: IndexMap<Vec<String>, FunctionSignature>,
-    ) -> Result<()>
+    pub fn parse(&mut self, dep_fn_list: IndexMap<Vec<String>, FunctionSignature>) -> Result<()>
     {
         // Create user defined signature table
         // Create an import table which can be used later by other functions
-        let (unparsed_functions, dep_imports, mut imports, custom_types) =
-            create_signature_table(
-                self.tokens.clone(),
-                self.module_path.clone(),
-                self.enabled_features.clone(),
-                self.config.clone(),
-            )?;
+        let (unparsed_functions, dep_imports, mut imports, custom_types) = create_signature_table(
+            self.tokens.clone(),
+            self.module_path.clone(),
+            self.enabled_features.clone(),
+            self.config.clone(),
+        )?;
 
         let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
 
         // Only import the functions which have been specifically imported by the user too
         for import in dep_imports.iter() {
             if let Some(imported_fn_sig) = dep_fn_list.get(import) {
-                if let Some(reimported_function) = imports.insert(imported_fn_sig.name.clone(), imported_fn_sig.clone()) {
-                    return Err(ParserError::DuplicateSignatureImports(reimported_function.name).into());
+                if let Some(reimported_function) =
+                    imports.insert(imported_fn_sig.name.clone(), imported_fn_sig.clone())
+                {
+                    return Err(
+                        ParserError::DuplicateSignatureImports(reimported_function.name).into(),
+                    );
                 }
             }
             else {
@@ -76,7 +83,10 @@ impl Parser
                     unparsed_fn.function_sig.visibility == FunctionVisibility::PublicLibrary
                 })
                 .map(|(fn_name, unparsed_fn)| {
-                    (unparsed_fn.function_sig.module_path.clone(), unparsed_fn.function_sig.clone())
+                    (
+                        unparsed_fn.function_sig.module_path.clone(),
+                        unparsed_fn.function_sig.clone(),
+                    )
                 }),
         );
 

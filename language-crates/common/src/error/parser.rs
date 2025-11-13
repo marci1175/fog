@@ -2,7 +2,10 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    error::syntax::SyntaxError, parser::{FunctionSignature, VariableReference}, tokenizer::Token, ty::TypeDiscriminant,
+    error::syntax::SyntaxError,
+    parser::{FunctionSignature, VariableReference},
+    tokenizer::Token,
+    ty::TypeDiscriminant,
 };
 
 #[derive(Debug, Error)]
