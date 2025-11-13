@@ -33,9 +33,9 @@ pub fn create_dependency_functions_list<'ctx>(
     target_triple: Option<String>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
-) -> anyhow::Result<HashMap<String, IndexMap<String, FunctionSignature>>>
+) -> anyhow::Result<IndexMap<Vec<String>, FunctionSignature>>
 {
-    let mut deps = HashMap::new();
+    let mut deps: IndexMap<Vec<String>, FunctionSignature> = IndexMap::new();
 
     let mut module_path = vec![];
 
@@ -71,7 +71,7 @@ fn scan_dependencies<'ctx>(
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
     root_module: &Module<'ctx>,
-    deps: &mut HashMap<String, IndexMap<String, FunctionSignature>>,
+    deps: &mut IndexMap<Vec<String>, FunctionSignature>,
     module_path: &mut Vec<String>,
     mut dir_entries: fs::ReadDir,
     flags_passed_in: &str,
@@ -116,7 +116,7 @@ fn scan_dependencies<'ctx>(
 fn scan_dependency<'ctx>(
     dependency_output_path_list: &mut Vec<PathBuf>,
     dependency_list: &mut HashMap<String, DependencyInfo>,
-    deps: &mut HashMap<String, IndexMap<String, FunctionSignature>>,
+    deps: &mut IndexMap<Vec<String>, FunctionSignature>,
     dependency_path: &mut PathBuf,
     optimization: bool,
     context: &'ctx Context,
@@ -228,10 +228,8 @@ fn scan_dependency<'ctx>(
                     OrdSet::wrap(IndexSet::from_iter(dep_features_enabled.iter().cloned())),
                 )?;
 
-                deps.insert(
-                    dependency_config.name.clone(),
-                    parser_state.library_public_function_table().clone(),
-                );
+                // Store the public functions in the main dep list.
+                deps.extend(parser_state.library_public_function_table().clone());
 
                 let imported_functions = Rc::new(parser_state.imported_functions().clone());
 

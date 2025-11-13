@@ -81,6 +81,7 @@ impl CompilerState
         let mut dependency_output_paths = Vec::new();
 
         println!("Analyzing dependencies...");
+
         // Create dependency imports
         let dependency_fn_list = create_dependency_functions_list(
             &mut dependency_output_paths,

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    error::syntax::SyntaxError, parser::VariableReference, tokenizer::Token, ty::TypeDiscriminant,
+    error::syntax::SyntaxError, parser::{FunctionSignature, VariableReference}, tokenizer::Token, ty::TypeDiscriminant,
 };
 
 #[derive(Debug, Error)]
@@ -46,8 +46,8 @@ pub enum ParserError
     InternalDesiredTypeMissing,
     #[error("[INTERNAL ERROR] Variable `{0}` has the inner type of `{1}` which is invalid.")]
     InternalTypeMismatch(VariableReference, TypeDiscriminant),
-    #[error("A function with this name/signature has been imported already.")]
-    DuplicateSignatureImports,
+    #[error("A function with name `{0}` has been imported already.")]
+    DuplicateSignatureImports(String),
     #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
     LinkedSourceFileError(PathBuf),
     #[error(r#"Type `{1}` cannot be constructed from '{0}'."#)]
@@ -79,4 +79,6 @@ pub enum ParserError
     InvalidFeatureRequirement(String, Vec<String>),
     #[error("Module path contains an invalid token: `{0}`.")]
     InvalidModulePathDefinition(Token),
+    #[error("Imported function was not found in the dependencies: `{0:?}`.")]
+    FunctionDependencyNotFound(Vec<String>),
 }

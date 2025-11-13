@@ -33,7 +33,7 @@ pub fn create_signature_table(
     project_config: ProjectConfig,
 ) -> Result<(
     IndexMap<String, UnparsedFunctionDefinition>,
-    HashMap<String, FunctionDefinition>,
+    HashSet<Vec<String>>,
     HashMap<String, FunctionSignature>,
     IndexMap<String, CustomType>,
 )>
@@ -42,9 +42,9 @@ pub fn create_signature_table(
 
     let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
 
-    let mut source_imports: HashMap<String, FunctionDefinition> = HashMap::new();
     let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
-
+    let mut dependency_imports: HashSet<Vec<String>> = HashSet::new();
+    
     let mut imported_file_list: HashMap<String, IndexMap<String, FunctionDefinition>> =
         HashMap::new();
 
@@ -153,17 +153,24 @@ pub fn create_signature_table(
                                 if !function_enabling_features.is_disjoint(&enabled_features)
                                     || function_enabling_features.is_empty()
                                 {
+                                    // Create a clone of the module path so we can modifiy it locally
+                                    let mut mod_path = module_path.clone();
+                                    
+                                    // Store the function name in the module path
+                                    mod_path.push(function_name.clone());
+
                                     // Store the function
                                     let insertion = function_list.insert(
                                         function_name.clone(),
                                         UnparsedFunctionDefinition {
                                             inner: braces_contains.clone(),
                                             function_sig: FunctionSignature {
+                                                name: function_name.clone(),
                                                 args: args.clone(),
                                                 return_type: return_type.clone(),
                                                 debug_attributes: None,
                                                 visibility: current_token.try_into()?,
-                                                module_path: module_path.clone(),
+                                                module_path: mod_path.clone(),
                                                 compiler_hints: compiler_hints.clone(),
                                                 enabling_features: function_enabling_features
                                                     .clone(),
@@ -220,16 +227,23 @@ pub fn create_signature_table(
                             if external_imports.get(&identifier).is_some()
                                 || function_list.get(&identifier).is_some()
                             {
-                                return Err(ParserError::DuplicateSignatureImports.into());
+                                return Err(ParserError::DuplicateSignatureImports(identifier).into());
                             }
+                            
+                            // Create a clone of the module path so we can modifiy it locally
+                            let mut mod_path = module_path.clone();
+                            
+                            // Store the function name in the module path
+                            mod_path.push(identifier.clone());
 
                             external_imports.insert(
-                                identifier,
+                                identifier.clone(),
                                 FunctionSignature {
+                                    name: identifier,
                                     args,
                                     return_type,
                                     debug_attributes: None,
-                                    module_path: module_path.clone(),
+                                    module_path: mod_path,
                                     // Imported functions can only be accessed at the source file they were imported at
                                     // I might change this later to smth like pub import similar to pub mod in rust
                                     visibility: fog_common::parser::FunctionVisibility::Private,
@@ -265,12 +279,12 @@ pub fn create_signature_table(
             }
         }
         else if current_token == Token::Import {
-            if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1) {
+            if let Some(Token::Identifier(_)) = tokens.get(token_idx + 1) {
                 let (import_path, idx) = parse_import_path(&tokens[token_idx + 1..])?;
 
                 token_idx += idx + 1;
 
-                dbg!(&import_path);
+                dependency_imports.insert(import_path);
 
                 continue;
             }
@@ -324,7 +338,7 @@ pub fn create_signature_table(
                 );
 
                 // Parse the tokens
-                parser_state.parse(HashMap::new())?;
+                parser_state.parse(IndexMap::new())?;
 
                 // Save the file's name and the functions it contains so that we can refer to it later.
                 imported_file_list.insert(file_name, parser_state.function_table().clone());
@@ -460,7 +474,7 @@ pub fn create_signature_table(
 
     Ok((
         function_list,
-        source_imports,
+        dependency_imports,
         external_imports,
         custom_items,
     ))
@@ -792,6 +806,7 @@ pub fn parse_function_block(
                             true_block_slice,
                             function_signatures.clone(),
                             FunctionSignature {
+                                name: String::new(),
                                 args: FunctionArguments::new(),
                                 return_type: TypeDiscriminant::Void,
                                 debug_attributes: None,
@@ -826,6 +841,7 @@ pub fn parse_function_block(
                                     false_block_slice,
                                     function_signatures.clone(),
                                     FunctionSignature {
+                                        name: String::new(),
                                         args: FunctionArguments::new(),
                                         return_type: TypeDiscriminant::Void,
                                         debug_attributes: None,
@@ -874,6 +890,7 @@ pub fn parse_function_block(
                         loop_body_tokens.to_vec(),
                         function_signatures.clone(),
                         FunctionSignature {
+                                name: String::new(),
                             args: FunctionArguments::new(),
                             return_type: TypeDiscriminant::Void,
                             debug_attributes: None,

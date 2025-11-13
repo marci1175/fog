@@ -3,42 +3,40 @@
     FunctionCall(
         (
             FunctionSignature {
+                name: "kedvenc",
                 args: FunctionArguments {
                     arguments_list: OrdMap(
-                        {
-                            "input": String,
-                        },
+                        {},
                     ),
-                    ellipsis_present: true,
+                    ellipsis_present: false,
                 },
-                return_type: I32,
+                return_type: Void,
                 debug_attributes: None,
                 module_path: [
                     "dep1",
+                    "kedvenc",
                 ],
-                visibility: Private,
+                visibility: PublicLibrary,
                 compiler_hints: OrdSet(
                     {},
                 ),
                 enabling_features: OrdSet(
-                    {},
+                    {
+                        "alma",
+                    },
                 ),
             },
-            "printf",
+            "kedvenc",
         ),
         OrdMap(
-            {
-                Identifier(
-                    "input",
-                ): (
-                    Literal(
-                        String(
-                            "Alma",
-                        ),
-                    ),
-                    String,
-                ),
-            },
+            {},
+        ),
+    ),
+    ReturnValue(
+        Literal(
+            I32(
+                0,
+            ),
         ),
     ),
 ]

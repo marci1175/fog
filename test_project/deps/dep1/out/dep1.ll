@@ -3,16 +3,16 @@ source_filename = "dep1"
 target datalayout = "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-windows-msvc"
 
-@Alma = constant [5 x i8] c"Alma\00"
+@Alma = addrspace(8) constant [5 x i8] c"Alma\00"
 
-declare i32 @printf(ptr, ...)
+declare i32 @printf(ptr addrspace(8), ...)
 
 define void @kedvenc() !dbg !3 {
 main_fn_entry:
-  %input = alloca ptr, align 8
-  store ptr @Alma, ptr %input, align 8
-  %input1 = load ptr, ptr %input, align 8
-  %function_call = call i32 (ptr, ...) @printf(ptr %input1)
+  %input = alloca ptr addrspace(8), align 8
+  store ptr addrspace(8) @Alma, ptr %input, align 8
+  %input1 = load ptr addrspace(8), ptr %input, align 8
+  %function_call = call i32 (ptr addrspace(8), ...) @printf(ptr addrspace(8) %input1)
   %0 = alloca i32, align 4
   store i32 %function_call, ptr %0, align 4
   ret void

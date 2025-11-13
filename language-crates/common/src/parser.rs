@@ -203,6 +203,7 @@ impl TryFrom<Token> for FunctionVisibility
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionSignature
 {
+    pub name: String,
     pub args: FunctionArguments,
     pub return_type: TypeDiscriminant,
     pub debug_attributes: Option<String>,

@@ -7,7 +7,7 @@ use fog_parser::{parser_instance::Parser, tokenizer::tokenize};
 
 pub fn analyze_dependency(
     source_file_contents: &str,
-    deps: HashMap<String, IndexMap<String, FunctionSignature>>,
+    deps: IndexMap<Vec<String>, FunctionSignature>,
     config: ProjectConfig,
     module_path: Vec<String>,
     enabled_features: OrdSet<String>,
