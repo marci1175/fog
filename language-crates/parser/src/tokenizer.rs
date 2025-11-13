@@ -526,7 +526,7 @@ fn match_multi_character_expression(string_buffer: String) -> Token
 
         "priv" => Token::Private,
         "pub" => Token::Public,
-        "libpub" => Token::PublicLibrary,
+        "publib" => Token::PublicLibrary,
         "exp" => Token::Export,
 
         "#->" => Token::MultilineComment,

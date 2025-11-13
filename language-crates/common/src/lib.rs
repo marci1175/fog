@@ -1,5 +1,5 @@
 #![feature(f16)]
-pub const DEFAULT_COMPILER_ADDRESS_SPACE_SIZE: u16 = size_of::<usize>() as u16;
+pub const DEFAULT_COMPILER_ADDRESS_SPACE_SIZE: u16 = 0;
 
 pub mod codegen;
 pub mod compiler;
