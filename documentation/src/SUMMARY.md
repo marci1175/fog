@@ -22,5 +22,6 @@
 ## Project Management
 
 - [Project Management](./project_management/0_project_management.md)
-
   - [Project Configuration](./project_management/1_project_configuration.md)
+  - [Linking and the process of Building projects](./project_management/2_linking_and_building_process.md)
+  

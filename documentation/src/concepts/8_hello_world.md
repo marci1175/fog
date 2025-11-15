@@ -20,18 +20,19 @@ function main(): int {
 }
 ```
 
-Save the file, run the command `fog c` and navigate to `./output`.
+The compiler can output LLVM-IR or even link automaticly, with clang (This requires clang to be added to `$PATH`).
 
-Here, you will see your binary's LLVM-IR which can be then parsed by a linker to produce a valid binary.
-Use your preferred method of linking this file, to create an exe.
+When we automaticly want to run code we have written we need to run `fog run`. This compiles the code and links it with the built in project linker (Which is a wrapper around clang).
 
-My preferred way of linking is via [Clang](https://clang.llvm.org/), so I am going to use that.
+To only output LLVM-IR `fog compile` should be called.
+
+> All build arctifacts are placed in the `build_path` defined in the project configuration.
+
+**Example code of running the code above:**
 
 ```console
-$ fog c
-$ clang %project-name%.ll
-$ ./%project-name%.exe
+$ fog run
+<compiler output>
+Running `<path to the linked binary>`
 Hello World!
 ```
-
-If you can see "Hello World!" in your console, congratulations! You have created your first ever application with Fog.
