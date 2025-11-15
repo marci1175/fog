@@ -206,8 +206,8 @@ fn main() -> fog_common::anyhow::Result<()>
             .map_err(ApplicationError::FileError)?;
 
             let project_cfg = ProjectConfig::new_from_name(
-                    path.file_name().unwrap().to_string_lossy().to_string(),
-                );
+                path.file_name().unwrap().to_string_lossy().to_string(),
+            );
 
             fs::write(
                 format!("{}/config.toml", path_s),

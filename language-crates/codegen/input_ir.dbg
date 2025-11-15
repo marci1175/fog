@@ -1,19 +1,74 @@
 [COMPILER IR]
 [
+    NewVariable(
+        "random_alma",
+        Struct(
+            (
+                "Alma",
+                OrdMap(
+                    {
+                        "szam": I32,
+                        "masik_szam": I32,
+                    },
+                ),
+            ),
+        ),
+        FunctionCall(
+            (
+                FunctionSignature {
+                    name: "make_alma",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {},
+                        ),
+                        ellipsis_present: false,
+                    },
+                    return_type: Struct(
+                        (
+                            "Alma",
+                            OrdMap(
+                                {
+                                    "szam": I32,
+                                    "masik_szam": I32,
+                                },
+                            ),
+                        ),
+                    ),
+                    module_path: [
+                        "dep1",
+                        "make_alma",
+                    ],
+                    visibility: PublicLibrary,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
+                },
+                "make_alma",
+            ),
+            OrdMap(
+                {},
+            ),
+        ),
+    ),
     FunctionCall(
         (
             FunctionSignature {
-                name: "hi_from_ffi",
+                name: "printn",
                 args: FunctionArguments {
                     arguments_list: OrdMap(
-                        {},
+                        {
+                            "x": I32,
+                        },
                     ),
                     ellipsis_present: false,
                 },
-                return_type: Void,
+                return_type: I32,
                 module_path: [
                     "dep1",
-                    "hi_from_ffi",
+                    "printn",
                 ],
                 visibility: PublicLibrary,
                 compiler_hints: OrdSet(
@@ -23,10 +78,35 @@
                     {},
                 ),
             },
-            "hi_from_ffi",
+            "printn",
         ),
         OrdMap(
-            {},
+            {
+                Identifier(
+                    "x",
+                ): (
+                    VariableReference(
+                        StructFieldReference(
+                            StructFieldReference {
+                                field_stack: [
+                                    "random_alma",
+                                    "szam",
+                                ],
+                            },
+                            (
+                                "Alma",
+                                OrdMap(
+                                    {
+                                        "szam": I32,
+                                        "masik_szam": I32,
+                                    },
+                                ),
+                            ),
+                        ),
+                    ),
+                    I32,
+                ),
+            },
         ),
     ),
     ReturnValue(

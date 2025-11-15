@@ -67,13 +67,6 @@ impl Parser
             }
         }
 
-        // Extend the list of external imports with source imports aka imports from Fog source files.
-        // imports.extend(
-        //     source_imports
-        //         .iter()
-        //         .map(|(fn_name, fn_def)| (fn_name.clone(), fn_def.function_sig.clone())),
-        // );
-
         let imports = Arc::new(external_imports);
 
         // Copy the the HashMap to this field

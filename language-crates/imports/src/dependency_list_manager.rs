@@ -45,7 +45,7 @@ pub fn create_dependency_functions_list<'ctx>(
 
     scan_dependencies(
         dependency_output_path_list,
-        additional_linking_material_list, 
+        additional_linking_material_list,
         &mut dependency_list,
         optimization,
         context,
@@ -239,7 +239,18 @@ fn scan_dependency<'ctx>(
                 deps.extend(parser_state.library_public_function_table().clone());
 
                 // Specific the paths of the additional linking material and store it
-                additional_linking_material_list.extend(dependency_config.additional_linking_material.iter().map(|path| PathBuf::from(format!("{}\\{}", original_dep_path_root.display(), path.display()))));
+                additional_linking_material_list.extend(
+                    dependency_config
+                        .additional_linking_material
+                        .iter()
+                        .map(|path| {
+                            PathBuf::from(format!(
+                                "{}\\{}",
+                                original_dep_path_root.display(),
+                                path.display()
+                            ))
+                        }),
+                );
 
                 let imported_functions = Rc::new(parser_state.imported_functions().clone());
 

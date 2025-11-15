@@ -3,12 +3,16 @@ source_filename = "dep1"
 target datalayout = "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-windows-msvc"
 
+%Alma = type { i32, i32 }
+
 @Alma = constant [5 x i8] c"Alma\00"
 @"%i" = constant [3 x i8] c"%i\00"
 
+declare i32 @printf(ptr, ...)
+
 declare void @hi_from_cpp()
 
-declare i32 @printf(ptr, ...)
+declare { i32, i32 } @alma_csinalo()
 
 define void @kedvenc() !dbg !3 {
 main_fn_entry:
@@ -47,6 +51,17 @@ main_fn_entry:
   ret void
 }
 
+define %Alma @make_alma() !dbg !11 {
+main_fn_entry:
+  %ret_tmp_var = alloca %Alma, align 8
+  %function_call = call { i32, i32 } @alma_csinalo()
+  store { i32, i32 } %function_call, ptr %ret_tmp_var, align 4
+  %ret_tmp_var1 = load %Alma, ptr %ret_tmp_var, align 4
+  store %Alma %ret_tmp_var1, ptr %ret_tmp_var, align 4
+  %ret_tmp_var2 = load %Alma, ptr %ret_tmp_var, align 4
+  ret %Alma %ret_tmp_var2
+}
+
 !llvm.dbg.cu = !{!0}
 !llvm.debug.version = !{!2}
 
@@ -61,3 +76,7 @@ main_fn_entry:
 !8 = !{!9, !9}
 !9 = !DIBasicType(name: "I32", size: 4, encoding: DW_ATE_signed)
 !10 = distinct !DISubprogram(name: "hi_from_ffi", linkageName: "hi_from_ffi", scope: !1, file: !1, line: 69, type: !4, scopeLine: 69, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !0)
+!11 = distinct !DISubprogram(name: "make_alma", linkageName: "make_alma", scope: !1, file: !1, line: 69, type: !12, scopeLine: 69, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !0)
+!12 = !DISubroutineType(types: !13)
+!13 = !{!14}
+!14 = !DICompositeType(tag: DW_TAG_structure_type, name: "Alma", scope: !1, file: !1, line: 69, size: 8, align: 4, elements: !8, runtimeLang: DW_LANG_C89, identifier: "1")

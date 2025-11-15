@@ -232,25 +232,22 @@ impl Parser
 
                         token_idx += bracket_close_idx + 3;
 
+                        if external_imports.get(&identifier).is_some()
+                            || function_list.get(&identifier).is_some()
+                        {
+                            return Err(ParserError::DuplicateSignatureImports(identifier).into());
+                        }
+                        // Create a clone of the module path so we can modifiy it locally
+                        let mut mod_path = module_path.clone();
+
+                        // Store the function name in the module path
+                        mod_path.push(identifier.clone());
+
                         if tokens[token_idx + 1] == Token::Colon {
                             if let Token::TypeDefinition(return_type) =
                                 tokens[token_idx + 2].clone()
                                 && tokens[token_idx + 3] == Token::SemiColon
                             {
-                                if external_imports.get(&identifier).is_some()
-                                    || function_list.get(&identifier).is_some()
-                                {
-                                    return Err(
-                                        ParserError::DuplicateSignatureImports(identifier).into()
-                                    );
-                                }
-
-                                // Create a clone of the module path so we can modifiy it locally
-                                let mut mod_path = module_path.clone();
-
-                                // Store the function name in the module path
-                                mod_path.push(identifier.clone());
-
                                 external_imports.insert(
                                     identifier.clone(),
                                     FunctionSignature {
@@ -267,6 +264,43 @@ impl Parser
                                 );
 
                                 continue;
+                            }
+                            else if let Token::Identifier(custom_item_name) =
+                                tokens[token_idx + 2].clone()
+                                && tokens[token_idx + 3] == Token::SemiColon
+                            {
+                                if let Some(custom_item) = custom_items.get(&custom_item_name)
+                                {
+                                    match custom_item {
+                                        CustomType::Struct(struct_inner) => {
+                                            external_imports.insert(
+                                                identifier.clone(),
+                                                FunctionSignature {
+                                                    name: identifier,
+                                                    args,
+                                                    return_type: TypeDiscriminant::Struct(struct_inner.clone()),
+                                                    module_path: mod_path,
+                                                    // Imported functions can only be accessed at the source file they were imported at
+                                                    // I might change this later to smth like pub import similar to pub mod in rust
+                                                    visibility: fog_common::parser::FunctionVisibility::Private,
+                                                    compiler_hints: OrdSet::new(),
+                                                    enabling_features: OrdSet::new(),
+                                                },
+                                            );
+
+                                            continue;
+                                        },
+                                        CustomType::Enum(ord_map) => {},
+                                    }
+                                }
+                                else {
+                                    dbg!(&custom_items);
+
+                                    panic!("not found fasz")
+                                }
+                            }
+                            else {
+                                panic!();
                             }
                         }
                         else {
@@ -342,7 +376,7 @@ impl Parser
                     if let Some(Token::OpenBraces) = tokens.get(token_idx + 2) {
                         // Search for the closing brace's index
                         let braces_idx =
-                            find_closing_paren(&tokens[token_idx + 3..], 0)? + token_idx + 3;
+                            find_closing_braces(&tokens[token_idx + 3..], 0)? + token_idx + 3;
 
                         // Retrive the tokens from the braces
                         let struct_slice = tokens[token_idx + 3..braces_idx].to_vec();
@@ -410,7 +444,7 @@ impl Parser
                             )
                             .into());
                         }
-
+                        println!("asd");
                         // Save the custom item
                         custom_items.insert(
                             struct_name.to_string(),
