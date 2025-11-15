@@ -79,12 +79,14 @@ impl CompilerState
         }
 
         let mut dependency_output_paths = Vec::new();
+        let mut additional_linking_material_list = self.config.additional_linking_material.clone();
 
         println!("Analyzing dependencies...");
 
         // Create dependency imports
         let dependency_fn_list = create_dependency_functions_list(
             &mut dependency_output_paths,
+            &mut additional_linking_material_list,
             self.config.dependencies.clone(),
             PathBuf::from(format!("{}\\deps", self.working_dir.display())),
             optimization,
@@ -148,7 +150,7 @@ impl CompilerState
 
         Ok(BuildManifest {
             build_output_paths: dependency_output_paths,
-            additional_linking_material: self.config.additional_linking_material.clone(),
+            additional_linking_material: additional_linking_material_list,
             output_path: build_path,
         })
     }

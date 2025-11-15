@@ -23,6 +23,8 @@ use crate::dependency_analyzer::analyze_dependency;
 /// Creates a dependency list from the path provided, by reading in all the folder names and libraries.
 pub fn create_dependency_functions_list<'ctx>(
     dependency_output_path_list: &mut Vec<PathBuf>,
+    // All of the additional linking stuff is put into this list here.
+    additional_linking_material_list: &mut Vec<PathBuf>,
     mut dependency_list: HashMap<String, DependencyInfo>,
     deps_path: PathBuf,
     optimization: bool,
@@ -43,6 +45,7 @@ pub fn create_dependency_functions_list<'ctx>(
 
     scan_dependencies(
         dependency_output_path_list,
+        additional_linking_material_list, 
         &mut dependency_list,
         optimization,
         context,
@@ -66,6 +69,7 @@ pub fn create_dependency_functions_list<'ctx>(
 
 fn scan_dependencies<'ctx>(
     dependency_output_path_list: &mut Vec<PathBuf>,
+    additional_linking_material_list: &mut Vec<PathBuf>,
     dependency_list: &mut HashMap<String, DependencyInfo>,
     optimization: bool,
     context: &'ctx Context,
@@ -81,13 +85,13 @@ fn scan_dependencies<'ctx>(
 ) -> Result<(), anyhow::Error>
 {
     while let Some(Ok(dir_entry)) = dir_entries.next() {
-        let metadat = dir_entry
+        let metadata = dir_entry
             .metadata()
             .map_err(|err| DependencyError::FileError(err.into()))?;
 
         // Dont do anything with files
         // From this point on assume everything is a project folder
-        if metadat.is_file() {
+        if metadata.is_file() {
             continue;
         }
 
@@ -95,6 +99,7 @@ fn scan_dependencies<'ctx>(
 
         scan_dependency(
             dependency_output_path_list,
+            additional_linking_material_list,
             dependency_list,
             deps,
             &mut dependency_path,
@@ -115,6 +120,7 @@ fn scan_dependencies<'ctx>(
 
 fn scan_dependency<'ctx>(
     dependency_output_path_list: &mut Vec<PathBuf>,
+    additional_linking_material_list: &mut Vec<PathBuf>,
     dependency_list: &mut HashMap<String, DependencyInfo>,
     deps: &mut IndexMap<Vec<String>, FunctionSignature>,
     dependency_path: &mut PathBuf,
@@ -197,6 +203,7 @@ fn scan_dependency<'ctx>(
                 // We pass in the things mutable because this is how we are checking that every dependency is covered. (See: create_dependency_functions_list)
                 scan_dependencies(
                     dependency_output_path_list,
+                    additional_linking_material_list,
                     &mut dependency_config.dependencies,
                     optimization,
                     context,
@@ -230,6 +237,9 @@ fn scan_dependency<'ctx>(
 
                 // Store the public functions in the main dep list.
                 deps.extend(parser_state.library_public_function_table().clone());
+
+                // Specific the paths of the additional linking material and store it
+                additional_linking_material_list.extend(dependency_config.additional_linking_material.iter().map(|path| PathBuf::from(format!("{}\\{}", original_dep_path_root.display(), path.display()))));
 
                 let imported_functions = Rc::new(parser_state.imported_functions().clone());
 

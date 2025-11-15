@@ -6,6 +6,8 @@ target triple = "x86_64-pc-windows-msvc"
 @Alma = constant [5 x i8] c"Alma\00"
 @"%i" = constant [3 x i8] c"%i\00"
 
+declare void @hi_from_cpp()
+
 declare i32 @printf(ptr, ...)
 
 define void @kedvenc() !dbg !3 {
@@ -39,6 +41,12 @@ main_fn_entry:
   ret i32 %ret_tmp_var5
 }
 
+define void @hi_from_ffi() !dbg !10 {
+main_fn_entry:
+  call void @hi_from_cpp()
+  ret void
+}
+
 !llvm.dbg.cu = !{!0}
 !llvm.debug.version = !{!2}
 
@@ -52,3 +60,4 @@ main_fn_entry:
 !7 = !DISubroutineType(types: !8)
 !8 = !{!9, !9}
 !9 = !DIBasicType(name: "I32", size: 4, encoding: DW_ATE_signed)
+!10 = distinct !DISubprogram(name: "hi_from_ffi", linkageName: "hi_from_ffi", scope: !1, file: !1, line: 69, type: !4, scopeLine: 69, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !0)
