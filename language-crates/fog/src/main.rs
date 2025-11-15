@@ -205,13 +205,17 @@ fn main() -> fog_common::anyhow::Result<()>
             )
             .map_err(ApplicationError::FileError)?;
 
+            let project_cfg = ProjectConfig::new_from_name(
+                    path.file_name().unwrap().to_string_lossy().to_string(),
+                );
+
             fs::write(
                 format!("{}/config.toml", path_s),
-                toml::to_string(&ProjectConfig::new_from_name(
-                    path.file_name().unwrap().to_string_lossy().to_string(),
-                ))?,
+                toml::to_string(&project_cfg)?,
             )
             .map_err(ApplicationError::FileError)?;
+
+            println!("Successfully created project `{}`", project_cfg.name)
         },
         CliCommand::Init { path } => {
             println!("Getting folder name...");
