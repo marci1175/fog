@@ -1,74 +1,21 @@
 [COMPILER IR]
 [
-    NewVariable(
-        "random_alma",
-        Struct(
-            (
-                "Alma",
-                OrdMap(
-                    {
-                        "szam": I32,
-                        "masik_szam": I32,
-                    },
-                ),
-            ),
-        ),
-        FunctionCall(
-            (
-                FunctionSignature {
-                    name: "make_alma",
-                    args: FunctionArguments {
-                        arguments_list: OrdMap(
-                            {},
-                        ),
-                        ellipsis_present: false,
-                    },
-                    return_type: Struct(
-                        (
-                            "Alma",
-                            OrdMap(
-                                {
-                                    "szam": I32,
-                                    "masik_szam": I32,
-                                },
-                            ),
-                        ),
-                    ),
-                    module_path: [
-                        "dep1",
-                        "make_alma",
-                    ],
-                    visibility: PublicLibrary,
-                    compiler_hints: OrdSet(
-                        {},
-                    ),
-                    enabling_features: OrdSet(
-                        {},
-                    ),
-                },
-                "make_alma",
-            ),
-            OrdMap(
-                {},
-            ),
-        ),
-    ),
     FunctionCall(
         (
             FunctionSignature {
-                name: "printn",
+                name: "open_win",
                 args: FunctionArguments {
                     arguments_list: OrdMap(
                         {
-                            "x": I32,
+                            "win_name": String,
                         },
                     ),
                     ellipsis_present: false,
                 },
-                return_type: I32,
+                return_type: Void,
                 module_path: [
                     "dep1",
-                    "printn",
+                    "open_win",
                 ],
                 visibility: PublicLibrary,
                 compiler_hints: OrdSet(
@@ -78,33 +25,19 @@
                     {},
                 ),
             },
-            "printn",
+            "open_win",
         ),
         OrdMap(
             {
                 Identifier(
-                    "x",
+                    "win_name",
                 ): (
-                    VariableReference(
-                        StructFieldReference(
-                            StructFieldReference {
-                                field_stack: [
-                                    "random_alma",
-                                    "szam",
-                                ],
-                            },
-                            (
-                                "Alma",
-                                OrdMap(
-                                    {
-                                        "szam": I32,
-                                        "masik_szam": I32,
-                                    },
-                                ),
-                            ),
+                    Literal(
+                        String(
+                            "Krisztián",
                         ),
                     ),
-                    I32,
+                    String,
                 ),
             },
         ),

@@ -2,6 +2,6 @@ name = "dep1"
 is_library = true
 version = "0.0.1"
 build_path = "out"
-additional_linking_material = ["external_deps\\fogTestFFI.lib"]
+additional_linking_material = ["external_deps\\fogTestFFI.lib", "external_deps\\User32.lib", "external_deps\\Gdi32.lib"]
 features = ["marci", "alma"]
 [dependencies]

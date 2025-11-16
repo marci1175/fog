@@ -444,7 +444,7 @@ impl Parser
                             )
                             .into());
                         }
-                        println!("asd");
+
                         // Save the custom item
                         custom_items.insert(
                             struct_name.to_string(),

@@ -7,6 +7,7 @@ struct Alma {
 }
 
 external alma_csinalo(): Alma;
+external open_window(win_name: string): void;
 
 @feature "alma"
 publib function kedvenc(): void {
@@ -28,4 +29,8 @@ publib function hi_from_ffi(): void {
 
 publib function make_alma(): Alma {
     return alma_csinalo();
+}
+
+publib function open_win(win_name: string): void {
+    open_window(win_name);
 }

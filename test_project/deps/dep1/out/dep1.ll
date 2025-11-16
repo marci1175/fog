@@ -8,9 +8,11 @@ target triple = "x86_64-pc-windows-msvc"
 @Alma = constant [5 x i8] c"Alma\00"
 @"%i" = constant [3 x i8] c"%i\00"
 
-declare i32 @printf(ptr, ...)
-
 declare void @hi_from_cpp()
+
+declare void @open_window(ptr)
+
+declare i32 @printf(ptr, ...)
 
 declare { i32, i32 } @alma_csinalo()
 
@@ -62,6 +64,18 @@ main_fn_entry:
   ret %Alma %ret_tmp_var2
 }
 
+define void @open_win(ptr %win_name) !dbg !15 {
+main_fn_entry:
+  %win_name1 = alloca ptr, align 8
+  store ptr %win_name, ptr %win_name1, align 8
+  %win_name2 = alloca ptr, align 8
+  %var_deref = load ptr, ptr %win_name1, align 8
+  store ptr %var_deref, ptr %win_name2, align 8
+  %win_name3 = load ptr, ptr %win_name2, align 8
+  call void @open_window(ptr %win_name3)
+  ret void
+}
+
 !llvm.dbg.cu = !{!0}
 !llvm.debug.version = !{!2}
 
@@ -80,3 +94,7 @@ main_fn_entry:
 !12 = !DISubroutineType(types: !13)
 !13 = !{!14}
 !14 = !DICompositeType(tag: DW_TAG_structure_type, name: "Alma", scope: !1, file: !1, line: 69, size: 8, align: 4, elements: !8, runtimeLang: DW_LANG_C89, identifier: "1")
+!15 = distinct !DISubprogram(name: "open_win", linkageName: "open_win", scope: !1, file: !1, line: 69, type: !16, scopeLine: 69, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !0)
+!16 = !DISubroutineType(types: !17)
+!17 = !{null, !18}
+!18 = !DIBasicType(name: "String", size: 24, encoding: DW_ATE_ASCII)
