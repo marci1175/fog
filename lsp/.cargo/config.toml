@@ -1,0 +1,8 @@
+[alias]
+lint = "clippy --workspace --all-targets -- --deny warnings"
+
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+    "-C", "debuginfo=0",
+    "-C", "link-args=/DEBUG:NONE"
+]

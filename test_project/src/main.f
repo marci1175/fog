@@ -11,7 +11,7 @@ struct Alma {
 external printf(a: string, ...): int;
 
 pub function main(): int {
-    open_win("Krisztián");
+    open_win("Window1");
 
     return 0;
 }

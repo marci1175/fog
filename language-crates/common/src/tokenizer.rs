@@ -92,6 +92,11 @@ pub enum Token
 
     /// Used to expose functions from a module into another one.
     Export,
+
+    /// UNUSED
+    /// This is only used to track which line a function is located at, for the llvm debug information.
+    /// It could also be used for debug purposes
+    NewLine,
 }
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.

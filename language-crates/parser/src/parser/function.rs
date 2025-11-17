@@ -48,7 +48,7 @@ impl Parser
 
         let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
 
-        // THe key is the function's name
+        // The key is the function's name
         let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
 
         let mut dependency_imports: HashSet<Vec<String>> = HashSet::new();
@@ -237,6 +237,7 @@ impl Parser
                         {
                             return Err(ParserError::DuplicateSignatureImports(identifier).into());
                         }
+
                         // Create a clone of the module path so we can modifiy it locally
                         let mut mod_path = module_path.clone();
 

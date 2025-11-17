@@ -34,7 +34,7 @@
                 ): (
                     Literal(
                         String(
-                            "Krisztián",
+                            "Window1",
                         ),
                     ),
                     String,
