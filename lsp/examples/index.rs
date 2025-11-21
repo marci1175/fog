@@ -1,10 +1,11 @@
 use anyhow::Ok;
 use lsp::{
-    nrs_lang::{parse, ParserResult},
+    nrs_lang::{ParserResult, parse},
     semantic_analyze,
 };
 
-fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()>
+{
     let source = include_str!("./basic.nrs");
     // let source = r#"
     // test
@@ -18,7 +19,8 @@ fn main() -> anyhow::Result<()> {
     let ast = if let Some(ref ast) = ast {
         println!("{ast:#?}");
         ast
-    } else {
+    }
+    else {
         println!("{parse_errors:?}");
         return Ok(());
     };

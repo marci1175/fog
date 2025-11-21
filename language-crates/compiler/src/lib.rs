@@ -62,7 +62,7 @@ impl CompilerState
     ) -> Result<BuildManifest>
     {
         println!("Tokenizing...");
-        let (tokens, _) = tokenize(file_contents, None)?;
+        let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
 
         println!("Creating LLVM context...");
         let context = Context::create();
@@ -101,6 +101,7 @@ impl CompilerState
 
         let mut parser = Parser::new(
             tokens,
+            token_ranges,
             self.config.clone(),
             vec![self.config.name.clone()],
             self.enabled_features.clone(),

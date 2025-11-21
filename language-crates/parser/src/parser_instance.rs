@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, ops::Range, sync::Arc};
 
 use fog_common::{
     anyhow::Result,
@@ -15,6 +15,7 @@ use fog_common::{
 pub struct Parser
 {
     pub tokens: Vec<Token>,
+    pub token_ranges: Vec<Range<usize>>,
     pub function_table: IndexMap<String, FunctionDefinition>,
     pub library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
     pub custom_types: Arc<IndexMap<String, CustomType>>,
@@ -100,6 +101,7 @@ impl Parser
 
     pub fn new(
         tokens: Vec<Token>,
+        token_ranges: Vec<Range<usize>>,
         config: ProjectConfig,
         module_path: Vec<String>,
         enabled_features: OrdSet<String>,
@@ -107,6 +109,7 @@ impl Parser
     {
         Self {
             tokens,
+            token_ranges,
             function_table: IndexMap::new(),
             imported_functions: Arc::new(HashMap::new()),
             library_public_function_table: IndexMap::new(),

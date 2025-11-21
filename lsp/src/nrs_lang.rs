@@ -1,24 +1,24 @@
-use chumsky::Parser;
-use chumsky::{prelude::*, stream::Stream};
+use chumsky::{Parser, prelude::*, stream::Stream};
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tower_lsp::lsp_types::SemanticTokenType;
 
-use crate::semantic_token::LEGEND_TYPE;
-use crate::span::Span;
+use crate::{semantic_token::LEGEND_TYPE, span::Span};
 
 /// This is the parser and interpreter for the 'Foo' language. See `tutorial.md` in the repository's root to learn
 /// about it.
 
 #[derive(Debug)]
-pub struct ImCompleteSemanticToken {
+pub struct ImCompleteSemanticToken
+{
     pub start: usize,
     pub length: usize,
     pub token_type: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Token {
+pub enum Token
+{
     Null,
     Bool(bool),
     Num(String),
@@ -35,8 +35,10 @@ pub enum Token {
 
 pub type Ast = Vec<Spanned<Func>>;
 
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl fmt::Display for Token
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+    {
         match self {
             Token::Null => write!(f, "null"),
             Token::Bool(x) => write!(f, "{x}"),
@@ -54,7 +56,8 @@ impl fmt::Display for Token {
     }
 }
 
-fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
+fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>>
+{
     // A parser for numbers
     let num = text::int(10)
         .chain::<char, _, _>(just('.').chain(text::digits(10)).or_not().flatten())
@@ -79,16 +82,18 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
     let ctrl = one_of("()[]{};,").map(Token::Ctrl);
 
     // A parser for identifiers and keywords
-    let ident = text::ident().map(|ident: String| match ident.as_str() {
-        "fn" => Token::Fn,
-        "let" => Token::Let,
-        "print" => Token::Print,
-        "if" => Token::If,
-        "else" => Token::Else,
-        "true" => Token::Bool(true),
-        "false" => Token::Bool(false),
-        "null" => Token::Null,
-        _ => Token::Ident(ident),
+    let ident = text::ident().map(|ident: String| {
+        match ident.as_str() {
+            "fn" => Token::Fn,
+            "let" => Token::Let,
+            "print" => Token::Print,
+            "if" => Token::If,
+            "else" => Token::Else,
+            "true" => Token::Bool(true),
+            "false" => Token::Bool(false),
+            "null" => Token::Null,
+            _ => Token::Ident(ident),
+        }
     });
 
     // A single token can be one of the above
@@ -109,15 +114,18 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Value {
+pub enum Value
+{
     Null,
     Bool(bool),
     Num(f64),
     Str(String),
 }
 
-impl std::fmt::Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl std::fmt::Display for Value
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    {
         match self {
             Self::Null => write!(f, "null"),
             Self::Bool(x) => write!(f, "{x}"),
@@ -128,7 +136,8 @@ impl std::fmt::Display for Value {
 }
 
 #[derive(Clone, Debug)]
-pub enum BinaryOp {
+pub enum BinaryOp
+{
     Add,
     Sub,
     Mul,
@@ -141,7 +150,8 @@ pub type Spanned<T> = (T, Span);
 
 // An expression node in the AST. Children are spanned so we can generate useful runtime errors.
 #[derive(Debug)]
-pub enum Expr {
+pub enum Expr
+{
     Error,
     Value(Value),
     List(Vec<Spanned<Self>>),
@@ -155,40 +165,48 @@ pub enum Expr {
 }
 
 #[allow(unused)]
-impl Expr {
+impl Expr
+{
     /// Returns `true` if the expr is [`Error`].
     ///
     /// [`Error`]: Expr::Error
-    fn is_error(&self) -> bool {
+    fn is_error(&self) -> bool
+    {
         matches!(self, Self::Error)
     }
 
     /// Returns `true` if the expr is [`Let`].
     ///
     /// [`Let`]: Expr::Let
-    fn is_let(&self) -> bool {
+    fn is_let(&self) -> bool
+    {
         matches!(self, Self::Let(..))
     }
 
     /// Returns `true` if the expr is [`Value`].
     ///
     /// [`Value`]: Expr::Value
-    fn is_value(&self) -> bool {
+    fn is_value(&self) -> bool
+    {
         matches!(self, Self::Value(..))
     }
 
-    fn try_into_value(self) -> Result<Value, Self> {
+    fn try_into_value(self) -> Result<Value, Self>
+    {
         if let Self::Value(v) = self {
             Ok(v)
-        } else {
+        }
+        else {
             Err(self)
         }
     }
 
-    fn as_value(&self) -> Option<&Value> {
+    fn as_value(&self) -> Option<&Value>
+    {
         if let Self::Value(v) = self {
             Some(v)
-        } else {
+        }
+        else {
             None
         }
     }
@@ -196,28 +214,34 @@ impl Expr {
 
 // A function node in the AST.
 #[derive(Debug)]
-pub struct Func {
+pub struct Func
+{
     pub args: Vec<Spanned<String>>,
     pub body: Spanned<Expr>,
     pub name: Spanned<String>,
     pub span: Span,
 }
 
-fn expr_parser() -> impl Parser<Token, Spanned<Expr>, Error = Simple<Token>> + Clone {
+fn expr_parser() -> impl Parser<Token, Spanned<Expr>, Error = Simple<Token>> + Clone
+{
     recursive(|expr| {
         let raw_expr = recursive(|raw_expr| {
-            let val = filter_map(|span, tok| match tok {
-                Token::Null => Ok(Expr::Value(Value::Null)),
-                Token::Bool(x) => Ok(Expr::Value(Value::Bool(x))),
-                Token::Num(n) => Ok(Expr::Value(Value::Num(n.parse().unwrap()))),
-                Token::Str(s) => Ok(Expr::Value(Value::Str(s))),
-                _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
+            let val = filter_map(|span, tok| {
+                match tok {
+                    Token::Null => Ok(Expr::Value(Value::Null)),
+                    Token::Bool(x) => Ok(Expr::Value(Value::Bool(x))),
+                    Token::Num(n) => Ok(Expr::Value(Value::Num(n.parse().unwrap()))),
+                    Token::Str(s) => Ok(Expr::Value(Value::Str(s))),
+                    _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
+                }
             })
             .labelled("value");
 
-            let ident = filter_map(|span, tok| match tok {
-                Token::Ident(ident) => Ok((ident, span)),
-                _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
+            let ident = filter_map(|span, tok| {
+                match tok {
+                    Token::Ident(ident) => Ok((ident, span)),
+                    _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
+                }
             })
             .labelled("identifier");
 
@@ -404,10 +428,13 @@ fn expr_parser() -> impl Parser<Token, Spanned<Expr>, Error = Simple<Token>> + C
     })
 }
 
-pub fn funcs_parser() -> impl Parser<Token, Vec<Spanned<Func>>, Error = Simple<Token>> + Clone {
-    let ident = filter_map(|span, tok| match tok {
-        Token::Ident(ident) => Ok(ident),
-        _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
+pub fn funcs_parser() -> impl Parser<Token, Vec<Spanned<Func>>, Error = Simple<Token>> + Clone
+{
+    let ident = filter_map(|span, tok| {
+        match tok {
+            Token::Ident(ident) => Ok(ident),
+            _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
+        }
     });
 
     // Argument lists are just identifiers separated by commas, surrounded by parentheses
@@ -456,126 +483,149 @@ pub fn funcs_parser() -> impl Parser<Token, Vec<Spanned<Func>>, Error = Simple<T
         .try_map(|fs, _| {
             Ok(fs
                 .into_iter()
-                .map(|item| (item.1, item.0 .1))
+                .map(|item| (item.1, item.0.1))
                 .collect::<Vec<_>>())
         })
         .then_ignore(end())
 }
 
-pub fn type_inference(expr: &Spanned<Expr>, symbol_type_table: &mut HashMap<Span, Value>) {
+pub fn type_inference(expr: &Spanned<Expr>, symbol_type_table: &mut HashMap<Span, Value>)
+{
     match &expr.0 {
-        Expr::Error => {}
-        Expr::Value(_) => {}
-        Expr::List(exprs) => exprs
-            .iter()
-            .for_each(|expr| type_inference(expr, symbol_type_table)),
-        Expr::Local(_) => {}
+        Expr::Error => {},
+        Expr::Value(_) => {},
+        Expr::List(exprs) => {
+            exprs
+                .iter()
+                .for_each(|expr| type_inference(expr, symbol_type_table))
+        },
+        Expr::Local(_) => {},
         Expr::Let(_name, lhs, rest, name_span) => {
             if let Some(value) = lhs.0.as_value() {
                 symbol_type_table.insert(name_span.clone(), value.clone());
             }
             type_inference(rest, symbol_type_table);
-        }
+        },
         Expr::Then(first, second) => {
             type_inference(first, symbol_type_table);
             type_inference(second, symbol_type_table);
-        }
-        Expr::Binary(_, _, _) => {}
-        Expr::Call(_, _) => {}
+        },
+        Expr::Binary(_, _, _) => {},
+        Expr::Call(_, _) => {},
         Expr::If(_test, consequent, alternative) => {
             type_inference(consequent, symbol_type_table);
             type_inference(alternative, symbol_type_table);
-        }
+        },
         Expr::Print(expr) => {
             type_inference(expr, symbol_type_table);
-        }
+        },
     }
 }
 
 #[derive(Debug)]
-pub struct ParserResult {
+pub struct ParserResult
+{
     pub ast: Option<Vec<Spanned<Func>>>,
     pub parse_errors: Vec<Simple<String>>,
     pub semantic_tokens: Vec<ImCompleteSemanticToken>,
 }
 
-pub fn parse(src: &str) -> ParserResult {
+pub fn parse(src: &str) -> ParserResult
+{
     let (tokens, errs) = lexer().parse_recovery(src);
 
     let (ast, tokenize_errors, semantic_tokens) = if let Some(tokens) = tokens {
         // info!("Tokens = {:?}", tokens);
         let semantic_tokens = tokens
             .iter()
-            .filter_map(|(token, span)| match token {
-                Token::Null => None,
-                Token::Bool(_) => None,
+            .filter_map(|(token, span)| {
+                match token {
+                    Token::Null => None,
+                    Token::Bool(_) => None,
 
-                Token::Num(_) => Some(ImCompleteSemanticToken {
-                    start: span.start,
-                    length: span.len(),
-                    token_type: LEGEND_TYPE
-                        .iter()
-                        .position(|item| item == &SemanticTokenType::NUMBER)
-                        .unwrap(),
-                }),
-                Token::Str(_) => Some(ImCompleteSemanticToken {
-                    start: span.start,
-                    length: span.len(),
-                    token_type: LEGEND_TYPE
-                        .iter()
-                        .position(|item| item == &SemanticTokenType::STRING)
-                        .unwrap(),
-                }),
-                Token::Op(_) => Some(ImCompleteSemanticToken {
-                    start: span.start,
-                    length: span.len(),
-                    token_type: LEGEND_TYPE
-                        .iter()
-                        .position(|item| item == &SemanticTokenType::OPERATOR)
-                        .unwrap(),
-                }),
-                Token::Ctrl(_) => None,
-                Token::Ident(_) => None,
-                Token::Fn => Some(ImCompleteSemanticToken {
-                    start: span.start,
-                    length: span.len(),
-                    token_type: LEGEND_TYPE
-                        .iter()
-                        .position(|item| item == &SemanticTokenType::KEYWORD)
-                        .unwrap(),
-                }),
-                Token::Let => Some(ImCompleteSemanticToken {
-                    start: span.start,
-                    length: span.len(),
-                    token_type: LEGEND_TYPE
-                        .iter()
-                        .position(|item| item == &SemanticTokenType::KEYWORD)
-                        .unwrap(),
-                }),
-                Token::Print => Some(ImCompleteSemanticToken {
-                    start: span.start,
-                    length: span.len(),
-                    token_type: LEGEND_TYPE
-                        .iter()
-                        .position(|item| item == &SemanticTokenType::FUNCTION)
-                        .unwrap(),
-                }),
-                Token::If => Some(ImCompleteSemanticToken {
-                    start: span.start,
-                    length: span.len(),
-                    token_type: LEGEND_TYPE
-                        .iter()
-                        .position(|item| item == &SemanticTokenType::KEYWORD)
-                        .unwrap(),
-                }),
-                Token::Else => Some(ImCompleteSemanticToken {
-                    start: span.start,
-                    length: span.len(),
-                    token_type: LEGEND_TYPE
-                        .iter()
-                        .position(|item| item == &SemanticTokenType::KEYWORD)
-                        .unwrap(),
-                }),
+                    Token::Num(_) => {
+                        Some(ImCompleteSemanticToken {
+                            start: span.start,
+                            length: span.len(),
+                            token_type: LEGEND_TYPE
+                                .iter()
+                                .position(|item| item == &SemanticTokenType::NUMBER)
+                                .unwrap(),
+                        })
+                    },
+                    Token::Str(_) => {
+                        Some(ImCompleteSemanticToken {
+                            start: span.start,
+                            length: span.len(),
+                            token_type: LEGEND_TYPE
+                                .iter()
+                                .position(|item| item == &SemanticTokenType::STRING)
+                                .unwrap(),
+                        })
+                    },
+                    Token::Op(_) => {
+                        Some(ImCompleteSemanticToken {
+                            start: span.start,
+                            length: span.len(),
+                            token_type: LEGEND_TYPE
+                                .iter()
+                                .position(|item| item == &SemanticTokenType::OPERATOR)
+                                .unwrap(),
+                        })
+                    },
+                    Token::Ctrl(_) => None,
+                    Token::Ident(_) => None,
+                    Token::Fn => {
+                        Some(ImCompleteSemanticToken {
+                            start: span.start,
+                            length: span.len(),
+                            token_type: LEGEND_TYPE
+                                .iter()
+                                .position(|item| item == &SemanticTokenType::KEYWORD)
+                                .unwrap(),
+                        })
+                    },
+                    Token::Let => {
+                        Some(ImCompleteSemanticToken {
+                            start: span.start,
+                            length: span.len(),
+                            token_type: LEGEND_TYPE
+                                .iter()
+                                .position(|item| item == &SemanticTokenType::KEYWORD)
+                                .unwrap(),
+                        })
+                    },
+                    Token::Print => {
+                        Some(ImCompleteSemanticToken {
+                            start: span.start,
+                            length: span.len(),
+                            token_type: LEGEND_TYPE
+                                .iter()
+                                .position(|item| item == &SemanticTokenType::FUNCTION)
+                                .unwrap(),
+                        })
+                    },
+                    Token::If => {
+                        Some(ImCompleteSemanticToken {
+                            start: span.start,
+                            length: span.len(),
+                            token_type: LEGEND_TYPE
+                                .iter()
+                                .position(|item| item == &SemanticTokenType::KEYWORD)
+                                .unwrap(),
+                        })
+                    },
+                    Token::Else => {
+                        Some(ImCompleteSemanticToken {
+                            start: span.start,
+                            length: span.len(),
+                            token_type: LEGEND_TYPE
+                                .iter()
+                                .position(|item| item == &SemanticTokenType::KEYWORD)
+                                .unwrap(),
+                        })
+                    },
+                }
             })
             .collect::<Vec<_>>();
         let len = src.chars().count();
@@ -583,7 +633,8 @@ pub fn parse(src: &str) -> ParserResult {
             funcs_parser().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         (ast, parse_errs, semantic_tokens)
-    } else {
+    }
+    else {
         (None, Vec::new(), vec![])
     };
 

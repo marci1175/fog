@@ -270,8 +270,7 @@ impl Parser
                                 tokens[token_idx + 2].clone()
                                 && tokens[token_idx + 3] == Token::SemiColon
                             {
-                                if let Some(custom_item) = custom_items.get(&custom_item_name)
-                                {
+                                if let Some(custom_item) = custom_items.get(&custom_item_name) {
                                     match custom_item {
                                         CustomType::Struct(struct_inner) => {
                                             external_imports.insert(
@@ -338,11 +337,12 @@ impl Parser
                     let file_contents = fs::read_to_string(&path)?;
 
                     // Tokenize the raw source file
-                    let (tokens, _) = tokenize(&file_contents, None)?;
+                    let (tokens, token_ranges, _) = tokenize(&file_contents, None)?;
 
                     // Create a new Parser state
                     let mut parser_state = Parser::new(
                         tokens,
+                        token_ranges,
                         ProjectConfig::default(),
                         vec![
                             path.file_prefix()

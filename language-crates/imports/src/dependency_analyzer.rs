@@ -13,9 +13,9 @@ pub fn analyze_dependency(
     enabled_features: OrdSet<String>,
 ) -> anyhow::Result<Parser>
 {
-    let (tokens, _) = tokenize(source_file_contents, None)?;
+    let (tokens, token_ranges, _) = tokenize(source_file_contents, None)?;
 
-    let mut parser = Parser::new(tokens, config, module_path, enabled_features);
+    let mut parser = Parser::new(tokens, token_ranges, config, module_path, enabled_features);
 
     parser.parse(deps)?;
 

@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use fog_common::{
     error::{parser::ParserError, syntax::SyntaxError},
     tokenizer::{Token, find_closing_angled_bracket_char},
@@ -12,11 +14,12 @@ fn only_contains_digits(s: &str) -> bool
 pub fn tokenize(
     raw_input: &str,
     stop_at_token: Option<Token>,
-) -> Result<(Vec<Token>, usize), ParserError>
+) -> Result<(Vec<Token>, Vec<Range<usize>>, usize), ParserError>
 {
     let mut char_idx: usize = 0;
 
     let mut token_list: Vec<Token> = Vec::new();
+    let mut token_range_list: Vec<Range<usize>> = Vec::new();
 
     let char_list = raw_input.chars().collect::<Vec<char>>();
 
@@ -28,7 +31,7 @@ pub fn tokenize(
                 .last()
                 .is_some_and(|last_token| last_token == stop_at_token)
             {
-                return Ok((token_list, char_idx));
+                return Ok((token_list, token_range_list, char_idx));
             }
         }
 
@@ -56,9 +59,11 @@ pub fn tokenize(
                 let token = match_multi_character_expression(string_buffer.clone());
 
                 token_list.push(token);
+                token_range_list.push(char_idx..char_idx + string_buffer.len());
             }
 
             token_list.push(single_char_token);
+            token_range_list.push(char_idx..char_idx + 1);
 
             string_buffer.clear();
         }
@@ -68,6 +73,7 @@ pub fn tokenize(
 
             if Some(&'.') == next_char_2 && Some(&'.') == next_char {
                 token_list.push(Token::Ellipsis);
+                token_range_list.push(char_idx..char_idx + 2);
 
                 char_idx += 3;
 
@@ -84,11 +90,13 @@ pub fn tokenize(
                     let token = match_multi_character_expression(string_buffer.clone());
 
                     token_list.push(token);
+                    token_range_list.push(char_idx..char_idx + string_buffer.len());
 
                     string_buffer.clear();
                 }
 
                 token_list.push(Token::Dot);
+                token_range_list.push(char_idx..char_idx + 1);
             }
         }
         else if current_char == '-' {
@@ -101,6 +109,7 @@ pub fn tokenize(
                 || matches!(last_token, Token::CloseParentheses))
             {
                 token_list.push(Token::Subtraction);
+                token_range_list.push(char_idx..char_idx + 1);
             }
             // If the last token wasnt a number we know that we are defining a negative number
             else {
@@ -115,18 +124,19 @@ pub fn tokenize(
                     if char_list.get(char_idx + 2) == Some(&'>') {
                         char_idx += 3;
 
-                        if stop_at_token.is_some() {
-                            token_list.push(Token::MultilineComment);
-
-                            continue;
-                        }
-
                         // Capture everything until the finishing #->
                         // The reason im passing this into a tokenizer function is because the MultilineComment token could be in quotes and that would be invalid to capture.
                         // We can ignore the captured tokens, we increment the char_idx by the chars parsed.
                         // The captured output does not contain the contents of the multiline comment.
-                        let (_, idx) =
+                        let (_, _, idx) =
                             tokenize(&raw_input[char_idx..], Some(Token::MultilineComment))?;
+
+                        if stop_at_token.is_some() {
+                            token_list.push(Token::MultilineComment);
+                            token_range_list.push(char_idx - 3..char_idx + idx);
+
+                            continue;
+                        }
 
                         char_idx += idx;
 
@@ -135,6 +145,9 @@ pub fn tokenize(
                         continue;
                     }
                 }
+
+                let original_char_idx = char_idx;
+
                 if *char == '#' {
                     if char_list.get(char_idx + 2) == Some(&'#') {
                         char_idx += 3;
@@ -145,6 +158,8 @@ pub fn tokenize(
                             if quote_char == '\n' {
                                 token_list
                                     .push(Token::DocComment(comment_buffer.trim().to_string()));
+
+                                token_range_list.push(original_char_idx..char_idx);
 
                                 char_idx += 2;
 
@@ -165,6 +180,8 @@ pub fn tokenize(
 
                         if quote_char == '\r' {
                             token_list.push(Token::Comment(comment_buffer.trim().to_string()));
+
+                            token_range_list.push(original_char_idx..char_idx);
 
                             char_idx += 2;
 
@@ -241,6 +258,7 @@ pub fn tokenize(
 
                         if *quote_char == '"' {
                             token_list.push(Token::Literal(Type::String(quotes_buffer)));
+                            token_range_list.push(char_idx..quote_idx);
 
                             char_idx = quote_idx + 1;
 
@@ -265,37 +283,44 @@ pub fn tokenize(
                 match *next_char {
                     '=' => {
                         token_list.push(Token::Equal);
+                        token_range_list.push(char_idx..char_idx + 2);
 
                         char_idx += 2;
                     },
                     '+' => {
                         token_list.push(Token::SetValueAddition);
+                        token_range_list.push(char_idx..char_idx + 2);
 
                         char_idx += 2;
                     },
                     '-' => {
                         token_list.push(Token::SetValueSubtraction);
+                        token_range_list.push(char_idx..char_idx + 2);
 
                         char_idx += 2;
                     },
                     '*' => {
                         token_list.push(Token::SetValueMultiplication);
+                        token_range_list.push(char_idx..char_idx + 2);
 
                         char_idx += 2;
                     },
                     '/' => {
                         token_list.push(Token::SetValueDivision);
+                        token_range_list.push(char_idx..char_idx + 2);
 
                         char_idx += 2;
                     },
                     '%' => {
                         token_list.push(Token::SetValueModulo);
+                        token_range_list.push(char_idx..char_idx + 2);
 
                         char_idx += 2;
                     },
 
                     _ => {
                         token_list.push(Token::SetValue);
+                        token_range_list.push(char_idx..char_idx + 2);
 
                         char_idx += 1;
                     },
@@ -309,6 +334,7 @@ pub fn tokenize(
                 let token = match_multi_character_expression(string_buffer.clone());
 
                 token_list.push(token);
+                token_range_list.push(char_idx..char_idx + string_buffer.len());
 
                 string_buffer.clear();
             }
@@ -317,47 +343,55 @@ pub fn tokenize(
                 && *next_char == ':'
             {
                 token_list.push(Token::DoubleColon);
+                token_range_list.push(char_idx..char_idx + 2);
 
                 char_idx += 2;
                 continue;
             }
 
             token_list.push(Token::Colon);
+            token_range_list.push(char_idx..char_idx + 1);
         }
         else if current_char == '&' {
             if let Some(next_char) = char_list.get(char_idx + 1)
                 && *next_char == '&'
             {
                 token_list.push(Token::And);
+                token_range_list.push(char_idx..char_idx + 2);
 
                 char_idx += 2;
                 continue;
             }
 
             token_list.push(Token::BitAnd);
+            token_range_list.push(char_idx..char_idx + 1);
         }
         else if current_char == '!' {
             if let Some(next_char) = char_list.get(char_idx + 1)
                 && *next_char == '='
             {
                 token_list.push(Token::NotEqual);
+                token_range_list.push(char_idx..char_idx + 2);
 
                 char_idx += 2;
                 continue;
             }
 
             token_list.push(Token::Not);
+            token_range_list.push(char_idx..char_idx + 1);
         }
         else if current_char == '>' {
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '>' {
                     token_list.push(Token::BitRight);
+                    token_range_list.push(char_idx..char_idx + 2);
 
                     char_idx += 2;
                     continue;
                 }
                 else if *next_char == '=' {
                     token_list.push(Token::EqBigger);
+                    token_range_list.push(char_idx..char_idx + 2);
 
                     char_idx += 2;
 
@@ -366,6 +400,7 @@ pub fn tokenize(
             }
 
             token_list.push(Token::Bigger);
+            token_range_list.push(char_idx..char_idx + 1);
         }
         else if string_buffer.trim() == "array" {
             if current_char == '<' {
@@ -392,7 +427,7 @@ pub fn tokenize(
                     .trim()
                     .to_string();
 
-                let (inner_token, _) = tokenize(&list_type_def, None)?;
+                let (inner_token, _, _) = tokenize(&list_type_def, None)?;
 
                 if inner_token.len() > 1 {
                     return Err(ParserError::InvalidArrayTypeDefinition(inner_token));
@@ -406,6 +441,7 @@ pub fn tokenize(
                         ))
                     })?,
                 ))));
+                token_range_list.push(char_idx..char_idx + closing_idx);
 
                 string_buffer.clear();
 
@@ -416,6 +452,7 @@ pub fn tokenize(
             if let Some(next_char) = char_list.get(char_idx + 1) {
                 if *next_char == '<' {
                     token_list.push(Token::BitLeft);
+                    token_range_list.push(char_idx..char_idx + 2);
 
                     char_idx += 2;
 
@@ -423,6 +460,7 @@ pub fn tokenize(
                 }
                 else if *next_char == '=' {
                     token_list.push(Token::EqSmaller);
+                    token_range_list.push(char_idx..char_idx + 2);
 
                     char_idx += 2;
 
@@ -431,24 +469,28 @@ pub fn tokenize(
             }
 
             token_list.push(Token::Smaller);
+            token_range_list.push(char_idx..char_idx + 1);
         }
         else if current_char == '|' {
             if let Some(next_char) = char_list.get(char_idx + 1)
                 && *next_char == '|'
             {
                 token_list.push(Token::Or);
+                token_range_list.push(char_idx..char_idx + 2);
 
                 char_idx += 2;
                 continue;
             }
 
             token_list.push(Token::BitOr);
+            token_range_list.push(char_idx..char_idx + 1);
         }
         else if (current_char == ' ' || current_char == '\n') && !string_buffer.trim().is_empty()
         {
             let token = match_multi_character_expression(string_buffer.clone());
 
             token_list.push(token);
+            token_range_list.push(char_idx..char_idx + string_buffer.len());
 
             string_buffer.clear();
         }
@@ -458,6 +500,7 @@ pub fn tokenize(
             let token = match_multi_character_expression(string_buffer.clone());
 
             token_list.push(token);
+            token_range_list.push(char_idx..char_idx + string_buffer.len());
 
             string_buffer.clear();
         }
@@ -468,7 +511,7 @@ pub fn tokenize(
         char_idx += 1;
     }
 
-    Ok((token_list, char_idx))
+    Ok((token_list, token_range_list, char_idx))
 }
 
 fn match_multi_character_expression(string_buffer: String) -> Token
@@ -554,4 +597,15 @@ pub fn eval_constant_definition(raw_string: String) -> Token
     else {
         Token::Identifier(raw_string)
     }
+}
+
+pub fn strip_range_from_token_list(tokens: &Vec<(Token, Range<usize>)>) -> Vec<Token>
+{
+    let mut buf = Vec::new();
+
+    for (token, _) in tokens {
+        buf.push(token.clone());
+    }
+
+    buf
 }

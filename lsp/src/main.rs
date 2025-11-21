@@ -2,22 +2,24 @@ use std::collections::HashMap;
 
 use dashmap::DashMap;
 use log::debug;
-use lsp::completion::completion;
-use lsp::nrs_lang::{
-    parse, type_inference, Ast, ImCompleteSemanticToken, ParserResult,
+use lsp::{
+    completion::completion,
+    nrs_lang::{Ast, ImCompleteSemanticToken, ParserResult, parse, type_inference},
+    semantic_analyze::{IdentType, Semantic, analyze_program},
+    semantic_token::LEGEND_TYPE,
+    span::Span,
 };
-use lsp::semantic_analyze::{analyze_program, IdentType, Semantic};
-use lsp::semantic_token::LEGEND_TYPE;
-use lsp::span::Span;
 use ropey::Rope;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::notification::Notification;
-use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tower_lsp::{
+    Client, LanguageServer, LspService, Server,
+    jsonrpc::Result,
+    lsp_types::{notification::Notification, *},
+};
 #[derive(Debug)]
-struct Backend {
+struct Backend
+{
     client: Client,
     ast_map: DashMap<String, Ast>,
     semantic_map: DashMap<String, Semantic>,
@@ -26,8 +28,10 @@ struct Backend {
 }
 
 #[tower_lsp::async_trait]
-impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+impl LanguageServer for Backend
+{
+    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult>
+    {
         Ok(InitializeResult {
             server_info: None,
             offset_encoding: None,
@@ -95,15 +99,18 @@ impl LanguageServer for Backend {
             },
         })
     }
-    async fn initialized(&self, _: InitializedParams) {
+    async fn initialized(&self, _: InitializedParams)
+    {
         debug!("initialized!");
     }
 
-    async fn shutdown(&self) -> Result<()> {
+    async fn shutdown(&self) -> Result<()>
+    {
         Ok(())
     }
 
-    async fn did_open(&self, params: DidOpenTextDocumentParams) {
+    async fn did_open(&self, params: DidOpenTextDocumentParams)
+    {
         debug!("file opened");
         self.on_change(TextDocumentItem {
             uri: params.text_document.uri,
@@ -113,7 +120,8 @@ impl LanguageServer for Backend {
         .await
     }
 
-    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+    async fn did_change(&self, params: DidChangeTextDocumentParams)
+    {
         self.on_change(TextDocumentItem {
             text: &params.content_changes[0].text,
             uri: params.text_document.uri,
@@ -122,7 +130,8 @@ impl LanguageServer for Backend {
         .await
     }
 
-    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+    async fn did_save(&self, params: DidSaveTextDocumentParams)
+    {
         dbg!(&params.text);
         if let Some(text) = params.text {
             let item = TextDocumentItem {
@@ -135,14 +144,16 @@ impl LanguageServer for Backend {
         }
         debug!("file saved!");
     }
-    async fn did_close(&self, _: DidCloseTextDocumentParams) {
+    async fn did_close(&self, _: DidCloseTextDocumentParams)
+    {
         debug!("file closed!");
     }
 
     async fn goto_definition(
         &self,
         params: GotoDefinitionParams,
-    ) -> Result<Option<GotoDefinitionResponse>> {
+    ) -> Result<Option<GotoDefinitionResponse>>
+    {
         let definition = || -> Option<GotoDefinitionResponse> {
             let uri = params.text_document_position_params.text_document.uri;
             let semantic = self.semantic_map.get(uri.as_str())?;
@@ -156,13 +167,13 @@ impl LanguageServer for Backend {
                 IdentType::Binding(symbol_id) => {
                     let span = &semantic.table.symbol_id_to_span[symbol_id];
                     Some(span.clone())
-                }
+                },
                 IdentType::Reference(reference_id) => {
                     let reference = semantic.table.reference_id_to_reference.get(reference_id)?;
                     let symbol_id = reference.symbol_id?;
                     let symbol_range = semantic.table.symbol_id_to_span.get(symbol_id)?;
                     Some(symbol_range.clone())
-                }
+                },
             };
 
             range.and_then(|range| {
@@ -177,7 +188,8 @@ impl LanguageServer for Backend {
         Ok(definition)
     }
 
-    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>>
+    {
         let reference_list = || -> Option<Vec<Location>> {
             let uri = params.text_document_position.text_document.uri;
             let semantic = self.semantic_map.get(uri.as_str())?;
@@ -205,7 +217,8 @@ impl LanguageServer for Backend {
     async fn semantic_tokens_full(
         &self,
         params: SemanticTokensParams,
-    ) -> Result<Option<SemanticTokensResult>> {
+    ) -> Result<Option<SemanticTokensResult>>
+    {
         let uri = params.text_document.uri.to_string();
         debug!("semantic_token_full");
         let semantic_tokens = || -> Option<Vec<SemanticToken>> {
@@ -223,7 +236,8 @@ impl LanguageServer for Backend {
                     let delta_line = line - pre_line;
                     let delta_start = if delta_line == 0 {
                         start - pre_start
-                    } else {
+                    }
+                    else {
                         start
                     };
                     let ret = Some(SemanticToken {
@@ -252,7 +266,8 @@ impl LanguageServer for Backend {
     async fn semantic_tokens_range(
         &self,
         params: SemanticTokensRangeParams,
-    ) -> Result<Option<SemanticTokensRangeResult>> {
+    ) -> Result<Option<SemanticTokensRangeResult>>
+    {
         let uri = params.text_document.uri.to_string();
         let semantic_tokens = || -> Option<Vec<SemanticToken>> {
             let im_complete_tokens = self.semantic_token_map.get(&uri)?;
@@ -269,7 +284,8 @@ impl LanguageServer for Backend {
                         delta_line: line - pre_line,
                         delta_start: if start >= pre_start {
                             start - pre_start
-                        } else {
+                        }
+                        else {
                             start
                         },
                         length: token.length as u32,
@@ -294,7 +310,8 @@ impl LanguageServer for Backend {
     async fn inlay_hint(
         &self,
         params: tower_lsp::lsp_types::InlayHintParams,
-    ) -> Result<Option<Vec<InlayHint>>> {
+    ) -> Result<Option<Vec<InlayHint>>>
+    {
         debug!("inlay hint");
         let uri = &params.text_document.uri;
         let mut hashmap = HashMap::new();
@@ -353,7 +370,8 @@ impl LanguageServer for Backend {
         Ok(Some(inlay_hint_list))
     }
 
-    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>>
+    {
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let completions = || -> Option<Vec<CompletionItem>> {
@@ -373,11 +391,8 @@ impl LanguageServer for Backend {
                             detail: Some(var),
                             ..Default::default()
                         });
-                    }
-                    lsp::completion::ImCompleteCompletionItem::Function(
-                        name,
-                        args,
-                    ) => {
+                    },
+                    lsp::completion::ImCompleteCompletionItem::Function(name, args) => {
                         ret.push(CompletionItem {
                             label: name.clone(),
                             kind: Some(CompletionItemKind::FUNCTION),
@@ -394,7 +409,7 @@ impl LanguageServer for Backend {
                             insert_text_format: Some(InsertTextFormat::SNIPPET),
                             ..Default::default()
                         });
-                    }
+                    },
                 }
             }
             Some(ret)
@@ -402,7 +417,8 @@ impl LanguageServer for Backend {
         Ok(completions.map(CompletionResponse::Array))
     }
 
-    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>>
+    {
         let workspace_edit = || -> Option<WorkspaceEdit> {
             let uri = params.text_document_position.text_document.uri;
             let semantic = self.semantic_map.get(uri.as_str())?;
@@ -432,19 +448,23 @@ impl LanguageServer for Backend {
         Ok(workspace_edit)
     }
 
-    async fn did_change_configuration(&self, _: DidChangeConfigurationParams) {
+    async fn did_change_configuration(&self, _: DidChangeConfigurationParams)
+    {
         debug!("configuration changed!");
     }
 
-    async fn did_change_workspace_folders(&self, _: DidChangeWorkspaceFoldersParams) {
+    async fn did_change_workspace_folders(&self, _: DidChangeWorkspaceFoldersParams)
+    {
         debug!("workspace folders changed!");
     }
 
-    async fn did_change_watched_files(&self, _: DidChangeWatchedFilesParams) {
+    async fn did_change_watched_files(&self, _: DidChangeWatchedFilesParams)
+    {
         debug!("watched files have changed!");
     }
 
-    async fn execute_command(&self, _: ExecuteCommandParams) -> Result<Option<Value>> {
+    async fn execute_command(&self, _: ExecuteCommandParams) -> Result<Option<Value>>
+    {
         debug!("command executed!");
 
         match self.client.apply_edit(WorkspaceEdit::default()).await {
@@ -457,24 +477,29 @@ impl LanguageServer for Backend {
     }
 }
 #[derive(Debug, Deserialize, Serialize)]
-struct InlayHintParams {
+struct InlayHintParams
+{
     path: String,
 }
 
 #[allow(unused)]
 enum CustomNotification {}
-impl Notification for CustomNotification {
+impl Notification for CustomNotification
+{
     type Params = InlayHintParams;
     const METHOD: &'static str = "custom/notification";
 }
-struct TextDocumentItem<'a> {
+struct TextDocumentItem<'a>
+{
     uri: Url,
     text: &'a str,
     version: Option<i32>,
 }
 
-impl Backend {
-    async fn on_change<'a>(&self, params: TextDocumentItem<'a>) {
+impl Backend
+{
+    async fn on_change<'a>(&self, params: TextDocumentItem<'a>)
+    {
         dbg!(&params.version);
         let rope = ropey::Rope::from_str(params.text);
         self.document_map
@@ -490,29 +515,35 @@ impl Backend {
                 let (message, span) = match item.reason() {
                     chumsky::error::SimpleReason::Unclosed { span, delimiter } => {
                         (format!("Unclosed delimiter {delimiter}"), span.clone())
-                    }
-                    chumsky::error::SimpleReason::Unexpected => (
-                        format!(
-                            "{}, expected {}",
-                            if item.found().is_some() {
-                                "Unexpected token in input"
-                            } else {
-                                "Unexpected end of input"
-                            },
-                            if item.expected().len() == 0 {
-                                "something else".to_string()
-                            } else {
-                                item.expected()
-                                    .map(|expected| match expected {
-                                        Some(expected) => expected.to_string(),
-                                        None => "end of input".to_string(),
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            }
-                        ),
-                        item.span(),
-                    ),
+                    },
+                    chumsky::error::SimpleReason::Unexpected => {
+                        (
+                            format!(
+                                "{}, expected {}",
+                                if item.found().is_some() {
+                                    "Unexpected token in input"
+                                }
+                                else {
+                                    "Unexpected end of input"
+                                },
+                                if item.expected().len() == 0 {
+                                    "something else".to_string()
+                                }
+                                else {
+                                    item.expected()
+                                        .map(|expected| {
+                                            match expected {
+                                                Some(expected) => expected.to_string(),
+                                                None => "end of input".to_string(),
+                                            }
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                }
+                            ),
+                            item.span(),
+                        )
+                    },
                     chumsky::error::SimpleReason::Custom(msg) => (msg.to_string(), item.span()),
                 };
 
@@ -529,7 +560,7 @@ impl Backend {
             match analyze_program(&ast) {
                 Ok(semantic) => {
                     self.semantic_map.insert(params.uri.to_string(), semantic);
-                }
+                },
                 Err(err) => {
                     self.semantic_token_map.remove(&params.uri.to_string());
                     let span = err.span();
@@ -543,7 +574,7 @@ impl Backend {
                     if let Some(diag) = diag {
                         diagnostics.push(diag);
                     }
-                }
+                },
             };
             self.ast_map.insert(params.uri.to_string(), ast);
         }
@@ -557,32 +588,37 @@ impl Backend {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main()
+{
     env_logger::init();
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::build(|client| Backend {
-        client,
-        ast_map: DashMap::new(),
-        document_map: DashMap::new(),
-        semantic_token_map: DashMap::new(),
-        semantic_map: DashMap::new(),
+    let (service, socket) = LspService::build(|client| {
+        Backend {
+            client,
+            ast_map: DashMap::new(),
+            document_map: DashMap::new(),
+            semantic_token_map: DashMap::new(),
+            semantic_map: DashMap::new(),
+        }
     })
     .finish();
 
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-fn offset_to_position(offset: usize, rope: &Rope) -> Option<Position> {
+fn offset_to_position(offset: usize, rope: &Rope) -> Option<Position>
+{
     let line = rope.try_char_to_line(offset).ok()?;
     let first_char_of_line = rope.try_line_to_char(line).ok()?;
     let column = offset - first_char_of_line;
     Some(Position::new(line as u32, column as u32))
 }
 
-fn position_to_offset(position: Position, rope: &Rope) -> Option<usize> {
+fn position_to_offset(position: Position, rope: &Rope) -> Option<usize>
+{
     let line_char_offset = rope.try_line_to_char(position.line as usize).ok()?;
     let slice = rope.slice(0..line_char_offset + position.character as usize);
     Some(slice.len_bytes())
@@ -593,7 +629,8 @@ fn get_references(
     start: usize,
     end: usize,
     include_definition: bool,
-) -> Option<Vec<Span>> {
+) -> Option<Vec<Span>>
+{
     let interval = semantic.ident_range.find(start, end).next()?;
     let interval_val = interval.val;
     match interval_val {
@@ -612,7 +649,7 @@ fn get_references(
                 reference_span_list.push(symbol_range.clone());
             }
             Some(reference_span_list)
-        }
+        },
         IdentType::Reference(_) => None,
     }
 }

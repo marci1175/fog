@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::nrs_lang::{Expr, Func, Spanned};
-pub enum ImCompleteCompletionItem {
+pub enum ImCompleteCompletionItem
+{
     Variable(String),
     Function(String, Vec<String>),
 }
@@ -9,7 +10,8 @@ pub enum ImCompleteCompletionItem {
 pub fn completion(
     ast: &[Spanned<Func>],
     ident_offset: usize,
-) -> HashMap<String, ImCompleteCompletionItem> {
+) -> HashMap<String, ImCompleteCompletionItem>
+{
     let mut map = HashMap::new();
     for (func, _) in ast.iter() {
         if func.name.1.end < ident_offset {
@@ -47,7 +49,8 @@ pub fn get_completion_of(
     expr: &Spanned<Expr>,
     definition_map: &mut HashMap<String, ImCompleteCompletionItem>,
     ident_offset: usize,
-) -> bool {
+) -> bool
+{
     match &expr.0 {
         Expr::Error => true,
         Expr::Value(_) => true,
@@ -61,18 +64,22 @@ pub fn get_completion_of(
                 true => get_completion_of(rest, definition_map, ident_offset),
                 false => false,
             }
-        }
-        Expr::Then(first, second) => match get_completion_of(first, definition_map, ident_offset) {
-            true => get_completion_of(second, definition_map, ident_offset),
-            false => false,
         },
-        Expr::Binary(lhs, _op, rhs) => match get_completion_of(lhs, definition_map, ident_offset) {
-            true => get_completion_of(rhs, definition_map, ident_offset),
-            false => false,
+        Expr::Then(first, second) => {
+            match get_completion_of(first, definition_map, ident_offset) {
+                true => get_completion_of(second, definition_map, ident_offset),
+                false => false,
+            }
+        },
+        Expr::Binary(lhs, _op, rhs) => {
+            match get_completion_of(lhs, definition_map, ident_offset) {
+                true => get_completion_of(rhs, definition_map, ident_offset),
+                false => false,
+            }
         },
         Expr::Call(callee, args) => {
             match get_completion_of(callee, definition_map, ident_offset) {
-                true => {}
+                true => {},
                 false => return false,
             }
             for expr in &args.0 {
@@ -82,18 +89,18 @@ pub fn get_completion_of(
                 }
             }
             true
-        }
+        },
         Expr::If(test, consequent, alternative) => {
             match get_completion_of(test, definition_map, ident_offset) {
-                true => {}
+                true => {},
                 false => return false,
             }
             match get_completion_of(consequent, definition_map, ident_offset) {
-                true => {}
+                true => {},
                 false => return false,
             }
             get_completion_of(alternative, definition_map, ident_offset)
-        }
+        },
         Expr::Print(expr) => get_completion_of(expr, definition_map, ident_offset),
         Expr::List(lst) => {
             for expr in lst {
@@ -103,6 +110,6 @@ pub fn get_completion_of(
                 }
             }
             true
-        }
+        },
     }
 }

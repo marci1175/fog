@@ -11,14 +11,16 @@ use thiserror::Error;
 pub type Result<T> = std::result::Result<T, SemanticError>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum IdentType {
+pub enum IdentType
+{
     Binding(SymbolId),
     Reference(ReferenceId),
 }
 type IdentRangeLapper = Lapper<usize, IdentType>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type {
+pub enum Type
+{
     Number,
     String,
     Bool,
@@ -28,8 +30,10 @@ pub enum Type {
     Unknown,
 }
 
-impl Display for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Type
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
         match self {
             Type::Number => write!(f, "number"),
             Type::String => write!(f, "string"),
@@ -43,19 +47,26 @@ impl Display for Type {
 }
 
 #[derive(Error, Debug)]
-pub enum SemanticError {
+pub enum SemanticError
+{
     #[error("Undefined variable {name}")]
-    UndefinedVariable { name: String, span: Span },
+    UndefinedVariable
+    {
+        name: String, span: Span
+    },
     #[error("Expect element type: {expect_ty}, but got {actual_ty}")]
-    ImConsistentArrayType {
+    ImConsistentArrayType
+    {
         expect_ty: String,
         actual_ty: String,
         span: Span,
     },
 }
 
-impl SemanticError {
-    pub fn span(&self) -> Span {
+impl SemanticError
+{
+    pub fn span(&self) -> Span
+    {
         match self {
             SemanticError::UndefinedVariable { span, .. } => span.clone(),
             SemanticError::ImConsistentArrayType { span, .. } => span.clone(),
@@ -64,26 +75,31 @@ impl SemanticError {
 }
 
 #[derive(Debug)]
-pub struct Semantic {
+pub struct Semantic
+{
     pub table: SymbolTable,
     pub ident_range: IdentRangeLapper,
 }
 
 impl Semantic {}
 
-pub struct Function {
+pub struct Function
+{
     pub name: String,
     pub params: Vec<Type>,
 }
 
 #[derive(Debug)]
-pub struct Ctx {
+pub struct Ctx
+{
     env: im_rc::Vector<(String, Span)>,
     table: SymbolTable,
 }
 
-impl Ctx {
-    fn find_symbol(&self, name: &str) -> Option<Span> {
+impl Ctx
+{
+    fn find_symbol(&self, name: &str) -> Option<Span>
+    {
         self.env
             .iter()
             .rev()
@@ -91,7 +107,8 @@ impl Ctx {
     }
 }
 
-pub fn analyze_program(ast: &Ast) -> Result<Semantic> {
+pub fn analyze_program(ast: &Ast) -> Result<Semantic>
+{
     let table = SymbolTable::default();
     let env = im_rc::Vector::new();
     let mut ctx = Ctx { env, table };
@@ -123,19 +140,21 @@ pub fn analyze_program(ast: &Ast) -> Result<Semantic> {
     })
 }
 
-fn analyze_function(func: &Func, ctx: &mut Ctx) -> Result<()> {
+fn analyze_function(func: &Func, ctx: &mut Ctx) -> Result<()>
+{
     analyze_expr(&func.body.0, ctx)
 }
 
-fn analyze_expr(expr: &Expr, ctx: &mut Ctx) -> Result<()> {
+fn analyze_expr(expr: &Expr, ctx: &mut Ctx) -> Result<()>
+{
     match expr {
-        Expr::Error => {}
-        Expr::Value(_) => {}
+        Expr::Error => {},
+        Expr::Value(_) => {},
         Expr::List(list) => {
             for item in list.iter() {
                 analyze_expr(&item.0, ctx)?;
             }
-        }
+        },
         Expr::Local(name) => {
             let span = match ctx.find_symbol(&name.0) {
                 Some(ty) => ty,
@@ -145,38 +164,38 @@ fn analyze_expr(expr: &Expr, ctx: &mut Ctx) -> Result<()> {
                         name: name.0.clone(),
                         span: name.1.clone(),
                     });
-                }
+                },
             };
             let symbol_id = *ctx.table.span_to_symbol_id.get(&span).unwrap();
             ctx.table.add_reference(name.1.clone(), Some(symbol_id));
-        }
+        },
         Expr::Let(name, rhs, then, name_range) => {
             analyze_expr(&rhs.0, ctx)?;
             ctx.table.add_symbol(name_range.clone());
             ctx.env.push_back((name.clone(), name_range.clone()));
             analyze_expr(&then.0, ctx)?;
             ctx.env.pop_back();
-        }
+        },
         Expr::Then(first, second) => {
             analyze_expr(&first.0, ctx)?;
             analyze_expr(&second.0, ctx)?
-        }
+        },
         Expr::Binary(lhs, _, rhs) => {
             analyze_expr(&lhs.0, ctx)?;
             analyze_expr(&rhs.0, ctx)?;
-        }
+        },
         Expr::Call(callee, args) => {
             analyze_expr(&callee.0, ctx)?;
             for arg in args.0.iter() {
                 analyze_expr(&arg.0, ctx)?;
             }
-        }
+        },
         Expr::If(cond, consequent, alternative) => {
             analyze_expr(&cond.0, ctx)?;
             analyze_expr(&consequent.0, ctx)?;
             analyze_expr(&alternative.0, ctx)?;
-        }
-        Expr::Print(_) => {}
+        },
+        Expr::Print(_) => {},
     };
     Ok(())
 }
