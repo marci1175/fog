@@ -11,7 +11,13 @@ struct Alma {
 external printf(a: string, ...): int;
 
 pub function main(): int {
+    Alma szia = Alma { szam: 2, masik_szam: 43 };
+
     open_win("Window1");
+
+    int en = 16;
+
+    printf("Num %i", szia.masik_szam);
 
     return 0;
 }

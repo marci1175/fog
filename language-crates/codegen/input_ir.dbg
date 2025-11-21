@@ -1,5 +1,41 @@
 [COMPILER IR]
 [
+    NewVariable(
+        "szia",
+        Struct(
+            (
+                "Alma",
+                OrdMap(
+                    {
+                        "szam": I32,
+                        "masik_szam": I32,
+                    },
+                ),
+            ),
+        ),
+        InitializeStruct(
+            OrdMap(
+                {
+                    "szam": I32,
+                    "masik_szam": I32,
+                },
+            ),
+            OrdMap(
+                {
+                    "szam": Literal(
+                        I32(
+                            2,
+                        ),
+                    ),
+                    "masik_szam": Literal(
+                        I32(
+                            43,
+                        ),
+                    ),
+                },
+            ),
+        ),
+    ),
     FunctionCall(
         (
             FunctionSignature {
@@ -38,6 +74,81 @@
                         ),
                     ),
                     String,
+                ),
+            },
+        ),
+    ),
+    NewVariable(
+        "en",
+        I32,
+        Literal(
+            I32(
+                16,
+            ),
+        ),
+    ),
+    FunctionCall(
+        (
+            FunctionSignature {
+                name: "printf",
+                args: FunctionArguments {
+                    arguments_list: OrdMap(
+                        {
+                            "a": String,
+                        },
+                    ),
+                    ellipsis_present: true,
+                },
+                return_type: I32,
+                module_path: [
+                    "test_project",
+                    "printf",
+                ],
+                visibility: Private,
+                compiler_hints: OrdSet(
+                    {},
+                ),
+                enabling_features: OrdSet(
+                    {},
+                ),
+            },
+            "printf",
+        ),
+        OrdMap(
+            {
+                Identifier(
+                    "a",
+                ): (
+                    Literal(
+                        String(
+                            "Num %i",
+                        ),
+                    ),
+                    String,
+                ),
+                Index(
+                    1,
+                ): (
+                    VariableReference(
+                        StructFieldReference(
+                            StructFieldReference {
+                                field_stack: [
+                                    "szia",
+                                    "masik_szam",
+                                ],
+                            },
+                            (
+                                "Alma",
+                                OrdMap(
+                                    {
+                                        "szam": I32,
+                                        "masik_szam": I32,
+                                    },
+                                ),
+                            ),
+                        ),
+                    ),
+                    I32,
                 ),
             },
         ),

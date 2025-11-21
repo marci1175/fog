@@ -59,7 +59,7 @@ pub fn tokenize(
                 let token = match_multi_character_expression(string_buffer.clone());
 
                 token_list.push(token);
-                token_range_list.push(char_idx..char_idx + string_buffer.len());
+                token_range_list.push(char_idx - string_buffer.len()..char_idx);
             }
 
             token_list.push(single_char_token);
@@ -73,7 +73,7 @@ pub fn tokenize(
 
             if Some(&'.') == next_char_2 && Some(&'.') == next_char {
                 token_list.push(Token::Ellipsis);
-                token_range_list.push(char_idx..char_idx + 2);
+                token_range_list.push(char_idx..char_idx + 3);
 
                 char_idx += 3;
 
@@ -90,7 +90,7 @@ pub fn tokenize(
                     let token = match_multi_character_expression(string_buffer.clone());
 
                     token_list.push(token);
-                    token_range_list.push(char_idx..char_idx + string_buffer.len());
+                    token_range_list.push(char_idx - string_buffer.len()..char_idx);
 
                     string_buffer.clear();
                 }
@@ -258,7 +258,7 @@ pub fn tokenize(
 
                         if *quote_char == '"' {
                             token_list.push(Token::Literal(Type::String(quotes_buffer)));
-                            token_range_list.push(char_idx..quote_idx);
+                            token_range_list.push(char_idx..quote_idx + 1);
 
                             char_idx = quote_idx + 1;
 
@@ -334,7 +334,7 @@ pub fn tokenize(
                 let token = match_multi_character_expression(string_buffer.clone());
 
                 token_list.push(token);
-                token_range_list.push(char_idx..char_idx + string_buffer.len());
+                token_range_list.push(char_idx - string_buffer.len()..char_idx);
 
                 string_buffer.clear();
             }
@@ -490,7 +490,7 @@ pub fn tokenize(
             let token = match_multi_character_expression(string_buffer.clone());
 
             token_list.push(token);
-            token_range_list.push(char_idx..char_idx + string_buffer.len());
+            token_range_list.push(char_idx - string_buffer.len()..char_idx + 1);
 
             string_buffer.clear();
         }
@@ -500,7 +500,7 @@ pub fn tokenize(
             let token = match_multi_character_expression(string_buffer.clone());
 
             token_list.push(token);
-            token_range_list.push(char_idx..char_idx + string_buffer.len());
+            token_range_list.push(char_idx - string_buffer.len()..char_idx + 1);
 
             string_buffer.clear();
         }

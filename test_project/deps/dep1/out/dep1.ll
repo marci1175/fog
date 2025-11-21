@@ -10,11 +10,11 @@ target triple = "x86_64-pc-windows-msvc"
 
 declare { i32, i32 } @alma_csinalo()
 
-declare void @hi_from_cpp()
+declare void @open_window(ptr)
 
 declare i32 @printf(ptr, ...)
 
-declare void @open_window(ptr)
+declare void @hi_from_cpp()
 
 define void @kedvenc() !dbg !3 {
 main_fn_entry:
