@@ -24,7 +24,7 @@ main_fn_entry:
 !llvm.dbg.cu = !{!0}
 !llvm.debug.version = !{!2}
 
-!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "Fog (ver.: 0.1.0) with LLVM 18-1-8", isOptimized: false, runtimeVersion: 1, emissionKind: FullDebug, splitDebugInlining: false, debugInfoForProfiling: true)
+!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "Fog (ver.: 0.1.0) with LLVM 21.1.2", isOptimized: false, runtimeVersion: 1, emissionKind: FullDebug, splitDebugInlining: false, debugInfoForProfiling: true)
 !1 = !DIFile(filename: "main", directory: "C:\\Users\\marci\\Desktop\\fog\\parser_tester\\src")
 !2 = !{i32 1}
 !3 = distinct !DISubprogram(name: "main", linkageName: "main", scope: !1, file: !1, line: 69, type: !4, scopeLine: 69, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !0)

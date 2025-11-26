@@ -1,5 +1,5 @@
 use fog_common::{
-    anyhow::Result,
+    anyhow::{self, Result},
     codegen::CustomType,
     indexmap::IndexMap,
     inkwell::{
@@ -42,7 +42,7 @@ pub fn generate_debug_inforamtion_types<'ctx>(
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
     unique_id_source: &mut u32,
-) -> Result<(), String>
+) -> Result<()>
 {
     for type_disc in type_discriminants {
         let di_ty = generate_debug_type_from_type_disc(
@@ -73,7 +73,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
     unique_id_source: &mut u32,
-) -> Result<DIType<'ctx>, String>
+) -> Result<DIType<'ctx>>
 {
     let debug_type = match type_disc.clone() {
         TypeDiscriminant::Array((array_ty, len)) => {
@@ -137,10 +137,10 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
                     LLVMDisposeMessage(error_message);
                     LLVMDisposeMessage(target_triple);
 
-                    return Err(format!(
+                    return Err(anyhow::Error::msg(format!(
                         "An error occured while getting the target: {}",
                         c_str.to_string_lossy()
-                    ));
+                    )));
                 }
 
                 let features = CString::new("").unwrap();
@@ -204,7 +204,7 @@ fn get_basic_debug_type_from_ty<'ctx>(
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     type_disc: TypeDiscriminant,
-) -> Result<fog_common::inkwell::debug_info::DIBasicType<'ctx>, &'static str>
+) -> Result<fog_common::inkwell::debug_info::DIBasicType<'ctx>>
 {
     let debug_type = debug_info_builder.create_basic_type(
         &type_disc.to_string(),
@@ -230,7 +230,7 @@ pub fn create_subprogram_debug_information<'ctx>(
     function_name: &String,
     function_definition: &FunctionDefinition,
     return_type: TypeDiscriminant,
-) -> Result<fog_common::inkwell::debug_info::DISubprogram<'ctx>, String>
+) -> Result<fog_common::inkwell::debug_info::DISubprogram<'ctx>>
 {
     let debug_return_type = if return_type == TypeDiscriminant::Void {
         None

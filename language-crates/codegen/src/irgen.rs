@@ -1646,7 +1646,7 @@ where
             let call = builder.build_call(function_value, &arguments_passed_in, "function_call")?;
 
             // Handle returned value
-            let returned_value = call.try_as_basic_value().left();
+            let returned_value = call.try_as_basic_value().basic();
 
             if let Some(returned) = returned_value {
                 let (v_ptr, v_ty) = if let Some(ref variable_name) = variable_reference {
@@ -2558,7 +2558,7 @@ pub fn generate_ir<'ctx>(
         DWARFSourceLanguage::C,
         module.get_name().to_str()?,
         path_to_src_file,
-        &format!("Fog (ver.: {}) with LLVM 18-1-8", env!("CARGO_PKG_VERSION")),
+        &format!("Fog (ver.: {}) with LLVM {}", env!("CARGO_PKG_VERSION"), env!("LLVM_VERSION")),
         is_optimized,
         flags_passed_in,
         1,
@@ -2663,7 +2663,7 @@ pub fn generate_ir<'ctx>(
                 function_definition,
                 return_type,
             )
-            .map_err(CodeGenError::LibraryLLVMMessage)?;
+            .map_err(|err| CodeGenError::LibraryLLVMError(err.to_string()))?;
 
             function.set_subprogram(debug_subprogram);
         }
@@ -2706,6 +2706,11 @@ pub fn generate_ir<'ctx>(
                 (argument, argument_entry.1.clone()),
             );
         }
+
+        // dbg!(&function_definition.inner);
+        // for tkn in function_definition.inner.clone() {
+        //     println!("Dbg info: {:?}", tkn.debug_information);
+        // }
 
         // Iterate through all the `ParsedToken`-s and create the LLVM-IR from the tokens
         create_ir(

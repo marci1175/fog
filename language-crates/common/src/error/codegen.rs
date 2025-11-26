@@ -75,7 +75,7 @@ pub enum CodeGenError
 
     /// This error can only be returned when an error occured thorugh LLVM-SYS itself.
     #[error("An error has occured while generating LLVM-IR: `{0}`.")]
-    LibraryLLVMMessage(String),
+    LibraryLLVMError(String),
 
     #[error(
         "CompilerHint `{0}` should be handled elsewhere. (If this a feature, then it should've been handled at the `CompilerHint` list creation.)"

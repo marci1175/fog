@@ -179,6 +179,7 @@ impl Parser
                                             function_name.clone(),
                                             UnparsedFunctionDefinition {
                                                 inner: braces_contains.clone(),
+                                                token_offset: token_idx + 4,
                                                 function_sig: FunctionSignature {
                                                     name: function_name.clone(),
                                                     args: args.clone(),
@@ -530,6 +531,7 @@ impl Parser
                 function_sig: unparsed_function.function_sig.clone(),
                 inner: self.parse_function_block(
                     unparsed_function.inner.clone(),
+                    unparsed_function.token_offset,
                     unparsed_functions.clone(),
                     unparsed_function.function_sig.clone(),
                     function_imports.clone(),
@@ -555,6 +557,7 @@ impl Parser
     pub fn parse_function_block(
         &self,
         tokens: Vec<Token>,
+        tokens_offset: usize,
         function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
         this_function_signature: FunctionSignature,
         function_imports: Arc<HashMap<String, FunctionSignature>>,
@@ -608,7 +611,8 @@ impl Parser
                             token_idx = line_break_idx;
 
                             let (parsed_value, idx, _) = parse_value(
-                                selected_tokens.clone(),
+                                selected_tokens,
+                                tokens_offset + token_idx,
                                 &self.tokens_debug_info,
                                 origin_token_idx,
                                 function_signatures.clone(),
@@ -626,7 +630,7 @@ impl Parser
                                 ),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    origin_token_idx..token_idx,
+                                    origin_token_idx + tokens_offset..token_idx + tokens_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -647,7 +651,7 @@ impl Parser
                                         inner: ParsedToken::Literal(var_type.clone().into()),
                                         debug_information: fetch_and_merge_debug_information(
                                             &self.tokens_debug_info,
-                                            origin_token_idx..token_idx,
+                                            origin_token_idx + tokens_offset..token_idx + tokens_offset,
                                             true,
                                         )
                                         .unwrap(),
@@ -655,7 +659,7 @@ impl Parser
                                 ),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    origin_token_idx..token_idx,
+                                    origin_token_idx + tokens_offset..token_idx + tokens_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -693,6 +697,7 @@ impl Parser
 
                         parse_variable_expression(
                             &tokens,
+                            tokens_offset,
                             &self.tokens_debug_info,
                             &tokens[token_idx],
                             &mut token_idx,
@@ -705,7 +710,7 @@ impl Parser
                                 inner: ParsedToken::VariableReference(variable_ref),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    origin_token_idx..token_idx_clone,
+                                    origin_token_idx + tokens_offset..token_idx_clone + tokens_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -728,7 +733,8 @@ impl Parser
 
                         let (variables_passed, jumped_idx) = parse_function_call_args(
                             &tokens[token_idx + 2..bracket_idx + 2],
-                            token_idx + 2,
+                            tokens_offset + token_idx + 2,
+                            origin_token_idx,
                             &self.tokens_debug_info,
                             &mut variable_scope,
                             function_sig.function_sig.args.clone(),
@@ -746,7 +752,7 @@ impl Parser
                             ),
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
-                                origin_token_idx..token_idx,
+                                origin_token_idx + tokens_offset..origin_token_idx + token_idx + tokens_offset,
                                 true,
                             )
                             .unwrap(),
@@ -764,10 +770,11 @@ impl Parser
                         let paren_start_slice = &tokens[token_idx + 2..];
 
                         let bracket_idx = find_closing_paren(paren_start_slice, 0)? + token_idx;
-
+                        
                         let (variables_passed, jumped_idx) = parse_function_call_args(
                             &tokens[token_idx + 2..bracket_idx + 2],
-                            token_idx + 2,
+                            tokens_offset + token_idx + 2,
+                            origin_token_idx,
                             &self.tokens_debug_info,
                             &mut variable_scope,
                             function_sig.args.clone(),
@@ -785,7 +792,7 @@ impl Parser
                             ),
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
-                                origin_token_idx..token_idx,
+                                origin_token_idx + tokens_offset..origin_token_idx + tokens_offset + token_idx,
                                 true,
                             )
                             .unwrap(),
@@ -817,6 +824,7 @@ impl Parser
 
                                     let (parsed_token, _, _) = parse_value(
                                         selected_tokens,
+                                        tokens_offset + token_idx,
                                         &self.tokens_debug_info,
                                         origin_token_idx,
                                         function_signatures.clone(),
@@ -834,7 +842,7 @@ impl Parser
                                         ),
                                         debug_information: fetch_and_merge_debug_information(
                                             &self.tokens_debug_info,
-                                            origin_token_idx..token_idx,
+                                            origin_token_idx + tokens_offset..token_idx + tokens_offset,
                                             true,
                                         )
                                         .unwrap(),
@@ -871,6 +879,7 @@ impl Parser
                     else {
                         let (returned_value, jmp_idx, _) = parse_value(
                             &tokens[token_idx..],
+                            tokens_offset,
                             &self.tokens_debug_info,
                             origin_token_idx,
                             function_signatures.clone(),
@@ -886,7 +895,7 @@ impl Parser
                             inner: ParsedToken::ReturnValue(Box::new(returned_value)),
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
-                                origin_token_idx..token_idx,
+                                origin_token_idx + tokens_offset..token_idx + tokens_offset,
                                 true,
                             )
                             .unwrap(),
@@ -895,8 +904,6 @@ impl Parser
                 }
                 else if Token::If == current_token {
                     token_idx += 1;
-
-                    let cond_start_idx = token_idx.clone();
 
                     if let Token::OpenParentheses = tokens[token_idx] {
                         token_idx += 1;
@@ -908,6 +915,7 @@ impl Parser
 
                         let (condition, cond_slice_len, _) = parse_value(
                             cond_slice,
+                            tokens_offset + token_idx,
                             &self.tokens_debug_info,
                             origin_token_idx,
                             function_signatures.clone(),
@@ -916,8 +924,6 @@ impl Parser
                             function_imports.clone(),
                             custom_items.clone(),
                         )?;
-
-                        let cond_end_idx = token_idx + cond_slice_len;
 
                         token_idx = paren_close_idx + 1;
 
@@ -931,6 +937,7 @@ impl Parser
 
                             let true_condition_block = self.parse_function_block(
                                 true_block_slice,
+                                token_idx + tokens_offset,
                                 function_signatures.clone(),
                                 FunctionSignature {
                                     name: String::new(),
@@ -965,6 +972,7 @@ impl Parser
 
                                     else_condition_branch = self.parse_function_block(
                                         false_block_slice,
+                                        tokens_offset + token_idx,
                                         function_signatures.clone(),
                                         FunctionSignature {
                                             name: String::new(),
@@ -994,7 +1002,7 @@ impl Parser
                                 }),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    origin_token_idx..token_idx,
+                                    origin_token_idx + tokens_offset..token_idx + tokens_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -1023,6 +1031,7 @@ impl Parser
 
                         let loop_body = self.parse_function_block(
                             loop_body_tokens.to_vec(),
+                            tokens_offset + token_idx,
                             function_signatures.clone(),
                             FunctionSignature {
                                 name: String::new(),
@@ -1045,7 +1054,7 @@ impl Parser
                             inner: ParsedToken::Loop(loop_body),
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
-                                origin_token_idx..token_idx,
+                                origin_token_idx + tokens_offset..token_idx + tokens_offset,
                                 true,
                             )
                             .unwrap(),
@@ -1063,7 +1072,7 @@ impl Parser
                         inner: ParsedToken::ControlFlow(ControlFlowType::Continue),
                         debug_information: fetch_and_merge_debug_information(
                             &self.tokens_debug_info,
-                            origin_token_idx..token_idx,
+                            origin_token_idx + tokens_offset..token_idx + tokens_offset,
                             true,
                         )
                         .unwrap(),
@@ -1076,7 +1085,7 @@ impl Parser
                         inner: ParsedToken::ControlFlow(ControlFlowType::Break),
                         debug_information: fetch_and_merge_debug_information(
                             &self.tokens_debug_info,
-                            origin_token_idx..token_idx,
+                            origin_token_idx + tokens_offset..token_idx + tokens_offset,
                             true,
                         )
                         .unwrap(),
@@ -1099,6 +1108,7 @@ impl Parser
 /// First token should be the first argument
 pub fn parse_function_call_args(
     tokens: &[Token],
+    tokens_offset: usize,
     mut origin_token_idx: usize,
     debug_infos: &[DebugInformation],
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
@@ -1142,6 +1152,7 @@ pub fn parse_function_call_args(
 
                 let (parsed_argument, jump_idx, arg_ty) = parse_value(
                     &tokens[tokens_idx..closing_idx],
+                    tokens_idx + tokens_offset,
                     debug_infos,
                     origin_token_idx,
                     function_signatures.clone(),
@@ -1201,6 +1212,7 @@ pub fn parse_function_call_args(
                 if let Some(fn_argument) = fn_argument {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
+                        tokens_offset + tokens_idx,
                         debug_infos,
                         origin_token_idx,
                         function_signatures.clone(),
@@ -1225,6 +1237,7 @@ pub fn parse_function_call_args(
                 else {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
+                        tokens_offset + tokens_idx,
                         debug_infos,
                         origin_token_idx,
                         function_signatures.clone(),
@@ -1303,11 +1316,12 @@ pub fn fetch_and_merge_debug_information(
     is_ordered: bool,
 ) -> Option<DebugInformation>
 {
-    let fetched_items = list.get(range);
+    let fetched_items = list.get(dbg!(range));
+    dbg!(&fetched_items);
 
     fetched_items.map(|debug_infos| {
         let lines_range = combine_ranges(
-            debug_infos.iter().map(|dbg_inf| dbg_inf.lines.clone()),
+            debug_infos.iter().map(|dbg_inf| dbg!(dbg_inf.lines.clone())),
             is_ordered,
         );
 
@@ -1327,7 +1341,10 @@ pub fn combine_ranges<T: Ord + Copy>(
 ) -> Range<T>
 {
     if is_ordered {
-        iter.nth(0).unwrap().start..iter.last().unwrap().end
+        let start = iter.clone().next().unwrap().start;
+        let end = iter.clone().last().unwrap().end;
+
+        start..end
     }
     else {
         let start = iter.clone().min_by_key(|range| range.start).unwrap().start;

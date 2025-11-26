@@ -8,9 +8,9 @@ target triple = "x86_64-pc-windows-msvc"
 @Alma = constant [5 x i8] c"Alma\00"
 @"%i" = constant [3 x i8] c"%i\00"
 
-declare { i32, i32 } @alma_csinalo()
-
 declare void @hi_from_cpp()
+
+declare { i32, i32 } @alma_csinalo()
 
 declare i32 @printf(ptr, ...)
 

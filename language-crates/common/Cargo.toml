@@ -9,7 +9,10 @@ anyhow = {version = "1.0.100", features = ["backtrace"]}
 strum = {version = "0.27.2", features = ["derive"]}
 strum_macros = "0.27.2"
 serde = { version = "1.0.228", features = ["derive"]}
-inkwell = { version = "0.6.0", features = ["llvm18-1", "target-x86"], default-features = false }
+
+# Migrate to LLVM 21-1 
+inkwell = { version = "0.7.1", features = ["llvm18-1", "target-x86"], default-features = false }
+
 num = "0.4.3"
 thiserror = "2.0.12"
 indexmap = "2.9.0"

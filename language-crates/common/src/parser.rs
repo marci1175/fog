@@ -197,6 +197,9 @@ pub struct UnparsedFunctionDefinition
 {
     pub function_sig: FunctionSignature,
     pub inner: Vec<Token>,
+
+    /// This is used to offset the index when fetching [`DebugInformation`] about [`ParsedToken`]s inside the function.
+    pub token_offset: usize,
 }
 
 #[derive(Debug, Clone)]
