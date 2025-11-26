@@ -994,7 +994,7 @@ impl Parser
                                 }),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    origin_token_idx..token_idx - 1,
+                                    origin_token_idx..token_idx,
                                     true,
                                 )
                                 .unwrap(),

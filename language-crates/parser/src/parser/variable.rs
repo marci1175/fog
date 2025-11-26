@@ -707,6 +707,7 @@ pub fn parse_token_as_value(
             inner: inner_parsed_token,
             debug_information: fetch_and_merge_debug_information(
                 debug_infos,
+                // Add the magic number and call it a day
                 origin_token_idx..origin_token_idx + *token_idx + 1,
                 true,
             )
