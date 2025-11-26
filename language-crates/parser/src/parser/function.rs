@@ -1312,7 +1312,7 @@ pub fn fetch_and_merge_debug_information(
         );
 
         DebugInformation {
-            char_range: combine_ranges_per_line(dbg!(debug_infos), dbg!(lines_range.clone())),
+            char_range: combine_ranges_per_line(debug_infos, lines_range.clone()),
             lines: lines_range,
         }
     })
@@ -1363,10 +1363,7 @@ pub fn combine_ranges_per_line(
         for idx in normalize_range(dbg_inf.lines.clone()) {
             // (If the first item (ordered by lines) is at line 20 the corresponding index in the `lines` list is going to be 0. )
             // Combine the pre-existing value with the fetched value.
-            combine_range_with_other(
-                &mut lines[idx],
-                dbg_inf.char_range[idx].clone(),
-            );
+            combine_range_with_other(&mut lines[idx], dbg_inf.char_range[idx].clone());
         }
     }
 
@@ -1374,6 +1371,7 @@ pub fn combine_ranges_per_line(
 }
 
 /// Normalizes a Range<T>, by setting the start as T::Default, and subtracting the original beginning from the end.
-pub fn normalize_range<T: Default + Sub<Output = T>>(range: Range<T>) -> Range<T> {
+pub fn normalize_range<T: Default + Sub<Output = T>>(range: Range<T>) -> Range<T>
+{
     return T::default()..range.end - range.start;
 }

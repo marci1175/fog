@@ -8,13 +8,13 @@ target triple = "x86_64-pc-windows-msvc"
 @Alma = constant [5 x i8] c"Alma\00"
 @"%i" = constant [3 x i8] c"%i\00"
 
-declare i32 @printf(ptr, ...)
-
 declare void @open_window(ptr)
 
 declare { i32, i32 } @alma_csinalo()
 
 declare void @hi_from_cpp()
+
+declare i32 @printf(ptr, ...)
 
 define void @kedvenc() !dbg !3 {
 main_fn_entry:

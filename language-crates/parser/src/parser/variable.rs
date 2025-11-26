@@ -1381,7 +1381,7 @@ pub fn init_struct(
             ),
             debug_information: fetch_and_merge_debug_information(
                 debug_infos,
-                dbg!(origin_token_idx..origin_token_idx + idx),
+                origin_token_idx..origin_token_idx + idx,
                 true,
             )
             .unwrap(),

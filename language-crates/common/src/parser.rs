@@ -50,14 +50,18 @@ pub struct ParsedTokenInstance
     pub debug_information: DebugInformation,
 }
 
-impl PartialEq for ParsedTokenInstance {
-    fn eq(&self, other: &Self) -> bool {
+impl PartialEq for ParsedTokenInstance
+{
+    fn eq(&self, other: &Self) -> bool
+    {
         self.inner == other.inner
     }
 }
 
-impl PartialEq<ParsedToken> for ParsedTokenInstance {
-    fn eq(&self, other: &ParsedToken) -> bool {
+impl PartialEq<ParsedToken> for ParsedTokenInstance
+{
+    fn eq(&self, other: &ParsedToken) -> bool
+    {
         &self.inner == other
     }
 }
