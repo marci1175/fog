@@ -7,7 +7,7 @@ use std::{
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
-    parser::{FunctionSignature, ParsedToken},
+    parser::{FunctionSignature, ParsedToken, ParsedTokenInstance},
     tokenizer::Token,
     ty::{OrdMap, TypeDiscriminant, token_to_ty},
 };
@@ -59,10 +59,10 @@ impl Deref for Imports
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct If
 {
-    pub condition: Box<ParsedToken>,
+    pub condition: Box<ParsedTokenInstance>,
 
-    pub complete_body: Vec<ParsedToken>,
-    pub incomplete_body: Vec<ParsedToken>,
+    pub complete_body: Vec<ParsedTokenInstance>,
+    pub incomplete_body: Vec<ParsedTokenInstance>,
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]

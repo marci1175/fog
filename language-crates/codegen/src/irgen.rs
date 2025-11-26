@@ -17,7 +17,7 @@ use fog_common::{
         types::BasicMetadataTypeEnum,
         values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     },
-    parser::{FunctionDefinition, ParsedToken},
+    parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
     ty::{OrdMap, OrdSet, TypeDiscriminant, token_to_ty},
 };
 use std::{
@@ -41,7 +41,7 @@ pub fn create_ir<'main, 'ctx>(
     // Inkwell Context
     ctx: &'main Context,
     // The list of ParsedToken-s
-    parsed_tokens: Vec<ParsedToken>,
+    parsed_tokens: Vec<ParsedTokenInstance>,
     // This argument is initialized with the HashMap of the arguments
     available_arguments: HashMap<String, (BasicValueEnum<'ctx>, TypeDiscriminant)>,
     // Type returned type of the Function
@@ -120,7 +120,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     ctx: &'main Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    parsed_token: ParsedToken,
+    parsed_token_instance: ParsedTokenInstance,
     variable_map: &mut HashMap<
         String,
         (
@@ -139,7 +139,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     allocation_list: &mut VecDeque<(
-        ParsedToken,
+        ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,
@@ -162,6 +162,9 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
 where
     'main: 'ctx,
 {
+    let parsed_token = parsed_token_instance.inner;
+    let parsed_token_debug_info = parsed_token_instance.debug_information;
+
     let created_var = match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
             let mut was_preallocated = false;
@@ -192,7 +195,14 @@ where
             })()?;
 
             // Check if the value was preallocated and is a literal, if yes we dont need to set the value of the variable as it was done beforehand.
-            if !(matches!(&*var_set_val, ParsedToken::Literal(_)) && was_preallocated) {
+            if !(matches!(
+                &*var_set_val,
+                ParsedTokenInstance {
+                    inner: ParsedToken::Literal(_),
+                    debug_information: _
+                }
+            ) && was_preallocated)
+            {
                 // Set the value of the newly created variable
                 create_ir_from_parsed_token(
                     ctx,
@@ -1522,7 +1532,7 @@ where
             // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
             let fn_argument_list: OrdMap<
                 FunctionArgumentIdentifier<String, usize>,
-                (ParsedToken, TypeDiscriminant),
+                (ParsedTokenInstance, TypeDiscriminant),
             > = IndexMap::from_iter(arg_iter).into();
 
             // Keep the list of the arguments passed in
@@ -2454,7 +2464,7 @@ where
             }
             else {
                 return Err(
-                    CodeGenError::InternalVariableNotFound(variable_ref.to_string()).into(),
+                    CodeGenError::InternalVariableNotFound(variable_ref.inner.to_string()).into(),
                 );
             }
         },
@@ -2722,7 +2732,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // Inkwell Context
     ctx: &'main Context,
     // The list of ParsedToken-s
-    parsed_tokens: Vec<ParsedToken>,
+    parsed_tokens: Vec<ParsedTokenInstance>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
@@ -2739,7 +2749,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
     // If the code we are running is not in a loop we can pass in `None`.
     alloca_table: &mut VecDeque<(
-        ParsedToken,
+        ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,

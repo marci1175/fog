@@ -4,7 +4,7 @@ use fog_common::{
     anyhow::Result,
     codegen::CustomType,
     compiler::ProjectConfig,
-    error::parser::ParserError,
+    error::{DebugInformation, parser::ParserError},
     indexmap::IndexMap,
     parser::{FunctionDefinition, FunctionSignature, FunctionVisibility},
     tokenizer::Token,
@@ -15,7 +15,7 @@ use fog_common::{
 pub struct Parser
 {
     pub tokens: Vec<Token>,
-    pub token_ranges: Vec<Range<usize>>,
+    pub tokens_debug_info: Vec<DebugInformation>,
     pub function_table: IndexMap<String, FunctionDefinition>,
     pub library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
     pub custom_types: Arc<IndexMap<String, CustomType>>,
@@ -101,7 +101,7 @@ impl Parser
 
     pub fn new(
         tokens: Vec<Token>,
-        token_ranges: Vec<Range<usize>>,
+        token_ranges: Vec<DebugInformation>,
         config: ProjectConfig,
         module_path: Vec<String>,
         enabled_features: OrdSet<String>,
@@ -109,7 +109,7 @@ impl Parser
     {
         Self {
             tokens,
-            token_ranges,
+            tokens_debug_info: token_ranges,
             function_table: IndexMap::new(),
             imported_functions: Arc::new(HashMap::new()),
             library_public_function_table: IndexMap::new(),

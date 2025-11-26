@@ -3,33 +3,36 @@ use std::{collections::HashMap, sync::Arc};
 use fog_common::{
     anyhow::Result,
     codegen::{CustomType, Order},
-    error::{parser::ParserError, syntax::SyntaxError},
+    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        FunctionSignature, MathematicalSymbol, ParsedToken, StructFieldReference,
-        UnparsedFunctionDefinition, VariableReference, find_closing_braces, find_closing_paren,
+        FunctionSignature, MathematicalSymbol, ParsedToken, ParsedTokenInstance,
+        StructFieldReference, UnparsedFunctionDefinition, VariableReference, find_closing_braces,
+        find_closing_paren,
     },
     tokenizer::Token,
     ty::{OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe},
 };
 
-use crate::parser::function::parse_function_call_args;
+use crate::parser::function::{fetch_and_merge_debug_information, parse_function_call_args};
 
 /// This is a top level implementation for `parse_token_as_value`
 pub fn parse_value(
     tokens: &[Token],
+    debug_infos: &[DebugInformation],
+    origin_token_idx: usize,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
     mut desired_variable_type: Option<TypeDiscriminant>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<(ParsedToken, usize, TypeDiscriminant)>
+) -> Result<(ParsedTokenInstance, usize, TypeDiscriminant)>
 {
     let mut token_idx = 0;
 
     // This is used for parsing mathematical expressions, comparisons
-    let mut parsed_token: Option<ParsedToken> = None;
+    let mut parsed_token: Option<ParsedTokenInstance> = None;
     let mut comparison_other_side_ty: Option<TypeDiscriminant> = None;
 
     while token_idx < tokens.len() {
@@ -64,26 +67,36 @@ pub fn parse_value(
                     token_idx += 1;
 
                     // Modify the parsed token
-                    *parsed_token = ParsedToken::MathematicalExpression(
-                        // Move the token to the left side
-                        Box::new(parsed_token.clone()),
-                        // Add the Mathematical symbol to the enum variant
-                        (*current_token).clone().try_into()?,
-                        // Put the new item to the right side of the expr.
-                        Box::new(
-                            parse_token_as_value(
-                                tokens,
-                                function_signatures.clone(),
-                                variable_scope,
-                                desired_variable_type.clone(),
-                                &mut token_idx,
-                                next_token,
-                                function_imports.clone(),
-                                custom_types.clone(),
-                            )?
-                            .0,
+                    *parsed_token = ParsedTokenInstance {
+                        inner: ParsedToken::MathematicalExpression(
+                            // Move the token to the left side
+                            Box::new(parsed_token.clone()),
+                            // Add the Mathematical symbol to the enum variant
+                            (*current_token).clone().try_into()?,
+                            // Put the new item to the right side of the expr.
+                            Box::new(
+                                parse_token_as_value(
+                                    tokens,
+                                    debug_infos,
+                                    origin_token_idx,
+                                    function_signatures.clone(),
+                                    variable_scope,
+                                    desired_variable_type.clone(),
+                                    &mut token_idx,
+                                    next_token,
+                                    function_imports.clone(),
+                                    custom_types.clone(),
+                                )?
+                                .0,
+                            ),
                         ),
-                    );
+                        debug_information: fetch_and_merge_debug_information(
+                            debug_infos,
+                            origin_token_idx..origin_token_idx + token_idx,
+                            true,
+                        )
+                        .unwrap(),
+                    };
                 }
                 else {
                     return Err(ParserError::SyntaxError(
@@ -98,6 +111,8 @@ pub fn parse_value(
             Token::UnparsedLiteral(_) => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
+                    debug_infos,
+                    origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
                     desired_variable_type.clone(),
@@ -120,6 +135,8 @@ pub fn parse_value(
             Token::Identifier(_) | Token::OpenParentheses => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
+                    debug_infos,
+                    origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
                     desired_variable_type.clone(),
@@ -139,6 +156,8 @@ pub fn parse_value(
             Token::Literal(literal) => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
+                    debug_infos,
+                    origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
                     Some(literal.discriminant()),
@@ -173,6 +192,8 @@ pub fn parse_value(
 
                     let (current_cmp_token, token_ty) = parse_token_as_value(
                         tokens,
+                        debug_infos,
+                        origin_token_idx,
                         function_signatures.clone(),
                         variable_scope,
                         comparison_other_side_ty.clone(),
@@ -182,18 +203,28 @@ pub fn parse_value(
                         custom_types.clone(),
                     )?;
 
-                    parsed_token = Some(ParsedToken::Comparison(
-                        Box::new(last_p_token.clone()),
-                        Order::from_token(current_token)?,
-                        Box::new(current_cmp_token),
-                        token_ty,
-                    ));
+                    parsed_token = Some(ParsedTokenInstance {
+                        inner: ParsedToken::Comparison(
+                            Box::new(last_p_token.clone()),
+                            Order::from_token(current_token)?,
+                            Box::new(current_cmp_token),
+                            token_ty,
+                        ),
+                        debug_information: fetch_and_merge_debug_information(
+                            debug_infos,
+                            origin_token_idx..origin_token_idx + token_idx,
+                            true,
+                        )
+                        .unwrap(),
+                    });
                 }
             },
 
             Token::OpenBraces => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
+                    debug_infos,
+                    origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
                     desired_variable_type.clone(),
@@ -215,10 +246,18 @@ pub fn parse_value(
                     if let Some(Token::TypeDefinition(target_type)) = tokens.get(token_idx + 1) {
                         token_idx += 2;
 
-                        parsed_token = Some(ParsedToken::TypeCast(
-                            Box::new(last_token.clone()),
-                            target_type.clone(),
-                        ));
+                        parsed_token = Some(ParsedTokenInstance {
+                            inner: ParsedToken::TypeCast(
+                                Box::new(last_token.clone()),
+                                target_type.clone(),
+                            ),
+                            debug_information: fetch_and_merge_debug_information(
+                                debug_infos,
+                                origin_token_idx..origin_token_idx + token_idx,
+                                true,
+                            )
+                            .unwrap(),
+                        });
                         comparison_other_side_ty = Some(target_type.clone());
                     }
                     else {
@@ -253,6 +292,9 @@ pub fn parse_value(
 pub fn parse_token_as_value(
     // This is used to parse the function call's arguments
     tokens: &[Token],
+
+    debug_infos: &[DebugInformation],
+    origin_token_idx: usize,
     // Functions available
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     // Variables available
@@ -265,10 +307,10 @@ pub fn parse_token_as_value(
     eval_token: &Token,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<(ParsedToken, TypeDiscriminant)>
+) -> Result<(ParsedTokenInstance, TypeDiscriminant)>
 {
     // Match the token
-    let inner_value = match eval_token {
+    let (inner_parsed_token, inner_parsed_token_ty) = match eval_token {
         Token::Literal(literal) => {
             // Increment the token_idx by the tokens we have analyzed
             *token_idx += 1;
@@ -283,7 +325,15 @@ pub fn parse_token_as_value(
                     // Return the type casted literal
                     (
                         ParsedToken::TypeCast(
-                            Box::new(ParsedToken::Literal(literal.clone())),
+                            Box::new(ParsedTokenInstance {
+                                inner: ParsedToken::Literal(literal.clone()),
+                                debug_information: fetch_and_merge_debug_information(
+                                    debug_infos,
+                                    origin_token_idx..origin_token_idx + *token_idx,
+                                    true,
+                                )
+                                .unwrap(),
+                            }),
                             target_type.clone(),
                         ),
                         target_type.clone(),
@@ -323,7 +373,18 @@ pub fn parse_token_as_value(
 
                     // Return the type casted literal
                     (
-                        ParsedToken::TypeCast(Box::new(parsed_token), target_type.clone()),
+                        ParsedToken::TypeCast(
+                            Box::new(ParsedTokenInstance {
+                                inner: parsed_token,
+                                debug_information: fetch_and_merge_debug_information(
+                                    debug_infos,
+                                    origin_token_idx..origin_token_idx + *token_idx,
+                                    true,
+                                )
+                                .unwrap(),
+                            }),
+                            target_type.clone(),
+                        ),
                         target_type.clone(),
                     )
                 }
@@ -342,6 +403,8 @@ pub fn parse_token_as_value(
                 // Parse the call arguments and tokens parsed.
                 let (call_arguments, idx_jmp) = parse_function_call_args(
                     &tokens[*token_idx + 2..],
+                    *token_idx + 2,
+                    debug_infos,
                     variable_scope,
                     function.function_sig.args.clone(),
                     function_signatures.clone(),
@@ -363,7 +426,18 @@ pub fn parse_token_as_value(
                         *token_idx += 2;
 
                         (
-                            ParsedToken::TypeCast(Box::new(parsed_token), target_type.clone()),
+                            ParsedToken::TypeCast(
+                                Box::new(ParsedTokenInstance {
+                                    inner: parsed_token,
+                                    debug_information: fetch_and_merge_debug_information(
+                                        debug_infos,
+                                        origin_token_idx..origin_token_idx + *token_idx,
+                                        true,
+                                    )
+                                    .unwrap(),
+                                }),
+                                target_type.clone(),
+                            ),
                             target_type.clone(),
                         )
                     }
@@ -402,6 +476,8 @@ pub fn parse_token_as_value(
 
                 let (parsed_token, variable_type) = handle_variable(
                     tokens,
+                    debug_infos,
+                    origin_token_idx,
                     &function_signatures,
                     variable_scope,
                     desired_variable_type,
@@ -421,6 +497,8 @@ pub fn parse_token_as_value(
                 // Parse the call arguments and tokens parsed.
                 let (call_arguments, idx_jmp) = parse_function_call_args(
                     &tokens[*token_idx + 2..],
+                    *token_idx + 2,
+                    debug_infos,
                     variable_scope,
                     function_sig.args.clone(),
                     function_signatures.clone(),
@@ -442,7 +520,18 @@ pub fn parse_token_as_value(
                         *token_idx += 2;
 
                         (
-                            ParsedToken::TypeCast(Box::new(parsed_token), target_type.clone()),
+                            ParsedToken::TypeCast(
+                                Box::new(ParsedTokenInstance {
+                                    inner: parsed_token,
+                                    debug_information: fetch_and_merge_debug_information(
+                                        debug_infos,
+                                        origin_token_idx..origin_token_idx + *token_idx,
+                                        true,
+                                    )
+                                    .unwrap(),
+                                }),
+                                target_type.clone(),
+                            ),
                             target_type.clone(),
                         )
                     }
@@ -482,6 +571,8 @@ pub fn parse_token_as_value(
 
                             let (_jump_idx, init_struct_token) = init_struct(
                                 struct_init_slice,
+                                debug_infos,
+                                origin_token_idx,
                                 struct_inner,
                                 function_signatures.clone(),
                                 function_imports,
@@ -528,6 +619,8 @@ pub fn parse_token_as_value(
 
             let (parsed_token, _jmp_idx, _) = parse_value(
                 tokens_inside_block,
+                debug_infos,
+                origin_token_idx,
                 function_signatures.clone(),
                 variable_scope,
                 Some(desired_variable_type.clone()),
@@ -564,6 +657,8 @@ pub fn parse_token_as_value(
                     // Parse the value of the array
                     let (parsed_token, jump_index, _) = parse_value(
                         &tokens_inside_block[array_item_idx..],
+                        debug_infos,
+                        origin_token_idx,
                         function_signatures.clone(),
                         variable_scope,
                         Some(inner_ty.clone()),
@@ -583,7 +678,15 @@ pub fn parse_token_as_value(
 
                 // Return the final parsed token.
                 return Ok((
-                    ParsedToken::ArrayInitialization(vec_values, inner_ty.clone()),
+                    ParsedTokenInstance {
+                        inner: ParsedToken::ArrayInitialization(vec_values, inner_ty.clone()),
+                        debug_information: fetch_and_merge_debug_information(
+                            debug_infos,
+                            origin_token_idx..origin_token_idx + *token_idx,
+                            true,
+                        )
+                        .unwrap(),
+                    },
                     desired_variable_type.clone(),
                 ));
             }
@@ -599,11 +702,23 @@ pub fn parse_token_as_value(
         },
     };
 
-    Ok(inner_value)
+    Ok((
+        (ParsedTokenInstance {
+            inner: inner_parsed_token,
+            debug_information: fetch_and_merge_debug_information(
+                debug_infos,
+                origin_token_idx..origin_token_idx + *token_idx + 1,
+                true,
+            )
+            .unwrap(),
+        }),
+        inner_parsed_token_ty,
+    ))
 }
 
 pub fn parse_variable_expression(
     tokens: &[Token],
+    debug_infos: &[DebugInformation],
     current_token: &Token,
     token_idx: &mut usize,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
@@ -611,10 +726,12 @@ pub fn parse_variable_expression(
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     variable_type: TypeDiscriminant,
     custom_types: Arc<IndexMap<String, CustomType>>,
-    variable_ref: ParsedToken,
-    parsed_tokens: &mut Vec<ParsedToken>,
+    variable_ref: ParsedTokenInstance,
+    parsed_tokens: &mut Vec<ParsedTokenInstance>,
 ) -> Result<()>
 {
+    let origin_token_idx = token_idx.clone();
+
     match &current_token {
         Token::SetValue => {
             let line_break_idx = tokens
@@ -624,12 +741,15 @@ pub fn parse_variable_expression(
                 .ok_or(ParserError::SyntaxError(SyntaxError::MissingSemiColon))?
                 + *token_idx;
 
-            let selected_tokens = &tokens[*token_idx + 1..line_break_idx];
+            let selected_tokens_range = *token_idx + 1..line_break_idx;
+            let selected_tokens = &tokens[selected_tokens_range.clone()];
 
             *token_idx += selected_tokens.len() + 1;
 
             let (parsed_token, _, _) = parse_value(
                 selected_tokens,
+                debug_infos,
+                origin_token_idx,
                 function_signatures.clone(),
                 variable_scope,
                 Some(variable_type.clone()),
@@ -637,14 +757,23 @@ pub fn parse_variable_expression(
                 custom_types.clone(),
             )?;
 
-            parsed_tokens.push(ParsedToken::SetValue(
-                Box::new(variable_ref.clone()),
-                Box::new(parsed_token),
-            ));
+            parsed_tokens.push(ParsedTokenInstance {
+                inner: ParsedToken::SetValue(
+                    Box::new(variable_ref.clone()),
+                    Box::new(parsed_token),
+                ),
+                debug_information: fetch_and_merge_debug_information(
+                    &debug_infos,
+                    origin_token_idx..*token_idx,
+                    true,
+                )
+                .unwrap(),
+            });
         },
         Token::SetValueAddition => {
             set_value_math_expr(
                 tokens,
+                &debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -659,6 +788,7 @@ pub fn parse_variable_expression(
         Token::SetValueSubtraction => {
             set_value_math_expr(
                 tokens,
+                &debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -673,6 +803,7 @@ pub fn parse_variable_expression(
         Token::SetValueDivision => {
             set_value_math_expr(
                 tokens,
+                &debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -687,6 +818,7 @@ pub fn parse_variable_expression(
         Token::SetValueMultiplication => {
             set_value_math_expr(
                 tokens,
+                &debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -701,6 +833,7 @@ pub fn parse_variable_expression(
         Token::SetValueModulo => {
             set_value_math_expr(
                 tokens,
+                &debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -743,6 +876,7 @@ pub fn parse_variable_expression(
 
                         parse_variable_expression(
                             tokens,
+                            debug_infos,
                             &tokens[*token_idx],
                             token_idx,
                             function_signatures,
@@ -805,6 +939,8 @@ pub fn parse_variable_expression(
 
                 let (value, idx_jmp, _) = parse_value(
                     selected_tokens,
+                    debug_infos,
+                    origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
                     Some(TypeDiscriminant::U32),
@@ -824,6 +960,7 @@ pub fn parse_variable_expression(
 
                         parse_variable_expression(
                             tokens,
+                            debug_infos,
                             next_token,
                             token_idx,
                             function_signatures.clone(),
@@ -831,10 +968,18 @@ pub fn parse_variable_expression(
                             variable_scope,
                             inner_type,
                             custom_types,
-                            ParsedToken::ArrayIndexing(
-                                Box::new(variable_ref.clone()),
-                                Box::new(value.clone()),
-                            ),
+                            ParsedTokenInstance {
+                                inner: ParsedToken::ArrayIndexing(
+                                    Box::new(variable_ref.clone()),
+                                    Box::new(value.clone()),
+                                ),
+                                debug_information: fetch_and_merge_debug_information(
+                                    debug_infos,
+                                    origin_token_idx..origin_token_idx + *token_idx,
+                                    true,
+                                )
+                                .unwrap(),
+                            },
                             parsed_tokens,
                         )?;
                     }
@@ -867,6 +1012,8 @@ pub fn parse_variable_expression(
 
 fn handle_variable(
     tokens: &[Token],
+    debug_infos: &[DebugInformation],
+    origin_token_idx: usize,
     function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     desired_variable_type: Option<TypeDiscriminant>,
@@ -897,6 +1044,8 @@ fn handle_variable(
 
             let handling_continuation = handle_variable(
                 tokens,
+                debug_infos,
+                origin_token_idx,
                 function_signatures,
                 variable_scope,
                 Some(desired_variable_type),
@@ -905,7 +1054,18 @@ fn handle_variable(
                 custom_types,
                 identifier,
                 variable_reference,
-                ParsedToken::TypeCast(Box::new(parsed_token), target_type.clone()),
+                ParsedToken::TypeCast(
+                    Box::new(ParsedTokenInstance {
+                        inner: parsed_token,
+                        debug_information: fetch_and_merge_debug_information(
+                            debug_infos,
+                            origin_token_idx..origin_token_idx + *token_idx,
+                            true,
+                        )
+                        .unwrap(),
+                    }),
+                    target_type.clone(),
+                ),
                 target_type.clone(),
             )?;
 
@@ -934,6 +1094,8 @@ fn handle_variable(
 
             let handling_continuation = handle_variable(
                 tokens,
+                debug_infos,
+                origin_token_idx,
                 function_signatures,
                 variable_scope,
                 desired_variable_type,
@@ -978,6 +1140,8 @@ fn handle_variable(
 
         let (value, idx_jmp, _) = parse_value(
             selected_tokens,
+            debug_infos,
+            origin_token_idx,
             function_signatures.clone(),
             variable_scope,
             Some(TypeDiscriminant::U32),
@@ -993,6 +1157,8 @@ fn handle_variable(
             if let TypeDiscriminant::Array((inner_ty, _len)) = variable_type.clone() {
                 let handling_continuation = handle_variable(
                     tokens,
+                    debug_infos,
+                    origin_token_idx,
                     function_signatures,
                     variable_scope,
                     desired_variable_type,
@@ -1002,7 +1168,15 @@ fn handle_variable(
                     identifier,
                     VariableReference::ArrayReference(identifier.clone(), Box::new(value.clone())),
                     ParsedToken::ArrayIndexing(
-                        Box::new(ParsedToken::VariableReference(variable_reference.clone())),
+                        Box::new(ParsedTokenInstance {
+                            inner: ParsedToken::VariableReference(variable_reference.clone()),
+                            debug_information: fetch_and_merge_debug_information(
+                                debug_infos,
+                                origin_token_idx..origin_token_idx + *token_idx,
+                                true,
+                            )
+                            .unwrap(),
+                        }),
                         Box::new(value),
                     ),
                     token_to_ty(*inner_ty.clone(), custom_types.clone())?,
@@ -1027,17 +1201,20 @@ fn handle_variable(
 
 fn set_value_math_expr(
     tokens: &[Token],
+    debug_infos: &[DebugInformation],
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
-    parsed_tokens: &mut Vec<ParsedToken>,
+    parsed_tokens: &mut Vec<ParsedTokenInstance>,
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     variable_type: TypeDiscriminant,
-    variable_reference: ParsedToken,
+    variable_reference: ParsedTokenInstance,
     math_symbol: MathematicalSymbol,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<()>
 {
+    let origin_token_idx = token_idx.clone();
+
     *token_idx += 1;
 
     let eval_token = tokens.get(*token_idx).ok_or(ParserError::SyntaxError(
@@ -1046,6 +1223,8 @@ fn set_value_math_expr(
 
     let (next_token, ty) = parse_token_as_value(
         tokens,
+        debug_infos,
+        origin_token_idx,
         function_signatures,
         variable_scope,
         Some(variable_type.clone()),
@@ -1055,14 +1234,30 @@ fn set_value_math_expr(
         custom_items.clone(),
     )?;
 
-    parsed_tokens.push(ParsedToken::SetValue(
-        Box::new(variable_reference.clone()),
-        Box::new(ParsedToken::MathematicalExpression(
-            Box::new(variable_reference),
-            math_symbol,
-            Box::new(next_token),
-        )),
-    ));
+    parsed_tokens.push(ParsedTokenInstance {
+        inner: ParsedToken::SetValue(
+            Box::new(variable_reference.clone()),
+            Box::new(ParsedTokenInstance {
+                inner: ParsedToken::MathematicalExpression(
+                    Box::new(variable_reference),
+                    math_symbol,
+                    Box::new(next_token),
+                ),
+                debug_information: fetch_and_merge_debug_information(
+                    debug_infos,
+                    origin_token_idx..*token_idx,
+                    true,
+                )
+                .unwrap(),
+            }),
+        ),
+        debug_information: fetch_and_merge_debug_information(
+            debug_infos,
+            origin_token_idx..*token_idx,
+            true,
+        )
+        .unwrap(),
+    });
 
     Ok(())
 }
@@ -1119,14 +1314,16 @@ fn get_struct_field_stack(
 
 pub fn init_struct(
     struct_slice: &[Token],
+    debug_infos: &[DebugInformation],
+    origin_token_idx: usize,
     this_struct_field: &IndexMap<String, TypeDiscriminant>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
-) -> Result<(usize, ParsedToken)>
+) -> Result<(usize, ParsedTokenInstance)>
 {
-    let mut struct_field_init_map: IndexMap<String, Box<ParsedToken>> = IndexMap::new();
+    let mut struct_field_init_map: IndexMap<String, Box<ParsedTokenInstance>> = IndexMap::new();
 
     let mut idx: usize = 0;
 
@@ -1140,6 +1337,8 @@ pub fn init_struct(
 
             let (parsed_value, jump_idx, _) = parse_value(
                 selected_tokens,
+                debug_infos,
+                origin_token_idx,
                 function_signatures.clone(),
                 variable_scope,
                 Some(
@@ -1175,9 +1374,17 @@ pub fn init_struct(
 
     Ok((
         idx,
-        ParsedToken::InitializeStruct(
-            this_struct_field.clone().into(),
-            struct_field_init_map.into(),
-        ),
+        ParsedTokenInstance {
+            inner: ParsedToken::InitializeStruct(
+                this_struct_field.clone().into(),
+                struct_field_init_map.into(),
+            ),
+            debug_information: fetch_and_merge_debug_information(
+                debug_infos,
+                dbg!(origin_token_idx..origin_token_idx + idx),
+                true,
+            )
+            .unwrap(),
+        },
     ))
 }

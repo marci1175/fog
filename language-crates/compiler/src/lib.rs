@@ -63,13 +63,8 @@ impl CompilerState
     {
         println!("Tokenizing...");
         let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
-        let chars = file_contents.chars().collect::<Vec<char>>();
 
-        for token_range in &token_ranges {
-            print!("{}", chars.get(token_range.clone()).unwrap().iter().collect::<String>());
-        }
-
-        println!("");
+        let lines = file_contents.lines().collect::<Vec<&str>>();
 
         println!("Creating LLVM context...");
         let context = Context::create();

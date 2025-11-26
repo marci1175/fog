@@ -17,7 +17,7 @@ use fog_common::{
         types::{ArrayType, BasicMetadataTypeEnum},
         values::{FunctionValue, IntValue, PointerValue},
     },
-    parser::{FunctionDefinition, ParsedToken},
+    parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
     ty::TypeDiscriminant,
 };
 
@@ -30,7 +30,7 @@ pub fn create_alloca_table<'main, 'ctx>(
     // Inkwell Context
     ctx: &'main Context,
     // The list of ParsedToken-s
-    parsed_tokens: Vec<ParsedToken>,
+    parsed_tokens: Vec<ParsedTokenInstance>,
     // Type returned type of the Function
     fn_ret_ty: TypeDiscriminant,
     this_fn_block: BasicBlock<'ctx>,
@@ -46,7 +46,7 @@ pub fn create_alloca_table<'main, 'ctx>(
     custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<
     VecDeque<(
-        ParsedToken,
+        ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,
@@ -56,7 +56,7 @@ where
     'main: 'ctx,
 {
     let mut alloc_list: VecDeque<(
-        ParsedToken,
+        ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,
@@ -89,7 +89,7 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     ctx: &'main Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    parsed_token: ParsedToken,
+    parsed_token_instance: ParsedTokenInstance,
     variable_map: &mut HashMap<
         String,
         (
@@ -105,7 +105,7 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<
     Vec<(
-        ParsedToken,
+        ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,
@@ -114,7 +114,14 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    let mut pre_allocation_list = Vec::new();
+    let mut pre_allocation_list: Vec<(
+        ParsedTokenInstance,
+        PointerValue<'_>,
+        BasicMetadataTypeEnum<'_>,
+        TypeDiscriminant,
+    )> = Vec::new();
+
+    let parsed_token = parsed_token_instance.inner.clone();
 
     match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
@@ -131,13 +138,19 @@ where
             };
 
             // We will pre-allocate the variable itself and we will also preallocate its value which will get loaded into this variable.
-            pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type.clone()));
+            pre_allocation_list.push((parsed_token_instance.clone(), ptr, ty, var_type.clone()));
 
             // We only set the value of the pre-allocated variable if its a constant, like if its a literal
             // This skips a step of setting the value in the loop, however this pre evaluation cannot be applied safely to all of the types
             // Check if the value is a literal
             // We also check if its a literal when we are checking for pre-allocated variables so that we dont set the value twice.
-            if matches!(&*var_set_val, ParsedToken::Literal(_)) {
+            if matches!(
+                &*var_set_val,
+                ParsedTokenInstance {
+                    inner: ParsedToken::Literal(_),
+                    debug_information: _
+                }
+            ) {
                 // Set the value of the newly created variable
                 create_ir_from_parsed_token(
                     ctx,
@@ -194,7 +207,7 @@ where
                             )?;
 
                             pre_allocation_list.push((
-                                parsed_token.clone(),
+                                parsed_token_instance.clone(),
                                 f_ptr,
                                 ty_enum_to_metadata_ty_enum(f_ty),
                                 ty_disc,
@@ -213,7 +226,12 @@ where
                 },
                 fog_common::parser::VariableReference::BasicReference(name) => {
                     if let Some(((ptr, ty), disc)) = variable_map.get(&name) {
-                        pre_allocation_list.push((parsed_token.clone(), *ptr, *ty, disc.clone()));
+                        pre_allocation_list.push((
+                            parsed_token_instance.clone(),
+                            *ptr,
+                            *ty,
+                            disc.clone(),
+                        ));
                     }
                 },
                 fog_common::parser::VariableReference::ArrayReference(_, parsed_tokens) => {
@@ -226,14 +244,14 @@ where
 
             let (ptr, ty) = create_new_variable(ctx, builder, "", &var_type, custom_types.clone())?;
 
-            pre_allocation_list.push((parsed_token.clone(), ptr, ty, var_type));
+            pre_allocation_list.push((parsed_token_instance.clone(), ptr, ty, var_type));
         },
         ParsedToken::TypeCast(parsed_token, desired_type) => {
             let created_var = create_ir_from_parsed_token(
                 ctx,
                 module,
                 builder,
-                *parsed_token.clone(),
+                parsed_token_instance.clone(),
                 variable_map,
                 None,
                 fn_ret_ty,
@@ -1061,7 +1079,12 @@ where
                 };
 
                 if let Some((ptr, ptr_ty, var_type)) = returned_alloca {
-                    pre_allocation_list.push((*parsed_token.clone(), ptr, ptr_ty, var_type));
+                    pre_allocation_list.push((
+                        parsed_token_instance.clone(),
+                        ptr,
+                        ptr_ty,
+                        var_type,
+                    ));
                 }
             }
             else {
@@ -1101,7 +1124,12 @@ where
                     custom_types.clone(),
                 )?;
 
-                pre_allocation_list.push((parsed_token.clone(), ptr, ty, fn_sig.return_type));
+                pre_allocation_list.push((
+                    parsed_token_instance.clone(),
+                    ptr,
+                    ty,
+                    fn_sig.return_type,
+                ));
             }
         },
         ParsedToken::SetValue(_var_ref, value) => {
@@ -1247,7 +1275,7 @@ where
             let ptr = builder.build_alloca(ctx.bool_type(), "cmp_result")?;
 
             pre_allocation_list.push((
-                parsed_token.clone(),
+                parsed_token_instance.clone(),
                 ptr,
                 ctx.bool_type().into(),
                 TypeDiscriminant::Boolean,

@@ -13,7 +13,7 @@ use fog_common::{
         types::{BasicMetadataTypeEnum, BasicTypeEnum},
         values::{FunctionValue, PointerValue},
     },
-    parser::{FunctionDefinition, ParsedToken},
+    parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
     ty::{Type, TypeDiscriminant, token_to_ty},
 };
 use std::{
@@ -44,7 +44,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     allocation_list: &mut VecDeque<(
-        ParsedToken,
+        ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,
@@ -52,12 +52,14 @@ pub fn access_variable_ptr<'main, 'ctx>(
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: &Arc<IndexMap<String, CustomType>>,
-    parsed_token: ParsedToken,
+    parsed_token_instance: ParsedTokenInstance,
 ) -> Result<(
     (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
     TypeDiscriminant,
 )>
 {
+    let parsed_token = parsed_token_instance.inner;
+
     match parsed_token {
         ParsedToken::ArrayIndexing(var_ref, index) => {
             // This variable is supposed to fetch the inner value of this array indexing, this is how this function is recursive.
@@ -188,7 +190,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
                         }
                     }
                     else {
-                        Err(CodeGenError::InvalidIndexValue((*indexing).clone()).into())
+                        Err(CodeGenError::InvalidIndexValue((indexing.inner).clone()).into())
                     }
                 },
             }
@@ -416,7 +418,7 @@ pub fn access_array_index<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     allocation_list: &mut VecDeque<(
-        ParsedToken,
+        ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
         TypeDiscriminant,
@@ -428,7 +430,7 @@ pub fn access_array_index<'main, 'ctx>(
         (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
         TypeDiscriminant,
     ),
-    index: Box<ParsedToken>,
+    index: Box<ParsedTokenInstance>,
 ) -> Result<(
     PointerValue<'ctx>,
     BasicMetadataTypeEnum<'ctx>,
@@ -486,6 +488,6 @@ where
         ))
     }
     else {
-        Err(CodeGenError::InvalidIndexValue(*index.clone()).into())
+        Err(CodeGenError::InvalidIndexValue(index.inner.clone()).into())
     }
 }

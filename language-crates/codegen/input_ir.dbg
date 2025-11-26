@@ -1,163 +1,278 @@
 [COMPILER IR]
 [
-    NewVariable(
-        "szia",
-        Struct(
-            (
-                "Alma",
-                OrdMap(
-                    {
-                        "szam": I32,
-                        "masik_szam": I32,
-                    },
-                ),
-            ),
-        ),
-        InitializeStruct(
-            OrdMap(
-                {
-                    "szam": I32,
-                    "masik_szam": I32,
-                },
-            ),
-            OrdMap(
-                {
-                    "szam": Literal(
-                        I32(
-                            2,
-                        ),
-                    ),
-                    "masik_szam": Literal(
-                        I32(
-                            43,
-                        ),
-                    ),
-                },
-            ),
-        ),
-    ),
-    FunctionCall(
-        (
-            FunctionSignature {
-                name: "open_win",
-                args: FunctionArguments {
-                    arguments_list: OrdMap(
+    ParsedTokenInstance {
+        inner: NewVariable(
+            "szia",
+            Struct(
+                (
+                    "Alma",
+                    OrdMap(
                         {
-                            "win_name": String,
+                            "szam": I32,
+                            "masik_szam": I32,
                         },
                     ),
-                    ellipsis_present: false,
-                },
-                return_type: Void,
-                module_path: [
-                    "dep1",
-                    "open_win",
-                ],
-                visibility: PublicLibrary,
-                compiler_hints: OrdSet(
-                    {},
                 ),
-                enabling_features: OrdSet(
-                    {},
-                ),
-            },
-            "open_win",
-        ),
-        OrdMap(
-            {
-                Identifier(
-                    "win_name",
-                ): (
-                    Literal(
-                        String(
-                            "Window1",
-                        ),
-                    ),
-                    String,
-                ),
-            },
-        ),
-    ),
-    NewVariable(
-        "en",
-        I32,
-        Literal(
-            I32(
-                16,
             ),
-        ),
-    ),
-    FunctionCall(
-        (
-            FunctionSignature {
-                name: "printf",
-                args: FunctionArguments {
-                    arguments_list: OrdMap(
+            ParsedTokenInstance {
+                inner: InitializeStruct(
+                    OrdMap(
                         {
-                            "a": String,
+                            "szam": I32,
+                            "masik_szam": I32,
                         },
                     ),
-                    ellipsis_present: true,
-                },
-                return_type: I32,
-                module_path: [
-                    "test_project",
-                    "printf",
-                ],
-                visibility: Private,
-                compiler_hints: OrdSet(
-                    {},
-                ),
-                enabling_features: OrdSet(
-                    {},
-                ),
-            },
-            "printf",
-        ),
-        OrdMap(
-            {
-                Identifier(
-                    "a",
-                ): (
-                    Literal(
-                        String(
-                            "Num %i",
-                        ),
-                    ),
-                    String,
-                ),
-                Index(
-                    1,
-                ): (
-                    VariableReference(
-                        StructFieldReference(
-                            StructFieldReference {
-                                field_stack: [
-                                    "szia",
-                                    "masik_szam",
-                                ],
+                    OrdMap(
+                        {
+                            "szam": ParsedTokenInstance {
+                                inner: Literal(
+                                    I32(
+                                        2,
+                                    ),
+                                ),
+                                debug_information: DebugInformation {
+                                    char_range: [
+                                        7..11,
+                                    ],
+                                    lines: 0..1,
+                                },
                             },
-                            (
-                                "Alma",
-                                OrdMap(
-                                    {
-                                        "szam": I32,
-                                        "masik_szam": I32,
-                                    },
+                            "masik_szam": ParsedTokenInstance {
+                                inner: Literal(
+                                    I32(
+                                        43,
+                                    ),
+                                ),
+                                debug_information: DebugInformation {
+                                    char_range: [
+                                        7..11,
+                                    ],
+                                    lines: 0..1,
+                                },
+                            },
+                        },
+                    ),
+                ),
+                debug_information: DebugInformation {
+                    char_range: [
+                        24..25,
+                        0..0,
+                    ],
+                    lines: 0..2,
+                },
+            },
+        ),
+        debug_information: DebugInformation {
+            char_range: [
+                24..25,
+                0..0,
+                0..0,
+            ],
+            lines: 0..3,
+        },
+    },
+    ParsedTokenInstance {
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "open_win",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "win_name": String,
+                            },
+                        ),
+                        ellipsis_present: false,
+                    },
+                    return_type: Void,
+                    module_path: [
+                        "dep1",
+                        "open_win",
+                    ],
+                    visibility: PublicLibrary,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
+                },
+                "open_win",
+            ),
+            OrdMap(
+                {
+                    Identifier(
+                        "win_name",
+                    ): (
+                        ParsedTokenInstance {
+                            inner: Literal(
+                                String(
+                                    "Window1",
                                 ),
                             ),
-                        ),
+                            debug_information: DebugInformation {
+                                char_range: [
+                                    11..13,
+                                ],
+                                lines: 3..4,
+                            },
+                        },
+                        String,
                     ),
-                    I32,
-                ),
-            },
-        ),
-    ),
-    ReturnValue(
-        Literal(
-            I32(
-                0,
+                },
             ),
         ),
-    ),
+        debug_information: DebugInformation {
+            char_range: [
+                21..22,
+                0..0,
+            ],
+            lines: 2..4,
+        },
+    },
+    ParsedTokenInstance {
+        inner: NewVariable(
+            "en",
+            I32,
+            ParsedTokenInstance {
+                inner: Literal(
+                    I32(
+                        16,
+                    ),
+                ),
+                debug_information: DebugInformation {
+                    char_range: [
+                        19..20,
+                        0..0,
+                        0..0,
+                    ],
+                    lines: 3..6,
+                },
+            },
+        ),
+        debug_information: DebugInformation {
+            char_range: [
+                19..20,
+                0..0,
+                0..0,
+            ],
+            lines: 3..6,
+        },
+    },
+    ParsedTokenInstance {
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "printf",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "a": String,
+                            },
+                        ),
+                        ellipsis_present: true,
+                    },
+                    return_type: I32,
+                    module_path: [
+                        "test_project",
+                        "printf",
+                    ],
+                    visibility: Private,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
+                },
+                "printf",
+            ),
+            OrdMap(
+                {
+                    Identifier(
+                        "a",
+                    ): (
+                        ParsedTokenInstance {
+                            inner: Literal(
+                                String(
+                                    "Num %i",
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_range: [
+                                    13..14,
+                                    0..0,
+                                ],
+                                lines: 6..8,
+                            },
+                        },
+                        String,
+                    ),
+                    Index(
+                        1,
+                    ): (
+                        ParsedTokenInstance {
+                            inner: VariableReference(
+                                StructFieldReference(
+                                    StructFieldReference {
+                                        field_stack: [
+                                            "szia",
+                                            "masik_szam",
+                                        ],
+                                    },
+                                    (
+                                        "Alma",
+                                        OrdMap(
+                                            {
+                                                "szam": I32,
+                                                "masik_szam": I32,
+                                            },
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_range: [
+                                    16..19,
+                                    0..0,
+                                ],
+                                lines: 6..8,
+                            },
+                        },
+                        I32,
+                    ),
+                },
+            ),
+        ),
+        debug_information: DebugInformation {
+            char_range: [
+                19..20,
+                0..0,
+            ],
+            lines: 6..8,
+        },
+    },
+    ParsedTokenInstance {
+        inner: ReturnValue(
+            ParsedTokenInstance {
+                inner: Literal(
+                    I32(
+                        0,
+                    ),
+                ),
+                debug_information: DebugInformation {
+                    char_range: [
+                        15..16,
+                    ],
+                    lines: 10..11,
+                },
+            },
+        ),
+        debug_information: DebugInformation {
+            char_range: [
+                15..16,
+            ],
+            lines: 10..11,
+        },
+    },
 ]

@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs, mem,
+    ops::{Range, Sub},
     path::PathBuf,
     sync::Arc,
 };
@@ -9,12 +10,15 @@ use fog_common::{
     anyhow::Result,
     codegen::{CustomType, FunctionArgumentIdentifier, If},
     compiler::ProjectConfig,
-    error::{dependency::DependencyError, parser::ParserError, syntax::SyntaxError},
+    error::{
+        DebugInformation, dependency::DependencyError, parser::ParserError, syntax::SyntaxError,
+    },
     indexmap::IndexMap,
     parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
-        ParsedToken, UnparsedFunctionDefinition, VariableReference, find_closing_braces,
-        find_closing_comma, find_closing_paren, parse_signature_argument_tokens,
+        ParsedToken, ParsedTokenInstance, UnparsedFunctionDefinition, VariableReference,
+        find_closing_braces, find_closing_comma, find_closing_paren,
+        parse_signature_argument_tokens,
     },
     tokenizer::Token,
     ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
@@ -557,7 +561,7 @@ impl Parser
         custom_items: Arc<IndexMap<String, CustomType>>,
         this_fn_args: FunctionArguments,
         additional_variables: OrdMap<String, TypeDiscriminant>,
-    ) -> Result<Vec<ParsedToken>>
+    ) -> Result<Vec<ParsedTokenInstance>>
     {
         let module_path = self.module_path.clone();
 
@@ -576,12 +580,14 @@ impl Parser
                 .map(|(var_name, var_ty)| (var_name.clone(), var_ty.clone())),
         );
 
-        let mut parsed_tokens: Vec<ParsedToken> = Vec::new();
+        let mut parsed_token_instances: Vec<ParsedTokenInstance> = Vec::new();
 
         let mut has_return = false;
 
         if !tokens.is_empty() {
             while token_idx < tokens.len() {
+                // Store the token index at the beginning of the iteration.
+                let origin_token_idx = token_idx;
                 let current_token = tokens[token_idx].clone();
 
                 if let Token::TypeDefinition(var_type) = current_token {
@@ -595,13 +601,16 @@ impl Parser
                                 + token_idx
                                 + 2;
 
-                            let selected_tokens = &tokens[token_idx + 3..line_break_idx];
+                            let selected_tokens_range = token_idx + 3..line_break_idx;
+                            let selected_tokens = &tokens[selected_tokens_range.clone()];
 
                             // Set the new idx
                             token_idx = line_break_idx;
 
-                            let (parsed_value, _, _) = parse_value(
-                                selected_tokens,
+                            let (parsed_value, idx, _) = parse_value(
+                                selected_tokens.clone(),
+                                &self.tokens_debug_info,
+                                origin_token_idx,
                                 function_signatures.clone(),
                                 &mut variable_scope,
                                 Some(var_type.clone()),
@@ -609,24 +618,48 @@ impl Parser
                                 custom_items.clone(),
                             )?;
 
-                            parsed_tokens.push(ParsedToken::NewVariable(
-                                var_name.clone(),
-                                var_type.clone(),
-                                Box::new(parsed_value.clone()),
-                            ));
+                            parsed_token_instances.push(ParsedTokenInstance {
+                                inner: ParsedToken::NewVariable(
+                                    var_name.clone(),
+                                    var_type.clone(),
+                                    Box::new(parsed_value),
+                                ),
+                                debug_information: fetch_and_merge_debug_information(
+                                    &self.tokens_debug_info,
+                                    origin_token_idx..token_idx,
+                                    true,
+                                )
+                                .unwrap(),
+                            });
 
                             variable_scope.insert(var_name, var_type.clone());
                         }
                         else {
-                            parsed_tokens.push(ParsedToken::NewVariable(
-                                var_name.clone(),
-                                var_type.clone(),
-                                Box::new(ParsedToken::Literal(var_type.clone().into())),
-                            ));
-
                             variable_scope.insert(var_name.clone(), var_type.clone());
 
                             token_idx += 2;
+
+                            parsed_token_instances.push(ParsedTokenInstance {
+                                inner: ParsedToken::NewVariable(
+                                    var_name.clone(),
+                                    var_type.clone(),
+                                    Box::new(ParsedTokenInstance {
+                                        inner: ParsedToken::Literal(var_type.clone().into()),
+                                        debug_information: fetch_and_merge_debug_information(
+                                            &self.tokens_debug_info,
+                                            origin_token_idx..token_idx,
+                                            true,
+                                        )
+                                        .unwrap(),
+                                    }),
+                                ),
+                                debug_information: fetch_and_merge_debug_information(
+                                    &self.tokens_debug_info,
+                                    origin_token_idx..token_idx,
+                                    true,
+                                )
+                                .unwrap(),
+                            });
                         }
 
                         if tokens[token_idx] == Token::SemiColon {
@@ -656,9 +689,11 @@ impl Parser
                         // Parse the variable's expression
                         let variable_ref =
                             VariableReference::BasicReference(ident_name.to_string());
+                        let token_idx_clone = token_idx.clone();
 
                         parse_variable_expression(
                             &tokens,
+                            &self.tokens_debug_info,
                             &tokens[token_idx],
                             &mut token_idx,
                             function_signatures.clone(),
@@ -666,8 +701,16 @@ impl Parser
                             &mut variable_scope,
                             variable_type,
                             custom_items.clone(),
-                            ParsedToken::VariableReference(variable_ref),
-                            &mut parsed_tokens,
+                            ParsedTokenInstance {
+                                inner: ParsedToken::VariableReference(variable_ref),
+                                debug_information: fetch_and_merge_debug_information(
+                                    &self.tokens_debug_info,
+                                    origin_token_idx..token_idx_clone,
+                                    true,
+                                )
+                                .unwrap(),
+                            },
+                            &mut parsed_token_instances,
                         )?;
                     }
                     else if let Some(function_sig) = function_signatures.get(ident_name) {
@@ -685,6 +728,8 @@ impl Parser
 
                         let (variables_passed, jumped_idx) = parse_function_call_args(
                             &tokens[token_idx + 2..bracket_idx + 2],
+                            token_idx + 2,
+                            &self.tokens_debug_info,
                             &mut variable_scope,
                             function_sig.function_sig.args.clone(),
                             function_signatures.clone(),
@@ -692,12 +737,20 @@ impl Parser
                             custom_items.clone(),
                         )?;
 
-                        parsed_tokens.push(ParsedToken::FunctionCall(
-                            (function_sig.function_sig.clone(), ident_name.clone()),
-                            variables_passed,
-                        ));
-
                         token_idx += jumped_idx + 2;
+
+                        parsed_token_instances.push(ParsedTokenInstance {
+                            inner: ParsedToken::FunctionCall(
+                                (function_sig.function_sig.clone(), ident_name.clone()),
+                                variables_passed,
+                            ),
+                            debug_information: fetch_and_merge_debug_information(
+                                &self.tokens_debug_info,
+                                origin_token_idx..token_idx,
+                                true,
+                            )
+                            .unwrap(),
+                        });
                     }
                     else if let Some(function_sig) = function_imports.get(ident_name) {
                         // If after the function name the first thing isnt a `(` return a syntax error.
@@ -714,6 +767,8 @@ impl Parser
 
                         let (variables_passed, jumped_idx) = parse_function_call_args(
                             &tokens[token_idx + 2..bracket_idx + 2],
+                            token_idx + 2,
+                            &self.tokens_debug_info,
                             &mut variable_scope,
                             function_sig.args.clone(),
                             function_signatures.clone(),
@@ -721,12 +776,20 @@ impl Parser
                             custom_items.clone(),
                         )?;
 
-                        parsed_tokens.push(ParsedToken::FunctionCall(
-                            (function_sig.clone(), ident_name.clone()),
-                            variables_passed,
-                        ));
-
                         token_idx += jumped_idx + 2;
+
+                        parsed_token_instances.push(ParsedTokenInstance {
+                            inner: ParsedToken::FunctionCall(
+                                (function_sig.clone(), ident_name.clone()),
+                                variables_passed,
+                            ),
+                            debug_information: fetch_and_merge_debug_information(
+                                &self.tokens_debug_info,
+                                origin_token_idx..token_idx,
+                                true,
+                            )
+                            .unwrap(),
+                        });
                     }
                     else if let Some(custom_type) = custom_items.get(ident_name) {
                         match custom_type {
@@ -747,12 +810,15 @@ impl Parser
                                         })?
                                         + token_idx;
 
-                                    let selected_tokens = &tokens[token_idx + 2..line_break_idx];
+                                    let selected_tokens_range = token_idx + 2..line_break_idx;
+                                    let selected_tokens = &tokens[selected_tokens_range.clone()];
 
                                     token_idx += selected_tokens.len() + 1;
 
                                     let (parsed_token, _, _) = parse_value(
                                         selected_tokens,
+                                        &self.tokens_debug_info,
+                                        origin_token_idx,
                                         function_signatures.clone(),
                                         &mut variable_scope,
                                         Some(variable_type.clone()),
@@ -760,11 +826,19 @@ impl Parser
                                         custom_items.clone(),
                                     )?;
 
-                                    parsed_tokens.push(ParsedToken::NewVariable(
-                                        var_name.clone(),
-                                        variable_type,
-                                        Box::new(parsed_token),
-                                    ));
+                                    parsed_token_instances.push(ParsedTokenInstance {
+                                        inner: ParsedToken::NewVariable(
+                                            var_name.clone(),
+                                            variable_type,
+                                            Box::new(parsed_token),
+                                        ),
+                                        debug_information: fetch_and_merge_debug_information(
+                                            &self.tokens_debug_info,
+                                            origin_token_idx..token_idx,
+                                            true,
+                                        )
+                                        .unwrap(),
+                                    });
 
                                     variable_scope.insert(
                                         var_name.clone(),
@@ -797,6 +871,8 @@ impl Parser
                     else {
                         let (returned_value, jmp_idx, _) = parse_value(
                             &tokens[token_idx..],
+                            &self.tokens_debug_info,
+                            origin_token_idx,
                             function_signatures.clone(),
                             &mut variable_scope,
                             Some(this_function_signature.return_type.clone()),
@@ -806,11 +882,21 @@ impl Parser
 
                         token_idx += jmp_idx;
 
-                        parsed_tokens.push(ParsedToken::ReturnValue(Box::new(returned_value)));
+                        parsed_token_instances.push(ParsedTokenInstance {
+                            inner: ParsedToken::ReturnValue(Box::new(returned_value)),
+                            debug_information: fetch_and_merge_debug_information(
+                                &self.tokens_debug_info,
+                                origin_token_idx..token_idx,
+                                true,
+                            )
+                            .unwrap(),
+                        });
                     }
                 }
                 else if Token::If == current_token {
                     token_idx += 1;
+
+                    let cond_start_idx = token_idx.clone();
 
                     if let Token::OpenParentheses = tokens[token_idx] {
                         token_idx += 1;
@@ -820,14 +906,18 @@ impl Parser
                         // This is what we have to evaulate in order to execute the appropriate branch of the if statement
                         let cond_slice = &tokens[token_idx..paren_close_idx];
 
-                        let (condition, _idx, _) = parse_value(
+                        let (condition, cond_slice_len, _) = parse_value(
                             cond_slice,
+                            &self.tokens_debug_info,
+                            origin_token_idx,
                             function_signatures.clone(),
                             &mut variable_scope,
                             None,
                             function_imports.clone(),
                             custom_items.clone(),
                         )?;
+
+                        let cond_end_idx = token_idx + cond_slice_len;
 
                         token_idx = paren_close_idx + 1;
 
@@ -896,11 +986,19 @@ impl Parser
                                 }
                             }
 
-                            parsed_tokens.push(ParsedToken::If(If {
-                                condition: Box::new(condition),
-                                complete_body: true_condition_block,
-                                incomplete_body: else_condition_branch,
-                            }));
+                            parsed_token_instances.push(ParsedTokenInstance {
+                                inner: ParsedToken::If(If {
+                                    condition: Box::new(condition),
+                                    complete_body: true_condition_block,
+                                    incomplete_body: else_condition_branch,
+                                }),
+                                debug_information: fetch_and_merge_debug_information(
+                                    &self.tokens_debug_info,
+                                    origin_token_idx..token_idx - 1,
+                                    true,
+                                )
+                                .unwrap(),
+                            });
 
                             continue;
                         }
@@ -943,7 +1041,15 @@ impl Parser
 
                         token_idx = paren_close_idx + 1;
 
-                        parsed_tokens.push(ParsedToken::Loop(loop_body));
+                        parsed_token_instances.push(ParsedTokenInstance {
+                            inner: ParsedToken::Loop(loop_body),
+                            debug_information: fetch_and_merge_debug_information(
+                                &self.tokens_debug_info,
+                                origin_token_idx..token_idx,
+                                true,
+                            )
+                            .unwrap(),
+                        });
 
                         continue;
                     }
@@ -951,14 +1057,30 @@ impl Parser
                     return Err(ParserError::SyntaxError(SyntaxError::InvalidLoopBody).into());
                 }
                 else if Token::Continue == current_token {
-                    parsed_tokens.push(ParsedToken::ControlFlow(ControlFlowType::Continue));
-
                     token_idx += 1;
+
+                    parsed_token_instances.push(ParsedTokenInstance {
+                        inner: ParsedToken::ControlFlow(ControlFlowType::Continue),
+                        debug_information: fetch_and_merge_debug_information(
+                            &self.tokens_debug_info,
+                            origin_token_idx..token_idx,
+                            true,
+                        )
+                        .unwrap(),
+                    });
                 }
                 else if Token::Break == current_token {
-                    parsed_tokens.push(ParsedToken::ControlFlow(ControlFlowType::Break));
-
                     token_idx += 1;
+
+                    parsed_token_instances.push(ParsedTokenInstance {
+                        inner: ParsedToken::ControlFlow(ControlFlowType::Break),
+                        debug_information: fetch_and_merge_debug_information(
+                            &self.tokens_debug_info,
+                            origin_token_idx..token_idx,
+                            true,
+                        )
+                        .unwrap(),
+                    });
                 }
 
                 token_idx += 1;
@@ -970,20 +1092,22 @@ impl Parser
             return Err(ParserError::SyntaxError(SyntaxError::FunctionRequiresReturn).into());
         }
 
-        Ok(parsed_tokens)
+        Ok(parsed_token_instances)
     }
 }
 
 /// First token should be the first argument
 pub fn parse_function_call_args(
     tokens: &[Token],
+    mut origin_token_idx: usize,
+    debug_infos: &[DebugInformation],
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     mut this_function_args: FunctionArguments,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(
-    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)>,
+    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, TypeDiscriminant)>,
     usize,
 )>
 {
@@ -994,7 +1118,7 @@ pub fn parse_function_call_args(
     // Arguments which will passed in to the function
     let mut arguments: OrdMap<
         FunctionArgumentIdentifier<String, usize>,
-        (ParsedToken, TypeDiscriminant),
+        (ParsedTokenInstance, TypeDiscriminant),
     > = OrdMap::new();
 
     // If there are no arguments just return everything as is
@@ -1018,6 +1142,8 @@ pub fn parse_function_call_args(
 
                 let (parsed_argument, jump_idx, arg_ty) = parse_value(
                     &tokens[tokens_idx..closing_idx],
+                    debug_infos,
+                    origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
                     Some(argument_type.clone()),
@@ -1050,6 +1176,9 @@ pub fn parse_function_call_args(
         let mut token_buf = Vec::new();
         let mut bracket_counter: i32 = 0;
 
+        // Update the value of the origin_token_idx
+        origin_token_idx += tokens_idx;
+
         // We should start by finding the comma and parsing the tokens in between the current idx and the comma
         while tokens_idx < args_list_len {
             let token = &tokens[tokens_idx];
@@ -1072,6 +1201,8 @@ pub fn parse_function_call_args(
                 if let Some(fn_argument) = fn_argument {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
+                        debug_infos,
+                        origin_token_idx,
                         function_signatures.clone(),
                         variable_scope,
                         Some(fn_argument.get().clone()),
@@ -1094,6 +1225,8 @@ pub fn parse_function_call_args(
                 else {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
+                        debug_infos,
+                        origin_token_idx,
                         function_signatures.clone(),
                         variable_scope,
                         None,
@@ -1162,4 +1295,85 @@ pub fn parse_import_path(tokens: &[Token]) -> Result<(Vec<String>, usize)>
     }
 
     Ok((import_path, idx))
+}
+
+pub fn fetch_and_merge_debug_information(
+    list: &[DebugInformation],
+    range: Range<usize>,
+    is_ordered: bool,
+) -> Option<DebugInformation>
+{
+    let fetched_items = list.get(range);
+
+    fetched_items.map(|debug_infos| {
+        let lines_range = combine_ranges(
+            debug_infos.iter().map(|dbg_inf| dbg_inf.lines.clone()),
+            is_ordered,
+        );
+
+        DebugInformation {
+            char_range: combine_ranges_per_line(dbg!(debug_infos), dbg!(lines_range.clone())),
+            lines: lines_range,
+        }
+    })
+}
+
+/// This function ignores whether the ranges are joint.
+/// If this function with is_ordered, it will create a range based on the first and the last item of the range
+/// This function will panic if an empty list is passed in
+pub fn combine_ranges<T: Ord + Copy>(
+    mut iter: impl Iterator<Item = Range<T>> + Clone,
+    is_ordered: bool,
+) -> Range<T>
+{
+    if is_ordered {
+        iter.nth(0).unwrap().start..iter.last().unwrap().end
+    }
+    else {
+        let start = iter.clone().min_by_key(|range| range.start).unwrap().start;
+        let end = iter.max_by_key(|range| range.end).unwrap().end;
+
+        start..end
+    }
+}
+
+pub fn combine_range_with_other<T: Ord>(lhs: &mut Range<T>, rhs: Range<T>)
+{
+    if lhs.start < rhs.start {
+        lhs.start = rhs.start;
+    }
+
+    if lhs.end < rhs.end {
+        lhs.end = rhs.end;
+    }
+}
+
+/// Combines all the [`Range<usize>`]s of the [`DebugInformation`]s separately in different lines.
+pub fn combine_ranges_per_line(
+    dbg_infs: &[DebugInformation],
+    dbg_infs_line_range: Range<usize>,
+) -> Vec<Range<usize>>
+{
+    // Create list with default values because it is easier to handle later.
+    let mut lines = vec![0..0; dbg_infs_line_range.len()];
+
+    // Iterate over the `DebugInformation` instances
+    for dbg_inf in dbg_infs {
+        // Iterate over the line count's normalized range
+        for idx in normalize_range(dbg_inf.lines.clone()) {
+            // (If the first item (ordered by lines) is at line 20 the corresponding index in the `lines` list is going to be 0. )
+            // Combine the pre-existing value with the fetched value.
+            combine_range_with_other(
+                &mut lines[idx],
+                dbg_inf.char_range[idx].clone(),
+            );
+        }
+    }
+
+    lines
+}
+
+/// Normalizes a Range<T>, by setting the start as T::Default, and subtracting the original beginning from the end.
+pub fn normalize_range<T: Default + Sub<Output = T>>(range: Range<T>) -> Range<T> {
+    return T::default()..range.end - range.start;
 }

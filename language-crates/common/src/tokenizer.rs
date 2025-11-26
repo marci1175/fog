@@ -101,11 +101,11 @@ pub enum Token
     NewLine,
 }
 
-impl Token {
-    pub fn return_error(error_type: ParserError, char_range: Range<usize>) -> anyhow::Error {
-        error_type.into()
-    }
-}
+// impl Token {
+//     pub fn return_error(error_type: ParserError, char_range: Range<usize>) -> anyhow::Error {
+//         error_type.into()
+//     }
+// }
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.
 pub fn find_closing_angled_bracket_char(

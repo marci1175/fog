@@ -8,11 +8,17 @@ pub mod linker;
 pub mod parser;
 pub mod syntax;
 
-pub struct ErrorWrapper<T> {
+#[derive(Clone, Debug)]
+pub struct ErrorWrapper<T>
+{
     pub error: T,
     pub debug_information: DebugInformation,
 }
 
-pub struct DebugInformation {
-    pub char_range: Range<usize>,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+
+pub struct DebugInformation
+{
+    pub char_range: Vec<Range<usize>>,
+    pub lines: Range<usize>,
 }

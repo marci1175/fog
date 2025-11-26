@@ -7,7 +7,7 @@ use strum_macros::Display;
 
 use crate::{
     codegen::{FunctionArgumentIdentifier, If, Order},
-    error::{parser::ParserError, syntax::SyntaxError},
+    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     tokenizer::Token,
     ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
 };
@@ -42,10 +42,30 @@ impl TryInto<MathematicalSymbol> for Token
     }
 }
 
+#[derive(Debug, Clone, Eq, Hash)]
+/// A ParsedTokenInstance is ParsedToken with additional information. DebugInformation will not affect comparisons. (Check PartialEq trait implementation)
+pub struct ParsedTokenInstance
+{
+    pub inner: ParsedToken,
+    pub debug_information: DebugInformation,
+}
+
+impl PartialEq for ParsedTokenInstance {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl PartialEq<ParsedToken> for ParsedTokenInstance {
+    fn eq(&self, other: &ParsedToken) -> bool {
+        &self.inner == other
+    }
+}
+
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum ParsedToken
 {
-    NewVariable(String, TypeDiscriminant, Box<ParsedToken>),
+    NewVariable(String, TypeDiscriminant, Box<ParsedTokenInstance>),
 
     /// This is the token for referencing a variable. This is the lowest layer of referencing a variable.
     /// Other tokens might wrap it like an `ArrayIndexing`. This is the last token which points to the variable.
@@ -53,45 +73,54 @@ pub enum ParsedToken
 
     Literal(Type),
 
-    TypeCast(Box<ParsedToken>, TypeDiscriminant),
+    TypeCast(Box<ParsedTokenInstance>, TypeDiscriminant),
 
-    MathematicalExpression(Box<ParsedToken>, MathematicalSymbol, Box<ParsedToken>),
+    MathematicalExpression(
+        Box<ParsedTokenInstance>,
+        MathematicalSymbol,
+        Box<ParsedTokenInstance>,
+    ),
 
     Brackets(Vec<ParsedToken>, TypeDiscriminant),
 
     FunctionCall(
         (FunctionSignature, String),
-        OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedToken, TypeDiscriminant)>,
+        OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, TypeDiscriminant)>,
     ),
 
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
     /// The second is the value we are setting this variable.
-    SetValue(Box<ParsedToken>, Box<ParsedToken>),
+    SetValue(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
 
-    MathematicalBlock(Box<ParsedToken>),
+    MathematicalBlock(Box<ParsedTokenInstance>),
 
-    ReturnValue(Box<ParsedToken>),
+    ReturnValue(Box<ParsedTokenInstance>),
 
-    Comparison(Box<ParsedToken>, Order, Box<ParsedToken>, TypeDiscriminant),
+    Comparison(
+        Box<ParsedTokenInstance>,
+        Order,
+        Box<ParsedTokenInstance>,
+        TypeDiscriminant,
+    ),
 
     If(If),
 
     InitializeStruct(
         OrdMap<String, TypeDiscriminant>,
-        OrdMap<String, Box<ParsedToken>>,
+        OrdMap<String, Box<ParsedTokenInstance>>,
     ),
 
     CodeBlock(Vec<ParsedToken>),
 
-    Loop(Vec<ParsedToken>),
+    Loop(Vec<ParsedTokenInstance>),
 
     ControlFlow(ControlFlowType),
 
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
     /// The second argument is the index we are referencing at.
-    ArrayIndexing(Box<ParsedToken>, Box<ParsedToken>),
+    ArrayIndexing(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
 
-    ArrayInitialization(Vec<ParsedToken>, TypeDiscriminant),
+    ArrayInitialization(Vec<ParsedTokenInstance>, TypeDiscriminant),
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
@@ -114,7 +143,7 @@ pub enum VariableReference
     /// Variable name
     BasicReference(String),
     /// Variable name, array index
-    ArrayReference(String, Box<ParsedToken>),
+    ArrayReference(String, Box<ParsedTokenInstance>),
 }
 
 /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
@@ -170,7 +199,7 @@ pub struct UnparsedFunctionDefinition
 pub struct FunctionDefinition
 {
     pub function_sig: FunctionSignature,
-    pub inner: Vec<ParsedToken>,
+    pub inner: Vec<ParsedTokenInstance>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
