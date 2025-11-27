@@ -4,19 +4,19 @@
         inner: FunctionCall(
             (
                 FunctionSignature {
-                    name: "printf",
+                    name: "open_window",
                     args: FunctionArguments {
                         arguments_list: OrdMap(
                             {
-                                "input": String,
+                                "win_name": String,
                             },
                         ),
-                        ellipsis_present: true,
+                        ellipsis_present: false,
                     },
-                    return_type: I32,
+                    return_type: Void,
                     module_path: [
-                        "parser_tester",
-                        "printf",
+                        "dep1",
+                        "open_window",
                     ],
                     visibility: Private,
                     compiler_hints: OrdSet(
@@ -26,24 +26,24 @@
                         {},
                     ),
                 },
-                "printf",
+                "open_window",
             ),
             OrdMap(
                 {
                     Identifier(
-                        "input",
+                        "win_name",
                     ): (
                         ParsedTokenInstance {
-                            inner: Literal(
-                                String(
-                                    "Hello world!\n",
+                            inner: VariableReference(
+                                BasicReference(
+                                    "win_name",
                                 ),
                             ),
                             debug_information: DebugInformation {
                                 char_range: [
-                                    11..27,
+                                    4..16,
                                 ],
-                                lines: 2..3,
+                                lines: 34..35,
                             },
                         },
                         String,
@@ -53,32 +53,9 @@
         ),
         debug_information: DebugInformation {
             char_range: [
-                11..27,
+                4..26,
             ],
-            lines: 2..3,
-        },
-    },
-    ParsedTokenInstance {
-        inner: ReturnValue(
-            ParsedTokenInstance {
-                inner: Literal(
-                    I32(
-                        0,
-                    ),
-                ),
-                debug_information: DebugInformation {
-                    char_range: [
-                        4..10,
-                    ],
-                    lines: 4..5,
-                },
-            },
-        ),
-        debug_information: DebugInformation {
-            char_range: [
-                11..12,
-            ],
-            lines: 4..5,
+            lines: 34..35,
         },
     },
 ]

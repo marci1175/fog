@@ -1,15 +1,16 @@
 use anyhow::Result;
+use indexmap::IndexMap;
 use std::{
     collections::{BTreeSet, HashSet},
-    fmt::Display,
+    fmt::Display, sync::Arc,
 };
 use strum_macros::Display;
 
 use crate::{
-    codegen::{FunctionArgumentIdentifier, If, Order},
+    codegen::{CustomType, FunctionArgumentIdentifier, If, Order},
     error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     tokenizer::Token,
-    ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
+    ty::{OrdMap, OrdSet, Type, TypeDiscriminant, token_to_ty},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -299,7 +300,7 @@ pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) 
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
-pub fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments>
+pub fn parse_signature_args(token_list: &[Token], custom_types: &IndexMap<String, CustomType>) -> Result<FunctionArguments>
 {
     // Create a list of args which the function will take, we will return this later
     let mut args: FunctionArguments = FunctionArguments::new();
@@ -334,6 +335,23 @@ pub fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments>
                     // Countinue the loop
                     continue;
                 }
+                else {
+                    let custom_ty = token_to_ty(token_list[args_idx + 2].clone(), &custom_types.clone())?;
+
+                    // Store the argument in the HashMap
+                    args.arguments_list.insert(var_name, custom_ty.clone());
+
+                    // Increment the idx based on the next token
+                    if let Some(Token::Comma) = token_list.get(args_idx + 3) {
+                        args_idx += 4;
+                    }
+                    else {
+                        args_idx += 3;
+                    }
+
+                    // Countinue the loop
+                    continue;
+                }
             }
         }
         // If an ellipsis is found, that means that there can be an indefinite amount of arguments, this however can only be used at the end of the arguments when importing an external function
@@ -351,7 +369,9 @@ pub fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments>
             // Countinue the loop
             continue;
         }
-
+        
+        dbg!(&token_list[args_idx]);
+        dbg!(&token_list);
         // If the pattern didnt match the tokens return an error
         return Err(ParserError::InvalidSignatureDefinition.into());
     }
@@ -359,7 +379,7 @@ pub fn parse_signature_args(token_list: &[Token]) -> Result<FunctionArguments>
     Ok(args)
 }
 
-pub fn parse_signature_argument_tokens(tokens: &[Token]) -> Result<(usize, FunctionArguments)>
+pub fn parse_signature_argument_tokens(tokens: &[Token], custom_types: &IndexMap<String, CustomType>) -> Result<(usize, FunctionArguments)>
 {
     let bracket_closing_idx =
         find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidSignatureDefinition)?;
@@ -367,7 +387,7 @@ pub fn parse_signature_argument_tokens(tokens: &[Token]) -> Result<(usize, Funct
     let mut args = FunctionArguments::new();
 
     if bracket_closing_idx != 0 {
-        args = parse_signature_args(&tokens[..bracket_closing_idx])?;
+        args = parse_signature_args(&tokens[..bracket_closing_idx], &custom_types)?;
     }
 
     Ok((bracket_closing_idx, args))

@@ -238,7 +238,7 @@ pub fn ty_to_llvm_ty<'a>(
         TypeDiscriminant::Array((token_ty, len)) => {
             let llvm_ty = ty_to_llvm_ty(
                 ctx,
-                &token_to_ty(*(*token_ty).clone(), custom_types.clone())?,
+                &token_to_ty(*(*token_ty).clone(), &custom_types)?,
                 custom_types.clone(),
             )?;
 

@@ -1,0 +1,17 @@
+[package]
+name = "benchmark"
+version = "0.1.0"
+edition = "2024"
+description = "Benchmarking utilities for the Fog programming language"
+
+[dependencies]
+# Fog language components
+fog-parser = {path = "../language-crates/parser"}
+fog-common = {path = "../language-crates/common"}
+
+# Benchmarking library
+criterion = {version = "0.7.0", features = ["html_reports"]}
+
+[[bench]]
+name = "my_benchmark"
+harness = false

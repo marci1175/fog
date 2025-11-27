@@ -77,7 +77,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
 {
     let debug_type = match type_disc.clone() {
         TypeDiscriminant::Array((array_ty, len)) => {
-            let inner_ty_disc = token_to_ty(*array_ty, custom_types.clone()).unwrap();
+            let inner_ty_disc = token_to_ty(*array_ty, &custom_types).unwrap();
 
             let inner_type = get_basic_debug_type_from_ty(
                 debug_info_builder,

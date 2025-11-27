@@ -8,13 +8,13 @@ target triple = "x86_64-pc-windows-msvc"
 @Alma = constant [5 x i8] c"Alma\00"
 @"%i" = constant [3 x i8] c"%i\00"
 
-declare void @hi_from_cpp()
-
-declare { i32, i32 } @alma_csinalo()
+declare void @open_window(ptr)
 
 declare i32 @printf(ptr, ...)
 
-declare void @open_window(ptr)
+declare { i32, i32 } @alma_csinalo()
+
+declare void @hi_from_cpp()
 
 define void @kedvenc() !dbg !3 {
 main_fn_entry:
@@ -79,7 +79,7 @@ main_fn_entry:
 !llvm.dbg.cu = !{!0}
 !llvm.debug.version = !{!2}
 
-!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "Fog (ver.: 0.1.0) with LLVM 18-1-8", isOptimized: false, runtimeVersion: 1, emissionKind: FullDebug, splitDebugInlining: false, debugInfoForProfiling: true)
+!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "Fog (ver.: 0.1.0) with LLVM 21.1.2", isOptimized: false, runtimeVersion: 1, emissionKind: FullDebug, splitDebugInlining: false, debugInfoForProfiling: true)
 !1 = !DIFile(filename: "dep1", directory: "C:\\Users\\marci\\Desktop\\fog\\test_project\\deps\\dep1\\deps\\src")
 !2 = !{i32 1}
 !3 = distinct !DISubprogram(name: "kedvenc", linkageName: "kedvenc", scope: !1, file: !1, line: 69, type: !4, scopeLine: 69, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !0)

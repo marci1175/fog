@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 default-members = ["language-crates/fog"]
-members = ["language-crates/codegen", "language-crates/common", "language-crates/fog", "language-crates/compiler", "language-crates/linker", "language-crates/imports", "language-crates/parser", "lsp"]
+members = ["language-crates/codegen", "language-crates/common", "language-crates/fog", "language-crates/compiler", "language-crates/linker", "language-crates/imports", "language-crates/parser", "lsp", "benchmark"]
 
 [profile.dev]
 panic = "abort"

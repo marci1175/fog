@@ -257,6 +257,9 @@ impl TypeDiscriminant
             Self::F64 | Self::F32 | Self::F16 => 4,
             Self::Boolean => 2,
             Self::String => 18,
+            Self::Struct((_, struct_fields)) => {
+                struct_fields.iter().map(|(_, field_t)| field_t.get_dwarf_encoding()).sum()
+            }
             // Self::Pointer => 1,
             _ => panic!("DWARF identifier requested on invalid type."),
         }
@@ -285,7 +288,7 @@ impl TypeDiscriminant
                     .sum()
             },
             Self::Array((inner, _)) => {
-                token_to_ty((**inner).clone(), custom_types.clone())
+                token_to_ty((**inner).clone(), &custom_types)
                     .unwrap()
                     .sizeof(custom_types.clone())
             },
@@ -325,7 +328,7 @@ impl TypeDiscriminant
             },
             TypeDiscriminant::Array((array_ty, len)) => {
                 BasicTypeEnum::ArrayType(
-                    token_to_ty(*array_ty, custom_types.clone())?
+                    token_to_ty(*array_ty, &custom_types)?
                         .to_basic_type_enum(ctx, custom_types.clone())?
                         .array_type(len as u32),
                 )
@@ -697,7 +700,7 @@ impl<T> OrdSet<T>
 
 pub fn token_to_ty(
     token: Token,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: &IndexMap<String, CustomType>,
 ) -> anyhow::Result<TypeDiscriminant>
 {
     match token.clone() {

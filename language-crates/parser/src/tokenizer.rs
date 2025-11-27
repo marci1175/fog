@@ -638,7 +638,7 @@ pub fn tokenize(
             token_list.push(token);
             token_debug_info.push(DebugInformation {
                 char_range: vec![
-                    current_char_idx_in_line - string_buffer.len()..current_char_idx_in_line,
+                    current_char_idx_in_line - (string_buffer.len() - 1)..current_char_idx_in_line,
                 ],
                 lines: line_counter..line_counter + 1,
             });

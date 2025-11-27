@@ -275,7 +275,7 @@ pub fn parse_value(
             },
 
             _ => {
-                dbg!(parsed_token);
+                // dbg!(parsed_token);
                 dbg!(current_token);
 
                 unimplemented!()
@@ -317,7 +317,7 @@ pub fn parse_token_as_value(
 ) -> Result<(ParsedTokenInstance, TypeDiscriminant)>
 {
     // Match the token
-    let (inner_parsed_token, inner_parsed_token_ty) = match dbg!(eval_token) {
+    let (inner_parsed_token, inner_parsed_token_ty) = match eval_token {
         Token::Literal(literal) => {
             // Increment the token_idx by the tokens we have analyzed
             *token_idx += 1;
@@ -663,7 +663,7 @@ pub fn parse_token_as_value(
 
             // We will check for the valid length of the init value later, at codegen.
             if let TypeDiscriminant::Array((inner_token, _len)) = &desired_variable_type {
-                let inner_ty = token_to_ty((**inner_token).clone(), custom_types.clone())?;
+                let inner_ty = token_to_ty((**inner_token).clone(), &custom_types)?;
 
                 while array_item_idx < tokens_inside_block.len() {
                     // Parse the value of the array
@@ -722,7 +722,7 @@ pub fn parse_token_as_value(
                 debug_infos,
                 // Add the magic number and call it a day
                 // DO we need +1?
-                origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset + 1,
                 true,
             )
             .unwrap(),
@@ -945,7 +945,7 @@ pub fn parse_variable_expression(
         },
         Token::OpenSquareBrackets => {
             if let TypeDiscriminant::Array((inner_token, len)) = variable_type {
-                let inner_type = token_to_ty(*inner_token, custom_types.clone())?;
+                let inner_type = token_to_ty(*inner_token, &custom_types)?;
 
                 *token_idx += 1;
 
@@ -1028,7 +1028,7 @@ pub fn parse_variable_expression(
             }
         },
         _ => {
-            println!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
+            // println!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
         },
     }
 
@@ -1209,7 +1209,7 @@ fn handle_variable(
                         }),
                         Box::new(value),
                     ),
-                    token_to_ty(*inner_ty.clone(), custom_types.clone())?,
+                    token_to_ty(*inner_ty.clone(), &custom_types)?,
                 )?;
 
                 Ok(handling_continuation)
