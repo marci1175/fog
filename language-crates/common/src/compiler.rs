@@ -12,7 +12,7 @@ pub struct ProjectConfig
 
     /// This is only enabled if its a library
     pub features: Option<Vec<String>>,
-    
+
     /// This allows the user to use the remote compiler worker feature.
     pub remote_compiler_worker: Option<Vec<DistributedCompilerWorker>>,
 

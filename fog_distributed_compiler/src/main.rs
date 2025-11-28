@@ -1,21 +1,20 @@
 use std::{io::stdout, time::Duration};
 
-use color_eyre::Result;
-use color_eyre::eyre::Context;
+use color_eyre::{Result, eyre::Context};
 use crossterm::{
     event::{self, KeyCode},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{
-    DefaultTerminal, Frame, prelude::CrosstermBackend, widgets::Paragraph
-};
+use ratatui::{DefaultTerminal, Frame, prelude::CrosstermBackend, widgets::Paragraph};
 
-fn main() -> Result<()> {
+fn main() -> Result<()>
+{
     color_eyre::install()?;
 
     // Set up terminal
     enable_raw_mode().context("failed to enable raw mode")?;
-    let mut terminal = DefaultTerminal::new(CrosstermBackend::new(stdout())).context("failed to create terminal")?;
+    let mut terminal = DefaultTerminal::new(CrosstermBackend::new(stdout()))
+        .context("failed to create terminal")?;
 
     // Run app loop
     let res = run(&mut terminal);
@@ -27,9 +26,10 @@ fn main() -> Result<()> {
     res
 }
 
-fn run(terminal: &mut DefaultTerminal) -> Result<()> {
+fn run(terminal: &mut DefaultTerminal) -> Result<()>
+{
     terminal.clear()?;
-    
+
     loop {
         terminal.draw(render)?;
 
@@ -40,13 +40,15 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
     Ok(())
 }
 
-fn render(frame: &mut Frame) {
+fn render(frame: &mut Frame)
+{
     let greeting = Paragraph::new("Hello World! (press 'q' to quit)");
     frame.render_widget(greeting, frame.area());
 }
 
 /// Returns true if 'q' is pressed
-fn should_quit() -> Result<bool> {
+fn should_quit() -> Result<bool>
+{
     if event::poll(Duration::from_millis(250)).context("event poll failed")? {
         let q_pressed = event::read()
             .context("event read failed")?

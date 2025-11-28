@@ -1023,8 +1023,9 @@ pub fn parse_variable_expression(
                                 ),
                                 debug_information: fetch_and_merge_debug_information(
                                     debug_infos,
-                                    dbg!(origin_token_idx + token_offset
-                                        ..*token_idx + token_offset),
+                                    dbg!(
+                                        origin_token_idx + token_offset..*token_idx + token_offset
+                                    ),
                                     true,
                                 )
                                 .unwrap(),

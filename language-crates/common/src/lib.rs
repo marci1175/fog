@@ -4,13 +4,13 @@ pub const DEFAULT_COMPILER_ADDRESS_SPACE_SIZE: u16 = 0;
 pub mod codegen;
 pub mod compiler;
 pub mod dependency;
+pub mod distributed_compiler;
 pub mod error;
 pub mod imports;
 pub mod linker;
 pub mod parser;
 pub mod tokenizer;
 pub mod ty;
-pub mod distributed_compiler;
 
 pub use anyhow;
 pub use clap;

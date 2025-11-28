@@ -1811,19 +1811,19 @@ where
         },
         ParsedToken::SetValue(var_ref_ty, value) => {
             let ((ptr, ty), ty_disc) = dbg!(access_variable_ptr(
-                            ctx,
-                            module,
-                            builder,
-                            variable_map,
-                            &fn_ret_ty,
-                            this_fn_block,
-                            this_fn,
-                            allocation_list,
-                            &is_loop_body,
-                            &parsed_functions,
-                            &custom_types,
-                            dbg!(*var_ref_ty),
-                        )?);
+                ctx,
+                module,
+                builder,
+                variable_map,
+                &fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                &is_loop_body,
+                &parsed_functions,
+                &custom_types,
+                dbg!(*var_ref_ty),
+            )?);
 
             create_ir_from_parsed_token(
                 ctx,
@@ -2772,10 +2772,15 @@ where
 {
     #[cfg(debug_assertions)]
     {
-        use std::{fs::{OpenOptions}, io::Write};
-    
-        if let Ok(mut o_opt) = OpenOptions::new().append(true).create(true).write(true).open(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR"))) {
-            o_opt.write_all(format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()).as_bytes())?;      
+        use std::{fs::OpenOptions, io::Write};
+
+        if let Ok(mut o_opt) = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .write(true)
+            .open(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")))
+        {
+            o_opt.write_all(format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()).as_bytes())?;
         }
     }
 
