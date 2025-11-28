@@ -1,7 +1,10 @@
-use std::process::Command;
+use std::{fs, process::Command};
 
 fn main()
 {
+    // Remove temporary compiler ir debug file
+    // let _ = fs::remove_file(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")));
+
     // get version
     let output = Command::new("llvm-config")
         .arg("--version")

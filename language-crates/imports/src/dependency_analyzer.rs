@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use fog_common::{
     anyhow, compiler::ProjectConfig, indexmap::IndexMap, parser::FunctionSignature, ty::OrdSet,
 };

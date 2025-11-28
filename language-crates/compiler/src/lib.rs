@@ -64,12 +64,12 @@ impl CompilerState
         println!("Tokenizing...");
         let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
 
-        for (idx, token) in tokens.iter().enumerate() {
-            println!(
-                "{idx} Token: {} | Range: {:?} | Lines: {:?}",
-                token, token_ranges[idx].char_range, token_ranges[idx].lines
-            );
-        }
+        // for (idx, token) in tokens.iter().enumerate() {
+        //     println!(
+        //         "{idx} Token: {} | Range: {:?} | Lines: {:?}",
+        //         token, token_ranges[idx].char_range, token_ranges[idx].lines
+        //     );
+        // }
 
         println!("Creating LLVM context...");
         let context = Context::create();

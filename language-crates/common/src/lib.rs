@@ -10,6 +10,7 @@ pub mod linker;
 pub mod parser;
 pub mod tokenizer;
 pub mod ty;
+pub mod distributed_compiler;
 
 pub use anyhow;
 pub use clap;

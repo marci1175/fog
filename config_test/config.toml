@@ -1,0 +1,22 @@
+name = "config_test"
+is_library = false
+version = "0.0.1"
+build_path = "out"
+additional_linking_material = []
+
+[[remote_compiler_worker]]
+name = "Test1"
+address = "[::1]:3003"
+
+[remote_compiler_worker.libraries]
+dep1 = { version = "2.0.0", features = ["test"]}
+
+[[remote_compiler_worker]]
+name = "Test2"
+address = "[::1]:3004"
+
+[remote_compiler_worker.libraries]
+dep2 = { version = "3.0.0", features = ["test2"]}
+
+
+[dependencies]

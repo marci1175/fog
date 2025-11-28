@@ -5,4 +5,5 @@ pub struct DependencyInfo
 {
     pub version: String,
     pub features: Vec<String>,
+    pub remote_compile_with: Option<String>,
 }

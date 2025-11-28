@@ -4,5 +4,9 @@ version = "0.0.1"
 build_path = "out"
 additional_linking_material = []
 
+remote_compiler_worker = [
+    { name = "Test Remote", address = "[::1]:3004" }
+]
+
 [dependencies]
 # dep1 = { version = "0.0.1", features = ["alma"] }

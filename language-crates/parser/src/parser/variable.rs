@@ -772,7 +772,7 @@ pub fn parse_variable_expression(
 
             let (parsed_token, _, _) = parse_value(
                 selected_tokens,
-                token_offset + *token_idx,
+                *token_idx,
                 debug_infos,
                 origin_token_idx,
                 function_signatures.clone(),
@@ -921,7 +921,7 @@ pub fn parse_variable_expression(
 
                         parse_variable_expression(
                             tokens,
-                            token_offset + *token_idx,
+                            token_offset,
                             debug_infos,
                             &tokens[*token_idx],
                             token_idx,
@@ -985,7 +985,7 @@ pub fn parse_variable_expression(
 
                 let (value, idx_jmp, _) = parse_value(
                     selected_tokens,
-                    token_offset + *token_idx,
+                    *token_idx,
                     debug_infos,
                     origin_token_idx,
                     function_signatures.clone(),
@@ -1007,7 +1007,7 @@ pub fn parse_variable_expression(
 
                         parse_variable_expression(
                             tokens,
-                            token_offset + *token_idx,
+                            *token_idx,
                             debug_infos,
                             next_token,
                             token_idx,
@@ -1023,8 +1023,8 @@ pub fn parse_variable_expression(
                                 ),
                                 debug_information: fetch_and_merge_debug_information(
                                     debug_infos,
-                                    origin_token_idx + token_offset
-                                        ..origin_token_idx + *token_idx + token_offset,
+                                    dbg!(origin_token_idx + token_offset
+                                        ..*token_idx + token_offset),
                                     true,
                                 )
                                 .unwrap(),

@@ -1772,14 +1772,13 @@ where
 
                 if let Some((variable_name, (var_ptr, _), ty_disc)) = variable_reference {
                     // Check for type mismatch
-                    // if dbg!(&ty_disc) != dbg!(&fn_sig.return_type){
-                    //     dbg!(&variable_name);
-                    //     return Err(CodeGenError::InternalVariableTypeMismatch(
-                    //         ty_disc,
-                    //         fn_sig.return_type,
-                    //     )
-                    //     .into());
-                    // }
+                    if &ty_disc != &fn_sig.return_type {
+                        return Err(CodeGenError::InternalVariableTypeMismatch(
+                            ty_disc,
+                            fn_sig.return_type,
+                        )
+                        .into());
+                    }
 
                     // Get what the function returned
                     let function_result = builder.build_load(
@@ -1811,20 +1810,20 @@ where
             }
         },
         ParsedToken::SetValue(var_ref_ty, value) => {
-            let ((ptr, ty), ty_disc) = access_variable_ptr(
-                ctx,
-                module,
-                builder,
-                variable_map,
-                &fn_ret_ty,
-                this_fn_block,
-                this_fn,
-                allocation_list,
-                &is_loop_body,
-                &parsed_functions,
-                &custom_types,
-                *var_ref_ty,
-            )?;
+            let ((ptr, ty), ty_disc) = dbg!(access_variable_ptr(
+                            ctx,
+                            module,
+                            builder,
+                            variable_map,
+                            &fn_ret_ty,
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            &is_loop_body,
+                            &parsed_functions,
+                            &custom_types,
+                            dbg!(*var_ref_ty),
+                        )?);
 
             create_ir_from_parsed_token(
                 ctx,
@@ -2773,12 +2772,11 @@ where
 {
     #[cfg(debug_assertions)]
     {
-        use std::fs;
-
-        fs::write(
-            format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")),
-            format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()),
-        )?;
+        use std::{fs::{OpenOptions}, io::Write};
+    
+        if let Ok(mut o_opt) = OpenOptions::new().append(true).create(true).write(true).open(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR"))) {
+            o_opt.write_all(format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()).as_bytes())?;      
+        }
     }
 
     for token in parsed_tokens {

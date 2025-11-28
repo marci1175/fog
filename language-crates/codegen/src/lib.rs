@@ -52,6 +52,9 @@ pub fn llvm_codegen_main<'ctx>(
     cpu_features: Option<String>,
 ) -> Result<TargetMachine>
 {
+    #[cfg(debug_assertions)]
+    if let Err(_) = fs::remove_file(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR"))) {};
+
     // Import functions defined by the user via llvm
     import_user_lib_functions(
         context,
