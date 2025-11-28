@@ -63,10 +63,13 @@ impl CompilerState
     {
         println!("Tokenizing...");
         let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
-        
-        // for (idx, token) in tokens.iter().enumerate() {
-        //     println!("{idx} Token: {} | Range: {:?} | Lines: {:?}", token, token_ranges[idx].char_range, token_ranges[idx].lines);
-        // }
+
+        for (idx, token) in tokens.iter().enumerate() {
+            println!(
+                "{idx} Token: {} | Range: {:?} | Lines: {:?}",
+                token, token_ranges[idx].char_range, token_ranges[idx].lines
+            );
+        }
 
         println!("Creating LLVM context...");
         let context = Context::create();
@@ -132,18 +135,19 @@ impl CompilerState
             println!("A `main` function has been found, but the library flag is set to `true`.");
         }
 
-        println!("Recontructed token tree:");
-        let lines = file_contents.lines().collect::<Vec<&str>>();
+        // println!("Recontructed token tree:");
+        // let lines = file_contents.lines().collect::<Vec<&str>>();
+        // for (fn_name, fn_def) in function_table.iter() {
+        //     for psd_tkn in &fn_def.inner {
+        //         for (idx, ln_idx) in psd_tkn.debug_information.lines.clone().into_iter().enumerate() {
+        //             dbg!(&lines[ln_idx]);
 
-        for (fn_name, fn_def) in function_table.iter() {
-            for psd_tkn in &fn_def.inner {
-                for (idx, ln_idx) in psd_tkn.debug_information.lines.clone().into_iter().enumerate() {
-                    let line_fetch = lines[ln_idx].get(psd_tkn.debug_information.char_range[idx].clone());
+        //             let line_fetch = lines[ln_idx].get(dbg!(psd_tkn.debug_information.char_range[idx].clone()));
 
-                    println!("{}", line_fetch.unwrap());
-                }
-            }
-        }
+        //             println!("{}", line_fetch.unwrap());
+        //         }
+        //     }
+        // }
 
         llvm_codegen(
             target_ir_path.clone(),

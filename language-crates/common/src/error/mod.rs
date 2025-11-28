@@ -15,7 +15,7 @@ pub struct ErrorWrapper<T>
     pub debug_information: DebugInformation,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 
 pub struct DebugInformation
 {

@@ -179,7 +179,7 @@ pub fn tokenize(
                     }
                 }
 
-                let original_char_idx = char_idx - line_char_idx;
+                let original_char_idx = char_idx;
 
                 if *char == '#' {
                     if char_list.get(char_idx + 2) == Some(&'#') {
@@ -194,7 +194,7 @@ pub fn tokenize(
 
                                 token_debug_info.push(DebugInformation {
                                     char_range: vec![original_char_idx..current_char_idx_in_line],
-                                    lines: line_counter..line_counter + 1,
+                                    lines: original_char_idx..line_counter + 1,
                                 });
 
                                 char_idx += 2;
@@ -218,7 +218,7 @@ pub fn tokenize(
                             token_list.push(Token::Comment(comment_buffer.trim().to_string()));
 
                             token_debug_info.push(DebugInformation {
-                                char_range: vec![original_char_idx..current_char_idx_in_line],
+                                char_range: vec![original_char_idx..char_idx],
                                 lines: line_counter..line_counter + 1,
                             });
 

@@ -5,4 +5,4 @@ build_path = "out"
 additional_linking_material = []
 
 [dependencies]
-dep1 = { version = "0.0.1", features = ["alma"] }
+# dep1 = { version = "0.0.1", features = ["alma"] }

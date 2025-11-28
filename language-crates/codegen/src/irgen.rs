@@ -1759,26 +1759,27 @@ where
                         builder.build_store(v_ptr, returned_int)?;
                     },
                     TypeDiscriminant::Array(_) => {
-                        let returned_struct = returned.into_struct_value();
+                        let returned_array = returned.into_array_value();
 
-                        builder.build_store(v_ptr, returned_struct)?;
+                        builder.build_store(v_ptr, returned_array)?;
                     },
                     TypeDiscriminant::Pointer => {
-                        let returned_struct = returned.into_struct_value();
+                        let returned_pointer = returned.into_pointer_value();
 
-                        builder.build_store(v_ptr, returned_struct)?;
+                        builder.build_store(v_ptr, returned_pointer)?;
                     },
                 };
 
                 if let Some((variable_name, (var_ptr, _), ty_disc)) = variable_reference {
                     // Check for type mismatch
-                    if ty_disc != fn_sig.return_type {
-                        return Err(CodeGenError::InternalVariableTypeMismatch(
-                            ty_disc,
-                            fn_sig.return_type,
-                        )
-                        .into());
-                    }
+                    // if dbg!(&ty_disc) != dbg!(&fn_sig.return_type){
+                    //     dbg!(&variable_name);
+                    //     return Err(CodeGenError::InternalVariableTypeMismatch(
+                    //         ty_disc,
+                    //         fn_sig.return_type,
+                    //     )
+                    //     .into());
+                    // }
 
                     // Get what the function returned
                     let function_result = builder.build_load(
@@ -2558,7 +2559,11 @@ pub fn generate_ir<'ctx>(
         DWARFSourceLanguage::C,
         module.get_name().to_str()?,
         path_to_src_file,
-        &format!("Fog (ver.: {}) with LLVM {}", env!("CARGO_PKG_VERSION"), env!("LLVM_VERSION")),
+        &format!(
+            "Fog (ver.: {}) with LLVM {}",
+            env!("CARGO_PKG_VERSION"),
+            env!("LLVM_VERSION")
+        ),
         is_optimized,
         flags_passed_in,
         1,

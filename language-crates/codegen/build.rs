@@ -1,6 +1,7 @@
 use std::process::Command;
 
-fn main() {
+fn main()
+{
     // get version
     let output = Command::new("llvm-config")
         .arg("--version")

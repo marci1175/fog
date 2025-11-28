@@ -94,7 +94,8 @@ pub fn parse_value(
                         ),
                         debug_information: fetch_and_merge_debug_information(
                             debug_infos,
-                            origin_token_idx + tokens_offset..origin_token_idx + token_idx + tokens_offset,
+                            origin_token_idx + tokens_offset
+                                ..origin_token_idx + token_idx + tokens_offset,
                             true,
                         )
                         .unwrap(),
@@ -197,7 +198,7 @@ pub fn parse_value(
 
                     let (current_cmp_token, token_ty) = parse_token_as_value(
                         tokens,
-                    tokens_offset + token_idx,
+                        tokens_offset + token_idx,
                         debug_infos,
                         origin_token_idx,
                         function_signatures.clone(),
@@ -218,7 +219,8 @@ pub fn parse_value(
                         ),
                         debug_information: fetch_and_merge_debug_information(
                             debug_infos,
-                            origin_token_idx + tokens_offset..origin_token_idx + token_idx + tokens_offset,
+                            origin_token_idx + tokens_offset
+                                ..origin_token_idx + token_idx + tokens_offset,
                             true,
                         )
                         .unwrap(),
@@ -260,7 +262,8 @@ pub fn parse_value(
                             ),
                             debug_information: fetch_and_merge_debug_information(
                                 debug_infos,
-                                origin_token_idx + tokens_offset..origin_token_idx + token_idx + tokens_offset,
+                                origin_token_idx + tokens_offset
+                                    ..origin_token_idx + token_idx + tokens_offset,
                                 true,
                             )
                             .unwrap(),
@@ -336,7 +339,8 @@ pub fn parse_token_as_value(
                                 inner: ParsedToken::Literal(literal.clone()),
                                 debug_information: fetch_and_merge_debug_information(
                                     debug_infos,
-                                    origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                                    origin_token_idx + token_offset
+                                        ..origin_token_idx + *token_idx + token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -385,7 +389,8 @@ pub fn parse_token_as_value(
                                 inner: parsed_token,
                                 debug_information: fetch_and_merge_debug_information(
                                     debug_infos,
-                                    origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                                    origin_token_idx + token_offset
+                                        ..origin_token_idx + *token_idx + token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -439,7 +444,8 @@ pub fn parse_token_as_value(
                                     inner: parsed_token,
                                     debug_information: fetch_and_merge_debug_information(
                                         debug_infos,
-                                        origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                                        origin_token_idx + token_offset
+                                            ..origin_token_idx + *token_idx + token_offset,
                                         true,
                                     )
                                     .unwrap(),
@@ -535,7 +541,8 @@ pub fn parse_token_as_value(
                                     inner: parsed_token,
                                     debug_information: fetch_and_merge_debug_information(
                                         debug_infos,
-                                        origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                                        origin_token_idx + token_offset
+                                            ..origin_token_idx + *token_idx + token_offset,
                                         true,
                                     )
                                     .unwrap(),
@@ -630,7 +637,7 @@ pub fn parse_token_as_value(
 
             let (parsed_token, _jmp_idx, _) = parse_value(
                 tokens_inside_block,
-                    token_offset + *token_idx,
+                token_offset + *token_idx,
                 debug_infos,
                 origin_token_idx,
                 function_signatures.clone(),
@@ -669,7 +676,7 @@ pub fn parse_token_as_value(
                     // Parse the value of the array
                     let (parsed_token, jump_index, _) = parse_value(
                         &tokens_inside_block[array_item_idx..],
-                    token_offset + *token_idx,
+                        token_offset + *token_idx,
                         debug_infos,
                         origin_token_idx,
                         function_signatures.clone(),
@@ -695,7 +702,8 @@ pub fn parse_token_as_value(
                         inner: ParsedToken::ArrayInitialization(vec_values, inner_ty.clone()),
                         debug_information: fetch_and_merge_debug_information(
                             debug_infos,
-                            origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                            origin_token_idx + token_offset
+                                ..origin_token_idx + *token_idx + token_offset,
                             true,
                         )
                         .unwrap(),
@@ -742,7 +750,7 @@ pub fn parse_variable_expression(
     variable_scope: &mut IndexMap<String, TypeDiscriminant>,
     variable_type: TypeDiscriminant,
     custom_types: Arc<IndexMap<String, CustomType>>,
-    variable_ref: ParsedTokenInstance,
+    mut variable_ref: ParsedTokenInstance,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
 ) -> Result<()>
 {
@@ -764,7 +772,7 @@ pub fn parse_variable_expression(
 
             let (parsed_token, _, _) = parse_value(
                 selected_tokens,
-                    token_offset + *token_idx,
+                token_offset + *token_idx,
                 debug_infos,
                 origin_token_idx,
                 function_signatures.clone(),
@@ -873,26 +881,41 @@ pub fn parse_variable_expression(
             if let TypeDiscriminant::Struct((struct_name, struct_def)) = variable_type {
                 if let Some(Token::Identifier(field_name)) = field_name {
                     if let Some(struct_field_ty) = struct_def.get(field_name) {
-                        // match &mut variable_ref {
-                        //     VariableReference::StructFieldReference(
-                        //         struct_field_reference,
-                        //         struct_ty,
-                        //     ) => {
-                        //         struct_field_reference
-                        //             .field_stack
-                        //             .push(field_name.to_string());
-                        //     }
-                        //     VariableReference::BasicReference(basic_ref) => {
-                        //         variable_ref = VariableReference::StructFieldReference(
-                        //             StructFieldReference::from_stack(vec![
-                        //                 basic_ref.to_string(),
-                        //                 field_name.to_string(),
-                        //             ]),
-                        //             (struct_name, struct_def.clone()),
-                        //         );
-                        //     }
-                        //     VariableReference::ArrayReference(_, parsed_tokens) => todo!(),
-                        // }
+                        if let ParsedTokenInstance {
+                            inner: ParsedToken::VariableReference(var_ref),
+                            ..
+                        } = variable_ref
+                        {
+                            let new_reference = match var_ref {
+                                VariableReference::StructFieldReference(
+                                    mut struct_field_ref,
+                                    struct_ty,
+                                ) => {
+                                    struct_field_ref.field_stack.push(field_name.to_string());
+                                    VariableReference::StructFieldReference(
+                                        struct_field_ref,
+                                        struct_ty,
+                                    )
+                                },
+
+                                VariableReference::BasicReference(basic_ref) => {
+                                    let stack = vec![basic_ref.to_string(), field_name.to_string()];
+                                    VariableReference::StructFieldReference(
+                                        StructFieldReference::from_stack(stack),
+                                        (struct_name, struct_def.clone()),
+                                    )
+                                },
+
+                                VariableReference::ArrayReference(_, _) => {
+                                    todo!()
+                                },
+                            };
+
+                            variable_ref = ParsedTokenInstance {
+                                inner: ParsedToken::VariableReference(new_reference),
+                                debug_information: DebugInformation::default(),
+                            };
+                        }
 
                         *token_idx += 2;
 
@@ -984,7 +1007,7 @@ pub fn parse_variable_expression(
 
                         parse_variable_expression(
                             tokens,
-                    token_offset + *token_idx,
+                            token_offset + *token_idx,
                             debug_infos,
                             next_token,
                             token_idx,
@@ -1000,7 +1023,8 @@ pub fn parse_variable_expression(
                                 ),
                                 debug_information: fetch_and_merge_debug_information(
                                     debug_infos,
-                                    origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                                    origin_token_idx + token_offset
+                                        ..origin_token_idx + *token_idx + token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -1086,7 +1110,8 @@ fn handle_variable(
                         inner: parsed_token,
                         debug_information: fetch_and_merge_debug_information(
                             debug_infos,
-                            origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                            origin_token_idx + token_offset
+                                ..origin_token_idx + *token_idx + token_offset,
                             true,
                         )
                         .unwrap(),
@@ -1202,7 +1227,8 @@ fn handle_variable(
                             inner: ParsedToken::VariableReference(variable_reference.clone()),
                             debug_information: fetch_and_merge_debug_information(
                                 debug_infos,
-                                origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset,
+                                origin_token_idx + token_offset
+                                    ..origin_token_idx + *token_idx + token_offset,
                                 true,
                             )
                             .unwrap(),

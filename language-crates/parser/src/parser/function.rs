@@ -1,5 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet}, fs, mem, ops::{Range, Sub}, path::PathBuf, sync::Arc
+    collections::{HashMap, HashSet},
+    fs, mem,
+    ops::{Range, Sub},
+    path::PathBuf,
+    sync::Arc,
 };
 
 use fog_common::{
@@ -11,7 +15,10 @@ use fog_common::{
     },
     indexmap::IndexMap,
     parser::{
-        CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature, FunctionVisibility, ParsedToken, ParsedTokenInstance, UnparsedFunctionDefinition, VariableReference, find_closing_braces, find_closing_comma, find_closing_paren, parse_signature_argument_tokens
+        CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
+        FunctionVisibility, ParsedToken, ParsedTokenInstance, UnparsedFunctionDefinition,
+        VariableReference, find_closing_braces, find_closing_comma, find_closing_paren,
+        parse_signature_argument_tokens,
     },
     tokenizer::Token,
     ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
@@ -69,8 +76,10 @@ impl Parser
                 if tokens[token_idx] == Token::Function {
                     if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
                         if tokens[token_idx + 2] == Token::OpenParentheses {
-                            let (bracket_close_idx, args) =
-                                parse_signature_argument_tokens(&tokens[token_idx + 3..], &custom_items)?;
+                            let (bracket_close_idx, args) = parse_signature_argument_tokens(
+                                &tokens[token_idx + 3..],
+                                &custom_items,
+                            )?;
 
                             token_idx += bracket_close_idx + 3;
 
@@ -225,8 +234,10 @@ impl Parser
             else if current_token == Token::External {
                 if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned() {
                     if tokens[token_idx + 2] == Token::OpenParentheses {
-                        let (bracket_close_idx, args) =
-                            parse_signature_argument_tokens(&tokens[token_idx + 3..], &custom_items)?;
+                        let (bracket_close_idx, args) = parse_signature_argument_tokens(
+                            &tokens[token_idx + 3..],
+                            &custom_items,
+                        )?;
 
                         token_idx += bracket_close_idx + 3;
 
@@ -534,13 +545,13 @@ impl Parser
                 )?,
             };
 
-            // println!(
-            //     "Parsed function `{}({})::{fn_name}` ({}/{})",
-            //     module_path.join("::"),
-            //     config.version,
-            //     fn_idx + 1,
-            //     unparsed_functions.len()
-            // );
+            println!(
+                "Parsed function `{}({})::{fn_name}` ({}/{})",
+                module_path.join("::"),
+                config.version,
+                fn_idx + 1,
+                unparsed_functions.len()
+            );
             parsed_functions.insert(fn_name.clone(), function_definition);
         }
 
@@ -644,7 +655,8 @@ impl Parser
                                         inner: ParsedToken::Literal(var_type.clone().into()),
                                         debug_information: fetch_and_merge_debug_information(
                                             &self.tokens_debug_info,
-                                            origin_token_idx + tokens_offset..token_idx + tokens_offset,
+                                            origin_token_idx + tokens_offset
+                                                ..token_idx + tokens_offset,
                                             true,
                                         )
                                         .unwrap(),
@@ -686,6 +698,7 @@ impl Parser
                         // Parse the variable's expression
                         let variable_ref =
                             VariableReference::BasicReference(ident_name.to_string());
+
                         let token_idx_clone = token_idx.clone();
 
                         parse_variable_expression(
@@ -703,7 +716,8 @@ impl Parser
                                 inner: ParsedToken::VariableReference(variable_ref),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    origin_token_idx + tokens_offset..token_idx_clone + tokens_offset,
+                                    origin_token_idx + tokens_offset
+                                        ..token_idx_clone + tokens_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -745,7 +759,8 @@ impl Parser
                             ),
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
-                                origin_token_idx + tokens_offset..origin_token_idx + token_idx + tokens_offset,
+                                origin_token_idx + tokens_offset
+                                    ..origin_token_idx + token_idx + tokens_offset,
                                 true,
                             )
                             .unwrap(),
@@ -763,7 +778,7 @@ impl Parser
                         let paren_start_slice = &tokens[token_idx + 2..];
 
                         let bracket_idx = find_closing_paren(paren_start_slice, 0)? + token_idx;
-                        
+
                         let (variables_passed, jumped_idx) = parse_function_call_args(
                             &tokens[token_idx + 2..bracket_idx + 2],
                             tokens_offset,
@@ -835,7 +850,8 @@ impl Parser
                                         ),
                                         debug_information: fetch_and_merge_debug_information(
                                             &self.tokens_debug_info,
-                                            origin_token_idx + tokens_offset..token_idx + tokens_offset + 2,
+                                            origin_token_idx + tokens_offset
+                                                ..token_idx + tokens_offset + 2,
                                             true,
                                         )
                                         .unwrap(),
@@ -862,7 +878,9 @@ impl Parser
                     let next_token = &tokens[token_idx];
 
                     if this_function_signature.return_type.clone() == TypeDiscriminant::Void {
-                        if *next_token != Token::SemiColon && this_function_signature.visibility != FunctionVisibility::Branch {
+                        if *next_token != Token::SemiColon
+                            && this_function_signature.visibility != FunctionVisibility::Branch
+                        {
                             return Err(ParserError::SyntaxError(
                                 SyntaxError::InvalidStatementDefinition,
                             )
@@ -1335,7 +1353,7 @@ pub fn combine_ranges<T: Ord + Copy>(
     if iter.clone().count() == 1 {
         return iter.next().unwrap();
     }
-    
+
     if is_ordered {
         let start = iter.clone().next().unwrap().start;
         let end = iter.clone().last().unwrap().end;
@@ -1344,7 +1362,7 @@ pub fn combine_ranges<T: Ord + Copy>(
     }
     else {
         let mut range = iter.next().unwrap();
-        
+
         for rhs in iter {
             merge_ranges(&mut range, rhs);
         }
@@ -1386,6 +1404,13 @@ pub fn combine_ranges_per_line(
                 lines[idx] = dbg_inf.char_range[idx].clone();
             }
             else {
+                // Check if the range is valid
+                assert_ne!(
+                    dbg_inf.char_range[idx].clone(),
+                    0..0,
+                    "Invalid range in charlist."
+                );
+
                 merge_ranges(&mut lines[idx], dbg_inf.char_range[idx].clone());
             }
         }

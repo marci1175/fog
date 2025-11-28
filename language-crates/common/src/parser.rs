@@ -2,7 +2,8 @@ use anyhow::Result;
 use indexmap::IndexMap;
 use std::{
     collections::{BTreeSet, HashSet},
-    fmt::Display, sync::Arc,
+    fmt::Display,
+    sync::Arc,
 };
 use strum_macros::Display;
 
@@ -300,7 +301,10 @@ pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) 
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
-pub fn parse_signature_args(token_list: &[Token], custom_types: &IndexMap<String, CustomType>) -> Result<FunctionArguments>
+pub fn parse_signature_args(
+    token_list: &[Token],
+    custom_types: &IndexMap<String, CustomType>,
+) -> Result<FunctionArguments>
 {
     // Create a list of args which the function will take, we will return this later
     let mut args: FunctionArguments = FunctionArguments::new();
@@ -336,7 +340,8 @@ pub fn parse_signature_args(token_list: &[Token], custom_types: &IndexMap<String
                     continue;
                 }
                 else {
-                    let custom_ty = token_to_ty(token_list[args_idx + 2].clone(), &custom_types.clone())?;
+                    let custom_ty =
+                        token_to_ty(token_list[args_idx + 2].clone(), &custom_types.clone())?;
 
                     // Store the argument in the HashMap
                     args.arguments_list.insert(var_name, custom_ty.clone());
@@ -369,7 +374,7 @@ pub fn parse_signature_args(token_list: &[Token], custom_types: &IndexMap<String
             // Countinue the loop
             continue;
         }
-        
+
         dbg!(&token_list[args_idx]);
         dbg!(&token_list);
         // If the pattern didnt match the tokens return an error
@@ -379,7 +384,10 @@ pub fn parse_signature_args(token_list: &[Token], custom_types: &IndexMap<String
     Ok(args)
 }
 
-pub fn parse_signature_argument_tokens(tokens: &[Token], custom_types: &IndexMap<String, CustomType>) -> Result<(usize, FunctionArguments)>
+pub fn parse_signature_argument_tokens(
+    tokens: &[Token],
+    custom_types: &IndexMap<String, CustomType>,
+) -> Result<(usize, FunctionArguments)>
 {
     let bracket_closing_idx =
         find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidSignatureDefinition)?;
