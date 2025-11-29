@@ -20,7 +20,7 @@ use fog_common::{
     linker::BuildManifest,
     ty::{OrdSet, TypeDiscriminant},
 };
-use fog_imports::dependency_list_manager::create_dependency_functions_list;
+use fog_imports::list_manager::create_dependency_functions_list;
 use fog_parser::{parser::function::normalize_range, parser_instance::Parser, tokenizer::tokenize};
 use std::process::Command;
 

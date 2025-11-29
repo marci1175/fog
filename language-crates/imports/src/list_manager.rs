@@ -18,7 +18,7 @@ use fog_common::{
     ty::OrdSet,
 };
 
-use crate::dependency_analyzer::analyze_dependency;
+use crate::analyzer::analyze_dependency;
 
 /// Creates a dependency list from the path provided, by reading in all the folder names and libraries.
 pub fn create_dependency_functions_list<'ctx>(
@@ -60,9 +60,12 @@ pub fn create_dependency_functions_list<'ctx>(
         cpu_features.clone(),
     )?;
 
-    if !dependency_list.is_empty() {
-        return Err(DependencyError::MissingDependencies(dependency_list.clone()).into());
-    }
+    // if !dependency_list.is_empty() {
+    //     return Err(DependencyError::MissingDependencies(dependency_list.clone()).into());
+    // }
+
+    // Request remaining dependencies from package handler server
+
 
     Ok(deps)
 }
@@ -84,6 +87,7 @@ fn scan_dependencies<'ctx>(
     cpu_features: Option<String>,
 ) -> Result<(), anyhow::Error>
 {
+    // Scan the dependencies which are present in the dependencies' folder
     while let Some(Ok(dir_entry)) = dir_entries.next() {
         let metadata = dir_entry
             .metadata()
@@ -149,6 +153,10 @@ fn scan_dependency<'ctx>(
                 .map_err(|err| DependencyError::FileError(err.into()))?;
 
             let mut dependency_config = toml::from_str::<ProjectConfig>(&config_file_content)?;
+
+            if dependency_config.remote_compiler_worker.is_some() {
+                println!("WARNING: Dependency {} has set a remote compiler worker. The attribute will be ignored.", dependency_config.name);
+            }
 
             // Remove the library which was found already, so that ideally the dep list will be empty after this function ran.
             // Match version number

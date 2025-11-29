@@ -6,7 +6,6 @@ license = "MIT"
 
 [dependencies]
 fog-common = { path = "../language-crates/common" }
-tokio = { version = "1.48.0", features = ["full"] }
 ratatui = { version = "0.28.0", features = ["all-widgets", "crossterm"] }
 color-eyre = "0.6.5"
 crossterm = "0.29.0"

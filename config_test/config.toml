@@ -8,15 +8,9 @@ additional_linking_material = []
 name = "Test1"
 address = "[::1]:3003"
 
-[remote_compiler_worker.libraries]
-dep1 = { version = "2.0.0", features = ["test"]}
-
 [[remote_compiler_worker]]
 name = "Test2"
 address = "[::1]:3004"
 
-[remote_compiler_worker.libraries]
-dep2 = { version = "3.0.0", features = ["test2"]}
-
-
 [dependencies]
+dep1 = { version = "0.0.1", features = ["hello"], remote = "Test1"}

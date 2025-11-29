@@ -1,2 +1,3 @@
-pub mod dependency_analyzer;
-pub mod dependency_list_manager;
+pub mod analyzer;
+pub mod list_manager;
+pub mod requester;

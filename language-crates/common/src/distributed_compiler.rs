@@ -13,6 +13,6 @@ pub struct DistributedCompilerWorker
     /// Remote address the client is connecting to.
     pub address: String,
 
-    /// The libraries which should be compiled remotely.
-    pub libraries: HashMap<String, DependencyInfo>,
+    // / The libraries which should be compiled remotely.
+    // pub libraries: HashMap<String, DependencyInfo>,
 }
