@@ -66,7 +66,6 @@ pub fn create_dependency_functions_list<'ctx>(
 
     // Request remaining dependencies from package handler server
 
-
     Ok(deps)
 }
 
@@ -155,7 +154,10 @@ fn scan_dependency<'ctx>(
             let mut dependency_config = toml::from_str::<ProjectConfig>(&config_file_content)?;
 
             if dependency_config.remote_compiler_worker.is_some() {
-                println!("WARNING: Dependency {} has set a remote compiler worker. The attribute will be ignored.", dependency_config.name);
+                println!(
+                    "WARNING: Dependency {} has set a remote compiler worker. The attribute will be ignored.",
+                    dependency_config.name
+                );
             }
 
             // Remove the library which was found already, so that ideally the dep list will be empty after this function ran.

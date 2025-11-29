@@ -5,17 +5,17 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use fog_distributed_compiler::UiState;
+use fog_distributed_compiler::{TextField, UiState};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Alignment, Constraint, Direction, Layout},
     prelude::CrosstermBackend,
     style::{Color, Style},
     text::Text,
-    widgets::{self, Borders, List, ListItem, Paragraph},
+    widgets::{self, Borders, Cell, List, ListItem, Paragraph},
 };
 
-/// Simple app state
+#[derive(Debug, Clone, PartialEq)]
 struct App
 {
     ui_state: UiState,
@@ -39,64 +39,65 @@ impl App
         ["Start Compiler Server", "Help", "Quit"]
     }
 
-    /// Handle a key event (update phase)
-    fn on_key(&mut self, key: KeyEvent)
+    fn key_handler(&mut self, key: KeyEvent)
     {
         match self.ui_state {
             UiState::Main => {
-                self.on_key_main(key);
-            },
-            UiState::ConnectionEstablisher => {
-                // later: handle keys for this screen
-                if key.code == KeyCode::Esc {
-                    self.ui_state = UiState::Main;
-                }
-            },
-            UiState::CurrentConnection => {
-                // later: handle keys here too
-                if key.code == KeyCode::Esc {
-                    self.ui_state = UiState::Main;
-                }
-            },
-        }
-    }
+                let item_count = self.menu_items().len();
 
-    fn on_key_main(&mut self, key: KeyEvent)
-    {
-        let item_count = self.menu_items().len();
-
-        match key.code {
-            KeyCode::Up => {
-                if self.selected > 0 {
-                    self.selected -= 1;
-                }
-            },
-            KeyCode::Down => {
-                if self.selected + 1 < item_count {
-                    self.selected += 1;
-                }
-            },
-            KeyCode::Enter => {
-                // Run the selected "callback" here (update logic)
-                match self.selected {
-                    0 => {
-                        // Start Compiler Server
-                        self.ui_state = UiState::ConnectionEstablisher;
+                match key.code {
+                    KeyCode::Up => {
+                        if self.selected > 0 {
+                            self.selected -= 1;
+                        }
                     },
-                    1 => {
-                        // Help
+                    KeyCode::Down => {
+                        if self.selected + 1 < item_count {
+                            self.selected += 1;
+                        }
                     },
-                    2 => {
-                        // Quit
+                    KeyCode::Enter => {
+                        // Run the selected "callback" here (update logic)
+                        match self.selected {
+                            0 => {
+                                // Start Compiler Server
+                                self.ui_state = UiState::ConnectionEstablisher;
+                            },
+                            1 => {
+                                // Help
+                            },
+                            2 => {
+                                // Quit
+                                self.should_quit = true;
+                            },
+                            _ => {},
+                        }
+                    },
+                    KeyCode::Esc => {
                         self.should_quit = true;
                     },
                     _ => {},
                 }
             },
-            KeyCode::Esc => {
-                self.should_quit = true;
+            UiState::ConnectionEstablisher => {
+                match key.code {
+                    KeyCode::Esc => {
+                        self.ui_state = UiState::Main;
+                    },
+                    KeyCode::Char(char) => {
+
+                    }
+                    _ => {}
+                }
             },
-            _ => {},
+            UiState::CurrentConnection => {
+                match key.code {
+                    KeyCode::Esc => {
+                        self.ui_state = UiState::Main;
+                    },
+                    _ => {}
+                }
+            },
         }
     }
 }
@@ -122,28 +123,42 @@ fn main() -> Result<()>
 fn run(terminal: &mut DefaultTerminal) -> Result<()>
 {
     let mut app = App::new();
+    
     terminal.clear()?;
 
+    let mut port_field = TextField::new(
+        "Enter Port:",
+        Style::default(),
+        Style::new().bg(Color::White).fg(Color::Black)
+    );
+
     while !app.should_quit {
+        let ui_state_save = app.ui_state.clone();
+
         if let Some(key_event) = capture_input()? {
-            app.on_key(key_event);
+            app.key_handler(key_event);
+        }
+
+        if ui_state_save != app.ui_state {
+            terminal.clear()?;
+            app.selected = 0;
         }
 
         // 2. Render phase (pure)
-        terminal.draw(|f| render(f, &app))?;
+        terminal.draw(|f| render(f, &app, &mut port_field))?;
     }
 
-    terminal.flush()?;
-    
+    terminal.clear()?;
+
     Ok(())
 }
 
 /// Render whole UI based on App state (pure)
-fn render(frame: &mut Frame, app: &App)
+fn render(frame: &mut Frame, app: &App, port_field: &mut TextField)
 {
     match app.ui_state {
         UiState::Main => render_main(frame, app),
-        UiState::ConnectionEstablisher => render_connection_establisher(frame),
+        UiState::ConnectionEstablisher => render_connection_establisher(frame, app, port_field),
         UiState::CurrentConnection => render_current_connection(frame),
     }
 }
@@ -194,36 +209,63 @@ fn render_main(frame: &mut Frame, app: &App)
     let list = List::new(items)
         .block(widgets::Block::default())
         .highlight_style(Style::default().bg(Color::White).fg(Color::Black));
-
+    
     frame.render_widget(list, chunks[1]);
 }
 
-fn render_connection_establisher(frame: &mut Frame)
+fn render_connection_establisher(frame: &mut Frame, app: &App, port_field: &mut TextField)
 {
     let area = frame.area();
     let block = widgets::Block::new()
-        .title("Connection Establisher")
+        .title("Connection Establisher | Press Esc to go back.")
         .title_alignment(Alignment::Center)
         .borders(Borders::all());
+
     frame.render_widget(&block, area);
 
     let inner = block.inner(area);
-    let text = Paragraph::new("TODO: implement connection establisher UI.\nPress Esc to go back.")
-        .alignment(Alignment::Center);
-    frame.render_widget(text, inner);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),  
+            Constraint::Length(3), 
+        ])
+        .split(inner);
+
+    let text = Text::raw("Open server on port:");
+    frame.render_widget(text, chunks[0]);
+    
+    if let Ok(Some(key_event)) = capture_input() {
+        match key_event.code {
+            KeyCode::Char(char) => {
+                if char.is_numeric() {
+                    port_field.inner_text.push(char);
+                }
+            }
+            KeyCode::Backspace => {
+                port_field.inner_text.pop();
+            }
+            _ => (),
+        }
+    }
+
+    port_field.should_highlight(app.selected == 0);
+
+    frame.render_widget(port_field.clone(), chunks[1]);
 }
 
 fn render_current_connection(frame: &mut Frame)
 {
     let area = frame.area();
     let block = widgets::Block::new()
-        .title("Current Connection")
+        .title("Current Connection\nPress Esc to go back.")
         .title_alignment(Alignment::Center)
         .borders(Borders::all());
     frame.render_widget(&block, area);
 
     let inner = block.inner(area);
-    let text = Paragraph::new("TODO: implement current connection UI.\nPress Esc to go back.")
+    let text = Paragraph::new("")
         .alignment(Alignment::Center);
     frame.render_widget(text, inner);
 }
@@ -231,15 +273,19 @@ fn render_current_connection(frame: &mut Frame)
 /// Read a key press (non-blocking-ish with timeout)
 fn capture_input() -> Result<Option<KeyEvent>>
 {
-    if !event::poll(Duration::from_millis(16))? {
+    if !event::poll(Duration::from_millis(100))? {
         return Ok(None);
     }
 
     match event::read()? {
-        Event::Key(key) if key.kind == KeyEventKind::Press => {
+        Event::Key(key) => {
+            if key.code == KeyCode::Enter && key.kind != KeyEventKind::Press {
+                return Ok(None);
+            }
+
             // Accept only the FIRST press, ignore press repeats
             Ok(Some(key))
-        }
+        },
         _ => Ok(None),
     }
 }
