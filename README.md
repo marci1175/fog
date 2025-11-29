@@ -39,7 +39,7 @@ Fog offers a clean syntax designed to stay minimal while providing expressive po
 ```fog
 external println(lhs: string, ...);
 
-public function add(a: int, b: int) -> int {
+public function add(a: int, b: int): int {
     return a + b;
 }
 
