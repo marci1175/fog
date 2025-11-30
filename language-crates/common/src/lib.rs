@@ -55,3 +55,6 @@ pub use toml;
 
 /// Used for communicating with the dependency manager server and to create the FDCN
 pub use tokio;
+
+/// Used for thread safe types
+pub use parking_lot;

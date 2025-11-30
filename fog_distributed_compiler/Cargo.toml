@@ -10,3 +10,5 @@ ratatui = { version = "0.28.0", features = ["all-widgets", "crossterm"] }
 color-eyre = "0.6.5"
 crossterm = "0.29.0"
 ratatui-widgets = "0.2.2"
+dashmap = "6.1.0"
+crossbeam = "0.8.4"

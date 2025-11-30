@@ -2,10 +2,11 @@ use std::{io::stdout, time::Duration};
 
 use color_eyre::{Result, eyre::Context};
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use fog_distributed_compiler::{TextField, UiState};
+use fog_common::tokio;
+use fog_distributed_compiler::{TextField, UiState, io::ServerState};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -15,7 +16,7 @@ use ratatui::{
     widgets::{self, Borders, Cell, List, ListItem, Paragraph},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 struct App
 {
     ui_state: UiState,
@@ -39,8 +40,27 @@ impl App
         ["Start Compiler Server", "Help", "Quit"]
     }
 
-    fn key_handler(&mut self, key: KeyEvent)
+    fn key_handler(
+        &mut self,
+        key: KeyEvent,
+        port_field_state: &TextField,
+        terminal: &mut DefaultTerminal,
+    )
     {
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            self.should_quit = true;
+            return;
+        }
+
+        match key.code {
+            KeyCode::Enter => {
+                terminal.clear().unwrap();
+                self.selected = 0;
+            },
+
+            _ => (),
+        }
+
         match self.ui_state {
             UiState::Main => {
                 let item_count = self.menu_items().len();
@@ -84,25 +104,31 @@ impl App
                     KeyCode::Esc => {
                         self.ui_state = UiState::Main;
                     },
-                    KeyCode::Char(char) => {
+                    KeyCode::Enter => {
+                        // Parse text input dont display an error and only switch to current connection if the port is valid
+                        if let Ok(port) = port_field_state.inner_text.parse::<u32>() {
+                            let mut server_state = ServerState::new(port);
 
-                    }
-                    _ => {}
+                            server_state.initialize_server();
+
+                            self.ui_state = UiState::CurrentConnection(server_state);
+                        }
+                    },
+                    _ => {},
                 }
             },
-            UiState::CurrentConnection => {
+            UiState::CurrentConnection(_) => {
                 match key.code {
-                    KeyCode::Esc => {
-                        self.ui_state = UiState::Main;
-                    },
-                    _ => {}
+                    KeyCode::Esc => {},
+                    _ => {},
                 }
             },
         }
     }
 }
 
-fn main() -> Result<()>
+#[tokio::main]
+async fn main() -> Result<()>
 {
     color_eyre::install()?;
 
@@ -123,28 +149,20 @@ fn main() -> Result<()>
 fn run(terminal: &mut DefaultTerminal) -> Result<()>
 {
     let mut app = App::new();
-    
+
     terminal.clear()?;
 
     let mut port_field = TextField::new(
-        "Enter Port:",
+        "*Enter Port*",
         Style::default(),
-        Style::new().bg(Color::White).fg(Color::Black)
+        Style::new().bg(Color::White).fg(Color::Black),
     );
 
-    while !app.should_quit {
-        let ui_state_save = app.ui_state.clone();
-
+    while !app.should_quit.clone() {
         if let Some(key_event) = capture_input()? {
-            app.key_handler(key_event);
+            app.key_handler(key_event, &port_field, terminal);
         }
 
-        if ui_state_save != app.ui_state {
-            terminal.clear()?;
-            app.selected = 0;
-        }
-
-        // 2. Render phase (pure)
         terminal.draw(|f| render(f, &app, &mut port_field))?;
     }
 
@@ -156,10 +174,10 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()>
 /// Render whole UI based on App state (pure)
 fn render(frame: &mut Frame, app: &App, port_field: &mut TextField)
 {
-    match app.ui_state {
+    match &app.ui_state {
         UiState::Main => render_main(frame, app),
         UiState::ConnectionEstablisher => render_connection_establisher(frame, app, port_field),
-        UiState::CurrentConnection => render_current_connection(frame),
+        UiState::CurrentConnection(ss) => render_current_connection(frame, ss.clone()),
     }
 }
 
@@ -175,7 +193,6 @@ fn render_main(frame: &mut Frame, app: &App)
     frame.render_widget(&block, area);
     let inner = block.inner(area);
 
-    // Vertical layout: [description] [menu]
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -183,8 +200,7 @@ fn render_main(frame: &mut Frame, app: &App)
         .split(inner);
 
     let cli_desc = Paragraph::new(
-        "FDCN is a build accelerator tool created to lower build times by \
-         offloading compilation jobs to remote worker(s).",
+        "FDCN is a build accelerator tool created to lower build times by offloading compilation jobs to remote worker(s). (CLI key input may be buggy for windows users.)",
     )
     .alignment(Alignment::Center);
 
@@ -209,7 +225,7 @@ fn render_main(frame: &mut Frame, app: &App)
     let list = List::new(items)
         .block(widgets::Block::default())
         .highlight_style(Style::default().bg(Color::White).fg(Color::Black));
-    
+
     frame.render_widget(list, chunks[1]);
 }
 
@@ -227,25 +243,22 @@ fn render_connection_establisher(frame: &mut Frame, app: &App, port_field: &mut 
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),  
-            Constraint::Length(3), 
-        ])
+        .constraints([Constraint::Length(1), Constraint::Length(3)])
         .split(inner);
 
     let text = Text::raw("Open server on port:");
     frame.render_widget(text, chunks[0]);
-    
+
     if let Ok(Some(key_event)) = capture_input() {
         match key_event.code {
             KeyCode::Char(char) => {
                 if char.is_numeric() {
                     port_field.inner_text.push(char);
                 }
-            }
+            },
             KeyCode::Backspace => {
                 port_field.inner_text.pop();
-            }
+            },
             _ => (),
         }
     }
@@ -255,22 +268,58 @@ fn render_connection_establisher(frame: &mut Frame, app: &App, port_field: &mut 
     frame.render_widget(port_field.clone(), chunks[1]);
 }
 
-fn render_current_connection(frame: &mut Frame)
+use ratatui::widgets::{Block, Row, Table};
+
+fn render_current_connection(frame: &mut Frame, server_state: ServerState)
 {
     let area = frame.area();
     let block = widgets::Block::new()
-        .title("Current Connection\nPress Esc to go back.")
+        .title(format!(
+            "Port: {} | Currently Connected: {}",
+            server_state.port,
+            server_state.connected_clients.len()
+        ))
         .title_alignment(Alignment::Center)
         .borders(Borders::all());
-    frame.render_widget(&block, area);
 
+    frame.render_widget(&block, area);
     let inner = block.inner(area);
-    let text = Paragraph::new("")
-        .alignment(Alignment::Center);
-    frame.render_widget(text, inner);
+
+    let clients: Vec<(String, String)> = server_state
+        .connected_clients
+        .iter()
+        .map(|entry| {
+            let ip = entry.key().to_string();
+            let name = entry.value().to_string();
+            (ip, name)
+        })
+        .collect();
+
+    if clients.is_empty() {
+        let text = Paragraph::new("No clients connected.").alignment(Alignment::Center);
+        frame.render_widget(text, inner);
+        return;
+    }
+
+    let cols = 3; // Adjust number of columns here if you want
+    let widths = vec![Constraint::Percentage(50), Constraint::Percentage(50)];
+
+    // Convert clients into Table Rows
+    let rows = clients.chunks(cols).map(|chunk| {
+        Row::new(
+            chunk
+                .iter()
+                .map(|(ip, name)| Cell::from(format!("{} ({})", name, ip))),
+        )
+    });
+
+    let table = Table::new(rows, widths)
+        .block(Block::default().borders(Borders::ALL).title("Clients"))
+        .column_spacing(1);
+
+    frame.render_widget(table, inner);
 }
 
-/// Read a key press (non-blocking-ish with timeout)
 fn capture_input() -> Result<Option<KeyEvent>>
 {
     if !event::poll(Duration::from_millis(100))? {
@@ -279,7 +328,9 @@ fn capture_input() -> Result<Option<KeyEvent>>
 
     match event::read()? {
         Event::Key(key) => {
-            if key.code == KeyCode::Enter && key.kind != KeyEventKind::Press {
+            if (key.code == KeyCode::Up || key.code == KeyCode::Down || key.code == KeyCode::Enter)
+                && key.kind != KeyEventKind::Press
+            {
                 return Ok(None);
             }
 
