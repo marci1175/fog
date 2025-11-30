@@ -1,0 +1,13 @@
+[package]
+name = "dependency-manager"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = { path = "../language/common" }
+axum = "0.8.7"
+diesel = { version = "2.3.4", features = ["postgres", "chrono", "r2d2"] }
+dioxus = "0.7.1"
+r2d2 = "0.8.10"
+dotenvy = "0.15.7"
+env_logger = "0.11.8"

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 default-members = ["language/fog"]
-members = ["language/codegen", "language/common", "language/fog", "language/compiler", "language/linker", "language/imports", "language/parser", "lsp", "benchmark", "distributed-compiler"]
+members = ["language/codegen", "language/common", "language/fog", "language/compiler", "language/linker", "language/imports", "language/parser", "lsp", "benchmark", "distributed-compiler", "dependency-manager"]
 
 [profile.dev]
 panic = "abort"
