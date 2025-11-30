@@ -1,4 +1,4 @@
-use std::{io::stdout, time::Duration};
+use std::{io::stdout, net::SocketAddr, time::Duration};
 
 use color_eyre::{Result, eyre::Context};
 use crossterm::{
@@ -17,26 +17,28 @@ use ratatui::{
 };
 
 #[derive(Debug, Clone)]
-struct App
-{
+struct App {
     ui_state: UiState,
     selected: usize,
     should_quit: bool,
+
+    scroll: u16,
+    max_scroll: u16,
 }
 
-impl App
-{
-    fn new() -> Self
-    {
+impl App {
+    fn new() -> Self {
         Self {
             ui_state: UiState::Main,
             selected: 0,
             should_quit: false,
+
+            scroll: 0,
+            max_scroll: 0,
         }
     }
 
-    fn menu_items(&self) -> [&'static str; 3]
-    {
+    fn menu_items(&self) -> [&'static str; 3] {
         ["Start Compiler Server", "Help", "Quit"]
     }
 
@@ -45,20 +47,10 @@ impl App
         key: KeyEvent,
         port_field_state: &TextField,
         terminal: &mut DefaultTerminal,
-    )
-    {
+    ) {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.should_quit = true;
             return;
-        }
-
-        match key.code {
-            KeyCode::Enter => {
-                terminal.clear().unwrap();
-                self.selected = 0;
-            },
-
-            _ => (),
         }
 
         match self.ui_state {
@@ -70,86 +62,95 @@ impl App
                         if self.selected > 0 {
                             self.selected -= 1;
                         }
-                    },
+                    }
                     KeyCode::Down => {
                         if self.selected + 1 < item_count {
                             self.selected += 1;
                         }
-                    },
+                    }
                     KeyCode::Enter => {
-                        // Run the selected "callback" here (update logic)
                         match self.selected {
                             0 => {
-                                // Start Compiler Server
                                 self.ui_state = UiState::ConnectionEstablisher;
-                            },
+                            }
                             1 => {
-                                // Help
-                            },
+                                // help page later
+                            }
                             2 => {
-                                // Quit
                                 self.should_quit = true;
-                            },
-                            _ => {},
+                            }
+                            _ => {}
                         }
-                    },
+                    }
                     KeyCode::Esc => {
                         self.should_quit = true;
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
-            },
+            }
+
             UiState::ConnectionEstablisher => {
                 match key.code {
                     KeyCode::Esc => {
                         self.ui_state = UiState::Main;
-                    },
+                    }
                     KeyCode::Enter => {
-                        // Parse text input dont display an error and only switch to current connection if the port is valid
-                        if let Ok(port) = port_field_state.inner_text.parse::<u32>() {
+                        if let Ok(port) = port_field_state.inner_text.parse::<u16>() {
                             let mut server_state = ServerState::new(port);
-
-                            server_state.initialize_server();
-
+                            server_state.initialize_server().unwrap();
                             self.ui_state = UiState::CurrentConnection(server_state);
                         }
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
-            },
+            }
+
             UiState::CurrentConnection(_) => {
                 match key.code {
-                    KeyCode::Esc => {},
-                    _ => {},
+                    KeyCode::Up => {
+                        if self.scroll > 0 {
+                            self.scroll -= 1;
+                        }
+                    }
+                    KeyCode::Down => {
+                        if self.scroll < self.max_scroll {
+                            self.scroll += 1;
+                        }
+                    }
+                    KeyCode::PageUp => {
+                        self.scroll = self.scroll.saturating_sub(10);
+                    }
+                    KeyCode::PageDown => {
+                        self.scroll = (self.scroll + 10).min(self.max_scroll);
+                    }
+                    KeyCode::Esc => {
+                        // could add back navigation later
+                    }
+                    _ => {}
                 }
-            },
+            }
         }
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<()>
-{
+async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    // Set up terminal
     enable_raw_mode().context("failed to enable raw mode")?;
     let mut terminal = DefaultTerminal::new(CrosstermBackend::new(stdout()))
         .context("failed to create terminal")?;
 
     let res = run(&mut terminal);
 
-    // Cleanup
     disable_raw_mode().context("failed to disable raw mode")?;
     terminal.show_cursor().context("failed to show cursor")?;
 
     res
 }
 
-fn run(terminal: &mut DefaultTerminal) -> Result<()>
-{
+fn run(terminal: &mut DefaultTerminal) -> Result<()> {
     let mut app = App::new();
-
     terminal.clear()?;
 
     let mut port_field = TextField::new(
@@ -163,26 +164,22 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()>
             app.key_handler(key_event, &port_field, terminal);
         }
 
-        terminal.draw(|f| render(f, &app, &mut port_field))?;
+        terminal.draw(|f| render(f, &mut app, &mut port_field))?;
     }
 
     terminal.clear()?;
-
     Ok(())
 }
 
-/// Render whole UI based on App state (pure)
-fn render(frame: &mut Frame, app: &App, port_field: &mut TextField)
-{
-    match &app.ui_state {
+fn render(frame: &mut Frame, app: &mut App, port_field: &mut TextField) {
+    match app.ui_state.clone() {
         UiState::Main => render_main(frame, app),
         UiState::ConnectionEstablisher => render_connection_establisher(frame, app, port_field),
-        UiState::CurrentConnection(ss) => render_current_connection(frame, ss.clone()),
+        UiState::CurrentConnection(ss) => render_current_connection(frame, app, &ss),
     }
 }
 
-fn render_main(frame: &mut Frame, app: &App)
-{
+fn render_main(frame: &mut Frame, app: &App) {
     let area = frame.area();
 
     let block = widgets::Block::new()
@@ -200,13 +197,12 @@ fn render_main(frame: &mut Frame, app: &App)
         .split(inner);
 
     let cli_desc = Paragraph::new(
-        "FDCN is a build accelerator tool created to lower build times by offloading compilation jobs to remote worker(s). (CLI key input may be buggy for windows users.)",
+        "FDCN offloads compilation work to remote workers. (Windows input delay may occur.)",
     )
     .alignment(Alignment::Center);
 
     frame.render_widget(cli_desc, chunks[0]);
 
-    // Menu list
     let items: Vec<ListItem> = app
         .menu_items()
         .iter()
@@ -214,8 +210,7 @@ fn render_main(frame: &mut Frame, app: &App)
         .map(|(idx, label)| {
             let text = if idx == app.selected {
                 Text::from(*label).patch_style(Style::default().bg(Color::White).fg(Color::Black))
-            }
-            else {
+            } else {
                 Text::from(*label)
             };
             ListItem::new(text)
@@ -229,8 +224,7 @@ fn render_main(frame: &mut Frame, app: &App)
     frame.render_widget(list, chunks[1]);
 }
 
-fn render_connection_establisher(frame: &mut Frame, app: &App, port_field: &mut TextField)
-{
+fn render_connection_establisher(frame: &mut Frame, app: &App, port_field: &mut TextField) {
     let area = frame.area();
     let block = widgets::Block::new()
         .title("Connection Establisher | Press Esc to go back.")
@@ -238,7 +232,6 @@ fn render_connection_establisher(frame: &mut Frame, app: &App, port_field: &mut 
         .borders(Borders::all());
 
     frame.render_widget(&block, area);
-
     let inner = block.inner(area);
 
     let chunks = Layout::default()
@@ -255,29 +248,28 @@ fn render_connection_establisher(frame: &mut Frame, app: &App, port_field: &mut 
                 if char.is_numeric() {
                     port_field.inner_text.push(char);
                 }
-            },
+            }
             KeyCode::Backspace => {
                 port_field.inner_text.pop();
-            },
+            }
             _ => (),
         }
     }
 
     port_field.should_highlight(app.selected == 0);
-
     frame.render_widget(port_field.clone(), chunks[1]);
 }
 
-use ratatui::widgets::{Block, Row, Table};
-
-fn render_current_connection(frame: &mut Frame, server_state: ServerState)
-{
+fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &ServerState) {
     let area = frame.area();
+
     let block = widgets::Block::new()
         .title(format!(
-            "Port: {} | Currently Connected: {}",
+            "Port: {} | Connected: {} | Scroll: {} / {}",
             server_state.port,
-            server_state.connected_clients.len()
+            server_state.connected_clients.len(),
+            app.scroll,
+            app.max_scroll,
         ))
         .title_alignment(Alignment::Center)
         .borders(Borders::all());
@@ -285,58 +277,76 @@ fn render_current_connection(frame: &mut Frame, server_state: ServerState)
     frame.render_widget(&block, area);
     let inner = block.inner(area);
 
-    let clients: Vec<(String, String)> = server_state
-        .connected_clients
-        .iter()
-        .map(|entry| {
-            let ip = entry.key().to_string();
-            let name = entry.value().to_string();
-            (ip, name)
-        })
-        .collect();
+    // Collect all rows
+    let mut rows = Vec::new();
+    for entry in server_state.loadbalancer.iter() {
+        let thread_id = entry.key();
+        let handler = entry.value();
 
-    if clients.is_empty() {
-        let text = Paragraph::new("No clients connected.").alignment(Alignment::Center);
-        frame.render_widget(text, inner);
-        return;
+        rows.push(widgets::Row::new(vec![
+            format!("Thread {}", thread_id.id),
+            format!("{}", handler.in_progress.len()),
+            "".into(),
+        ]));
     }
 
-    let cols = 3; // Adjust number of columns here if you want
-    let widths = vec![Constraint::Percentage(50), Constraint::Percentage(50)];
+    // How many rows fit on screen?
+    let visible_height = inner.height.saturating_sub(2); // header + maybe some padding
+    let total_rows = rows.len() as u16;
 
-    // Convert clients into Table Rows
-    let rows = clients.chunks(cols).map(|chunk| {
-        Row::new(
-            chunk
-                .iter()
-                .map(|(ip, name)| Cell::from(format!("{} ({})", name, ip))),
-        )
-    });
+    // Compute and store max_scroll
+    let max_scroll = total_rows.saturating_sub(visible_height);
+    app.max_scroll = max_scroll;
 
-    let table = Table::new(rows, widths)
-        .block(Block::default().borders(Borders::ALL).title("Clients"))
-        .column_spacing(1);
+    // Clamp scroll in case window was resized / rows changed
+    if app.scroll > app.max_scroll {
+        app.scroll = app.max_scroll;
+    }
+
+    // Slice rows to what’s visible
+    let start = app.scroll as usize;
+    let end = (start + visible_height as usize).min(rows.len());
+    let visible_rows = rows[start..end].to_vec();
+
+    let table = widgets::Table::new(
+        visible_rows,
+        [
+            Constraint::Percentage(33),
+            Constraint::Percentage(33),
+            Constraint::Percentage(34),
+        ],
+    )
+    .header(
+        widgets::Row::new(vec!["Thread ID", "Jobs", "Output"])
+            .style(Style::default().add_modifier(ratatui::style::Modifier::BOLD)),
+    )
+    .block(
+        widgets::Block::new()
+            .borders(Borders::all())
+            .title("Worker Threads")
+            .title_alignment(Alignment::Center),
+    )
+    .column_spacing(2);
 
     frame.render_widget(table, inner);
 }
 
-fn capture_input() -> Result<Option<KeyEvent>>
-{
+fn capture_input() -> Result<Option<KeyEvent>> {
     if !event::poll(Duration::from_millis(100))? {
         return Ok(None);
     }
 
     match event::read()? {
         Event::Key(key) => {
-            if (key.code == KeyCode::Up || key.code == KeyCode::Down || key.code == KeyCode::Enter)
+            if (key.code == KeyCode::Up
+                || key.code == KeyCode::Down
+                || key.code == KeyCode::Enter)
                 && key.kind != KeyEventKind::Press
             {
                 return Ok(None);
             }
-
-            // Accept only the FIRST press, ignore press repeats
             Ok(Some(key))
-        },
+        }
         _ => Ok(None),
     }
 }

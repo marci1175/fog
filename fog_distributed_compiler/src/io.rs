@@ -1,27 +1,18 @@
-use std::{
-    collections::HashMap,
-    net::Ipv6Addr,
-    rc::Rc,
-    sync::{Arc, atomic::AtomicUsize},
-};
+use std::{collections::HashMap, net::{Ipv6Addr, SocketAddr}, sync::Arc, thread::Thread};
 
-use crossbeam::{
-    atomic::AtomicCell,
-    channel::{Sender, bounded},
-    queue::ArrayQueue,
-};
+use crossbeam::channel::{Sender, bounded};
 use dashmap::DashMap;
-use fog_common::{anyhow, dependency::DependencyInfo, parking_lot::Mutex, tokio};
+use fog_common::{anyhow, tokio};
 
 use crate::worker::{JobHandler, ThreadIdentification};
 
 #[derive(Debug, Clone)]
 pub struct ServerState
 {
-    pub port: u32,
-    pub worker_thread_notifier: HashMap<usize, Sender<()>>,
-    pub loadbalancer: DashMap<usize, Arc<JobHandler>>,
-    pub connected_clients: Arc<DashMap<Ipv6Addr, String>>,
+    pub port: u16,
+    pub worker_thread_notifier: HashMap<ThreadIdentification, Thread>,
+    pub loadbalancer: DashMap<ThreadIdentification, Arc<JobHandler>>,
+    pub connected_clients: Arc<DashMap<SocketAddr, String>>,
 }
 
 impl Default for ServerState
@@ -37,10 +28,9 @@ impl Default for ServerState
     }
 }
 
-
 impl ServerState
 {
-    pub fn new(port: u32) -> Self
+    pub fn new(port: u16) -> Self
     {
         Self {
             port,
@@ -55,12 +45,46 @@ impl ServerState
 
         let available_cores = std::thread::available_parallelism()?.get();
 
-        tokio::spawn(async move { loop {} });
-        tokio::spawn(async move { loop {} });
-
         let available_cores_left = available_cores.checked_sub(2).unwrap_or_else(|| 1);
 
-        self.create_workers(available_cores_left, ui_sender)?;
+        self.create_workers(available_cores_left, ui_sender.clone())?;
+
+        let port = self.port;
+
+        let ui_sender_in = ui_sender.clone();
+        let ui_sender_out = ui_sender.clone();
+
+        let connected_clients_handle = self.connected_clients.clone();
+
+        // Inbound
+        tokio::spawn(async move { loop {
+            // Bind listener to local on specified port
+            let listener =  tokio::net::TcpListener::bind((Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), port)).await.unwrap();
+            
+            match listener.accept().await {
+                Ok((stream, addr)) => {
+                    connected_clients_handle.insert(addr, "Client information".into());
+
+                    // Spawn client handler
+                    tokio::spawn(async move {
+                        let client_handle = stream;
+
+                        // Handle client requests
+                        loop {
+                            
+                        }
+                    });
+                },
+                Err(error) => {
+                    ui_sender_in.send((error.to_string(), ThreadIdentification::new(0))).unwrap();
+                },
+            }
+        } });
+
+        
+        
+        // Outbound
+        tokio::spawn(async move { loop {} });
 
         Ok(())
     }
