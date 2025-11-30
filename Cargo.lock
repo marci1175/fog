@@ -165,9 +165,9 @@ dependencies = [
 name = "benchmark"
 version = "0.1.0"
 dependencies = [
+ "common",
  "criterion",
- "fog-common",
- "fog-parser",
+ "parser",
 ]
 
 [[package]]
@@ -318,6 +318,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
 
 [[package]]
+name = "codegen"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "num",
+ "parser",
+]
+
+[[package]]
 name = "color-eyre"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -351,6 +360,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "indexmap",
+ "inkwell",
+ "num",
+ "parking_lot",
+ "semver",
+ "serde",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
+ "thiserror 2.0.17",
+ "tokio",
+ "toml",
+]
+
+[[package]]
 name = "compact_str"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -362,6 +390,17 @@ dependencies = [
  "rustversion",
  "ryu",
  "static_assertions",
+]
+
+[[package]]
+name = "compiler"
+version = "0.1.0"
+dependencies = [
+ "codegen",
+ "common",
+ "imports",
+ "parser",
+ "serde",
 ]
 
 [[package]]
@@ -726,86 +765,24 @@ name = "fog"
 version = "0.1.0"
 dependencies = [
  "clap",
- "fog-common",
- "fog-compiler",
- "fog-imports",
- "fog-linker",
+ "common",
+ "compiler",
+ "imports",
+ "linker",
  "serde",
  "strum 0.27.2",
  "strum_macros 0.27.2",
 ]
 
 [[package]]
-name = "fog-codegen"
-version = "0.1.0"
-dependencies = [
- "fog-common",
- "fog-parser",
- "num",
-]
-
-[[package]]
-name = "fog-common"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "indexmap",
- "inkwell",
- "num",
- "parking_lot",
- "semver",
- "serde",
- "strum 0.27.2",
- "strum_macros 0.27.2",
- "thiserror 2.0.17",
- "tokio",
- "toml",
-]
-
-[[package]]
-name = "fog-compiler"
-version = "0.1.0"
-dependencies = [
- "fog-codegen",
- "fog-common",
- "fog-imports",
- "fog-parser",
- "serde",
-]
-
-[[package]]
-name = "fog-imports"
-version = "0.1.0"
-dependencies = [
- "fog-codegen",
- "fog-common",
- "fog-parser",
-]
-
-[[package]]
-name = "fog-linker"
-version = "0.1.0"
-dependencies = [
- "fog-common",
-]
-
-[[package]]
-name = "fog-parser"
-version = "0.1.0"
-dependencies = [
- "fog-common",
-]
-
-[[package]]
-name = "fog_distributed_compiler"
+name = "fog-distributed-compiler"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
+ "common",
  "crossbeam",
  "crossterm 0.29.0",
  "dashmap 6.1.0",
- "fog-common",
  "ratatui",
  "ratatui-widgets",
 ]
@@ -1086,6 +1063,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "imports"
+version = "0.1.0"
+dependencies = [
+ "codegen",
+ "common",
+ "parser",
+]
+
+[[package]]
 name = "indenter"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1213,6 +1199,13 @@ name = "libc"
 version = "0.2.172"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
+
+[[package]]
+name = "linker"
+version = "0.1.0"
+dependencies = [
+ "common",
+]
 
 [[package]]
 name = "linux-raw-sys"
@@ -1494,6 +1487,13 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-link",
+]
+
+[[package]]
+name = "parser"
+version = "0.1.0"
+dependencies = [
+ "common",
 ]
 
 [[package]]

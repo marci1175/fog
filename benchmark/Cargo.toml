@@ -6,8 +6,8 @@ description = "Benchmarking utilities for the Fog programming language"
 
 [dependencies]
 # Fog language components
-fog-parser = {path = "../language-crates/parser"}
-fog-common = {path = "../language-crates/common"}
+parser = {path = "../language/parser"}
+common = {path = "../language/common"}
 
 # Benchmarking library
 criterion = {version = "0.7.0", features = ["html_reports"]}

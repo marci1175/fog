@@ -1,9 +1,0 @@
-[package]
-name = "fog-imports"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-fog-common = { path = "../common" }
-fog-parser = { path = "../parser" }
-fog-codegen = { path = "../codegen" }

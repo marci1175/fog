@@ -1,0 +1,10 @@
+[package]
+name = "codegen"
+version = "0.1.0"
+edition = "2024"
+description = "LLVM codegen utilities for the Fog programming language ecosystem"
+
+[dependencies]
+num = "0.4.3"
+common = { path = "../common" }
+parser = { path = "../parser" }

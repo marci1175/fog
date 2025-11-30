@@ -1,7 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use fog_common::{compiler::ProjectConfig, ty::OrdSet};
-use fog_parser::{parser_instance::Parser, tokenizer::tokenize};
-use std::hint::black_box;
+use common::{compiler::ProjectConfig, ty::OrdSet};
+use parser::{parser_instance::Parser, tokenizer::tokenize};
 
 fn criterion_benchmark(c: &mut Criterion)
 {
@@ -18,7 +17,7 @@ fn criterion_benchmark(c: &mut Criterion)
 
     c.bench_function("Parse big sourec file", |b| {
         b.iter(|| {
-            parser.parse(fog_common::indexmap::IndexMap::new()).unwrap();
+            parser.parse(common::indexmap::IndexMap::new()).unwrap();
         })
     });
 }
