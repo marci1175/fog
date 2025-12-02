@@ -2610,37 +2610,29 @@ pub fn generate_ir<'ctx>(
                     let attr =
                         context.create_enum_attribute(Attribute::get_named_enum_kind_id("cold"), 0);
 
-                    function.add_attribute(
-                        common::inkwell::attributes::AttributeLoc::Function,
-                        attr,
-                    );
+                    function
+                        .add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
                 },
                 common::parser::CompilerHint::NoFree => {
                     let attr = context
                         .create_enum_attribute(Attribute::get_named_enum_kind_id("nofree"), 0);
 
-                    function.add_attribute(
-                        common::inkwell::attributes::AttributeLoc::Function,
-                        attr,
-                    );
+                    function
+                        .add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
                 },
                 common::parser::CompilerHint::Inline => {
                     let attr = context
                         .create_enum_attribute(Attribute::get_named_enum_kind_id("inlinehint"), 0);
 
-                    function.add_attribute(
-                        common::inkwell::attributes::AttributeLoc::Function,
-                        attr,
-                    );
+                    function
+                        .add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
                 },
                 common::parser::CompilerHint::NoUnWind => {
                     let attr = context
                         .create_enum_attribute(Attribute::get_named_enum_kind_id("nounwind"), 0);
 
-                    function.add_attribute(
-                        common::inkwell::attributes::AttributeLoc::Function,
-                        attr,
-                    );
+                    function
+                        .add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
                 },
                 common::parser::CompilerHint::Feature => {
                     return Err(CodeGenError::InternalFunctionCompilerHintParsingError(

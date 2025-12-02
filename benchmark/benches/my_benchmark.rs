@@ -1,5 +1,5 @@
-use criterion::{Criterion, criterion_group, criterion_main};
 use common::{compiler::ProjectConfig, ty::OrdSet};
+use criterion::{Criterion, criterion_group, criterion_main};
 use parser::{parser_instance::Parser, tokenizer::tokenize};
 
 fn criterion_benchmark(c: &mut Criterion)

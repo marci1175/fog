@@ -287,11 +287,14 @@ impl Parser
                                                 FunctionSignature {
                                                     name: identifier,
                                                     args,
-                                                    return_type: TypeDiscriminant::Struct(struct_inner.clone()),
+                                                    return_type: TypeDiscriminant::Struct(
+                                                        struct_inner.clone(),
+                                                    ),
                                                     module_path: mod_path,
                                                     // Imported functions can only be accessed at the source file they were imported at
                                                     // I might change this later to smth like pub import similar to pub mod in rust
-                                                    visibility: common::parser::FunctionVisibility::Private,
+                                                    visibility:
+                                                        common::parser::FunctionVisibility::Private,
                                                     compiler_hints: OrdSet::new(),
                                                     enabling_features: OrdSet::new(),
                                                 },
@@ -989,8 +992,7 @@ impl Parser
                                             name: String::new(),
                                             args: FunctionArguments::new(),
                                             return_type: TypeDiscriminant::Void,
-                                            visibility:
-                                                common::parser::FunctionVisibility::Branch,
+                                            visibility: common::parser::FunctionVisibility::Branch,
                                             module_path: module_path.clone(),
                                             compiler_hints: OrdSet::new(),
                                             enabling_features: OrdSet::new(),

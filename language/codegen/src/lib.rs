@@ -161,9 +161,7 @@ pub fn llvm_codegen<'ctx>(
     optimization: bool,
     parser_state: Parser,
     function_table: &common::indexmap::IndexMap<String, common::parser::FunctionDefinition>,
-    imported_functions: Rc<
-        std::collections::HashMap<String, common::parser::FunctionSignature>,
-    >,
+    imported_functions: Rc<std::collections::HashMap<String, common::parser::FunctionSignature>>,
     context: &'ctx Context,
     builder: &'ctx common::inkwell::builder::Builder<'ctx>,
     module: common::inkwell::module::Module<'ctx>,

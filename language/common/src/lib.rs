@@ -58,3 +58,6 @@ pub use tokio;
 
 /// Used for thread safe types
 pub use parking_lot;
+
+/// Reading environment variables from `.env` files
+pub use dotenvy;

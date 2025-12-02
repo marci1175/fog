@@ -1,5 +1,8 @@
 use anyhow::Error;
-use std::{collections::{HashMap, HashSet}, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 use thiserror::Error;
 
 use crate::dependency::DependencyInfo;

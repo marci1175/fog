@@ -1,8 +1,13 @@
-use std::{collections::HashMap, net::{Ipv6Addr, SocketAddr}, sync::Arc, thread::Thread};
+use std::{
+    collections::HashMap,
+    net::{Ipv6Addr, SocketAddr},
+    sync::Arc,
+    thread::Thread,
+};
 
+use common::{anyhow, tokio};
 use crossbeam::channel::{Sender, bounded};
 use dashmap::DashMap;
-use common::{anyhow, tokio};
 
 use crate::worker::{FinishedJobQueue, JobHandler, JobQueue, ThreadIdentification};
 
@@ -57,30 +62,35 @@ impl ServerState
         let connected_clients_handle = self.connected_clients.clone();
 
         // Inbound
-        tokio::spawn(async move { loop {
-            // Bind listener to local on specified port
-            let listener =  tokio::net::TcpListener::bind((Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), port)).await.unwrap();
-            
-            match listener.accept().await {
-                Ok((stream, addr)) => {
-                    connected_clients_handle.insert(addr, "Client information".into());
+        tokio::spawn(async move {
+            loop {
+                // Bind listener to local on specified port
+                let listener =
+                    tokio::net::TcpListener::bind((Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), port))
+                        .await
+                        .unwrap();
 
-                    // Spawn client handler
-                    tokio::spawn(async move {
-                        let client_handle = stream;
+                match listener.accept().await {
+                    Ok((stream, addr)) => {
+                        connected_clients_handle.insert(addr, "Client information".into());
 
-                        // Handle client requests
-                        loop {
-                            
-                        }
-                    });
-                },
-                Err(error) => {
-                    ui_sender_in.send((error.to_string(), ThreadIdentification::new(0))).unwrap();
-                },
+                        // Spawn client handler
+                        tokio::spawn(async move {
+                            let client_handle = stream;
+
+                            // Handle client requests
+                            loop {}
+                        });
+                    },
+                    Err(error) => {
+                        ui_sender_in
+                            .send((error.to_string(), ThreadIdentification::new(0)))
+                            .unwrap();
+                    },
+                }
             }
-        } });
-        
+        });
+
         // Outbound
         tokio::spawn(async move { loop {} });
 

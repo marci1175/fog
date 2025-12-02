@@ -12,7 +12,8 @@ pub struct DependencyInfo
 
 /// Can be used to fetch a dependency from a remote.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
-pub struct DependencyRequest {
+pub struct DependencyRequest
+{
     pub name: String,
     pub version: String,
 }

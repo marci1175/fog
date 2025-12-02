@@ -1,9 +1,11 @@
 use std::{sync::Arc, thread::Thread};
 
-use crossbeam::{
-    channel::{Sender, bounded}, deque, queue::ArrayQueue
-};
 use common::{anyhow, dependency::DependencyInfo};
+use crossbeam::{
+    channel::{Sender, bounded},
+    deque,
+    queue::ArrayQueue,
+};
 
 use crate::io::ServerState;
 
@@ -87,7 +89,6 @@ impl ServerState
                 loop {
                     // Fetch the latest job from the job queue, if we couldnt that means we were notified too early.
                     if let Some(job) = job_queue.in_progress.steal().success() {
-                        
                     }
                     else {
                         std::thread::park();
@@ -96,7 +97,8 @@ impl ServerState
             });
 
             // Store the thread handle
-            self.worker_thread_notifier.insert(thread_id, thread_handle.thread().clone());
+            self.worker_thread_notifier
+                .insert(thread_id, thread_handle.thread().clone());
         }
 
         Ok(())
