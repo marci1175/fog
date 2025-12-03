@@ -39,11 +39,11 @@ Fog offers a clean syntax designed around expressive power:
 ```fog
 external println(lhs: string, ...);
 
-public function add(a: int, b: int): int {
+pub function add(a: int, b: int): int {
     return a + b;
 }
 
-public function main() {
+pub function main() {
     int x = add(10, 20);
     println(x);
 }
