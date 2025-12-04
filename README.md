@@ -34,17 +34,17 @@ It focuses on minimalism, predictable semantics, and fast native compilation —
 
 ## Language Highlights
 
-Fog offers a clean syntax designed to stay minimal while providing expressive power:
+Fog offers a clean syntax designed around expressive power:
 
 ```fog
 external println(lhs: string, ...);
 
-public function add(a: int, b: int): int {
+pub function add(a: int, b: int): int {
     return a + b;
 }
 
-public function main() {
-    let x = add(10, 20);
+pub function main() {
+    int x = add(10, 20);
     println(x);
 }
 ```
