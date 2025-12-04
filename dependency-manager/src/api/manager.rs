@@ -60,7 +60,7 @@ pub async fn upload_dependency(
             // Decompress dependency, write to fs
             let mut dependency_bytes = Cursor::new(dependency_upload.source_files);
 
-            match zip::ZipArchive::new(dependency_bytes) {
+            match zip::ZipArchive::new(&mut dependency_bytes) {
                 Ok(mut archive) => {
                     let mut archive_idx = 0;
                     while let Ok(mut archived_file) = archive.by_index(archive_idx) {
