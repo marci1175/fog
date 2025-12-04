@@ -1,12 +1,11 @@
 use std::{io::stdout, time::Duration};
 
 use color_eyre::{Result, eyre::Context};
-use common::tokio;
+use common::{dotenvy, tokio};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use common::dotenvy;
 use fog_distributed_compiler::{UiState, io::ServerState};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -18,7 +17,8 @@ use ratatui::{
 };
 
 #[derive(Debug, Clone)]
-struct App {
+struct App
+{
     ui_state: UiState,
     selected: usize,
     should_quit: bool,
@@ -29,8 +29,10 @@ struct App {
     env_port: Option<u16>,
 }
 
-impl App {
-    fn new() -> Self {
+impl App
+{
+    fn new() -> Self
+    {
         // Load PORT from .env at startup
         let env_port = std::env::var("PORT")
             .ok()
@@ -48,15 +50,13 @@ impl App {
         }
     }
 
-    fn menu_items(&self) -> [&'static str; 3] {
+    fn menu_items(&self) -> [&'static str; 3]
+    {
         ["Start Compiler Server", "Help", "Quit"]
     }
 
-    fn key_handler(
-        &mut self,
-        key: KeyEvent,
-        terminal: &mut DefaultTerminal,
-    ) {
+    fn key_handler(&mut self, key: KeyEvent, terminal: &mut DefaultTerminal)
+    {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.should_quit = true;
             return;
@@ -71,44 +71,46 @@ impl App {
                         if self.selected > 0 {
                             self.selected -= 1;
                         }
-                    }
+                    },
                     KeyCode::Down => {
                         if self.selected + 1 < item_count {
                             self.selected += 1;
                         }
-                    }
-                    KeyCode::Enter => match self.selected {
-                        0 => {
-                            self.ui_state = UiState::ConnectionEstablisher;
+                    },
+                    KeyCode::Enter => {
+                        match self.selected {
+                            0 => {
+                                self.ui_state = UiState::ConnectionEstablisher;
+                            },
+                            1 => {}, // help page later
+                            2 => {
+                                self.should_quit = true;
+                            },
+                            _ => {},
                         }
-                        1 => {} // help page later
-                        2 => {
-                            self.should_quit = true;
-                        }
-                        _ => {}
                     },
                     KeyCode::Esc => {
                         self.should_quit = true;
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
-            }
+            },
 
             UiState::ConnectionEstablisher => {
                 match key.code {
                     KeyCode::Esc => {
                         self.ui_state = UiState::Main;
-                    }
+                    },
                     KeyCode::Enter => {
                         let port = self.env_port.unwrap_or(9000);
 
                         let mut server_state = ServerState::new(port);
                         server_state.initialize_server().unwrap();
                         self.ui_state = UiState::CurrentConnection(server_state);
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
-            }
+            },
 
             UiState::CurrentConnection(_) => {
                 match key.code {
@@ -116,28 +118,29 @@ impl App {
                         if self.scroll > 0 {
                             self.scroll -= 1;
                         }
-                    }
+                    },
                     KeyCode::Down => {
                         if self.scroll < self.max_scroll {
                             self.scroll += 1;
                         }
-                    }
+                    },
                     KeyCode::PageUp => {
                         self.scroll = self.scroll.saturating_sub(10);
-                    }
+                    },
                     KeyCode::PageDown => {
                         self.scroll = (self.scroll + 10).min(self.max_scroll);
-                    }
-                    KeyCode::Esc => {}
-                    _ => {}
+                    },
+                    KeyCode::Esc => {},
+                    _ => {},
                 }
-            }
+            },
         }
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<()>
+{
     color_eyre::install()?;
 
     // Load .env before starting UI
@@ -155,7 +158,8 @@ async fn main() -> Result<()> {
     res
 }
 
-fn run(terminal: &mut DefaultTerminal) -> Result<()> {
+fn run(terminal: &mut DefaultTerminal) -> Result<()>
+{
     let mut app = App::new();
     terminal.clear()?;
 
@@ -171,7 +175,8 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()> {
     Ok(())
 }
 
-fn render(frame: &mut Frame, app: &mut App) {
+fn render(frame: &mut Frame, app: &mut App)
+{
     match app.ui_state.clone() {
         UiState::Main => render_main(frame, app),
         UiState::ConnectionEstablisher => render_connection_establisher(frame, app),
@@ -179,7 +184,8 @@ fn render(frame: &mut Frame, app: &mut App) {
     }
 }
 
-fn render_main(frame: &mut Frame, app: &App) {
+fn render_main(frame: &mut Frame, app: &App)
+{
     let area = frame.area();
 
     let block = widgets::Block::new()
@@ -210,7 +216,8 @@ fn render_main(frame: &mut Frame, app: &App) {
         .map(|(idx, label)| {
             let text = if idx == app.selected {
                 Text::from(*label).patch_style(Style::default().bg(Color::White).fg(Color::Black))
-            } else {
+            }
+            else {
                 Text::from(*label)
             };
             ListItem::new(text)
@@ -224,7 +231,8 @@ fn render_main(frame: &mut Frame, app: &App) {
     frame.render_widget(list, chunks[1]);
 }
 
-fn render_connection_establisher(frame: &mut Frame, app: &App) {
+fn render_connection_establisher(frame: &mut Frame, app: &App)
+{
     let area = frame.area();
 
     let block = widgets::Block::new()
@@ -235,7 +243,10 @@ fn render_connection_establisher(frame: &mut Frame, app: &App) {
     frame.render_widget(&block, area);
     let inner = block.inner(area);
 
-    let port = app.env_port.map(|v| v.to_string()).unwrap_or_else(|| "NOT SET".into());
+    let port = app
+        .env_port
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "NOT SET".into());
 
     let text = Paragraph::new(format!(
         "Server will start using PORT from .env\n\nConfigured PORT: {}\n\nPress Enter to start.",
@@ -246,7 +257,8 @@ fn render_connection_establisher(frame: &mut Frame, app: &App) {
     frame.render_widget(text, inner);
 }
 
-fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &ServerState) {
+fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &ServerState)
+{
     let area = frame.area();
 
     let block = widgets::Block::new()
@@ -265,6 +277,7 @@ fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &Se
 
     // Collect all rows
     let mut rows = Vec::new();
+
     for entry in server_state.connected_clients.iter() {
         let socket_addr = entry.key();
         let info = entry.value();
@@ -317,7 +330,8 @@ fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &Se
     frame.render_widget(table, inner);
 }
 
-fn capture_input() -> Result<Option<KeyEvent>> {
+fn capture_input() -> Result<Option<KeyEvent>>
+{
     if !event::poll(Duration::from_millis(100))? {
         return Ok(None);
     }
@@ -330,7 +344,7 @@ fn capture_input() -> Result<Option<KeyEvent>> {
                 return Ok(None);
             }
             Ok(Some(key))
-        }
+        },
         _ => Ok(None),
     }
 }
