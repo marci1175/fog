@@ -1,5 +1,8 @@
 use std::{
-    ffi::OsStr, fs::ReadDir, io::{Seek, Write}, path::PathBuf
+    ffi::OsStr,
+    fs::ReadDir,
+    io::{Seek, Write},
+    path::PathBuf,
 };
 
 use chrono::NaiveDate;

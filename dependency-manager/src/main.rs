@@ -41,7 +41,11 @@ async fn main() -> anyhow::Result<()>
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let database_url = std::env::var("DATABASE_URL")?;
-    let deps_path = PathBuf::from(format!("{}\\{}", current_dir()?.display(), std::env::var("DEPENDENCY_PATH")?));
+    let deps_path = PathBuf::from(format!(
+        "{}\\{}",
+        current_dir()?.display(),
+        std::env::var("DEPENDENCY_PATH")?
+    ));
 
     // Ignore error, since it will return an error if the folder already exists.
     let _ = create_dir_all(&deps_path);

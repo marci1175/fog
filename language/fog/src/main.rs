@@ -1,6 +1,5 @@
 mod cli;
 
-use std::io::Write;
 use crate::cli::CliCommand;
 use clap::Parser;
 use common::{
@@ -8,10 +7,10 @@ use common::{
     compiler::ProjectConfig,
     dependency_manager::{DependencyUpload, DependencyUploadReply, write_folder_items},
     error::{
-        application::ApplicationError, codegen::CodeGenError, dependency::DependencyError,
+        application::ApplicationError, codegen::CodeGenError,
         linker::LinkerError,
     },
-    flate2::{self, Compression, write::ZlibEncoder},
+    flate2::{Compression, write::ZlibEncoder},
     linker::BuildManifest,
     reqwest::{StatusCode, blocking::Client},
     rmp_serde, serde_json, toml,
@@ -20,7 +19,11 @@ use common::{
 };
 use compiler::CompilerState;
 use linker::link;
-use std::{env, fs, io::Cursor, path::PathBuf};
+use std::{
+    env, fs,
+    io::{Cursor, Write},
+    path::PathBuf,
+};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -302,7 +305,6 @@ fn main() -> common::anyhow::Result<()>
             let readable = zip.finish_into_readable()?;
 
             if let Some(secret_key) = secret {
-
             }
             else if reply == StatusCode::OK {
                 println!("Uploading dependency...");
@@ -330,7 +332,10 @@ fn main() -> common::anyhow::Result<()>
                     .body(compressed_body)
                     .send()?;
 
-                println!("Received response `{}` from server.", publish_reply.status());
+                println!(
+                    "Received response `{}` from server.",
+                    publish_reply.status()
+                );
 
                 let reply = publish_reply.text()?;
 

@@ -3,20 +3,26 @@ use crate::{
     models::{Dependency, DependencyInformation, DependencyUpload, DependencyUploadReply},
     schema::dependencies::{self, dependency_name, dependency_version},
 };
-use std::io::Read;
 use axum::{Json, body::Bytes, extract::State, http::StatusCode};
 use base64::Engine;
 use common::{
-    anyhow, chrono::Utc, compiler::ProjectConfig, dependency::DependencyRequest, dependency_manager::write_folder_items, flate2::{Compression, read::ZlibDecoder}, rmp_serde::*, zip::{
+    anyhow,
+    chrono::Utc,
+    compiler::ProjectConfig,
+    dependency::DependencyRequest,
+    dependency_manager::write_folder_items,
+    flate2::{Compression, read::ZlibDecoder},
+    rmp_serde::*,
+    zip::{
         CompressionMethod, ZipArchive, ZipWriter,
         write::{FileOptions, SimpleFileOptions},
-    }
+    },
 };
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use rand::{RngCore, TryRngCore};
 use std::{
     fs::{self, ReadDir},
-    io::{self, Cursor, Seek, Write},
+    io::{self, Cursor, Read, Seek, Write},
     path::PathBuf,
 };
 
@@ -47,14 +53,13 @@ pub async fn publish_dependency(
 
     let mut decompressed_bytes: Vec<u8> = Vec::new();
 
-    decoder.read_to_end(&mut decompressed_bytes).map_err(|err| {
-        eprintln!(
-            "An error occured reading decompressed bytes: {}",
-            err
-        );
+    decoder
+        .read_to_end(&mut decompressed_bytes)
+        .map_err(|err| {
+            eprintln!("An error occured reading decompressed bytes: {}", err);
 
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     match from_slice::<DependencyUpload>(&decompressed_bytes) {
         Ok(dependency_upload) => {
@@ -71,7 +76,7 @@ pub async fn publish_dependency(
                             let mut fs_file_path = state.deps_path.clone();
                             fs_file_path.push(dependency_upload.dependency_name.clone());
                             fs_file_path.push(file_path);
-                            
+
                             let mut file_folder_path = fs_file_path.clone();
                             file_folder_path.pop();
 
