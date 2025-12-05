@@ -1,137 +1,61 @@
 [COMPILER IR]
 [
     ParsedTokenInstance {
-        inner: NewVariable(
-            "almak",
-            Array(
-                (
-                    Identifier(
-                        "Alma",
-                    ),
-                    2,
-                ),
-            ),
-            ParsedTokenInstance {
-                inner: ArrayInitialization(
-                    [
-                        ParsedTokenInstance {
-                            inner: InitializeStruct(
-                                OrdMap(
-                                    {
-                                        "id": I32,
-                                        "nev": String,
-                                    },
-                                ),
-                                OrdMap(
-                                    {
-                                        "id": ParsedTokenInstance {
-                                            inner: Literal(
-                                                I32(
-                                                    2,
-                                                ),
-                                            ),
-                                            debug_information: DebugInformation {
-                                                char_range: [
-                                                    29..35,
-                                                ],
-                                                lines: 8..9,
-                                            },
-                                        },
-                                        "nev": ParsedTokenInstance {
-                                            inner: Literal(
-                                                String(
-                                                    "Alma1",
-                                                ),
-                                            ),
-                                            debug_information: DebugInformation {
-                                                char_range: [
-                                                    40..42,
-                                                ],
-                                                lines: 8..9,
-                                            },
-                                        },
-                                    },
-                                ),
-                            ),
-                            debug_information: DebugInformation {
-                                char_range: [
-                                    29..47,
-                                ],
-                                lines: 8..9,
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "printf",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "input": String,
                             },
-                        },
-                        ParsedTokenInstance {
-                            inner: InitializeStruct(
-                                OrdMap(
-                                    {
-                                        "id": I32,
-                                        "nev": String,
-                                    },
-                                ),
-                                OrdMap(
-                                    {
-                                        "id": ParsedTokenInstance {
-                                            inner: Literal(
-                                                I32(
-                                                    1,
-                                                ),
-                                            ),
-                                            debug_information: DebugInformation {
-                                                char_range: [
-                                                    29..35,
-                                                ],
-                                                lines: 8..9,
-                                            },
-                                        },
-                                        "nev": ParsedTokenInstance {
-                                            inner: Literal(
-                                                String(
-                                                    "Alma2",
-                                                ),
-                                            ),
-                                            debug_information: DebugInformation {
-                                                char_range: [
-                                                    40..42,
-                                                ],
-                                                lines: 8..9,
-                                            },
-                                        },
-                                    },
-                                ),
-                            ),
-                            debug_information: DebugInformation {
-                                char_range: [
-                                    29..47,
-                                ],
-                                lines: 8..9,
-                            },
-                        },
-                    ],
-                    Struct(
-                        (
-                            "Alma",
-                            OrdMap(
-                                {
-                                    "id": I32,
-                                    "nev": String,
-                                },
-                            ),
                         ),
-                    ),
-                ),
-                debug_information: DebugInformation {
-                    char_range: [
-                        27..87,
+                        ellipsis_present: true,
+                    },
+                    return_type: I32,
+                    module_path: [
+                        "dependency-test",
+                        "printf",
                     ],
-                    lines: 8..9,
+                    visibility: Private,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
                 },
-            },
+                "printf",
+            ),
+            OrdMap(
+                {
+                    Identifier(
+                        "input",
+                    ): (
+                        ParsedTokenInstance {
+                            inner: Literal(
+                                String(
+                                    "Szia!",
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_range: [
+                                    4..11,
+                                ],
+                                lines: 3..4,
+                            },
+                        },
+                        String,
+                    ),
+                },
+            ),
         ),
         debug_information: DebugInformation {
             char_range: [
-                9..88,
+                4..20,
             ],
-            lines: 8..9,
+            lines: 3..4,
         },
     },
     ParsedTokenInstance {
@@ -146,7 +70,7 @@
                     char_range: [
                         4..12,
                     ],
-                    lines: 14..15,
+                    lines: 5..6,
                 },
             },
         ),
@@ -154,7 +78,7 @@
             char_range: [
                 4..13,
             ],
-            lines: 14..15,
+            lines: 5..6,
         },
     },
 ]

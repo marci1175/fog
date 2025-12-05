@@ -3,21 +3,21 @@ use crate::{
     models::{Dependency, DependencyInformation, DependencyUpload, DependencyUploadReply},
     schema::dependencies::{self, dependency_name, dependency_version},
 };
+use std::io::Read;
 use axum::{Json, body::Bytes, extract::State, http::StatusCode};
 use base64::Engine;
-use chrono::Utc;
-use common::{anyhow, dependency::DependencyRequest};
+use common::{
+    anyhow, chrono::Utc, compiler::ProjectConfig, dependency::DependencyRequest, dependency_manager::write_folder_items, flate2::{Compression, read::ZlibDecoder}, rmp_serde::*, zip::{
+        CompressionMethod, ZipArchive, ZipWriter,
+        write::{FileOptions, SimpleFileOptions},
+    }
+};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
-use flate2::Compression;
 use rand::{RngCore, TryRngCore};
 use std::{
     fs::{self, ReadDir},
     io::{self, Cursor, Seek, Write},
     path::PathBuf,
-};
-use zip::{
-    ZipWriter,
-    write::{FileOptions, SimpleFileOptions},
 };
 
 pub async fn fetch_dependency_information(
@@ -28,7 +28,7 @@ pub async fn fetch_dependency_information(
     Ok(Json(()))
 }
 
-pub async fn upload_dependency(
+pub async fn publish_dependency(
     State(state): State<ServerState>,
     // This should be the serialized bytes of type `DependencyUpload`
     serialized_bytes: Bytes,
@@ -43,42 +43,37 @@ pub async fn upload_dependency(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let mut decompressor = flate2::Decompress::new(false);
-    let mut decompressed_bytes = Vec::new();
+    let mut decoder = ZlibDecoder::new(Cursor::new(serialized_bytes.to_vec()));
 
-    if let Err(err) = decompressor.decompress(
-        &serialized_bytes,
-        &mut decompressed_bytes,
-        flate2::FlushDecompress::None,
-    ) {
-        eprintln!("Error while decompressing request body: {err}");
-        return Err(StatusCode::BAD_REQUEST);
-    }
+    let mut decompressed_bytes: Vec<u8> = Vec::new();
 
-    match rmp_serde::from_slice::<DependencyUpload>(&decompressed_bytes) {
+    decoder.read_to_end(&mut decompressed_bytes).map_err(|err| {
+        eprintln!(
+            "An error occured reading decompressed bytes: {}",
+            err
+        );
+
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match from_slice::<DependencyUpload>(&decompressed_bytes) {
         Ok(dependency_upload) => {
             // Decompress dependency, write to fs
             let mut dependency_bytes = Cursor::new(dependency_upload.source_files);
 
-            match zip::ZipArchive::new(&mut dependency_bytes) {
+            match ZipArchive::new(&mut dependency_bytes) {
                 Ok(mut archive) => {
                     let mut archive_idx = 0;
                     while let Ok(mut archived_file) = archive.by_index(archive_idx) {
                         if let Some(file_path) = archived_file.enclosed_name()
                             && archived_file.is_file()
                         {
-                            // If the path doesnt start with the dep's name that means the folder is not named correctly
-                            if !file_path
-                                .starts_with(format!("{}", dependency_upload.dependency_name))
-                            {
-                                return Err(StatusCode::BAD_REQUEST);
-                            }
-
-                            let mut file_folder_path = file_path.clone();
-                            file_folder_path.pop();
-
                             let mut fs_file_path = state.deps_path.clone();
+                            fs_file_path.push(dependency_upload.dependency_name.clone());
                             fs_file_path.push(file_path);
+                            
+                            let mut file_folder_path = fs_file_path.clone();
+                            file_folder_path.pop();
 
                             // Create the directory for the file in the deps folder, if it fails the folder has prolly been created already.
                             let _ = fs::create_dir_all(file_folder_path);
@@ -112,7 +107,7 @@ pub async fn upload_dependency(
                             dependency_name: dependency_upload.dependency_name.clone(),
                             // Dependency name and uploaded folder name must match
                             dependency_source_path: format!(
-                                "{}\\{}",
+                                "{}/{}",
                                 state.deps_path.display(),
                                 dependency_upload.dependency_name.clone()
                             ),
@@ -199,7 +194,7 @@ pub async fn fetch_dependency_source(
 
     let mut zip = Cursor::new(Vec::new());
 
-    let mut writer = zip::ZipWriter::new(&mut zip);
+    let mut writer = ZipWriter::new(&mut zip);
 
     // Walk through the dependency directory
     let read_dir = fs::read_dir(&path).map_err(|err| {
@@ -208,9 +203,9 @@ pub async fn fetch_dependency_source(
         StatusCode::NOT_FOUND
     })?;
 
-    let fop = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let fop = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
 
-    write_folder_items(&mut writer, read_dir, &mut PathBuf::new(), fop).unwrap();
+    write_folder_items(&mut writer, read_dir, PathBuf::new(), fop, None).unwrap();
 
     writer.finish().unwrap();
 
@@ -219,9 +214,9 @@ pub async fn fetch_dependency_source(
         source: zip.into_inner(),
     };
 
-    let rmp_serialized = rmp_serde::to_vec(&dependency).unwrap();
+    let rmp_serialized = to_vec(&dependency).unwrap();
 
-    let mut compress = flate2::Compress::new(Compression::best(), false);
+    let mut compress = common::flate2::Compress::new(Compression::best(), false);
 
     let mut compressed_files = Vec::new();
 
@@ -229,40 +224,9 @@ pub async fn fetch_dependency_source(
         .compress(
             &rmp_serialized,
             &mut compressed_files,
-            flate2::FlushCompress::None,
+            common::flate2::FlushCompress::None,
         )
         .unwrap();
 
     Ok(Bytes::from(compressed_files))
-}
-
-pub fn write_folder_items<T: Write + Seek>(
-    writer: &mut ZipWriter<T>,
-    read_dir: ReadDir,
-    current_path: &mut PathBuf,
-    options: SimpleFileOptions,
-) -> anyhow::Result<()>
-{
-    for item in read_dir {
-        let item = item?;
-
-        let file_type = item.file_type()?;
-
-        if file_type.is_dir() {
-            current_path.push(item.path().file_name().unwrap_or_default());
-
-            write_folder_items(writer, fs::read_dir(item.path())?, current_path, options)?;
-        }
-        // If file type is a file
-        else {
-            let mut file_path = current_path.clone();
-
-            file_path.push(item.path().file_name().unwrap_or_default());
-
-            writer.start_file(file_path.to_string_lossy().to_string(), options)?;
-            writer.write_all(&fs::read(item.path())?)?;
-        }
-    }
-
-    Ok(())
 }

@@ -1,5 +1,5 @@
-name = "parser_tester"
-is_library = false
+name = "dependency-test"
+is_library = true
 version = "0.0.1"
 build_path = "out"
 additional_linking_material = []

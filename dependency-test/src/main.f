@@ -1,6 +1,7 @@
 external printf(input: string, ...): int;
-pub function main(): int {
-    printf("Hello world!\n");
+
+pub function szia(): int {
+    printf("Szia!");
 
     return 0;
 }

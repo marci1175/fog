@@ -14,6 +14,41 @@ pub enum CliCommand
         #[arg(short, long, value_name = "MANIFEST_PATH")]
         path: PathBuf,
     },
+    /// Publishes a dependency to the target url
+    Publish
+    {
+        #[arg(
+            short,
+            long,
+            value_name = "REMOTE_URL",
+            help = "The address of the remote server, we are sending this dependency request to."
+        )]
+        url: String,
+
+        #[arg(
+            short,
+            long,
+            value_name = "AUTHOR_NAME",
+            help = "The name the dependency should be published to (The name must match on following updates)."
+        )]
+        author: String,
+
+        #[arg(
+            short,
+            long,
+            value_name = "DEPENDENCY_SECRET",
+            help = "Secret key to be able to update and modify a dependency."
+        )]
+        secret: Option<String>,
+
+        #[arg(
+            short,
+            long,
+            value_name = "PROJECT_PATH",
+            help = "The path to the project we want published."
+        )]
+        path: Option<PathBuf>,
+    },
     /// Compiles a project without running it.
     Compile
     {
@@ -117,26 +152,3 @@ pub enum CliCommand
         path: PathBuf,
     },
 }
-
-// impl TryFrom<String> for CliCommand
-// {
-//     type Error = anyhow::Error;
-
-//     fn try_from(value: String) -> Result<CliCommand, Self::Error>
-//     {
-//         match value.as_str() {
-//             "c" | "compile" => Ok(Self::Compile),
-//             "r" | "run" => Ok(Self::Run),
-//             "h" | "help" => Ok(Self::Help),
-//             "v" | "version" => Ok(Self::Version),
-//             "n" | "new" => Ok(Self::New),
-//             "i" | "init" => Ok(Self::Init),
-//             "l" | "link" => Ok(Self::Link),
-
-//             _ => {
-//                 println!("Invalid Argument: `{value}`");
-//                 Err(CliParseError::InvalidArg(value).into())
-//             },
-//         }
-//     }
-// }

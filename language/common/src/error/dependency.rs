@@ -30,4 +30,7 @@ pub enum DependencyError
     /// The first argument is the dependency, the second is the available features, the third is the enabled features.
     #[error("Dependency `{0}` has features `{1:?}`, but features {2:?} were enabled.")]
     InvalidDependencyFeature(String, Vec<String>, Vec<String>),
+
+    #[error("Dependency could not be compressed when publishing it.")]
+    PublishFailedToCompress,
 }

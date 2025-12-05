@@ -1,5 +1,4 @@
-use chrono::NaiveDate;
-use common::serde;
+use common::{assert_same_fields, chrono::NaiveDate, serde};
 use diesel::{
     Selectable,
     prelude::{Insertable, Queryable, QueryableByName},
@@ -60,3 +59,15 @@ pub struct DependencyUpload
     /// Compressed ZIP source files
     pub source_files: Vec<u8>,
 }
+
+assert_same_fields!(common::dependency_manager::DependencyInformation, DependencyInformation, { dependency_name, dependency_source_path, dependency_version, author, date_added, secret });
+assert_same_fields!(common::dependency_manager::DependencyUpload, DependencyUpload, { dependency_name, source_files, dependency_version, author });
+assert_same_fields!(common::dependency_manager::DependencyUpdateRequest, DependencyUpdateRequest, { dependency_name, updated_source, secret });
+assert_same_fields!(
+    common::dependency_manager::DependencyUploadReply,
+    DependencyUploadReply,
+    { secret_to_dep }
+);
+assert_same_fields!(common::dependency_manager::Dependency, Dependency, {
+    source
+});

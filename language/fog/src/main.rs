@@ -1,19 +1,26 @@
 mod cli;
 
+use std::io::Write;
 use crate::cli::CliCommand;
 use clap::Parser;
 use common::{
     anyhow, clap,
     compiler::ProjectConfig,
-    error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError},
+    dependency_manager::{DependencyUpload, DependencyUploadReply, write_folder_items},
+    error::{
+        application::ApplicationError, codegen::CodeGenError, dependency::DependencyError,
+        linker::LinkerError,
+    },
+    flate2::{self, Compression, write::ZlibEncoder},
     linker::BuildManifest,
-    toml,
+    reqwest::{StatusCode, blocking::Client},
+    rmp_serde, serde_json, toml,
     ty::OrdSet,
+    zip::{ZipWriter, write::SimpleFileOptions},
 };
 use compiler::CompilerState;
 use linker::link;
-use std::{env, fs, path::PathBuf};
-use strum::{VariantArray, VariantNames};
+use std::{env, fs, io::Cursor, path::PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -251,16 +258,93 @@ fn main() -> common::anyhow::Result<()>
                 current_working_dir.display()
             );
         },
+        CliCommand::Publish {
+            url,
+            author,
+            secret,
+            path,
+        } => {
+            let path = if let Some(path) = path.clone() {
+                path
+            }
+            else {
+                current_working_dir
+            };
+
+            // Read config file
+            let config_file = fs::read_to_string(format!("{}/config.toml", path.display()))
+                .map_err(|_| ApplicationError::ConfigNotFound(path.clone()))?;
+
+            let compiler_config = toml::from_str::<ProjectConfig>(&config_file)
+                .map_err(ApplicationError::ConfigError)?;
+
+            println!("Contacting `{url}`...");
+
+            let http_client = Client::new();
+            let reply = http_client.get(&url).send()?.status();
+
+            println!("Remote `{url}` responded with: `{}`", reply);
+
+            let mut source_files = Cursor::new(Vec::new());
+
+            let mut zip = ZipWriter::new(&mut source_files);
+
+            let read_dir = fs::read_dir(&path)?;
+
+            write_folder_items(
+                &mut zip,
+                read_dir,
+                PathBuf::new(),
+                SimpleFileOptions::default(),
+                Some(compiler_config.build_path),
+            )?;
+
+            let readable = zip.finish_into_readable()?;
+
+            if let Some(secret_key) = secret {
+
+            }
+            else if reply == StatusCode::OK {
+                println!("Uploading dependency...");
+
+                let dependency_instance = DependencyUpload::new(
+                    compiler_config.name.clone(),
+                    compiler_config.version.clone(),
+                    author,
+                    source_files.into_inner(),
+                );
+
+                let serialized_dep_upload = rmp_serde::to_vec(&dependency_instance)?;
+
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::fast());
+
+                encoder.write_all(&serialized_dep_upload)?;
+
+                let compressed_body = encoder.finish()?;
+
+                println!("Sending dependency...");
+
+                let publish_reply = http_client
+                    .post(format!("{url}/publish_dependency"))
+                    .header("Content-Type", "application/octet-stream")
+                    .body(compressed_body)
+                    .send()?;
+
+                println!("Received response `{}` from server.", publish_reply.status());
+
+                let reply = publish_reply.text()?;
+
+                let dep_reply = serde_json::from_str::<DependencyUploadReply>(&reply)?;
+
+                println!(
+                    "Dependency `{}({})` has been successfully created. This secret token `{}` can be used to update this dependency later.",
+                    compiler_config.name, compiler_config.version, dep_reply.secret_to_dep
+                );
+            }
+
+            println!("Abandoning connection...");
+        },
     }
 
     Ok(())
-}
-
-fn display_help_prompt()
-{
-    println!("Commands available to use:");
-
-    for (idx, command) in CliCommand::VARIANTS.iter().enumerate() {
-        println!("{}. {}", idx + 1, command)
-    }
 }

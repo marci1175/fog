@@ -12,11 +12,11 @@ use common::{
     tokio::{self, net::TcpListener},
 };
 use dependency_manager::{
-    api::manager::{fetch_dependency_information, fetch_dependency_source},
+    api::manager::{fetch_dependency_information, fetch_dependency_source, publish_dependency},
     establish_state,
 };
 use env_logger::Env;
-use std::{fs::create_dir_all, net::SocketAddr, path::PathBuf};
+use std::{env::current_dir, fs::create_dir_all, net::SocketAddr, path::PathBuf};
 
 async fn log_request(request: Request<Body>, next: Next) -> Result<Response<Body>, StatusCode>
 {
@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()>
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let database_url = std::env::var("DATABASE_URL")?;
-    let deps_path = PathBuf::from(std::env::var("DEPENDENCY_PATH")?);
+    let deps_path = PathBuf::from(format!("{}\\{}", current_dir()?.display(), std::env::var("DEPENDENCY_PATH")?));
 
     // Ignore error, since it will return an error if the folder already exists.
     let _ = create_dir_all(&deps_path);
@@ -51,12 +51,10 @@ async fn main() -> anyhow::Result<()>
 
     // Start up the webserver
     let router = Router::new()
-        .route("/", get(redirect_to_project))
-        .route(
-            "/api/fetch_dependency_info",
-            get(fetch_dependency_information),
-        )
-        .route("/api/fetch_dependency", get(fetch_dependency_source))
+        .route("/", get(reply_ok))
+        .route("/fetch_dependency_info", get(fetch_dependency_information))
+        .route("/fetch_dependency", get(fetch_dependency_source))
+        .route("/publish_dependency", post(publish_dependency))
         .layer(middleware::from_fn(log_request))
         .with_state(servere_state);
 
@@ -71,7 +69,7 @@ async fn main() -> anyhow::Result<()>
     Ok(())
 }
 
-pub async fn redirect_to_project() -> Result<Redirect, StatusCode>
+pub async fn reply_ok() -> StatusCode
 {
-    Ok(Redirect::permanent("https://github.com/marci1175/fog"))
+    StatusCode::OK
 }

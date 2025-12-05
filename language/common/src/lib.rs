@@ -31,6 +31,8 @@ pub mod tokenizer;
 /// Custom language types and type wrappers
 pub mod ty;
 
+pub mod dependency_manager;
+
 /// Used for handling errors in the fog toolset
 pub use anyhow;
 
@@ -56,8 +58,43 @@ pub use toml;
 /// Used for communicating with the dependency manager server and to create the FDCN
 pub use tokio;
 
+/// Used for making HTTP requests to contact web servers when fetching or publishing dependencies
+pub use reqwest;
+
 /// Used for thread safe types
 pub use parking_lot;
 
 /// Reading environment variables from `.env` files
 pub use dotenvy;
+
+/// Basic time management types.
+pub use chrono;
+
+/// Used for uploading/handling dependencies.
+pub use zip;
+
+pub use flate2;
+pub use rmp_serde;
+pub use serde_json;
+
+/// This macro can be used to check if two struct's definitons matches. This will not check field name match, only Type.
+/// Types are only checked shallow, if a field uses a type from a different path this will raise an error.
+#[macro_export]
+macro_rules! assert_same_fields {
+    ($A:ty, $B:ty, { $($field:ident),* $(,)? }) => {
+        const _: fn() = || {
+            $(
+                {
+                    // Type inference trick: if types differ, this can't unify.
+                    trait SameType {}
+                    impl<T> SameType for (T, T) {}
+
+                    // If A.$field and B.$field differ, this impl breaks → compile_error!
+                    fn _assert(a: &$A, b: &$B) {
+                        let _: &dyn SameType = &(a.$field.clone(), b.$field.clone());
+                    }
+                }
+            )*
+        };
+    };
+}
