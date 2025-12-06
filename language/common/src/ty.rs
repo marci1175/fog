@@ -10,7 +10,6 @@ use inkwell::{
     AddressSpace,
     context::Context,
     types::{BasicType, BasicTypeEnum},
-    values::PointerValue,
 };
 use num::Float;
 use strum::EnumTryAs;

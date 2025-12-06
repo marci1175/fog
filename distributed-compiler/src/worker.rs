@@ -1,11 +1,7 @@
-use std::{sync::Arc, thread::Thread};
+use std::sync::Arc;
 
 use common::{anyhow, dependency::DependencyInfo};
-use crossbeam::{
-    channel::{Sender, bounded},
-    deque,
-    queue::ArrayQueue,
-};
+use crossbeam::{channel::Sender, deque};
 
 use crate::io::ServerState;
 

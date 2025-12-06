@@ -30,7 +30,8 @@ pub fn link_from_manifest(build_manifest_path: PathBuf) -> Result<(), LinkerErro
     Ok(())
 }
 
-pub fn host_information() -> Result<(), LinkerError> {
+pub fn host_information() -> Result<(), LinkerError>
+{
     println!("Fog linker [Build version: {}]", env!("CARGO_PKG_VERSION"));
 
     match Command::new("clang").arg("--version").output() {
@@ -39,9 +40,7 @@ pub fn host_information() -> Result<(), LinkerError> {
 
             Ok(())
         },
-        Err(_e) => {
-            Err(LinkerError::ClangNotFound)
-        },
+        Err(_e) => Err(LinkerError::ClangNotFound),
     }
 }
 
@@ -62,10 +61,10 @@ pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>
             .iter()
             .map(|p| {
                 if let Ok(path) = fs::canonicalize(p) {
-                    return Ok(path.display().to_string());
+                    Ok(path.display().to_string())
                 }
                 else {
-                    return Err(LinkerError::AdditionalLinkingMaterialNotFound(p.clone()));
+                    Err(LinkerError::AdditionalLinkingMaterialNotFound(p.clone()))
                 }
             })
             .try_collect::<Vec<String>>()?,

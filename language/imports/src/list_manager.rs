@@ -10,7 +10,7 @@ use common::{
     anyhow::{self, ensure},
     compiler::ProjectConfig,
     dependency::DependencyInfo,
-    error::{codegen::CodeGenError, dependency::DependencyError},
+    error::dependency::DependencyError,
     indexmap::{IndexMap, IndexSet},
     inkwell::{builder::Builder, context::Context, module::Module},
     parser::FunctionSignature,
@@ -207,7 +207,7 @@ fn scan_dependency<'ctx>(
 
                 let original_dep_path_root = dependency_path.clone();
 
-                dependency_path.push(format!("deps"));
+                dependency_path.push("deps");
 
                 // Parse the library's dependecies
                 // We pass in the things mutable because this is how we are checking that every dependency is covered. (See: create_dependency_functions_list)

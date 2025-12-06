@@ -537,14 +537,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "base64",
  "chrono",
  "clap",
+ "diesel",
  "dotenvy",
  "flate2",
  "indexmap",
  "inkwell",
  "num",
  "parking_lot",
+ "r2d2",
+ "rand",
  "reqwest",
  "rmp-serde",
  "semver",
@@ -958,13 +962,10 @@ checksum = "26bf8fc351c5ed29b5c2f0cbbac1b209b74f60ecd62e675a998df72c49af5204"
 name = "dependency-manager"
 version = "0.1.0"
 dependencies = [
- "base64",
  "common",
  "diesel",
  "dioxus",
  "env_logger",
- "r2d2",
- "rand",
  "serde",
 ]
 

@@ -5,8 +5,11 @@ use std::{
     thread::Thread,
 };
 
-use common::{anyhow, tokio};
-use crossbeam::channel::{Sender, bounded};
+use common::{
+    anyhow,
+    tokio::{self, io::AsyncReadExt, select},
+};
+use crossbeam::channel::bounded;
 use dashmap::DashMap;
 
 use crate::worker::{FinishedJobQueue, JobHandler, JobQueue, ThreadIdentification};
@@ -15,6 +18,7 @@ use crate::worker::{FinishedJobQueue, JobHandler, JobQueue, ThreadIdentification
 pub struct ServerState
 {
     pub port: u16,
+    pub dependency_manager_url: String,
     pub worker_thread_notifier: HashMap<ThreadIdentification, Thread>,
     pub job_handler: Arc<JobHandler>,
     pub connected_clients: Arc<DashMap<SocketAddr, String>>,
@@ -26,6 +30,7 @@ impl Default for ServerState
     {
         Self {
             port: 0,
+            dependency_manager_url: "http://[::1]:3004".into(),
             worker_thread_notifier: HashMap::new(),
             job_handler: Arc::new(JobHandler::new(JobQueue::new(), FinishedJobQueue::new())),
             connected_clients: Arc::new(DashMap::new()),
@@ -35,10 +40,11 @@ impl Default for ServerState
 
 impl ServerState
 {
-    pub fn new(port: u16) -> Self
+    pub fn new(port: u16, dependency_manager_url: String) -> Self
     {
         Self {
             port,
+            dependency_manager_url,
             ..Default::default()
         }
     }
@@ -50,7 +56,7 @@ impl ServerState
 
         let available_cores = std::thread::available_parallelism()?.get();
 
-        let available_cores_left = available_cores.checked_sub(2).unwrap_or_else(|| 1);
+        let available_cores_left = available_cores.checked_sub(2).unwrap_or(1);
 
         self.create_workers(available_cores_left, ui_sender.clone())?;
 
@@ -61,6 +67,7 @@ impl ServerState
 
         let connected_clients_handle = self.connected_clients.clone();
 
+        let ui_sender_out_clone = ui_sender_out.clone();
         // Inbound
         tokio::spawn(async move {
             loop {
@@ -70,16 +77,34 @@ impl ServerState
                         .await
                         .unwrap();
 
+                // Clone sender channel so that we can send messages to the frontend
+                let ui_sender_out_clone = ui_sender_out_clone.clone();
+
                 match listener.accept().await {
                     Ok((stream, addr)) => {
                         connected_clients_handle.insert(addr, "Client information".into());
 
                         // Spawn client handler
                         tokio::spawn(async move {
-                            let client_handle = stream;
+                            let mut client_handle = stream;
 
                             // Handle client requests
-                            loop {}
+                            loop {
+                                select! {
+                                    Ok(msg_len) = client_handle.read_u32() => {
+                                        let mut msg_buf = vec![0; msg_len as usize];
+
+                                        match client_handle.read_exact(&mut msg_buf).await  {
+                                            Ok(_) => {
+                                                // Handle the message sent by the user
+                                            },
+                                            Err(err) => {
+                                                ui_sender_out_clone.send((err.to_string(), ThreadIdentification::new(0))).unwrap();
+                                            },
+                                        }
+                                    }
+                                }
+                            }
                         });
                     },
                     Err(error) => {

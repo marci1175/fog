@@ -4,9 +4,8 @@ use common::{
         CustomType, FunctionArgumentIdentifier, LoopBodyBlocks, create_fn_type_from_ty_disc,
         fn_arg_to_string, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty,
     },
-    compiler::ProjectConfig,
     error::codegen::CodeGenError,
-    indexmap::{IndexMap, IndexSet},
+    indexmap::IndexMap,
     inkwell::{
         attributes::Attribute,
         basic_block::BasicBlock,
@@ -18,7 +17,7 @@ use common::{
         values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     },
     parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
-    ty::{OrdMap, OrdSet, TypeDiscriminant, token_to_ty},
+    ty::{OrdMap, TypeDiscriminant, token_to_ty},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -1772,7 +1771,7 @@ where
 
                 if let Some((variable_name, (var_ptr, _), ty_disc)) = variable_reference {
                     // Check for type mismatch
-                    if &ty_disc != &fn_sig.return_type {
+                    if ty_disc != fn_sig.return_type {
                         return Err(CodeGenError::InternalVariableTypeMismatch(
                             ty_disc,
                             fn_sig.return_type,
@@ -2769,7 +2768,6 @@ where
         if let Ok(mut o_opt) = OpenOptions::new()
             .append(true)
             .create(true)
-            .write(true)
             .open(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")))
         {
             o_opt.write_all(format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()).as_bytes())?;

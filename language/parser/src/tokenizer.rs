@@ -29,13 +29,12 @@ pub fn tokenize(
     let mut line_char_idx = 0;
 
     while char_idx < char_list.len() {
-        if let Some(stop_at_token) = &stop_at_token {
-            if token_list
+        if let Some(stop_at_token) = &stop_at_token
+            && token_list
                 .last()
                 .is_some_and(|last_token| last_token == stop_at_token)
-            {
-                return Ok((token_list, token_debug_info, char_idx));
-            }
+        {
+            return Ok((token_list, token_debug_info, char_idx));
         }
 
         let current_char = char_list[char_idx];
@@ -148,35 +147,33 @@ pub fn tokenize(
             let mut comment_buffer = String::new();
 
             if let Some(char) = char_list.get(char_idx + 1) {
-                if *char == '-' {
-                    if char_list.get(char_idx + 2) == Some(&'>') {
-                        char_idx += 3;
+                if *char == '-' && char_list.get(char_idx + 2) == Some(&'>') {
+                    char_idx += 3;
 
-                        // Capture everything until the finishing #->
-                        // The reason im passing this into a tokenizer function is because the MultilineComment token could be in quotes and that would be invalid to capture.
-                        // We can ignore the captured tokens, we increment the char_idx by the chars parsed.
-                        // The captured output does not contain the contents of the multiline comment.
-                        let (_, _, idx) =
-                            tokenize(&raw_input[char_idx..], Some(Token::MultilineComment))?;
+                    // Capture everything until the finishing #->
+                    // The reason im passing this into a tokenizer function is because the MultilineComment token could be in quotes and that would be invalid to capture.
+                    // We can ignore the captured tokens, we increment the char_idx by the chars parsed.
+                    // The captured output does not contain the contents of the multiline comment.
+                    let (_, _, idx) =
+                        tokenize(&raw_input[char_idx..], Some(Token::MultilineComment))?;
 
-                        if stop_at_token.is_some() {
-                            token_list.push(Token::MultilineComment);
-                            token_debug_info.push(DebugInformation {
-                                char_range: vec![
-                                    current_char_idx_in_line - 3..current_char_idx_in_line + idx,
-                                ],
-                                lines: line_counter..line_counter + 1,
-                            });
+                    if stop_at_token.is_some() {
+                        token_list.push(Token::MultilineComment);
+                        token_debug_info.push(DebugInformation {
+                            char_range: vec![
+                                current_char_idx_in_line - 3..current_char_idx_in_line + idx,
+                            ],
+                            lines: line_counter..line_counter + 1,
+                        });
 
-                            continue;
-                        }
-
-                        char_idx += idx;
-
-                        // Continue looping through the tokens
-                        // We continue here because we dont want to increment the char_idx one more time.
                         continue;
                     }
+
+                    char_idx += idx;
+
+                    // Continue looping through the tokens
+                    // We continue here because we dont want to increment the char_idx one more time.
+                    continue;
                 }
 
                 let original_char_idx = char_idx;

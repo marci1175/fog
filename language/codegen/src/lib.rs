@@ -12,7 +12,6 @@ pub mod pointer;
 use common::{
     anyhow::Result,
     codegen::CustomType,
-    compiler::ProjectConfig,
     error::{application::ApplicationError, codegen::CodeGenError},
     indexmap::IndexMap,
     inkwell::{
@@ -23,7 +22,6 @@ use common::{
         targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
     },
     parser::{FunctionDefinition, FunctionSignature},
-    ty::OrdSet,
 };
 use parser::parser_instance::Parser;
 use std::{collections::HashMap, fs, io::ErrorKind, path::PathBuf, rc::Rc, sync::Arc};
@@ -53,7 +51,7 @@ pub fn llvm_codegen_main<'ctx>(
 ) -> Result<TargetMachine>
 {
     #[cfg(debug_assertions)]
-    if let Err(_) = fs::remove_file(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR"))) {};
+    if fs::remove_file(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR"))).is_err() {};
 
     // Import functions defined by the user via llvm
     import_user_lib_functions(

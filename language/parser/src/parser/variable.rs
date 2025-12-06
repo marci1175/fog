@@ -754,7 +754,7 @@ pub fn parse_variable_expression(
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
 ) -> Result<()>
 {
-    let origin_token_idx = token_idx.clone();
+    let origin_token_idx = *token_idx;
 
     match &current_token {
         Token::SetValue => {
@@ -788,7 +788,7 @@ pub fn parse_variable_expression(
                     Box::new(parsed_token),
                 ),
                 debug_information: fetch_and_merge_debug_information(
-                    &debug_infos,
+                    debug_infos,
                     origin_token_idx + token_offset..*token_idx + token_offset,
                     true,
                 )
@@ -799,7 +799,7 @@ pub fn parse_variable_expression(
             set_value_math_expr(
                 tokens,
                 token_offset,
-                &debug_infos,
+                debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -815,7 +815,7 @@ pub fn parse_variable_expression(
             set_value_math_expr(
                 tokens,
                 token_offset,
-                &debug_infos,
+                debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -831,7 +831,7 @@ pub fn parse_variable_expression(
             set_value_math_expr(
                 tokens,
                 token_offset,
-                &debug_infos,
+                debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -847,7 +847,7 @@ pub fn parse_variable_expression(
             set_value_math_expr(
                 tokens,
                 token_offset,
-                &debug_infos,
+                debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -863,7 +863,7 @@ pub fn parse_variable_expression(
             set_value_math_expr(
                 tokens,
                 token_offset,
-                &debug_infos,
+                debug_infos,
                 function_signatures,
                 token_idx,
                 parsed_tokens,
@@ -1236,7 +1236,7 @@ fn handle_variable(
                         }),
                         Box::new(value),
                     ),
-                    token_to_ty(*inner_ty.clone(), &custom_types)?,
+                    token_to_ty(*inner_ty.clone(), custom_types)?,
                 )?;
 
                 Ok(handling_continuation)
@@ -1271,7 +1271,7 @@ fn set_value_math_expr(
     custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<()>
 {
-    let origin_token_idx = token_idx.clone();
+    let origin_token_idx = *token_idx;
 
     *token_idx += 1;
 

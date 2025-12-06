@@ -1,13 +1,8 @@
-use std::{
-    io::{Stderr, Stdout},
-    path::PathBuf,
-    process::{ExitStatus, Stdio},
-    rc::Rc,
-};
+use std::{path::PathBuf, rc::Rc};
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, Result},
+    anyhow::Result,
     compiler::ProjectConfig,
     error::codegen::CodeGenError,
     inkwell::{
@@ -21,8 +16,7 @@ use common::{
     ty::{OrdSet, TypeDiscriminant},
 };
 use imports::list_manager::create_dependency_functions_list;
-use parser::{parser::function::normalize_range, parser_instance::Parser, tokenizer::tokenize};
-use std::process::Command;
+use parser::{parser_instance::Parser, tokenizer::tokenize};
 
 pub struct CompilerState
 {

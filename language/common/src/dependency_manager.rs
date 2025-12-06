@@ -5,7 +5,14 @@ use std::{
     path::PathBuf,
 };
 
+#[cfg(feature = "dependency_manager")]
+use base64::Engine;
 use chrono::NaiveDate;
+#[cfg(feature = "dependency_manager")]
+use diesel::{PgConnection, r2d2::ConnectionManager};
+#[cfg(feature = "dependency_manager")]
+use rand::TryRngCore;
+
 /// ****
 /// PLEASE NOTE THAT THESE TYPES ARE COPIES OF THE TYPES FOUND IN THE DEPENDENCY MANAGER WORKSPACE. (It was easier to just copies of the type definitions due to dependencies and diesel.)
 /// ANY TYPE DEFINITION CHANGES MUST BE COPIED TO THE DEPENDENCY MANAGER'S DEFINITIONS
@@ -90,10 +97,10 @@ pub fn write_folder_items<T: Write + Seek>(
         let file_type = item.file_type()?;
 
         if file_type.is_dir() {
-            if let Some(forbidden_folder_name) = folder_filter.clone() {
-                if item.path().file_name() == Some(&OsStr::new(&forbidden_folder_name)) {
-                    continue;
-                }
+            if let Some(forbidden_folder_name) = folder_filter.clone()
+                && item.path().file_name() == Some(OsStr::new(&forbidden_folder_name))
+            {
+                continue;
             }
 
             let mut path_clone = current_path.clone();
@@ -121,4 +128,24 @@ pub fn write_folder_items<T: Write + Seek>(
     }
 
     Ok(())
+}
+
+#[derive(Debug, Clone)]
+#[cfg(feature = "dependency_manager")]
+
+pub struct ServerState
+{
+    pub db_connection: r2d2::Pool<ConnectionManager<PgConnection>>,
+    pub deps_path: PathBuf,
+    pub base64_engine: base64::engine::GeneralPurpose,
+}
+
+#[cfg(feature = "dependency_manager")]
+pub fn generate_secret<const LEN: usize>(state: &ServerState) -> String
+{
+    let mut bytes = [0u8; LEN];
+
+    rand::rngs::OsRng.try_fill_bytes(&mut bytes).unwrap();
+
+    state.base64_engine.encode(bytes)
 }

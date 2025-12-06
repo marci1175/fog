@@ -1,10 +1,14 @@
 use std::path::PathBuf;
 
-use base64::{
-    alphabet::{self, Alphabet},
-    engine::GeneralPurposeConfig,
+use common::{
+    anyhow::Result,
+    base64::{
+        self,
+        alphabet::{self},
+        engine::GeneralPurposeConfig,
+    },
+    dependency_manager::ServerState,
 };
-use common::anyhow::Result;
 use diesel::{
     PgConnection,
     r2d2::{self, ConnectionManager},
@@ -13,14 +17,6 @@ use diesel::{
 pub mod api;
 pub mod models;
 pub mod schema;
-
-#[derive(Debug, Clone)]
-pub struct ServerState
-{
-    pub db_connection: r2d2::Pool<ConnectionManager<PgConnection>>,
-    pub deps_path: PathBuf,
-    pub base64_engine: base64::engine::GeneralPurpose,
-}
 
 pub fn establish_state(database_url: &str, deps_path: PathBuf) -> Result<ServerState>
 {

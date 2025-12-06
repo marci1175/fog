@@ -5,22 +5,17 @@ use clap::Parser;
 use common::{
     anyhow, clap,
     compiler::ProjectConfig,
-    dependency_manager::{DependencyUpload, DependencyUploadReply, write_folder_items},
+    compression::{compress_bytes, zip_folder},
+    dependency_manager::{DependencyUpload, DependencyUploadReply},
     error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError},
-    flate2::{Compression, write::ZlibEncoder},
     linker::BuildManifest,
     reqwest::{StatusCode, blocking::Client},
     rmp_serde, serde_json, toml,
     ty::OrdSet,
-    zip::{ZipWriter, write::SimpleFileOptions},
 };
 use compiler::CompilerState;
 use linker::link;
-use std::{
-    env, fs,
-    io::{Cursor, Write},
-    path::PathBuf,
-};
+use std::{env, fs, path::PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -287,21 +282,9 @@ fn main() -> common::anyhow::Result<()>
 
             println!("Remote `{url}` responded with: `{}`", response_code);
 
-            let mut source_files = Cursor::new(Vec::new());
+            let zip = zip_folder(fs::read_dir(path)?, Some(compiler_config.build_path))?;
 
-            let mut zip = ZipWriter::new(&mut source_files);
-
-            let read_dir = fs::read_dir(&path)?;
-
-            write_folder_items(
-                &mut zip,
-                read_dir,
-                PathBuf::new(),
-                SimpleFileOptions::default(),
-                Some(compiler_config.build_path),
-            )?;
-
-            let _readable = zip.finish_into_readable()?;
+            let zipped_folder = zip.finish_into_readable()?;
 
             if response_code == StatusCode::OK {
                 println!("Uploading dependency...");
@@ -312,16 +295,12 @@ fn main() -> common::anyhow::Result<()>
                     compiler_config.name.clone(),
                     compiler_config.version.clone(),
                     author,
-                    source_files.into_inner(),
+                    zipped_folder.into_inner().into_inner(),
                 );
 
                 let serialized_dep_upload = rmp_serde::to_vec(&dependency_instance)?;
 
-                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::fast());
-
-                encoder.write_all(&serialized_dep_upload)?;
-
-                let compressed_body = encoder.finish()?;
+                let compressed_body = compress_bytes(&serialized_dep_upload)?;
 
                 println!("Sending dependency...");
 

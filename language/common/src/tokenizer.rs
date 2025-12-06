@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use crate::{
     error::{parser::ParserError, syntax::SyntaxError},
     parser::CompilerHint,

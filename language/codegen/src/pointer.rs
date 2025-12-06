@@ -171,8 +171,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
                         };
 
                         if let TypeDiscriminant::Array((inner_ty, _len)) = &ty_disc {
-                            let array_inner_type =
-                                token_to_ty((**inner_ty).clone(), &custom_types)?;
+                            let array_inner_type = token_to_ty((**inner_ty).clone(), custom_types)?;
 
                             return Ok((
                                 (
@@ -476,7 +475,7 @@ where
         };
 
         let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
-        let inner_ty = token_to_ty(*inner_ty_token, &custom_types)?;
+        let inner_ty = token_to_ty(*inner_ty_token, custom_types)?;
 
         Ok((
             gep_ptr,

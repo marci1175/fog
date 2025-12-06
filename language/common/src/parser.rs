@@ -1,10 +1,6 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use std::{
-    collections::{BTreeSet, HashSet},
-    fmt::Display,
-    sync::Arc,
-};
+use std::fmt::Display;
 use strum_macros::Display;
 
 use crate::{
@@ -395,7 +391,7 @@ pub fn parse_signature_argument_tokens(
     let mut args = FunctionArguments::new();
 
     if bracket_closing_idx != 0 {
-        args = parse_signature_args(&tokens[..bracket_closing_idx], &custom_types)?;
+        args = parse_signature_args(&tokens[..bracket_closing_idx], custom_types)?;
     }
 
     Ok((bracket_closing_idx, args))

@@ -12,6 +12,8 @@ pub enum DependencyManagerError
     DependencyAlreadyExists,
     #[error("Failed to decompress files")]
     DecompressionError,
+    #[error("Failed to compress files")]
+    CompressionError,
     #[error("Remote could not create a file with name: `{0}`")]
     FailedToCreateFile(PathBuf),
     #[error("Remote could not write to file `{0}`")]
@@ -22,6 +24,12 @@ pub enum DependencyManagerError
     GenericDatabaseError,
     #[error("An invalid Zip path was detected")]
     InvalidZipArchiveFilePath,
+    #[error("Invalid Zip archive")]
+    InvalidZipArchive,
+    #[error("Requested dependency was not found")]
+    DependencyNotFound,
+    #[error("Invalid path linked to dependency in database")]
+    InvalidFileError,
 }
 
 impl IntoResponse for DependencyManagerError

@@ -27,6 +27,7 @@ struct App
     max_scroll: u16,
 
     env_port: Option<u16>,
+    dep_man_url: Option<String>,
 }
 
 impl App
@@ -38,6 +39,8 @@ impl App
             .ok()
             .and_then(|v| v.parse::<u16>().ok());
 
+        let dep_man_url = std::env::var("DEPENDENCY_MANAGER_URL").ok();
+
         Self {
             ui_state: UiState::Main,
             selected: 0,
@@ -47,6 +50,7 @@ impl App
             max_scroll: 0,
 
             env_port,
+            dep_man_url,
         }
     }
 
@@ -102,9 +106,13 @@ impl App
                         self.ui_state = UiState::Main;
                     },
                     KeyCode::Enter => {
-                        let port = self.env_port.unwrap_or(9000);
+                        let port = self.env_port.unwrap_or(3004);
+                        let dependency_manager_url = self
+                            .dep_man_url
+                            .clone()
+                            .unwrap_or(String::from("http://[::1]:3004"));
 
-                        let mut server_state = ServerState::new(port);
+                        let mut server_state = ServerState::new(port, dependency_manager_url);
                         server_state.initialize_server().unwrap();
                         self.ui_state = UiState::CurrentConnection(server_state);
                     },
@@ -163,7 +171,7 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()>
     let mut app = App::new();
     terminal.clear()?;
 
-    while !app.should_quit.clone() {
+    while !app.should_quit {
         if let Some(key_event) = capture_input()? {
             app.key_handler(key_event, terminal);
         }
@@ -248,9 +256,10 @@ fn render_connection_establisher(frame: &mut Frame, app: &App)
         .map(|v| v.to_string())
         .unwrap_or_else(|| "NOT SET".into());
 
+    let dep_man_url: String = app.dep_man_url.clone().unwrap_or_else(|| "NOT SET".into());
+
     let text = Paragraph::new(format!(
-        "Server will start using PORT from .env\n\nConfigured PORT: {}\n\nPress Enter to start.",
-        port
+        "Server will start using PORT from .env\n\nConfigured PORT: {port}\n\nConfigured Dependency Manager: {dep_man_url}\n\nPress Enter to start.",
     ))
     .alignment(Alignment::Center);
 

@@ -1,8 +1,4 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
-
-use crate::dependency::DependencyInfo;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct DistributedCompilerWorker

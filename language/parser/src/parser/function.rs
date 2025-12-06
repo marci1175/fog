@@ -10,9 +10,7 @@ use common::{
     anyhow::Result,
     codegen::{CustomType, FunctionArgumentIdentifier, If},
     compiler::ProjectConfig,
-    error::{
-        DebugInformation, dependency::DependencyError, parser::ParserError, syntax::SyntaxError,
-    },
+    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
@@ -232,92 +230,89 @@ impl Parser
                 return Err(ParserError::FunctionRequiresExplicitVisibility.into());
             }
             else if current_token == Token::External {
-                if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned() {
-                    if tokens[token_idx + 2] == Token::OpenParentheses {
-                        let (bracket_close_idx, args) = parse_signature_argument_tokens(
-                            &tokens[token_idx + 3..],
-                            &custom_items,
-                        )?;
+                if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned()
+                    && tokens[token_idx + 2] == Token::OpenParentheses
+                {
+                    let (bracket_close_idx, args) =
+                        parse_signature_argument_tokens(&tokens[token_idx + 3..], &custom_items)?;
 
-                        token_idx += bracket_close_idx + 3;
+                    token_idx += bracket_close_idx + 3;
 
-                        if external_imports.get(&identifier).is_some()
-                            || function_list.get(&identifier).is_some()
+                    if external_imports.get(&identifier).is_some()
+                        || function_list.get(&identifier).is_some()
+                    {
+                        return Err(ParserError::DuplicateSignatureImports(identifier).into());
+                    }
+
+                    // Create a clone of the module path so we can modifiy it locally
+                    let mut mod_path = module_path.clone();
+
+                    // Store the function name in the module path
+                    mod_path.push(identifier.clone());
+
+                    if tokens[token_idx + 1] == Token::Colon {
+                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone()
+                            && tokens[token_idx + 3] == Token::SemiColon
                         {
-                            return Err(ParserError::DuplicateSignatureImports(identifier).into());
+                            external_imports.insert(
+                                identifier.clone(),
+                                FunctionSignature {
+                                    name: identifier,
+                                    args,
+                                    return_type,
+                                    module_path: mod_path,
+                                    // Imported functions can only be accessed at the source file they were imported at
+                                    // I might change this later to smth like pub import similar to pub mod in rust
+                                    visibility: common::parser::FunctionVisibility::Private,
+                                    compiler_hints: OrdSet::new(),
+                                    enabling_features: OrdSet::new(),
+                                },
+                            );
+
+                            continue;
                         }
+                        else if let Token::Identifier(custom_item_name) =
+                            tokens[token_idx + 2].clone()
+                            && tokens[token_idx + 3] == Token::SemiColon
+                        {
+                            if let Some(custom_item) = custom_items.get(&custom_item_name) {
+                                match custom_item {
+                                    CustomType::Struct(struct_inner) => {
+                                        external_imports.insert(
+                                            identifier.clone(),
+                                            FunctionSignature {
+                                                name: identifier,
+                                                args,
+                                                return_type: TypeDiscriminant::Struct(
+                                                    struct_inner.clone(),
+                                                ),
+                                                module_path: mod_path,
+                                                // Imported functions can only be accessed at the source file they were imported at
+                                                // I might change this later to smth like pub import similar to pub mod in rust
+                                                visibility:
+                                                    common::parser::FunctionVisibility::Private,
+                                                compiler_hints: OrdSet::new(),
+                                                enabling_features: OrdSet::new(),
+                                            },
+                                        );
 
-                        // Create a clone of the module path so we can modifiy it locally
-                        let mut mod_path = module_path.clone();
-
-                        // Store the function name in the module path
-                        mod_path.push(identifier.clone());
-
-                        if tokens[token_idx + 1] == Token::Colon {
-                            if let Token::TypeDefinition(return_type) =
-                                tokens[token_idx + 2].clone()
-                                && tokens[token_idx + 3] == Token::SemiColon
-                            {
-                                external_imports.insert(
-                                    identifier.clone(),
-                                    FunctionSignature {
-                                        name: identifier,
-                                        args,
-                                        return_type,
-                                        module_path: mod_path,
-                                        // Imported functions can only be accessed at the source file they were imported at
-                                        // I might change this later to smth like pub import similar to pub mod in rust
-                                        visibility: common::parser::FunctionVisibility::Private,
-                                        compiler_hints: OrdSet::new(),
-                                        enabling_features: OrdSet::new(),
+                                        continue;
                                     },
-                                );
-
-                                continue;
-                            }
-                            else if let Token::Identifier(custom_item_name) =
-                                tokens[token_idx + 2].clone()
-                                && tokens[token_idx + 3] == Token::SemiColon
-                            {
-                                if let Some(custom_item) = custom_items.get(&custom_item_name) {
-                                    match custom_item {
-                                        CustomType::Struct(struct_inner) => {
-                                            external_imports.insert(
-                                                identifier.clone(),
-                                                FunctionSignature {
-                                                    name: identifier,
-                                                    args,
-                                                    return_type: TypeDiscriminant::Struct(
-                                                        struct_inner.clone(),
-                                                    ),
-                                                    module_path: mod_path,
-                                                    // Imported functions can only be accessed at the source file they were imported at
-                                                    // I might change this later to smth like pub import similar to pub mod in rust
-                                                    visibility:
-                                                        common::parser::FunctionVisibility::Private,
-                                                    compiler_hints: OrdSet::new(),
-                                                    enabling_features: OrdSet::new(),
-                                                },
-                                            );
-
-                                            continue;
-                                        },
-                                        CustomType::Enum(ord_map) => {},
-                                    }
-                                }
-                                else {
-                                    dbg!(&custom_items);
-
-                                    panic!("not found fasz")
+                                    CustomType::Enum(ord_map) => {},
                                 }
                             }
                             else {
-                                panic!();
+                                dbg!(&custom_items);
+
+                                panic!("not found fasz")
                             }
                         }
                         else {
-                            return Err(SyntaxError::ImportUnspecifiedReturnType.into());
+                            panic!();
                         }
+                    }
+                    else {
+                        return Err(SyntaxError::ImportUnspecifiedReturnType.into());
                     }
                 }
             }
@@ -481,14 +476,14 @@ impl Parser
                         if let Some(Token::Literal(Type::String(feature_name))) =
                             tokens.get(token_idx)
                         {
-                            if let Some(available_features) = &project_config.features {
-                                if !available_features.contains(&feature_name) {
-                                    return Err(ParserError::InvalidFeatureRequirement(
-                                        feature_name.clone(),
-                                        available_features.clone(),
-                                    )
-                                    .into());
-                                }
+                            if let Some(available_features) = &project_config.features
+                                && !available_features.contains(feature_name)
+                            {
+                                return Err(ParserError::InvalidFeatureRequirement(
+                                    feature_name.clone(),
+                                    available_features.clone(),
+                                )
+                                .into());
                             }
                             function_enabling_feature.insert(feature_name.clone());
                         }
@@ -702,7 +697,7 @@ impl Parser
                         let variable_ref =
                             VariableReference::BasicReference(ident_name.to_string());
 
-                        let token_idx_clone = token_idx.clone();
+                        let token_idx_clone = token_idx;
 
                         parse_variable_expression(
                             &tokens,
