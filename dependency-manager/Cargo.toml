@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 common = { path = "../language/common"}
-axum = "0.8.7"
 dioxus = "0.7.1"
 r2d2 = "0.8.10"
 env_logger = "0.11.8"

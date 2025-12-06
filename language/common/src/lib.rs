@@ -73,6 +73,7 @@ pub use chrono;
 /// Used for uploading/handling dependencies.
 pub use zip;
 
+pub use axum;
 pub use flate2;
 pub use rmp_serde;
 pub use serde_json;

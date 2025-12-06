@@ -9,17 +9,7 @@ use std::{
 
 pub fn link_from_manifest(build_manifest_path: PathBuf) -> Result<(), LinkerError>
 {
-    println!("Fog linker [Build version: {}]", env!("CARGO_PKG_VERSION"));
-
-    match Command::new("clang").arg("--version").output() {
-        Ok(output) => {
-            println!("[Clang found]");
-            println!("{}", String::from_utf8_lossy(&output.stdout));
-        },
-        Err(_e) => {
-            return Err(LinkerError::ClangNotFound);
-        },
-    }
+    host_information()?;
 
     println!("[Build manifest path]: {}", build_manifest_path.display());
 
@@ -38,6 +28,21 @@ pub fn link_from_manifest(build_manifest_path: PathBuf) -> Result<(), LinkerErro
     );
 
     Ok(())
+}
+
+pub fn host_information() -> Result<(), LinkerError> {
+    println!("Fog linker [Build version: {}]", env!("CARGO_PKG_VERSION"));
+
+    match Command::new("clang").arg("--version").output() {
+        Ok(output) => {
+            println!("{}", String::from_utf8_lossy(&output.stdout));
+
+            Ok(())
+        },
+        Err(_e) => {
+            Err(LinkerError::ClangNotFound)
+        },
+    }
 }
 
 pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>

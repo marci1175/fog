@@ -1,3 +1,4 @@
 /target
 /test_project/out
 /.env
+/stored_deps

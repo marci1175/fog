@@ -3,14 +3,15 @@ use crate::{
     models::{Dependency, DependencyInformation, DependencyUpload, DependencyUploadReply},
     schema::dependencies::{self, dependency_name, dependency_version},
 };
-use axum::{Json, body::Bytes, extract::State, http::StatusCode};
 use base64::Engine;
 use common::{
     anyhow,
+    axum::{Json, body::Bytes, extract::State, http::StatusCode},
     chrono::Utc,
     compiler::ProjectConfig,
     dependency::DependencyRequest,
     dependency_manager::write_folder_items,
+    error::dependency_manager::DependencyManagerError,
     flate2::{Compression, read::ZlibDecoder},
     rmp_serde::*,
     zip::{
@@ -38,7 +39,7 @@ pub async fn publish_dependency(
     State(state): State<ServerState>,
     // This should be the serialized bytes of type `DependencyUpload`
     serialized_bytes: Bytes,
-) -> Result<Json<DependencyUploadReply>, StatusCode>
+) -> Result<Json<DependencyUploadReply>, DependencyManagerError>
 {
     let mut pg_connection = state.db_connection.get().map_err(|err| {
         eprintln!(
@@ -46,7 +47,7 @@ pub async fn publish_dependency(
             err
         );
 
-        StatusCode::INTERNAL_SERVER_ERROR
+        DependencyManagerError::GenericDatabaseError
     })?;
 
     let mut decoder = ZlibDecoder::new(Cursor::new(serialized_bytes.to_vec()));
@@ -58,7 +59,7 @@ pub async fn publish_dependency(
         .map_err(|err| {
             eprintln!("An error occured reading decompressed bytes: {}", err);
 
-            StatusCode::INTERNAL_SERVER_ERROR
+            DependencyManagerError::DecompressionError
         })?;
 
     match from_slice::<DependencyUpload>(&decompressed_bytes) {
@@ -75,7 +76,7 @@ pub async fn publish_dependency(
                         {
                             let mut fs_file_path = state.deps_path.clone();
                             fs_file_path.push(dependency_upload.dependency_name.clone());
-                            fs_file_path.push(file_path);
+                            fs_file_path.push(file_path.clone());
 
                             let mut file_folder_path = fs_file_path.clone();
                             file_folder_path.pop();
@@ -84,16 +85,17 @@ pub async fn publish_dependency(
                             let _ = fs::create_dir_all(file_folder_path);
 
                             if let Ok(mut file_handle) = fs::File::create(fs_file_path) {
-                                io::copy(&mut archived_file, &mut file_handle)
-                                    .map_err(|_| StatusCode::BAD_REQUEST)?;
+                                io::copy(&mut archived_file, &mut file_handle).map_err(|_| {
+                                    DependencyManagerError::FailedToWriteToFile(file_path)
+                                })?;
                             }
                             else {
-                                return Err(StatusCode::BAD_REQUEST);
+                                return Err(DependencyManagerError::FailedToCreateFile(file_path));
                             }
                         }
                         else {
                             // Invalid Zip archive path
-                            return Err(StatusCode::BAD_REQUEST);
+                            return Err(DependencyManagerError::InvalidZipArchiveFilePath);
                         }
 
                         // Increment idx
@@ -124,12 +126,12 @@ pub async fn publish_dependency(
                         .get_result::<DependencyInformation>(&mut pg_connection)
                         .map_err(|err| {
                             eprintln!(
-                                "An storing a dependency `{}` to db: {}",
+                                "Failed to store dependency `{}` to db: {}",
                                 dependency_upload.dependency_name,
                                 err.to_string()
                             );
 
-                            StatusCode::INTERNAL_SERVER_ERROR
+                            DependencyManagerError::DependencyAlreadyExists
                         })?;
 
                     return Ok(Json(DependencyUploadReply {
@@ -138,7 +140,7 @@ pub async fn publish_dependency(
                 },
                 Err(err) => {
                     eprintln!("Error while extracting zip archive: {}", err.to_string());
-                    return Err(StatusCode::BAD_REQUEST);
+                    return Err(DependencyManagerError::BadRequest);
                 },
             }
         },
@@ -147,7 +149,7 @@ pub async fn publish_dependency(
                 "Error while deserializing request body: {}",
                 error.to_string()
             );
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(DependencyManagerError::BadRequest);
         },
     }
 }
