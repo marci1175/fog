@@ -12,8 +12,7 @@ use tokio::io::BufReader;
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    dependency::construct_dependency_path, dependency_manager::write_folder_items,
-    error::dependency_manager::DependencyManagerError,
+    dependency_manager::write_folder_items, error::dependency_manager::DependencyManagerError,
 };
 
 pub fn compress_bytes(bytes: &[u8]) -> anyhow::Result<Vec<u8>>

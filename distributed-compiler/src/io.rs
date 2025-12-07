@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fs::{self, create_dir_all},
+    fs::create_dir_all,
     io::Cursor,
     net::{Ipv6Addr, SocketAddr},
     path::PathBuf,
@@ -10,21 +10,25 @@ use std::{
 
 use common::{
     anyhow,
-    compression::{decompress_bytes, write_zip_to_fs, write_zip_to_fs_async, zip_from_bytes},
+    compression::{decompress_bytes, write_zip_to_fs_async, zip_from_bytes},
     crossbeam::channel::{Receiver, bounded},
     dependency::construct_dependency_path,
     dependency_manager::Dependency,
     distributed_compiler::DependencyRequest,
     reqwest::Client,
     rmp_serde,
-    tokio::{self, io::AsyncReadExt, select},
+    tokio::{
+        self,
+        io::{AsyncReadExt, AsyncWriteExt},
+        sync::mpsc::{Sender, channel},
+    },
     ty::OrdSet,
 };
 use dashmap::DashMap;
 
 use crate::{
     net,
-    worker::{CompileJob, FinishedJobQueue, JobHandler, JobQueue, ThreadIdentification},
+    worker::{CompileJob, FinishedJob, JobHandler, JobQueue, ThreadIdentification},
 };
 
 #[derive(Debug, Clone)]
@@ -48,10 +52,7 @@ impl Default for ServerState
             dependency_manager_url: "http://[::1]:3004".into(),
             worker_thread_notifier: HashMap::new(),
             dependency_folder: Arc::new(PathBuf::new()),
-            job_handler: JobHandler::new(
-                Arc::new(JobQueue::new()),
-                Arc::new(FinishedJobQueue::new()),
-            ),
+            job_handler: JobHandler::new(Arc::new(JobQueue::new())),
             connected_clients: Arc::new(DashMap::new()),
             thread_error_out: None,
         }
@@ -85,10 +86,16 @@ impl ServerState
 
         let available_cores_left = available_cores.checked_sub(2).unwrap_or(1);
 
-        let workers =
-            Arc::new(self.create_workers(available_cores_left, thread_out_sender.clone())?);
+        let outbound_handlers: Arc<DashMap<SocketAddr, Sender<FinishedJob>>> =
+            Arc::new(DashMap::new());
 
-        let (current_jobs, finished_jobs) = self.job_handler.clone().split();
+        let workers = Arc::new(self.create_workers(
+            available_cores_left,
+            thread_out_sender.clone(),
+            outbound_handlers.clone(),
+        )?);
+
+        let current_jobs = self.job_handler.clone();
 
         let port = self.port;
 
@@ -102,10 +109,10 @@ impl ServerState
 
         let ui_sender_out_clone = ui_sender_out.clone();
 
-        // Inbound
         tokio::spawn(async move {
             let dep_path = dep_path.clone();
             let http_client = http_client.clone();
+            let outbound_handlers = outbound_handlers.clone();
 
             // Bind listener to local on specified port
             let listener =
@@ -127,11 +134,60 @@ impl ServerState
 
                 match listener.accept().await {
                     Ok((stream, addr)) => {
+                        let outbound_handlers = outbound_handlers.clone();
+
                         connected_clients_handle.insert(addr, "Some client information".into());
 
-                        let client_addr = stream.peer_addr().unwrap();
+                        let client_addr = addr.clone();
 
-                        let (client_recv, client_sender) = tokio::io::split(stream);
+                        let (client_recv, mut client_sender) = tokio::io::split(stream);
+
+                        // Create client sender threads
+                        let (sender, mut recv) = channel::<FinishedJob>(255);
+
+                        // Store thread handler channel
+                        outbound_handlers.insert(addr, sender);
+
+                        let ui_sender = ui_sender_out_clone.clone();
+
+                        // We need to spawn the client sender before the client handler so as to ensure that the sender is already working by the time the handler processes the request
+                        // Spawn client sender
+                        tokio::spawn(async move {
+                            loop {
+                                // Wait for a job to finish with the client
+                                match recv.recv().await {
+                                    Some(finished_job) => {
+                                        // Compiled zip len
+                                        let compiled_src =
+                                            finished_job.compressed_artifacts_zip.len();
+
+                                        // Send length of the zip
+                                        client_sender
+                                            .write_all(&(compiled_src as u32).to_be_bytes())
+                                            .await
+                                            .unwrap();
+
+                                        // Send the actual zip
+                                        client_sender
+                                            .write_all(&finished_job.compressed_artifacts_zip)
+                                            .await
+                                            .unwrap();
+                                    },
+                                    None => {
+                                        ui_sender
+                                            .send((
+                                                format!("Clinet handler for remote `{}` shutting down.", addr),
+                                                ThreadIdentification::new(io_thread_idx, crate::worker::ThreadType::IO),
+                                            ))
+                                            .unwrap();
+                                        
+                                        break;
+                                    },
+                                }
+                            }
+                        });
+
+                        io_thread_idx += 1;
 
                         // Spawn client handler
                         tokio::spawn(async move {
@@ -144,10 +200,8 @@ impl ServerState
                                 io_thread_idx,
                                 crate::worker::ThreadType::IO,
                             );
-
                             let mut client_handle = client_recv;
 
-                            // Handle client requests
                             loop {
                                 if let Ok(msg_len) = client_handle.read_u32().await {
                                     let mut msg_buf = vec![0; msg_len as usize];
@@ -211,7 +265,8 @@ impl ServerState
                                                         };
                                                     }
 
-                                                    current_jobs.push(CompileJob {
+                                                    current_jobs.in_progress.push(CompileJob {
+                                                        remote_address: addr.clone(),
                                                         target_triple: request.target_triple,
                                                         features: OrdSet::from_vec(
                                                             request.features,
@@ -255,15 +310,6 @@ impl ServerState
 
                                     break;
                                 }
-                            }
-                        });
-
-                        // Outbound client sender
-                        tokio::spawn(async move {
-                            let client_sender = client_sender;
-                            
-                            loop {
-
                             }
                         });
 

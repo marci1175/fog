@@ -1,52 +1,38 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use crate::io::ServerState;
 use common::{
     anyhow,
     compression::{compress_bytes, zip_folder},
-    crossbeam::{channel::Sender, deque},
-    dependency::DependencyInfo,
+    crossbeam::{channel::Sender, deque, queue::ArrayQueue},
     error::codegen::CodeGenError,
-    toml,
+    tokio, toml,
     ty::OrdSet,
 };
 use compiler::CompilerState;
+use dashmap::DashMap;
 
 pub type JobQueue = deque::Injector<CompileJob>;
-pub type FinishedJobQueue = deque::Injector<FinishedJob>;
 
 #[derive(Debug, Clone)]
 pub struct JobHandler
 {
     /// Compilation tasks which are in progress
     pub in_progress: Arc<JobQueue>,
-
-    /// Compilation tasks which have been finished
-    pub finished: Arc<FinishedJobQueue>,
 }
 
 impl JobHandler
 {
-    pub fn new(
-        in_progress: Arc<deque::Injector<CompileJob>>,
-        finished: Arc<deque::Injector<FinishedJob>>,
-    ) -> Self
+    pub fn new(in_progress: Arc<deque::Injector<CompileJob>>) -> Self
     {
-        Self {
-            in_progress,
-            finished,
-        }
-    }
-
-    pub fn split(self) -> (Arc<JobQueue>, Arc<FinishedJobQueue>)
-    {
-        (self.in_progress, self.finished)
+        Self { in_progress }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct CompileJob
 {
+    pub remote_address: SocketAddr,
     pub target_triple: String,
     pub features: OrdSet<String>,
     pub depdendency_path: PathBuf,
@@ -90,6 +76,7 @@ impl ServerState
         &mut self,
         available_cores: usize,
         ui_sender: Sender<(String, ThreadIdentification)>,
+        outbound_handlers: Arc<DashMap<SocketAddr, tokio::sync::mpsc::Sender<FinishedJob>>>,
     ) -> Result<HashMap<ThreadIdentification, std::thread::Thread>, anyhow::Error>
     {
         let mut worker_thread_notifier: HashMap<ThreadIdentification, std::thread::Thread> =
@@ -99,6 +86,7 @@ impl ServerState
         for thread_idx in 0..available_cores {
             // Create thread identificator
             let thread_id = ThreadIdentification::new(thread_idx, ThreadType::Worker);
+            let outbound_handlers = outbound_handlers.clone();
 
             // Clone Ui handle for frontend
             let ui_sender = ui_sender.clone();
@@ -124,10 +112,27 @@ impl ServerState
 
                                 let zip = zipped_artifacts.finish().unwrap().into_inner();
 
-                                job_queue.finished.push(FinishedJob {
-                                    job,
-                                    compressed_artifacts_zip: compress_bytes(&zip).unwrap(),
-                                });
+                                match outbound_handlers.get(&job.remote_address) {
+                                    Some(handler) => {
+                                        let channel = handler.value();
+
+                                        channel
+                                            .try_send(FinishedJob {
+                                                job,
+                                                compressed_artifacts_zip: compress_bytes(&zip)
+                                                    .unwrap(),
+                                            })
+                                            .unwrap();
+                                    },
+                                    None => {
+                                        ui_sender
+                                            .send((
+                                                format!("Outbound handler does not exist for remote `{}`", job.remote_address),
+                                                thread_id,
+                                            ))
+                                            .unwrap();
+                                    },
+                                }
                             },
                             Err(error) => {
                                 ui_sender

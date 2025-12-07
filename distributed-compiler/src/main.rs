@@ -150,7 +150,6 @@ impl App
                 if let UiState::CurrentConnection(ss) = &self.ui_state {
                     self.ui_state = UiState::LogViewer(ss.clone());
                 }
-                return;
             },
 
             KeyCode::Up => self.scroll = self.scroll.saturating_sub(1),
