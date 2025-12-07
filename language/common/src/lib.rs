@@ -80,6 +80,7 @@ pub use crossbeam;
 pub use flate2;
 pub use rmp_serde;
 pub use serde_json;
+pub use futures;
 
 #[cfg(feature = "dependency_manager")]
 pub use base64;

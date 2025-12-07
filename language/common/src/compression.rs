@@ -51,7 +51,7 @@ pub fn zip_folder(
     Ok(zip)
 }
 
-pub fn zip_from_bytes<T: Read + Seek>(inner: T) -> anyhow::Result<ZipArchive<T>>
+pub fn unzip_from_bytes<T: Read + Seek>(inner: T) -> anyhow::Result<ZipArchive<T>>
 {
     Ok(ZipArchive::new(inner)?)
 }

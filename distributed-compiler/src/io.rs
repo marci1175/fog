@@ -10,7 +10,7 @@ use std::{
 
 use common::{
     anyhow,
-    compression::{decompress_bytes, write_zip_to_fs_async, zip_from_bytes},
+    compression::{decompress_bytes, write_zip_to_fs_async, unzip_from_bytes},
     crossbeam::channel::{Receiver, bounded},
     dependency::construct_dependency_path,
     dependency_manager::Dependency,
@@ -120,7 +120,7 @@ impl ServerState
                     .await
                     .unwrap();
 
-            let mut io_thread_idx = 2;
+            let mut io_thread_idx = 0;
 
             loop {
                 let workers = workers.clone();
@@ -253,7 +253,7 @@ impl ServerState
                                                         // Write dependency to folder
                                                         if let Err(err) = write_zip_to_fs_async(
                                                             dep_path.clone(),
-                                                            zip_from_bytes(Cursor::new(
+                                                            unzip_from_bytes(Cursor::new(
                                                                 dependency.source,
                                                             ))
                                                             .unwrap(),

@@ -1,27 +1,22 @@
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::HashMap, io::Cursor, net::SocketAddr};
 
 use common::{
-    anyhow::Result,
-    compiler::HostInformation,
-    dependency::DependencyInfo,
-    distributed_compiler::{DependencyRequest, DistributedCompilerWorker},
-    error::dependency::DependencyError,
-    rmp_serde,
-    tokio::{
+    anyhow::Result, compiler::HostInformation, compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs}, dependency::DependencyInfo, distributed_compiler::{DependencyRequest, DistributedCompilerWorker}, error::dependency::DependencyError, rmp_serde, tokio::{
         self,
         io::{AsyncReadExt, AsyncWriteExt},
         net::{TcpSocket, TcpStream},
         select, spawn,
-        sync::mpsc::Sender,
-    },
+        sync::mpsc::Sender, task::JoinHandle,
+    }
 };
 
 pub fn create_remote_list(
     remotes: Vec<DistributedCompilerWorker>,
     host_info: HostInformation,
-) -> HashMap<String, (String, Sender<(String, DependencyInfo)>)>
+) -> (HashMap<String, (String, Sender<(String, DependencyInfo)>)>, Vec<JoinHandle<()>>)
 {
     let mut remote_list = HashMap::new();
+    let mut threads = Vec::new();
 
     for remote in remotes {
         let host_info = host_info.clone();
@@ -37,7 +32,7 @@ pub fn create_remote_list(
         remote_list.insert(remote.name, (remote.address.clone(), sender));
 
         // Create a remote handler thread
-        spawn(async move {
+        let thread_handle = spawn(async move {
             let mut tcp_handle = TcpStream::connect(remote.address).await.unwrap();
             let host_info = host_info.clone();
 
@@ -53,16 +48,30 @@ pub fn create_remote_list(
                         // Send packet
                         tcp_handle.write_all(&packet).await.unwrap();
                     }
-                    // Receive and handle the pre-compiled files
+                    
+                    
+                    // Receive and handle the pre-compiled files and break the loop
                     Ok(len) = tcp_handle.read_u32() => {
+                        let mut message_buffer = vec![0; len as usize];
 
+                        dbg!(&len);
+
+                        tcp_handle.read_exact(&mut message_buffer).await.unwrap();
+
+                        let zip = unzip_from_bytes(Cursor::new(decompress_bytes(&message_buffer).unwrap())).unwrap();
+                        
+                        write_zip_to_fs("downloaded_files/".into(), zip).unwrap();
+
+                        break;
                     }
                 }
             }
         });
+
+        threads.push(thread_handle);
     }
 
-    remote_list
+    (remote_list, threads)
 }
 
 pub fn dependency_requester(

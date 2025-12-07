@@ -8,16 +8,7 @@ use std::{
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, ensure},
-    compiler::{HostInformation, ProjectConfig},
-    dependency::DependencyInfo,
-    distributed_compiler::DistributedCompilerWorker,
-    error::dependency::DependencyError,
-    indexmap::{IndexMap, IndexSet},
-    inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple},
-    parser::FunctionSignature,
-    toml,
-    ty::OrdSet,
+    anyhow::{self, ensure}, compiler::{HostInformation, ProjectConfig}, dependency::DependencyInfo, distributed_compiler::DistributedCompilerWorker, error::dependency::DependencyError, futures, indexmap::{IndexMap, IndexSet}, inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple}, parser::FunctionSignature, tokio, toml, ty::OrdSet
 };
 
 use crate::{
@@ -76,10 +67,15 @@ pub fn create_dependency_functions_list<'ctx>(
         );
 
         // Create a map of the remotes' thread handlers
-        let remote_handlers = create_remote_list(remotes, host_information);
-
+        let (remote_handlers, thread_handles) = create_remote_list(remotes, host_information);
+        
         // Request the dependencies from those remotes
         dependency_requester(&mut dependency_list, &remote_handlers)?;
+        
+        // Wait for the threads to finish
+        tokio::runtime::Handle::current().block_on(async move {
+            futures::future::join_all(thread_handles).await;
+        });
     }
     else {
         return Err(DependencyError::MissingDependencies(dependency_list).into());

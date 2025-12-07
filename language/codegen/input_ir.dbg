@@ -1,160 +1,311 @@
 [COMPILER IR]
 [
     ParsedTokenInstance {
-        inner: NewVariable(
-            "almak",
-            Array(
-                (
-                    Identifier(
-                        "Alma",
-                    ),
-                    2,
-                ),
-            ),
-            ParsedTokenInstance {
-                inner: ArrayInitialization(
-                    [
-                        ParsedTokenInstance {
-                            inner: InitializeStruct(
-                                OrdMap(
-                                    {
-                                        "id": I32,
-                                        "nev": String,
-                                    },
-                                ),
-                                OrdMap(
-                                    {
-                                        "id": ParsedTokenInstance {
-                                            inner: Literal(
-                                                I32(
-                                                    2,
-                                                ),
-                                            ),
-                                            debug_information: DebugInformation {
-                                                char_range: [
-                                                    29..35,
-                                                ],
-                                                lines: 8..9,
-                                            },
-                                        },
-                                        "nev": ParsedTokenInstance {
-                                            inner: Literal(
-                                                String(
-                                                    "Alma1",
-                                                ),
-                                            ),
-                                            debug_information: DebugInformation {
-                                                char_range: [
-                                                    40..42,
-                                                ],
-                                                lines: 8..9,
-                                            },
-                                        },
-                                    },
-                                ),
-                            ),
-                            debug_information: DebugInformation {
-                                char_range: [
-                                    29..47,
-                                ],
-                                lines: 8..9,
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "printf",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "input": String,
                             },
-                        },
-                        ParsedTokenInstance {
-                            inner: InitializeStruct(
-                                OrdMap(
-                                    {
-                                        "id": I32,
-                                        "nev": String,
-                                    },
-                                ),
-                                OrdMap(
-                                    {
-                                        "id": ParsedTokenInstance {
-                                            inner: Literal(
-                                                I32(
-                                                    1,
-                                                ),
-                                            ),
-                                            debug_information: DebugInformation {
-                                                char_range: [
-                                                    29..35,
-                                                ],
-                                                lines: 8..9,
-                                            },
-                                        },
-                                        "nev": ParsedTokenInstance {
-                                            inner: Literal(
-                                                String(
-                                                    "Alma2",
-                                                ),
-                                            ),
-                                            debug_information: DebugInformation {
-                                                char_range: [
-                                                    40..42,
-                                                ],
-                                                lines: 8..9,
-                                            },
-                                        },
-                                    },
-                                ),
-                            ),
-                            debug_information: DebugInformation {
-                                char_range: [
-                                    29..47,
-                                ],
-                                lines: 8..9,
-                            },
-                        },
-                    ],
-                    Struct(
-                        (
-                            "Alma",
-                            OrdMap(
-                                {
-                                    "id": I32,
-                                    "nev": String,
-                                },
-                            ),
                         ),
-                    ),
-                ),
-                debug_information: DebugInformation {
-                    char_range: [
-                        27..87,
+                        ellipsis_present: true,
+                    },
+                    return_type: I32,
+                    module_path: [
+                        "dep1",
+                        "printf",
                     ],
-                    lines: 8..9,
+                    visibility: Private,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
                 },
-            },
+                "printf",
+            ),
+            OrdMap(
+                {
+                    Identifier(
+                        "input",
+                    ): (
+                        ParsedTokenInstance {
+                            inner: Literal(
+                                String(
+                                    "Alma",
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_range: [
+                                    4..11,
+                                ],
+                                lines: 13..14,
+                            },
+                        },
+                        String,
+                    ),
+                },
+            ),
         ),
         debug_information: DebugInformation {
             char_range: [
-                9..88,
+                4..19,
             ],
-            lines: 8..9,
+            lines: 13..14,
         },
     },
+][COMPILER IR]
+[
     ParsedTokenInstance {
         inner: ReturnValue(
             ParsedTokenInstance {
-                inner: Literal(
-                    I32(
-                        0,
+                inner: FunctionCall(
+                    (
+                        FunctionSignature {
+                            name: "printf",
+                            args: FunctionArguments {
+                                arguments_list: OrdMap(
+                                    {
+                                        "input": String,
+                                    },
+                                ),
+                                ellipsis_present: true,
+                            },
+                            return_type: I32,
+                            module_path: [
+                                "dep1",
+                                "printf",
+                            ],
+                            visibility: Private,
+                            compiler_hints: OrdSet(
+                                {},
+                            ),
+                            enabling_features: OrdSet(
+                                {},
+                            ),
+                        },
+                        "printf",
+                    ),
+                    OrdMap(
+                        {
+                            Identifier(
+                                "input",
+                            ): (
+                                ParsedTokenInstance {
+                                    inner: Literal(
+                                        String(
+                                            "%i",
+                                        ),
+                                    ),
+                                    debug_information: DebugInformation {
+                                        char_range: [
+                                            11..18,
+                                        ],
+                                        lines: 22..23,
+                                    },
+                                },
+                                String,
+                            ),
+                            Index(
+                                1,
+                            ): (
+                                ParsedTokenInstance {
+                                    inner: VariableReference(
+                                        BasicReference(
+                                            "x",
+                                        ),
+                                    ),
+                                    debug_information: DebugInformation {
+                                        char_range: [
+                                            25..27,
+                                        ],
+                                        lines: 22..23,
+                                    },
+                                },
+                                I32,
+                            ),
+                        },
                     ),
                 ),
                 debug_information: DebugInformation {
                     char_range: [
-                        4..12,
+                        0..27,
+                        0..0,
                     ],
-                    lines: 14..15,
+                    lines: 22..24,
                 },
             },
         ),
         debug_information: DebugInformation {
             char_range: [
-                4..13,
+                0..27,
+                0..0,
+                0..0,
+                0..0,
             ],
-            lines: 14..15,
+            lines: 22..26,
+        },
+    },
+][COMPILER IR]
+[
+    ParsedTokenInstance {
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "hi_from_cpp",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {},
+                        ),
+                        ellipsis_present: false,
+                    },
+                    return_type: Void,
+                    module_path: [
+                        "dep1",
+                        "hi_from_cpp",
+                    ],
+                    visibility: Private,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
+                },
+                "hi_from_cpp",
+            ),
+            OrdMap(
+                {},
+            ),
+        ),
+        debug_information: DebugInformation {
+            char_range: [
+                4..18,
+            ],
+            lines: 26..27,
+        },
+    },
+][COMPILER IR]
+[
+    ParsedTokenInstance {
+        inner: ReturnValue(
+            ParsedTokenInstance {
+                inner: FunctionCall(
+                    (
+                        FunctionSignature {
+                            name: "alma_csinalo",
+                            args: FunctionArguments {
+                                arguments_list: OrdMap(
+                                    {},
+                                ),
+                                ellipsis_present: false,
+                            },
+                            return_type: Struct(
+                                (
+                                    "Alma",
+                                    OrdMap(
+                                        {
+                                            "szam": I32,
+                                            "masik_szam": I32,
+                                        },
+                                    ),
+                                ),
+                            ),
+                            module_path: [
+                                "dep1",
+                                "alma_csinalo",
+                            ],
+                            visibility: Private,
+                            compiler_hints: OrdSet(
+                                {},
+                            ),
+                            enabling_features: OrdSet(
+                                {},
+                            ),
+                        },
+                        "alma_csinalo",
+                    ),
+                    OrdMap(
+                        {},
+                    ),
+                ),
+                debug_information: DebugInformation {
+                    char_range: [
+                        4..25,
+                    ],
+                    lines: 30..31,
+                },
+            },
+        ),
+        debug_information: DebugInformation {
+            char_range: [
+                4..26,
+            ],
+            lines: 30..31,
+        },
+    },
+][COMPILER IR]
+[
+    ParsedTokenInstance {
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "open_window",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "win_name": String,
+                            },
+                        ),
+                        ellipsis_present: false,
+                    },
+                    return_type: Void,
+                    module_path: [
+                        "dep1",
+                        "open_window",
+                    ],
+                    visibility: Private,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
+                },
+                "open_window",
+            ),
+            OrdMap(
+                {
+                    Identifier(
+                        "win_name",
+                    ): (
+                        ParsedTokenInstance {
+                            inner: VariableReference(
+                                BasicReference(
+                                    "win_name",
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_range: [
+                                    4..16,
+                                ],
+                                lines: 34..35,
+                            },
+                        },
+                        String,
+                    ),
+                },
+            ),
+        ),
+        debug_information: DebugInformation {
+            char_range: [
+                4..26,
+            ],
+            lines: 34..35,
         },
     },
 ]

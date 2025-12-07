@@ -112,22 +112,25 @@ async fn main() -> common::anyhow::Result<()>
             let build_path = PathBuf::from(format!("{build_artifact_name}.exe",));
 
             let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest",));
-
+            let build_path_clone = build_path.clone();
             let compiler_startup_instant = std::time::Instant::now();
+            let root_path_clone = root_path.clone();
 
-            let build_manifest = compiler_state.compilation_process(
-                &source_file,
-                target_ir_path.clone(),
-                target_o_path.clone(),
-                build_path.clone(),
-                is_release,
-                compiler_config.is_library,
-                &format!("{}\\src", root_path.display()),
-                &llvm_flags,
-                target_triple,
-                cpu_name,
-                cpu_features,
-            )?;
+            let build_manifest = tokio::task::spawn_blocking(move || {
+                compiler_state.compilation_process(
+                    &source_file,
+                    target_ir_path.clone(),
+                    target_o_path.clone(),
+                    build_path_clone.clone(),
+                    is_release,
+                    compiler_config.is_library,
+                    &format!("{}\\src", root_path.display()),
+                    &llvm_flags,
+                    target_triple,
+                    cpu_name,
+                    cpu_features,
+                )
+            }).await??;
 
             // Write build manifest to disc
             fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
@@ -160,7 +163,7 @@ async fn main() -> common::anyhow::Result<()>
                     /* Pass in the arguments inherited (TODO) */ args.join(" ")
                 );
 
-                let exit_status = build_manifest.run_build_output(root_path.clone(), args)?;
+                let exit_status = build_manifest.run_build_output(root_path_clone, args)?;
 
                 if !exit_status.success() {
                     if let Some(exit_code) = exit_status.code() {
