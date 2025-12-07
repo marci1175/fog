@@ -90,7 +90,7 @@ impl ServerState
 
                 match listener.accept().await {
                     Ok((stream, addr)) => {
-                        connected_clients_handle.insert(addr, "Client information".into());
+                        connected_clients_handle.insert(addr, "Some client information".into());
 
                         // Spawn client handler
                         tokio::spawn(async move {
@@ -130,6 +130,8 @@ impl ServerState
                                             thread_id,
                                         ))
                                         .unwrap();
+
+                                    break;
                                 }
                             }
                         });

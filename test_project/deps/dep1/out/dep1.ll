@@ -10,9 +10,9 @@ target triple = "x86_64-pc-windows-msvc"
 
 declare void @open_window(ptr)
 
-declare i32 @printf(ptr, ...)
-
 declare { i32, i32 } @alma_csinalo()
+
+declare i32 @printf(ptr, ...)
 
 declare void @hi_from_cpp()
 

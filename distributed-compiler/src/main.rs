@@ -369,8 +369,8 @@ fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &Se
         let info = entry.value();
 
         rows.push(widgets::Row::new(vec![
-            format!("Client {}", addr),
-            format!("{}", info.len()),
+            addr.to_string(),
+            format!("{}", info),
         ]));
     }
 
@@ -392,7 +392,7 @@ fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &Se
         [Constraint::Percentage(50), Constraint::Percentage(50)],
     )
     .header(
-        widgets::Row::new(vec!["Client", "Jobs"])
+        widgets::Row::new(vec!["Client", "Information"])
             .style(Style::default().add_modifier(ratatui::style::Modifier::BOLD)),
     )
     .block(widgets::Block::new().borders(Borders::all()))
