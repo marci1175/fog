@@ -6,7 +6,10 @@ use std::{
 };
 
 use common::{
-    anyhow, crossbeam::channel::bounded, distributed_compiler::DependencyRequest, tokio::{self, io::AsyncReadExt, select}
+    anyhow,
+    crossbeam::channel::{Receiver, bounded},
+    distributed_compiler::DependencyRequest,
+    tokio::{self, io::AsyncReadExt, select},
 };
 use dashmap::DashMap;
 
@@ -20,6 +23,7 @@ pub struct ServerState
     pub worker_thread_notifier: HashMap<ThreadIdentification, Thread>,
     pub job_handler: Arc<JobHandler>,
     pub connected_clients: Arc<DashMap<SocketAddr, String>>,
+    pub thread_error_out: Option<Receiver<(String, ThreadIdentification)>>,
 }
 
 impl Default for ServerState
@@ -32,6 +36,7 @@ impl Default for ServerState
             worker_thread_notifier: HashMap::new(),
             job_handler: Arc::new(JobHandler::new(JobQueue::new(), FinishedJobQueue::new())),
             connected_clients: Arc::new(DashMap::new()),
+            thread_error_out: None,
         }
     }
 }
@@ -50,31 +55,36 @@ impl ServerState
     /// Initialize threads for the server
     pub fn initialize_server(&mut self) -> anyhow::Result<()>
     {
-        let (ui_sender, ui_recv) = bounded::<(String, ThreadIdentification)>(255);
+        let (thread_out_sender, thread_out_recv) = bounded::<(String, ThreadIdentification)>(255);
+
+        self.thread_error_out = Some(thread_out_recv);
 
         let available_cores = std::thread::available_parallelism()?.get();
 
         let available_cores_left = available_cores.checked_sub(2).unwrap_or(1);
 
-        self.create_workers(available_cores_left, ui_sender.clone())?;
+        self.create_workers(available_cores_left, thread_out_sender.clone())?;
 
         let port = self.port;
 
-        let ui_sender_in = ui_sender.clone();
-        let ui_sender_out = ui_sender.clone();
+        let ui_sender_in = thread_out_sender.clone();
+        let ui_sender_out = thread_out_sender.clone();
 
         let connected_clients_handle = self.connected_clients.clone();
 
         let ui_sender_out_clone = ui_sender_out.clone();
+
         // Inbound
         tokio::spawn(async move {
-            loop {
-                // Bind listener to local on specified port
-                let listener =
-                    tokio::net::TcpListener::bind((Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), port))
-                        .await
-                        .unwrap();
+            // Bind listener to local on specified port
+            let listener =
+                tokio::net::TcpListener::bind((Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), port))
+                    .await
+                    .unwrap();
 
+            let mut io_thread_idx = 2;
+
+            loop {
                 // Clone sender channel so that we can send messages to the frontend
                 let ui_sender_out_clone = ui_sender_out_clone.clone();
 
@@ -84,33 +94,51 @@ impl ServerState
 
                         // Spawn client handler
                         tokio::spawn(async move {
+                            let thread_id = ThreadIdentification::new(io_thread_idx, crate::worker::ThreadType::IO);
                             let mut client_handle = stream;
 
                             // Handle client requests
                             loop {
-                                select! {
-                                    Ok(msg_len) = client_handle.read_u32() => {
-                                        let mut msg_buf = vec![0; msg_len as usize];
+                                if let Ok(msg_len) = client_handle.read_u32().await {
+                                    let mut msg_buf = vec![0; msg_len as usize];
 
-                                        match client_handle.read_exact(&mut msg_buf).await  {
-                                            // Handle the message sent by the user
-                                            Ok(_) => {
-                                                let request = common::rmp_serde::from_slice::<DependencyRequest>(&msg_buf);
-
-                                                
-                                            },
-                                            Err(err) => {
-                                                ui_sender_out_clone.send((err.to_string(), ThreadIdentification::new(0))).unwrap();
-                                            },
-                                        }
+                                    match client_handle.read_exact(&mut msg_buf).await {
+                                        // Handle the message sent by the user
+                                        Ok(_) => {
+                                            let request =
+                                                common::rmp_serde::from_slice::<DependencyRequest>(
+                                                    &msg_buf,
+                                                );
+                                        },
+                                        Err(err) => {
+                                            ui_sender_out_clone
+                                                .send((
+                                                    err.to_string(),
+                                                    thread_id,
+                                                ))
+                                                .unwrap();
+                                        },
                                     }
+                                }
+                                else {
+                                    ui_sender_out_clone
+                                        .send((
+                                            format!(
+                                                "Failed to receive message from `{}`, disconnecting...",
+                                                client_handle.peer_addr().unwrap()
+                                            ),
+                                            thread_id,
+                                        ))
+                                        .unwrap();
                                 }
                             }
                         });
+
+                        io_thread_idx += 1;
                     },
                     Err(error) => {
                         ui_sender_in
-                            .send((error.to_string(), ThreadIdentification::new(0)))
+                            .send((error.to_string(), ThreadIdentification::new(0, crate::worker::ThreadType::IO)))
                             .unwrap();
                     },
                 }

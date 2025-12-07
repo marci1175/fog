@@ -76,10 +76,10 @@ pub use chrono;
 pub use zip;
 
 pub use axum;
+pub use crossbeam;
 pub use flate2;
 pub use rmp_serde;
 pub use serde_json;
-pub use crossbeam;
 
 #[cfg(feature = "dependency_manager")]
 pub use base64;

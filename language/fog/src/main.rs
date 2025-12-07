@@ -10,7 +10,7 @@ use common::{
     error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError},
     linker::BuildManifest,
     reqwest::{StatusCode, blocking::Client},
-    rmp_serde, serde_json, toml,
+    rmp_serde, serde_json, tokio, toml,
     ty::OrdSet,
 };
 use compiler::CompilerState;
@@ -25,7 +25,8 @@ pub struct CompilerArgs
     command: CliCommand,
 }
 
-fn main() -> common::anyhow::Result<()>
+#[tokio::main]
+async fn main() -> common::anyhow::Result<()>
 {
     let args = std::env::args();
 

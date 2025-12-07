@@ -4,10 +4,11 @@ version = "0.0.1"
 build_path = "out"
 additional_linking_material = []
 
-remote_compiler_worker = [
-    { name = "Remote", address = "[::1]:3006" },
-    { name = "Remote2", address = "[::1]:3007" }
+remote_compiler_workers = [
+    { name = "Remote", address = "[::1]:3004" },
 ]
 
 [dependencies]
-# dep1 = { version = "0.0.1", features = ["alma"] }
+dep1 = { version = "0.0.1", features = ["alma"] }
+dep2 = { version = "0.0.1", features = ["korte"], remote = "Remote" }
+dep3 = { version = "0.0.1", features = ["banan"], remote = "Remote" }

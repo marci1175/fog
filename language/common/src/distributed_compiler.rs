@@ -11,7 +11,8 @@ pub struct DistributedCompilerWorker
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DependencyRequest {
+pub struct DependencyRequest
+{
     pub name: String,
     pub version: String,
     pub features: Vec<String>,

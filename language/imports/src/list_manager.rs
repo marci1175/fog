@@ -7,10 +7,22 @@ use std::{
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, ensure}, compiler::ProjectConfig, dependency::DependencyInfo, distributed_compiler::DistributedCompilerWorker, error::dependency::DependencyError, indexmap::{IndexMap, IndexSet}, inkwell::{builder::Builder, context::Context, module::Module}, parser::FunctionSignature, toml, ty::OrdSet
+    anyhow::{self, ensure},
+    compiler::ProjectConfig,
+    dependency::DependencyInfo,
+    distributed_compiler::DistributedCompilerWorker,
+    error::dependency::DependencyError,
+    indexmap::{IndexMap, IndexSet},
+    inkwell::{builder::Builder, context::Context, module::Module},
+    parser::FunctionSignature,
+    toml,
+    ty::OrdSet,
 };
 
-use crate::{analyzer::analyze_dependency, requester::{create_remote_list, dependency_requester}};
+use crate::{
+    analyzer::analyze_dependency,
+    requester::{create_remote_list, dependency_requester},
+};
 
 /// Creates a dependency list from the path provided, by reading in all the folder names and libraries.
 pub fn create_dependency_functions_list<'ctx>(

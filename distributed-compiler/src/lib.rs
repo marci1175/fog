@@ -10,6 +10,7 @@ pub mod worker;
 pub enum UiState
 {
     Main,
+    LogViewer(ServerState),
     ConnectionEstablisher,
     CurrentConnection(ServerState),
 }

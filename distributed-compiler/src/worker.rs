@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
-use common::{anyhow, dependency::DependencyInfo, crossbeam::{channel::Sender, deque}};
 use crate::io::ServerState;
+use common::{
+    anyhow,
+    crossbeam::{channel::Sender, deque},
+    dependency::DependencyInfo,
+};
 
 pub type JobQueue = deque::Injector<CompileJob>;
 pub type FinishedJobQueue = deque::Injector<FinishedJobId>;
@@ -46,14 +50,22 @@ pub struct FinishedJobId
 pub struct ThreadIdentification
 {
     pub id: usize,
+    pub thread_type: ThreadType,
 }
 
 impl ThreadIdentification
 {
-    pub fn new(id: usize) -> Self
+    pub fn new(id: usize, thread_type: ThreadType) -> Self
     {
-        Self { id }
+        Self { id, thread_type }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ThreadType
+{
+    IO,
+    Worker,
 }
 
 impl ServerState
@@ -65,9 +77,9 @@ impl ServerState
     ) -> Result<(), anyhow::Error>
     {
         // Increment the thread idx for the identification because the first two a reseverved for io
-        for thread_idx in 2..available_cores + 2 {
+        for thread_idx in 0..available_cores {
             // Create thread identificator
-            let thread_id = ThreadIdentification::new(thread_idx);
+            let thread_id = ThreadIdentification::new(thread_idx, ThreadType::Worker);
 
             // Clone Ui handle for frontend
             let ui_sender = ui_sender.clone();
@@ -83,7 +95,17 @@ impl ServerState
                 loop {
                     // Fetch the latest job from the job queue, if we couldnt that means we were notified too early.
                     if let Some(job) = job_queue.in_progress.steal().success() {
-
+                        // Send message that we have received a job
+                        ui_sender
+                            .send((
+                                format!(
+                                    "Received job `{}`({}).",
+                                    job.dependency_name.clone(),
+                                    job.dependency_information.version.clone()
+                                ),
+                                thread_id,
+                            ))
+                            .unwrap();
                     }
                     else {
                         std::thread::park();

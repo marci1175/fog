@@ -6,15 +6,19 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use fog_distributed_compiler::{UiState, io::ServerState};
+use distributed_compiler::{UiState, io::ServerState, worker::ThreadIdentification};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Alignment, Constraint, Direction, Layout},
     prelude::CrosstermBackend,
     style::{Color, Style},
-    text::Text,
+    text::{Line, Span, Text},
     widgets::{self, Borders, List, ListItem, Paragraph},
 };
+
+// =======================================================================
+// APP STATE
+// =======================================================================
 
 #[derive(Debug, Clone)]
 struct App
@@ -23,9 +27,16 @@ struct App
     selected: usize,
     should_quit: bool,
 
+    // Client scrolling
     scroll: u16,
     max_scroll: u16,
 
+    // Dedicated log viewer
+    thread_logs: Vec<(String, ThreadIdentification)>,
+    log_scroll: u16,
+    log_max_scroll: u16,
+
+    // .env
     env_port: Option<u16>,
     dep_man_url: Option<String>,
 }
@@ -34,7 +45,6 @@ impl App
 {
     fn new() -> Self
     {
-        // Load PORT from .env at startup
         let env_port = std::env::var("PORT")
             .ok()
             .and_then(|v| v.parse::<u16>().ok());
@@ -48,6 +58,10 @@ impl App
 
             scroll: 0,
             max_scroll: 0,
+
+            thread_logs: Vec::new(),
+            log_scroll: 0,
+            log_max_scroll: 0,
 
             env_port,
             dep_man_url,
@@ -66,97 +80,142 @@ impl App
             return;
         }
 
-        match self.ui_state {
-            UiState::Main => {
-                let item_count = self.menu_items().len();
+        match &mut self.ui_state {
+            UiState::Main => self.key_main(key),
+            UiState::ConnectionEstablisher => self.key_connection_establisher(key),
+            UiState::CurrentConnection(_) => self.key_current_connection(key),
+            UiState::LogViewer(_) => self.key_log_viewer(key),
+        }
+    }
 
-                match key.code {
-                    KeyCode::Up => {
-                        if self.selected > 0 {
-                            self.selected -= 1;
-                        }
-                    },
-                    KeyCode::Down => {
-                        if self.selected + 1 < item_count {
-                            self.selected += 1;
-                        }
-                    },
-                    KeyCode::Enter => {
-                        match self.selected {
-                            0 => {
-                                self.ui_state = UiState::ConnectionEstablisher;
-                            },
-                            1 => {}, // help page later
-                            2 => {
-                                self.should_quit = true;
-                            },
-                            _ => {},
-                        }
-                    },
-                    KeyCode::Esc => {
-                        self.should_quit = true;
-                    },
+    // ----------------------------
+    // MAIN MENU HANDLER
+    // ----------------------------
+    fn key_main(&mut self, key: KeyEvent)
+    {
+        match key.code {
+            KeyCode::Up => {
+                if self.selected > 0 {
+                    self.selected -= 1;
+                }
+            },
+            KeyCode::Down => {
+                if self.selected + 1 < self.menu_items().len() {
+                    self.selected += 1;
+                }
+            },
+            KeyCode::Enter => {
+                match self.selected {
+                    0 => self.ui_state = UiState::ConnectionEstablisher,
+                    1 => {},
+                    2 => self.should_quit = true,
                     _ => {},
                 }
             },
+            KeyCode::Esc => self.should_quit = true,
+            _ => {},
+        }
+    }
 
-            UiState::ConnectionEstablisher => {
-                match key.code {
-                    KeyCode::Esc => {
-                        self.ui_state = UiState::Main;
-                    },
-                    KeyCode::Enter => {
-                        let port = self.env_port.unwrap_or(3004);
-                        let dependency_manager_url = self
-                            .dep_man_url
-                            .clone()
-                            .unwrap_or(String::from("http://[::1]:3004"));
+    // ----------------------------
+    // CONNECTION SETUP HANDLER
+    // ----------------------------
+    fn key_connection_establisher(&mut self, key: KeyEvent)
+    {
+        match key.code {
+            KeyCode::Esc => {
+                self.ui_state = UiState::Main;
+            },
+            KeyCode::Enter => {
+                let port = self.env_port.unwrap_or(3004);
+                let dependency_manager_url = self
+                    .dep_man_url
+                    .clone()
+                    .unwrap_or(String::from("http://[::1]:3004"));
 
-                        let mut server_state = ServerState::new(port, dependency_manager_url);
-                        server_state.initialize_server().unwrap();
-                        self.ui_state = UiState::CurrentConnection(server_state);
-                    },
-                    _ => {},
+                let mut server_state = ServerState::new(port, dependency_manager_url);
+                server_state.initialize_server().unwrap();
+                self.ui_state = UiState::CurrentConnection(server_state);
+            },
+            _ => {},
+        }
+    }
+
+    // ----------------------------
+    // CURRENT CONNECTION HANDLER
+    // ----------------------------
+    fn key_current_connection(&mut self, key: KeyEvent)
+    {
+        match key.code {
+            KeyCode::Char('l') | KeyCode::Char('L') => {
+                // switch UI to log viewer
+                if let UiState::CurrentConnection(ss) = &self.ui_state {
+                    self.ui_state = UiState::LogViewer(ss.clone());
+                }
+                return;
+            },
+
+            KeyCode::Up => self.scroll = self.scroll.saturating_sub(1),
+            KeyCode::Down => self.scroll = (self.scroll + 1).min(self.max_scroll),
+
+            KeyCode::PageUp => {
+                self.scroll = self.scroll.saturating_sub(10);
+            },
+            KeyCode::PageDown => {
+                self.scroll = (self.scroll + 10).min(self.max_scroll);
+            },
+
+            KeyCode::Esc => {},
+            _ => {},
+        }
+    }
+
+    // ----------------------------
+    // LOG VIEWER HANDLER
+    // ----------------------------
+    fn key_log_viewer(&mut self, key: KeyEvent)
+    {
+        match key.code {
+            KeyCode::Esc => {
+                // go back to current connection
+                if let UiState::LogViewer(ss) = &self.ui_state {
+                    self.ui_state = UiState::CurrentConnection(ss.clone());
                 }
             },
 
-            UiState::CurrentConnection(_) => {
-                match key.code {
-                    KeyCode::Up => {
-                        if self.scroll > 0 {
-                            self.scroll -= 1;
-                        }
-                    },
-                    KeyCode::Down => {
-                        if self.scroll < self.max_scroll {
-                            self.scroll += 1;
-                        }
-                    },
-                    KeyCode::PageUp => {
-                        self.scroll = self.scroll.saturating_sub(10);
-                    },
-                    KeyCode::PageDown => {
-                        self.scroll = (self.scroll + 10).min(self.max_scroll);
-                    },
-                    KeyCode::Esc => {},
-                    _ => {},
-                }
+            KeyCode::Up => {
+                self.log_scroll = self.log_scroll.saturating_sub(1);
             },
+            KeyCode::Down => {
+                self.log_scroll = (self.log_scroll + 1).min(self.log_max_scroll);
+            },
+
+            KeyCode::PageUp => {
+                self.log_scroll = self.log_scroll.saturating_sub(10);
+            },
+
+            KeyCode::PageDown => {
+                self.log_scroll = (self.log_scroll + 10).min(self.log_max_scroll);
+            },
+
+            _ => {},
         }
     }
 }
+
+// =======================================================================
+// MAIN
+// =======================================================================
 
 #[tokio::main]
 async fn main() -> Result<()>
 {
     color_eyre::install()?;
 
-    // Load .env before starting UI
     dotenvy::dotenv().ok();
 
     enable_raw_mode().context("failed to enable raw mode")?;
-    let mut terminal = DefaultTerminal::new(CrosstermBackend::new(stdout()))
-        .context("failed to create terminal")?;
+    let mut terminal = DefaultTerminal::new(CrosstermBackend::new(stdout()))?;
 
     let res = run(&mut terminal);
 
@@ -183,14 +242,23 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()>
     Ok(())
 }
 
+// =======================================================================
+// RENDER DISPATCH
+// =======================================================================
+
 fn render(frame: &mut Frame, app: &mut App)
 {
     match app.ui_state.clone() {
         UiState::Main => render_main(frame, app),
         UiState::ConnectionEstablisher => render_connection_establisher(frame, app),
         UiState::CurrentConnection(ss) => render_current_connection(frame, app, &ss),
+        UiState::LogViewer(ss) => render_log_viewer(frame, app, &ss),
     }
 }
+
+// =======================================================================
+// MAIN MENU
+// =======================================================================
 
 fn render_main(frame: &mut Frame, app: &App)
 {
@@ -211,7 +279,7 @@ fn render_main(frame: &mut Frame, app: &App)
         .split(inner);
 
     let cli_desc = Paragraph::new(
-        "FDCN offloads compilation work to remote workers. (Windows input delay may occur.)",
+        "FDCN offloads compilation work to remote workers. Press Enter to continue.",
     )
     .alignment(Alignment::Center);
 
@@ -232,12 +300,14 @@ fn render_main(frame: &mut Frame, app: &App)
         })
         .collect();
 
-    let list = List::new(items)
-        .block(widgets::Block::default())
-        .highlight_style(Style::default().bg(Color::White).fg(Color::Black));
+    let list = List::new(items).highlight_style(Style::default().bg(Color::White).fg(Color::Black));
 
     frame.render_widget(list, chunks[1]);
 }
+
+// =======================================================================
+// CONNECTION ESTABLISHER
+// =======================================================================
 
 fn render_connection_establisher(frame: &mut Frame, app: &App)
 {
@@ -266,78 +336,114 @@ fn render_connection_establisher(frame: &mut Frame, app: &App)
     frame.render_widget(text, inner);
 }
 
+// =======================================================================
+// CURRENT CONNECTION (CLIENT TABLE ONLY)
+// =======================================================================
+
 fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &ServerState)
 {
+    // Drain logs
+    if let Some(rx) = &server_state.thread_error_out {
+        while let Ok((msg, id)) = rx.try_recv() {
+            app.thread_logs.push((msg, id));
+            if app.thread_logs.len() > 500 {
+                app.thread_logs.remove(0);
+            }
+        }
+    }
+
     let area = frame.area();
 
     let block = widgets::Block::new()
-        .title(format!(
-            "Port: {} | Connected: {} | Scroll: {} / {}",
-            server_state.port,
-            server_state.connected_clients.len(),
-            app.scroll,
-            app.max_scroll,
-        ))
+        .title("Connected Clients — Press L for Logs")
         .title_alignment(Alignment::Center)
         .borders(Borders::all());
-
     frame.render_widget(&block, area);
+
     let inner = block.inner(area);
 
-    // Collect all rows
     let mut rows = Vec::new();
 
     for entry in server_state.connected_clients.iter() {
-        let socket_addr = entry.key();
+        let addr = entry.key();
         let info = entry.value();
 
         rows.push(widgets::Row::new(vec![
-            format!("Client {}", socket_addr),
+            format!("Client {}", addr),
             format!("{}", info.len()),
-            "".into(),
         ]));
     }
 
-    // How many rows fit on screen?
-    let visible_height = inner.height.saturating_sub(2); // header + maybe some padding
-    let total_rows = rows.len() as u16;
+    // table scrolling
+    let height = inner.height.saturating_sub(2);
+    let total = rows.len() as u16;
 
-    // Compute and store max_scroll
-    let max_scroll = total_rows.saturating_sub(visible_height);
-    app.max_scroll = max_scroll;
-
-    // Clamp scroll in case window was resized / rows changed
+    app.max_scroll = total.saturating_sub(height);
     if app.scroll > app.max_scroll {
         app.scroll = app.max_scroll;
     }
 
-    // Slice rows to what’s visible
     let start = app.scroll as usize;
-    let end = (start + visible_height as usize).min(rows.len());
-    let visible_rows = rows[start..end].to_vec();
+    let end = (start + height as usize).min(rows.len());
+    let visible = rows[start..end].to_vec();
 
     let table = widgets::Table::new(
-        visible_rows,
-        [
-            Constraint::Percentage(33),
-            Constraint::Percentage(33),
-            Constraint::Percentage(34),
-        ],
+        visible,
+        [Constraint::Percentage(50), Constraint::Percentage(50)],
     )
     .header(
-        widgets::Row::new(vec!["Thread ID", "Jobs", "Output"])
+        widgets::Row::new(vec!["Client", "Jobs"])
             .style(Style::default().add_modifier(ratatui::style::Modifier::BOLD)),
     )
-    .block(
-        widgets::Block::new()
-            .borders(Borders::all())
-            .title("Worker Threads")
-            .title_alignment(Alignment::Center),
-    )
+    .block(widgets::Block::new().borders(Borders::all()))
     .column_spacing(2);
 
     frame.render_widget(table, inner);
 }
+
+// =======================================================================
+// DEDICATED FULL SCREEN LOG VIEWER
+// =======================================================================
+
+fn render_log_viewer(frame: &mut Frame, app: &mut App, _ss: &ServerState)
+{
+    let area = frame.area();
+
+    let block = widgets::Block::new()
+        .title("Thread Log Viewer — Esc to return")
+        .title_alignment(Alignment::Center)
+        .borders(Borders::all());
+    frame.render_widget(&block, area);
+
+    let inner = block.inner(area);
+
+    // Compute log scroll
+    let height = inner.height.saturating_sub(2);
+    let total_logs = app.thread_logs.len() as u16;
+
+    app.log_max_scroll = total_logs.saturating_sub(height);
+    if app.log_scroll > app.log_max_scroll {
+        app.log_scroll = app.log_max_scroll;
+    }
+
+    let start = app.log_scroll as usize;
+    let end = (start + height as usize).min(app.thread_logs.len());
+
+    let lines: Vec<Line> = app.thread_logs[start..end]
+        .iter()
+        .map(|(msg, tid)| Line::from(Span::raw(format!("T{}: {}", tid.id, msg))))
+        .collect();
+
+    let paragraph = Paragraph::new(Text::from(lines))
+        .block(widgets::Block::new().borders(Borders::all()))
+        .alignment(Alignment::Left);
+
+    frame.render_widget(paragraph, inner);
+}
+
+// =======================================================================
+// INPUT CAPTURE
+// =======================================================================
 
 fn capture_input() -> Result<Option<KeyEvent>>
 {
