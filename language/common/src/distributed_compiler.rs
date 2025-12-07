@@ -8,6 +8,11 @@ pub struct DistributedCompilerWorker
 
     /// Remote address the client is connecting to.
     pub address: String,
-    // / The libraries which should be compiled remotely.
-    // pub libraries: HashMap<String, DependencyInfo>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DependencyRequest {
+    pub name: String,
+    pub version: String,
+    pub features: Vec<String>,
 }

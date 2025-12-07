@@ -6,10 +6,8 @@ use std::{
 };
 
 use common::{
-    anyhow,
-    tokio::{self, io::AsyncReadExt, select},
+    anyhow, crossbeam::channel::bounded, distributed_compiler::DependencyRequest, tokio::{self, io::AsyncReadExt, select}
 };
-use crossbeam::channel::bounded;
 use dashmap::DashMap;
 
 use crate::worker::{FinishedJobQueue, JobHandler, JobQueue, ThreadIdentification};
@@ -95,8 +93,11 @@ impl ServerState
                                         let mut msg_buf = vec![0; msg_len as usize];
 
                                         match client_handle.read_exact(&mut msg_buf).await  {
+                                            // Handle the message sent by the user
                                             Ok(_) => {
-                                                // Handle the message sent by the user
+                                                let request = common::rmp_serde::from_slice::<DependencyRequest>(&msg_buf);
+
+                                                
                                             },
                                             Err(err) => {
                                                 ui_sender_out_clone.send((err.to_string(), ThreadIdentification::new(0))).unwrap();

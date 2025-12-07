@@ -540,6 +540,7 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
+ "crossbeam",
  "diesel",
  "dotenvy",
  "flate2",
@@ -1624,7 +1625,6 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "common",
- "crossbeam",
  "crossterm 0.29.0",
  "dashmap 6.1.0",
  "ratatui",

@@ -89,6 +89,7 @@ impl CompilerState
             &mut dependency_output_paths,
             &mut additional_linking_material_list,
             self.config.dependencies.clone(),
+            self.config.remote_compiler_workers.clone(),
             PathBuf::from(format!("{}\\deps", self.working_dir.display())),
             optimization,
             &context,

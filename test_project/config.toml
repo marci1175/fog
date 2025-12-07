@@ -5,7 +5,8 @@ build_path = "out"
 additional_linking_material = []
 
 remote_compiler_worker = [
-    { name = "Test Remote", address = "[::1]:3004" }
+    { name = "Remote", address = "[::1]:3006" },
+    { name = "Remote2", address = "[::1]:3007" }
 ]
 
 [dependencies]

@@ -7,18 +7,10 @@ use std::{
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, ensure},
-    compiler::ProjectConfig,
-    dependency::DependencyInfo,
-    error::dependency::DependencyError,
-    indexmap::{IndexMap, IndexSet},
-    inkwell::{builder::Builder, context::Context, module::Module},
-    parser::FunctionSignature,
-    toml,
-    ty::OrdSet,
+    anyhow::{self, ensure}, compiler::ProjectConfig, dependency::DependencyInfo, distributed_compiler::DistributedCompilerWorker, error::dependency::DependencyError, indexmap::{IndexMap, IndexSet}, inkwell::{builder::Builder, context::Context, module::Module}, parser::FunctionSignature, toml, ty::OrdSet
 };
 
-use crate::analyzer::analyze_dependency;
+use crate::{analyzer::analyze_dependency, requester::{create_remote_list, dependency_requester}};
 
 /// Creates a dependency list from the path provided, by reading in all the folder names and libraries.
 pub fn create_dependency_functions_list<'ctx>(
@@ -26,6 +18,7 @@ pub fn create_dependency_functions_list<'ctx>(
     // All of the additional linking stuff is put into this list here.
     additional_linking_material_list: &mut Vec<PathBuf>,
     mut dependency_list: HashMap<String, DependencyInfo>,
+    remote_workers: Option<Vec<DistributedCompilerWorker>>,
     deps_path: PathBuf,
     optimization: bool,
     context: &'ctx Context,
@@ -60,11 +53,17 @@ pub fn create_dependency_functions_list<'ctx>(
         cpu_features.clone(),
     )?;
 
-    // if !dependency_list.is_empty() {
-    //     return Err(DependencyError::MissingDependencies(dependency_list.clone()).into());
-    // }
-
     // Request remaining dependencies from package handler server
+    if let Some(remotes) = remote_workers {
+        // Create a map of the remotes' thread handlers
+        let remote_handlers = create_remote_list(remotes);
+
+        // Request the dependencies from those remotes
+        dependency_requester(&mut dependency_list, &remote_handlers)?;
+    }
+    else {
+        return Err(DependencyError::MissingDependencies(dependency_list).into());
+    }
 
     Ok(deps)
 }
@@ -153,7 +152,7 @@ fn scan_dependency<'ctx>(
 
             let mut dependency_config = toml::from_str::<ProjectConfig>(&config_file_content)?;
 
-            if dependency_config.remote_compiler_worker.is_some() {
+            if dependency_config.remote_compiler_workers.is_some() {
                 println!(
                     "WARNING: Dependency {} has set a remote compiler worker. The attribute will be ignored.",
                     dependency_config.name
@@ -165,7 +164,7 @@ fn scan_dependency<'ctx>(
             if let Some(project_dependency) = dependency_list.remove(&dependency_config.name) {
                 ensure!(
                     project_dependency.version.clone() == dependency_config.version,
-                    DependencyError::MismatchedVersionNumber(
+                    DependencyError::MismatchedVersion(
                         dependency_config.name,
                         project_dependency.version.clone(),
                         dependency_config.version

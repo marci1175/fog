@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use common::{anyhow, dependency::DependencyInfo};
-use crossbeam::{channel::Sender, deque};
-
+use common::{anyhow, dependency::DependencyInfo, crossbeam::{channel::Sender, deque}};
 use crate::io::ServerState;
 
 pub type JobQueue = deque::Injector<CompileJob>;
@@ -85,6 +83,7 @@ impl ServerState
                 loop {
                     // Fetch the latest job from the job queue, if we couldnt that means we were notified too early.
                     if let Some(job) = job_queue.in_progress.steal().success() {
+
                     }
                     else {
                         std::thread::park();
