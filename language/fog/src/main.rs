@@ -70,7 +70,7 @@ async fn main() -> common::anyhow::Result<()>
             cpu_name,
             cpu_features,
         } => {
-            let path = if let Some(path) = compile_path.clone() {
+            let root_path = if let Some(path) = compile_path.clone() {
                 path
             }
             else {
@@ -80,12 +80,12 @@ async fn main() -> common::anyhow::Result<()>
             // Check for the main source file
             println!("Reading Files...");
 
-            // Read config file
-            let config_file = fs::read_to_string(format!("{}/config.toml", path.display()))
-                .map_err(|_| ApplicationError::ConfigNotFound(path.clone()))?;
+            let source_file = fs::read_to_string(format!("{}/src/main.f", root_path.display()))
+                .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
 
-            let compiler_config = toml::from_str::<ProjectConfig>(&config_file)
-                .map_err(ApplicationError::ConfigError)?;
+            let compiler_state = CompilerState::new(root_path.clone(), OrdSet::new())?;
+
+            let compiler_config = compiler_state.config.clone();
 
             if !compiler_config.is_library && compiler_config.features.is_some() {
                 println!(
@@ -96,42 +96,22 @@ async fn main() -> common::anyhow::Result<()>
                 );
             }
 
-            let source_file = fs::read_to_string(format!("{}/src/main.f", path.display()))
-                .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
-
-            let compiler_state =
-                CompilerState::new(compiler_config.clone(), path.clone(), OrdSet::new());
-
             fs::create_dir_all(compiler_config.build_path)?;
 
-            let target_ir_path = PathBuf::from(format!(
-                "{}\\{}\\{}.ll",
-                path.display(),
+            let build_artifact_name = format!(
+                "{}\\{}\\{}",
+                root_path.display(),
                 compiler_state.config.build_path,
                 compiler_config.name.clone()
-            ));
+            );
 
-            let target_o_path = PathBuf::from(format!(
-                "{}\\{}\\{}.obj",
-                path.display(),
-                compiler_state.config.build_path,
-                compiler_config.name.clone()
-            ));
+            let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll",));
 
-            // Make this not so specific later
-            let build_path = PathBuf::from(format!(
-                "{}\\{}\\{}.exe",
-                path.display(),
-                compiler_state.config.build_path,
-                compiler_config.name.clone()
-            ));
+            let target_o_path = PathBuf::from(format!("{build_artifact_name}.obj",));
 
-            let build_manifest_path = PathBuf::from(format!(
-                "{}\\{}\\{}.manifest",
-                path.display(),
-                compiler_state.config.build_path,
-                compiler_config.name.clone()
-            ));
+            let build_path = PathBuf::from(format!("{build_artifact_name}.exe",));
+
+            let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest",));
 
             let compiler_startup_instant = std::time::Instant::now();
 
@@ -142,7 +122,7 @@ async fn main() -> common::anyhow::Result<()>
                 build_path.clone(),
                 is_release,
                 compiler_config.is_library,
-                &format!("{}\\src", path.display()),
+                &format!("{}\\src", root_path.display()),
                 &llvm_flags,
                 target_triple,
                 cpu_name,
@@ -180,7 +160,7 @@ async fn main() -> common::anyhow::Result<()>
                     /* Pass in the arguments inherited (TODO) */ args.join(" ")
                 );
 
-                let exit_status = build_manifest.run_build_output(path.clone(), args)?;
+                let exit_status = build_manifest.run_build_output(root_path.clone(), args)?;
 
                 if !exit_status.success() {
                     if let Some(exit_code) = exit_status.code() {

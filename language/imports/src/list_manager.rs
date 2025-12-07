@@ -3,17 +3,18 @@ use std::{
     fs,
     path::PathBuf,
     rc::Rc,
+    sync::Arc,
 };
 
 use codegen::llvm_codegen;
 use common::{
     anyhow::{self, ensure},
-    compiler::ProjectConfig,
+    compiler::{HostInformation, ProjectConfig},
     dependency::DependencyInfo,
     distributed_compiler::DistributedCompilerWorker,
     error::dependency::DependencyError,
     indexmap::{IndexMap, IndexSet},
-    inkwell::{builder::Builder, context::Context, module::Module},
+    inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple},
     parser::FunctionSignature,
     toml,
     ty::OrdSet,
@@ -37,7 +38,7 @@ pub fn create_dependency_functions_list<'ctx>(
     builder: &'ctx Builder<'ctx>,
     root_module: &Module<'ctx>,
     flags_passed_in: &str,
-    target_triple: Option<String>,
+    target_triple: Arc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> anyhow::Result<IndexMap<Vec<String>, FunctionSignature>>
@@ -67,8 +68,15 @@ pub fn create_dependency_functions_list<'ctx>(
 
     // Request remaining dependencies from package handler server
     if let Some(remotes) = remote_workers {
+        let host_information = HostInformation::new(
+            cpu_features,
+            cpu_name,
+            Some(flags_passed_in.to_string()),
+            target_triple.to_string(),
+        );
+
         // Create a map of the remotes' thread handlers
-        let remote_handlers = create_remote_list(remotes);
+        let remote_handlers = create_remote_list(remotes, host_information);
 
         // Request the dependencies from those remotes
         dependency_requester(&mut dependency_list, &remote_handlers)?;
@@ -92,7 +100,7 @@ fn scan_dependencies<'ctx>(
     module_path: &mut Vec<String>,
     mut dir_entries: fs::ReadDir,
     flags_passed_in: &str,
-    target_triple: Option<String>,
+    target_triple: Arc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> Result<(), anyhow::Error>
@@ -144,7 +152,7 @@ fn scan_dependency<'ctx>(
     root_module: &Module<'ctx>,
     module_path: &mut Vec<String>,
     flags_passed_in: &str,
-    target_triple: Option<String>,
+    target_triple: Arc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> Result<(), anyhow::Error>

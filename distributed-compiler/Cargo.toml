@@ -5,6 +5,7 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
+compiler = { path = "../language/compiler" }
 common = { path = "../language/common" }
 ratatui = { version = "0.28.0", features = ["all-widgets", "crossterm"] }
 color-eyre = "0.6.5"

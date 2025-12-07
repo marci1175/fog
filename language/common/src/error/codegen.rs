@@ -24,7 +24,7 @@ pub enum CodeGenError
     #[error("[INTERNAL ERROR] Failed to get TargetTriple for host.")]
     FaliedToAcquireTargetTriple,
     #[error(
-        "The main entrypoint to the binary is not found. If you want to create a library, configure `config.toml` accordingly."
+        "The main entrypoint to the binary is not found (`src/main.rs`). If you want to create a library, configure `config.toml` accordingly."
     )]
     NoMain,
     #[error(

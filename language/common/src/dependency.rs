@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 /// Contains all the important information about a dependency in a config file.
@@ -17,4 +19,21 @@ pub struct DependencyRequest
 {
     pub name: String,
     pub version: String,
+}
+
+pub fn construct_dependency_path(
+    deps_path: PathBuf,
+    dependency_name: String,
+    dependency_version: String,
+) -> PathBuf
+{
+    let mut dependency_path = deps_path.clone();
+
+    dependency_path.push(format!(
+        "{}({})",
+        dependency_name.clone(),
+        dependency_version.clone()
+    ));
+
+    dependency_path
 }

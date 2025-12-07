@@ -8,10 +8,12 @@ use flate2::{
     Compression,
     write::{ZlibDecoder, ZlibEncoder},
 };
+use tokio::io::BufReader;
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    dependency_manager::write_folder_items, error::dependency_manager::DependencyManagerError,
+    dependency::construct_dependency_path, dependency_manager::write_folder_items,
+    error::dependency_manager::DependencyManagerError,
 };
 
 pub fn compress_bytes(bytes: &[u8]) -> anyhow::Result<Vec<u8>>
@@ -50,19 +52,22 @@ pub fn zip_folder(
     Ok(zip)
 }
 
+pub fn zip_from_bytes<T: Read + Seek>(inner: T) -> anyhow::Result<ZipArchive<T>>
+{
+    Ok(ZipArchive::new(inner)?)
+}
+
 pub fn write_zip_to_fs<T: Seek + Read>(
-    deps_path: PathBuf,
-    dependency_name: String,
+    dependency_path: PathBuf,
     mut archive: ZipArchive<T>,
-) -> anyhow::Result<(), DependencyManagerError>
+) -> anyhow::Result<PathBuf, DependencyManagerError>
 {
     let mut archive_idx = 0;
     while let Ok(mut archived_file) = archive.by_index(archive_idx) {
         if let Some(file_path) = archived_file.enclosed_name()
             && archived_file.is_file()
         {
-            let mut fs_file_path = deps_path.clone();
-            fs_file_path.push(dependency_name.clone());
+            let mut fs_file_path = dependency_path.clone();
             fs_file_path.push(file_path.clone());
 
             let mut file_folder_path = fs_file_path.clone();
@@ -88,5 +93,50 @@ pub fn write_zip_to_fs<T: Seek + Read>(
         archive_idx += 1;
     }
 
-    Ok(())
+    Ok(dependency_path)
+}
+
+pub async fn write_zip_to_fs_async<T: Seek + Read>(
+    dependency_path: PathBuf,
+    mut archive: ZipArchive<T>,
+) -> anyhow::Result<PathBuf, DependencyManagerError>
+{
+    let mut archive_idx = 0;
+    while let Ok(archived_file) = archive.by_index(archive_idx) {
+        if let Some(file_path) = archived_file.enclosed_name()
+            && archived_file.is_file()
+        {
+            let mut fs_file_path = dependency_path.clone();
+            fs_file_path.push(file_path.clone());
+
+            let mut file_folder_path = fs_file_path.clone();
+            file_folder_path.pop();
+
+            // Create the directory for the file in the deps folder, if it fails the folder has prolly been created already.
+            let _ = tokio::fs::create_dir_all(file_folder_path).await;
+
+            if let Ok(mut file_handle) = tokio::fs::File::create(fs_file_path).await {
+                let inner = archived_file
+                    .bytes()
+                    .map(|bytes| bytes.unwrap())
+                    .collect::<Vec<u8>>();
+
+                tokio::io::copy(&mut BufReader::new(inner.as_slice()), &mut file_handle)
+                    .await
+                    .map_err(|_| DependencyManagerError::FailedToWriteToFile(file_path))?;
+            }
+            else {
+                return Err(DependencyManagerError::FailedToCreateFile(file_path));
+            }
+        }
+        else {
+            // Invalid Zip archive path
+            return Err(DependencyManagerError::InvalidZipArchiveFilePath);
+        }
+
+        // Increment idx
+        archive_idx += 1;
+    }
+
+    Ok(dependency_path)
 }

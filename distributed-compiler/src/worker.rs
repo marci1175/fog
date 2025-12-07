@@ -1,49 +1,65 @@
-use std::sync::Arc;
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use crate::io::ServerState;
 use common::{
     anyhow,
+    compression::{compress_bytes, zip_folder},
     crossbeam::{channel::Sender, deque},
     dependency::DependencyInfo,
+    error::codegen::CodeGenError,
+    toml,
+    ty::OrdSet,
 };
+use compiler::CompilerState;
 
 pub type JobQueue = deque::Injector<CompileJob>;
-pub type FinishedJobQueue = deque::Injector<FinishedJobId>;
+pub type FinishedJobQueue = deque::Injector<FinishedJob>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JobHandler
 {
     /// Compilation tasks which are in progress
-    pub in_progress: JobQueue,
+    pub in_progress: Arc<JobQueue>,
 
     /// Compilation tasks which have been finished
-    pub finished: FinishedJobQueue,
+    pub finished: Arc<FinishedJobQueue>,
 }
 
 impl JobHandler
 {
-    pub fn new(in_progress: JobQueue, finished: FinishedJobQueue) -> Self
+    pub fn new(
+        in_progress: Arc<deque::Injector<CompileJob>>,
+        finished: Arc<deque::Injector<FinishedJob>>,
+    ) -> Self
     {
         Self {
             in_progress,
             finished,
         }
     }
+
+    pub fn split(self) -> (Arc<JobQueue>, Arc<FinishedJobQueue>)
+    {
+        (self.in_progress, self.finished)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct CompileJob
 {
-    pub dependency_name: String,
-    pub dependency_information: DependencyInfo,
-    pub target: String,
+    pub target_triple: String,
+    pub features: OrdSet<String>,
+    pub depdendency_path: PathBuf,
+    pub cpu_features: Option<String>,
+    pub cpu_name: Option<String>,
+    pub flags_passed_in: String,
 }
 
 #[derive(Debug)]
-pub struct FinishedJobId
+pub struct FinishedJob
 {
-    pub job_id: CompileJob,
-    pub compilation_result: Arc<anyhow::Result<Vec<u8>>>,
+    pub job: CompileJob,
+    pub compressed_artifacts_zip: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -74,8 +90,11 @@ impl ServerState
         &mut self,
         available_cores: usize,
         ui_sender: Sender<(String, ThreadIdentification)>,
-    ) -> Result<(), anyhow::Error>
+    ) -> Result<HashMap<ThreadIdentification, std::thread::Thread>, anyhow::Error>
     {
+        let mut worker_thread_notifier: HashMap<ThreadIdentification, std::thread::Thread> =
+            HashMap::new();
+
         // Increment the thread idx for the identification because the first two a reseverved for io
         for thread_idx in 0..available_cores {
             // Create thread identificator
@@ -95,17 +114,30 @@ impl ServerState
                 loop {
                     // Fetch the latest job from the job queue, if we couldnt that means we were notified too early.
                     if let Some(job) = job_queue.in_progress.steal().success() {
-                        // Send message that we have received a job
-                        ui_sender
-                            .send((
-                                format!(
-                                    "Received job `{}`({}).",
-                                    job.dependency_name.clone(),
-                                    job.dependency_information.version.clone()
-                                ),
-                                thread_id,
-                            ))
-                            .unwrap();
+                        match compile_job(job.clone(), ui_sender.clone(), thread_id) {
+                            Ok(path_to_output_artifacts) => {
+                                let zipped_artifacts = zip_folder(
+                                    fs::read_dir(path_to_output_artifacts).unwrap(),
+                                    None,
+                                )
+                                .unwrap();
+
+                                let zip = zipped_artifacts.finish().unwrap().into_inner();
+
+                                job_queue.finished.push(FinishedJob {
+                                    job,
+                                    compressed_artifacts_zip: compress_bytes(&zip).unwrap(),
+                                });
+                            },
+                            Err(error) => {
+                                ui_sender
+                                    .send((
+                                        format!("Error occured when compiling job `{}`", error),
+                                        thread_id,
+                                    ))
+                                    .unwrap();
+                            },
+                        }
                     }
                     else {
                         std::thread::park();
@@ -114,10 +146,82 @@ impl ServerState
             });
 
             // Store the thread handle
-            self.worker_thread_notifier
-                .insert(thread_id, thread_handle.thread().clone());
+            worker_thread_notifier.insert(thread_id, thread_handle.thread().clone());
         }
 
-        Ok(())
+        Ok(worker_thread_notifier)
     }
+}
+
+fn compile_job(
+    job: CompileJob,
+    ui_sender: Sender<(String, ThreadIdentification)>,
+    thread_id: ThreadIdentification,
+) -> anyhow::Result<PathBuf>
+{
+    let compiler_state = CompilerState::new(job.depdendency_path.clone(), job.features).unwrap();
+
+    // Send message that we have received a job
+    ui_sender
+        .send((
+            format!(
+                "Received job `{}`({}).",
+                compiler_state.config.name.clone(),
+                compiler_state.config.version.clone()
+            ),
+            thread_id,
+        ))
+        .unwrap();
+
+    let source_file = fs::read_to_string(format!("{}/src/main.f", job.depdendency_path.display()))
+        .map_err(|_| CodeGenError::NoMain)?;
+
+    let build_arctifacts_path = format!(
+        "{}\\{}",
+        job.depdendency_path.display(),
+        compiler_state.config.build_path
+    );
+
+    let build_artifact_name = format!(
+        "{}\\{}",
+        build_arctifacts_path,
+        compiler_state.config.name.clone()
+    );
+
+    let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll",));
+
+    let target_o_path = PathBuf::from(format!("{build_artifact_name}.obj",));
+
+    let build_path = PathBuf::from(format!("{build_artifact_name}.exe",));
+
+    let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest",));
+
+    let build_manifest = compiler_state.compilation_process(
+        &source_file,
+        target_ir_path,
+        target_o_path,
+        build_path,
+        true,
+        true,
+        &format!("{}\\src", job.depdendency_path.display()),
+        &job.flags_passed_in,
+        Some(job.target_triple),
+        job.cpu_name,
+        job.cpu_features,
+    )?;
+
+    fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
+
+    ui_sender
+        .send((
+            format!(
+                "Compiled job `{}`({}).",
+                compiler_state.config.name.clone(),
+                compiler_state.config.version.clone()
+            ),
+            thread_id,
+        ))
+        .unwrap();
+
+    Ok(build_arctifacts_path.into())
 }

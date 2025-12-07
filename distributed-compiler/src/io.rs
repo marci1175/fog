@@ -1,19 +1,31 @@
 use std::{
     collections::HashMap,
+    fs::{self, create_dir_all},
+    io::Cursor,
     net::{Ipv6Addr, SocketAddr},
+    path::PathBuf,
     sync::Arc,
     thread::Thread,
 };
 
 use common::{
     anyhow,
+    compression::{decompress_bytes, write_zip_to_fs, write_zip_to_fs_async, zip_from_bytes},
     crossbeam::channel::{Receiver, bounded},
+    dependency::construct_dependency_path,
+    dependency_manager::Dependency,
     distributed_compiler::DependencyRequest,
+    reqwest::Client,
+    rmp_serde,
     tokio::{self, io::AsyncReadExt, select},
+    ty::OrdSet,
 };
 use dashmap::DashMap;
 
-use crate::worker::{FinishedJobQueue, JobHandler, JobQueue, ThreadIdentification};
+use crate::{
+    net,
+    worker::{CompileJob, FinishedJobQueue, JobHandler, JobQueue, ThreadIdentification},
+};
 
 #[derive(Debug, Clone)]
 pub struct ServerState
@@ -21,8 +33,9 @@ pub struct ServerState
     pub port: u16,
     pub dependency_manager_url: String,
     pub worker_thread_notifier: HashMap<ThreadIdentification, Thread>,
-    pub job_handler: Arc<JobHandler>,
+    pub job_handler: JobHandler,
     pub connected_clients: Arc<DashMap<SocketAddr, String>>,
+    pub dependency_folder: Arc<PathBuf>,
     pub thread_error_out: Option<Receiver<(String, ThreadIdentification)>>,
 }
 
@@ -34,7 +47,11 @@ impl Default for ServerState
             port: 0,
             dependency_manager_url: "http://[::1]:3004".into(),
             worker_thread_notifier: HashMap::new(),
-            job_handler: Arc::new(JobHandler::new(JobQueue::new(), FinishedJobQueue::new())),
+            dependency_folder: Arc::new(PathBuf::new()),
+            job_handler: JobHandler::new(
+                Arc::new(JobQueue::new()),
+                Arc::new(FinishedJobQueue::new()),
+            ),
             connected_clients: Arc::new(DashMap::new()),
             thread_error_out: None,
         }
@@ -43,10 +60,11 @@ impl Default for ServerState
 
 impl ServerState
 {
-    pub fn new(port: u16, dependency_manager_url: String) -> Self
+    pub fn new(port: u16, dependency_manager_url: String, dependency_folder: Arc<PathBuf>) -> Self
     {
         Self {
             port,
+            dependency_folder,
             dependency_manager_url,
             ..Default::default()
         }
@@ -57,13 +75,20 @@ impl ServerState
     {
         let (thread_out_sender, thread_out_recv) = bounded::<(String, ThreadIdentification)>(255);
 
+        let dep_path = self.dependency_folder.clone();
+
+        let _ = create_dir_all(&*dep_path);
+
         self.thread_error_out = Some(thread_out_recv);
 
         let available_cores = std::thread::available_parallelism()?.get();
 
         let available_cores_left = available_cores.checked_sub(2).unwrap_or(1);
 
-        self.create_workers(available_cores_left, thread_out_sender.clone())?;
+        let workers =
+            Arc::new(self.create_workers(available_cores_left, thread_out_sender.clone())?);
+
+        let (current_jobs, finished_jobs) = self.job_handler.clone().split();
 
         let port = self.port;
 
@@ -72,10 +97,16 @@ impl ServerState
 
         let connected_clients_handle = self.connected_clients.clone();
 
+        let http_client = Client::new();
+        let remote_url = self.dependency_manager_url.clone();
+
         let ui_sender_out_clone = ui_sender_out.clone();
 
         // Inbound
         tokio::spawn(async move {
+            let dep_path = dep_path.clone();
+            let http_client = http_client.clone();
+
             // Bind listener to local on specified port
             let listener =
                 tokio::net::TcpListener::bind((Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), port))
@@ -85,6 +116,12 @@ impl ServerState
             let mut io_thread_idx = 2;
 
             loop {
+                let workers = workers.clone();
+                let dep_path = dep_path.clone();
+                let remote_url = remote_url.clone();
+                let current_jobs = current_jobs.clone();
+                let http_client = http_client.clone();
+
                 // Clone sender channel so that we can send messages to the frontend
                 let ui_sender_out_clone = ui_sender_out_clone.clone();
 
@@ -92,10 +129,23 @@ impl ServerState
                     Ok((stream, addr)) => {
                         connected_clients_handle.insert(addr, "Some client information".into());
 
+                        let client_addr = stream.peer_addr().unwrap();
+
+                        let (client_recv, client_sender) = tokio::io::split(stream);
+
                         // Spawn client handler
                         tokio::spawn(async move {
-                            let thread_id = ThreadIdentification::new(io_thread_idx, crate::worker::ThreadType::IO);
-                            let mut client_handle = stream;
+                            let workers = workers.clone();
+                            let current_jobs = current_jobs.clone();
+                            let dep_path = dep_path.clone();
+                            let remote_url = remote_url.clone();
+                            let http_client = http_client.clone();
+                            let thread_id = ThreadIdentification::new(
+                                io_thread_idx,
+                                crate::worker::ThreadType::IO,
+                            );
+
+                            let mut client_handle = client_recv;
 
                             // Handle client requests
                             loop {
@@ -105,18 +155,90 @@ impl ServerState
                                     match client_handle.read_exact(&mut msg_buf).await {
                                         // Handle the message sent by the user
                                         Ok(_) => {
-                                            let request =
-                                                common::rmp_serde::from_slice::<DependencyRequest>(
-                                                    &msg_buf,
-                                                );
+                                            match common::rmp_serde::from_slice::<DependencyRequest>(
+                                                &msg_buf,
+                                            ) {
+                                                Ok(request) => {
+                                                    let dep_path = construct_dependency_path(
+                                                        (*dep_path).clone(),
+                                                        request.name.clone(),
+                                                        request.version.clone(),
+                                                    );
+
+                                                    // Check if we already have the dependency downloaded
+                                                    // Implement hash checking so that it enusres that dependencies are always correctly fetched from remotes
+                                                    // Preferrably with an api call
+                                                    if let Err(_) =
+                                                        tokio::fs::metadata(&dep_path).await
+                                                    {
+                                                        // Send request to server
+                                                        let response = net::request_dependency(
+                                                            http_client.clone(),
+                                                            &remote_url.clone(),
+                                                            request.name.clone(),
+                                                            request.version.clone(),
+                                                        )
+                                                        .await
+                                                        .unwrap();
+
+                                                        // Get response body from server
+                                                        let req_body =
+                                                            response.bytes().await.unwrap();
+
+                                                        // Decompress bytes
+                                                        let deser_bytes =
+                                                            decompress_bytes(&req_body).unwrap();
+
+                                                        // Serialize bytes
+                                                        let dependency =
+                                                            rmp_serde::from_slice::<Dependency>(
+                                                                &deser_bytes,
+                                                            )
+                                                            .unwrap();
+
+                                                        // Write dependency to folder
+                                                        if let Err(err) = write_zip_to_fs_async(
+                                                            dep_path.clone(),
+                                                            zip_from_bytes(Cursor::new(
+                                                                dependency.source,
+                                                            ))
+                                                            .unwrap(),
+                                                        )
+                                                        .await
+                                                        {
+                                                            ui_sender_out_clone.send((format!("An error occured while writing dependency `{}({})` to fs: {err}", request.name.clone(), request.version.clone()), thread_id)).unwrap();
+                                                            break;
+                                                        };
+                                                    }
+
+                                                    current_jobs.push(CompileJob {
+                                                        target_triple: request.target_triple,
+                                                        features: OrdSet::from_vec(
+                                                            request.features,
+                                                        ),
+                                                        depdendency_path: dep_path,
+                                                        cpu_features: request.cpu_features,
+                                                        cpu_name: request.cpu_name,
+                                                        flags_passed_in: request.flags_passed_in,
+                                                    });
+
+                                                    // Wake workers
+                                                    workers.iter().for_each(|worker_handle| {
+                                                        worker_handle.1.unpark()
+                                                    });
+                                                },
+                                                Err(error) => {
+                                                    ui_sender_out_clone.send((format!("Invalid request body from `{}`: {error}", client_addr), thread_id)).unwrap();
+                                                    break;
+                                                },
+                                            }
                                         },
                                         Err(err) => {
                                             ui_sender_out_clone
-                                                .send((
-                                                    err.to_string(),
-                                                    thread_id,
-                                                ))
+                                                .send((err.to_string(), thread_id))
                                                 .unwrap();
+
+                                            break;
                                         },
                                     }
                                 }
@@ -125,7 +247,7 @@ impl ServerState
                                         .send((
                                             format!(
                                                 "Failed to receive message from `{}`, disconnecting...",
-                                                client_handle.peer_addr().unwrap()
+                                                client_addr
                                             ),
                                             thread_id,
                                         ))
@@ -136,19 +258,28 @@ impl ServerState
                             }
                         });
 
+                        // Outbound client sender
+                        tokio::spawn(async move {
+                            let client_sender = client_sender;
+                            
+                            loop {
+
+                            }
+                        });
+
                         io_thread_idx += 1;
                     },
                     Err(error) => {
                         ui_sender_in
-                            .send((error.to_string(), ThreadIdentification::new(0, crate::worker::ThreadType::IO)))
+                            .send((
+                                error.to_string(),
+                                ThreadIdentification::new(0, crate::worker::ThreadType::IO),
+                            ))
                             .unwrap();
                     },
                 }
             }
         });
-
-        // Outbound
-        tokio::spawn(async move { loop {} });
 
         Ok(())
     }

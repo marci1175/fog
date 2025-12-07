@@ -16,4 +16,8 @@ pub struct DependencyRequest
     pub name: String,
     pub version: String,
     pub features: Vec<String>,
+    pub target_triple: String,
+    pub cpu_features: Option<String>,
+    pub cpu_name: Option<String>,
+    pub flags_passed_in: String,
 }

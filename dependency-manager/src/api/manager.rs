@@ -6,7 +6,7 @@ use common::{
     axum::{Json, body::Bytes, extract::State, http::StatusCode},
     chrono::Utc,
     compression::{compress_bytes, decompress_bytes, write_zip_to_fs, zip_folder},
-    dependency::DependencyRequest,
+    dependency::{DependencyRequest, construct_dependency_path},
     dependency_manager::{ServerState, generate_secret},
     error::dependency_manager::DependencyManagerError,
     rmp_serde::*,
@@ -50,9 +50,14 @@ pub async fn publish_dependency(
             // Decompress dependency, write to fs
             let mut dependency_bytes = Cursor::new(dependency_upload.source_files.clone());
 
-            write_zip_to_fs(
+            let dep_path = construct_dependency_path(
                 state.deps_path.clone(),
                 dependency_upload.dependency_name.clone(),
+                dependency_upload.dependency_version.clone(),
+            );
+
+            let path_to_dep = write_zip_to_fs(
+                dep_path,
                 ZipArchive::new(&mut dependency_bytes)
                     .map_err(|_| DependencyManagerError::InvalidZipArchive)?,
             )?;
@@ -64,11 +69,7 @@ pub async fn publish_dependency(
                 .values(DependencyInformation {
                     dependency_name: dependency_upload.dependency_name.clone(),
                     // Dependency name and uploaded folder name must match
-                    dependency_source_path: format!(
-                        "{}/{}",
-                        state.deps_path.display(),
-                        dependency_upload.dependency_name.clone()
-                    ),
+                    dependency_source_path: path_to_dep.to_string_lossy().to_string(),
                     dependency_version: dependency_upload.dependency_version.clone(),
                     author: dependency_upload.author.clone(),
                     date_added: Utc::now().date_naive(),

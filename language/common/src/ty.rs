@@ -687,7 +687,7 @@ impl<T: Hash> Hash for OrdSet<T>
     }
 }
 
-impl<T> OrdSet<T>
+impl<T: Hash + Eq + Clone> OrdSet<T>
 {
     pub fn new() -> Self
     {
@@ -697,6 +697,17 @@ impl<T> OrdSet<T>
     pub fn wrap(inner: IndexSet<T>) -> Self
     {
         Self(inner)
+    }
+
+    pub fn from_vec(vec: Vec<T>) -> Self
+    {
+        let mut set = Self::new();
+
+        vec.iter().for_each(|item| {
+            set.0.insert(item.clone());
+        });
+
+        set
     }
 }
 

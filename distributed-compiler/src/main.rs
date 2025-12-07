@@ -1,4 +1,4 @@
-use std::{io::stdout, time::Duration};
+use std::{io::stdout, sync::Arc, time::Duration};
 
 use color_eyre::{Result, eyre::Context};
 use common::{dotenvy, tokio};
@@ -15,10 +15,6 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{self, Borders, List, ListItem, Paragraph},
 };
-
-// =======================================================================
-// APP STATE
-// =======================================================================
 
 #[derive(Debug, Clone)]
 struct App
@@ -39,6 +35,7 @@ struct App
     // .env
     env_port: Option<u16>,
     dep_man_url: Option<String>,
+    dep_folder: Option<String>,
 }
 
 impl App
@@ -50,6 +47,7 @@ impl App
             .and_then(|v| v.parse::<u16>().ok());
 
         let dep_man_url = std::env::var("DEPENDENCY_MANAGER_URL").ok();
+        let dep_folder = std::env::var("DEPENDENCY_FOLDER").ok();
 
         Self {
             ui_state: UiState::Main,
@@ -65,6 +63,7 @@ impl App
 
             env_port,
             dep_man_url,
+            dep_folder,
         }
     }
 
@@ -88,9 +87,6 @@ impl App
         }
     }
 
-    // ----------------------------
-    // MAIN MENU HANDLER
-    // ----------------------------
     fn key_main(&mut self, key: KeyEvent)
     {
         match key.code {
@@ -117,9 +113,6 @@ impl App
         }
     }
 
-    // ----------------------------
-    // CONNECTION SETUP HANDLER
-    // ----------------------------
     fn key_connection_establisher(&mut self, key: KeyEvent)
     {
         match key.code {
@@ -133,17 +126,22 @@ impl App
                     .clone()
                     .unwrap_or(String::from("http://[::1]:3004"));
 
-                let mut server_state = ServerState::new(port, dependency_manager_url);
+                let dependency_folder = self.dep_folder.clone().unwrap_or(String::from("deps/"));
+
+                let mut server_state = ServerState::new(
+                    port,
+                    dependency_manager_url,
+                    Arc::new(dependency_folder.into()),
+                );
+
                 server_state.initialize_server().unwrap();
+
                 self.ui_state = UiState::CurrentConnection(server_state);
             },
             _ => {},
         }
     }
 
-    // ----------------------------
-    // CURRENT CONNECTION HANDLER
-    // ----------------------------
     fn key_current_connection(&mut self, key: KeyEvent)
     {
         match key.code {
@@ -170,9 +168,6 @@ impl App
         }
     }
 
-    // ----------------------------
-    // LOG VIEWER HANDLER
-    // ----------------------------
     fn key_log_viewer(&mut self, key: KeyEvent)
     {
         match key.code {
@@ -202,10 +197,6 @@ impl App
         }
     }
 }
-
-// =======================================================================
-// MAIN
-// =======================================================================
 
 #[tokio::main]
 async fn main() -> Result<()>
@@ -242,10 +233,6 @@ fn run(terminal: &mut DefaultTerminal) -> Result<()>
     Ok(())
 }
 
-// =======================================================================
-// RENDER DISPATCH
-// =======================================================================
-
 fn render(frame: &mut Frame, app: &mut App)
 {
     match app.ui_state.clone() {
@@ -255,10 +242,6 @@ fn render(frame: &mut Frame, app: &mut App)
         UiState::LogViewer(ss) => render_log_viewer(frame, app, &ss),
     }
 }
-
-// =======================================================================
-// MAIN MENU
-// =======================================================================
 
 fn render_main(frame: &mut Frame, app: &App)
 {
@@ -305,10 +288,6 @@ fn render_main(frame: &mut Frame, app: &App)
     frame.render_widget(list, chunks[1]);
 }
 
-// =======================================================================
-// CONNECTION ESTABLISHER
-// =======================================================================
-
 fn render_connection_establisher(frame: &mut Frame, app: &App)
 {
     let area = frame.area();
@@ -335,10 +314,6 @@ fn render_connection_establisher(frame: &mut Frame, app: &App)
 
     frame.render_widget(text, inner);
 }
-
-// =======================================================================
-// CURRENT CONNECTION (CLIENT TABLE ONLY)
-// =======================================================================
 
 fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &ServerState)
 {
@@ -401,10 +376,6 @@ fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &Se
     frame.render_widget(table, inner);
 }
 
-// =======================================================================
-// DEDICATED FULL SCREEN LOG VIEWER
-// =======================================================================
-
 fn render_log_viewer(frame: &mut Frame, app: &mut App, _ss: &ServerState)
 {
     let area = frame.area();
@@ -440,10 +411,6 @@ fn render_log_viewer(frame: &mut Frame, app: &mut App, _ss: &ServerState)
 
     frame.render_widget(paragraph, inner);
 }
-
-// =======================================================================
-// INPUT CAPTURE
-// =======================================================================
 
 fn capture_input() -> Result<Option<KeyEvent>>
 {

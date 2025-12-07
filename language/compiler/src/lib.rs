@@ -1,18 +1,20 @@
-use std::{path::PathBuf, rc::Rc};
+use std::{fs, path::PathBuf, rc::Rc, sync::Arc};
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::Result,
+    anyhow::{self, Result},
     compiler::ProjectConfig,
-    error::codegen::CodeGenError,
+    error::{application::ApplicationError, codegen::CodeGenError},
     inkwell::{
         context::Context,
         llvm_sys::target::{
             LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters,
             LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets,
         },
+        targets::{TargetMachine, TargetTriple},
     },
     linker::BuildManifest,
+    toml,
     ty::{OrdSet, TypeDiscriminant},
 };
 use imports::list_manager::create_dependency_functions_list;
@@ -21,23 +23,26 @@ use parser::{parser_instance::Parser, tokenizer::tokenize};
 pub struct CompilerState
 {
     pub config: ProjectConfig,
-    pub working_dir: PathBuf,
+    pub root_dir: PathBuf,
     pub enabled_features: OrdSet<String>,
 }
 
 impl CompilerState
 {
-    pub fn new(
-        config: ProjectConfig,
-        working_dir: PathBuf,
-        enabled_features: OrdSet<String>,
-    ) -> Self
+    pub fn new(root_dir: PathBuf, enabled_features: OrdSet<String>) -> anyhow::Result<Self>
     {
-        Self {
+        // Read config file
+        let config_file = fs::read_to_string(format!("{}/config.toml", root_dir.display()))
+            .map_err(|_| ApplicationError::ConfigNotFound(root_dir.clone()))?;
+
+        let config =
+            toml::from_str::<ProjectConfig>(&config_file).map_err(ApplicationError::ConfigError)?;
+
+        Ok(Self {
             config,
-            working_dir,
+            root_dir,
             enabled_features,
-        }
+        })
     }
 
     pub fn compilation_process(
@@ -50,11 +55,20 @@ impl CompilerState
         is_lib: bool,
         path_to_src: &str,
         flags_passed_in: &str,
-        target_triple: Option<String>,
+        target_triple_name: Option<String>,
         cpu_name: Option<String>,
         cpu_features: Option<String>,
     ) -> Result<BuildManifest>
     {
+        let target_triple = Arc::new(
+            if let Some(target_triple_name) = target_triple_name {
+                TargetTriple::create(&target_triple_name)
+            }
+            else {
+                TargetMachine::get_default_triple()
+            },
+        );
+
         println!("Tokenizing...");
         let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
 
@@ -90,7 +104,7 @@ impl CompilerState
             &mut additional_linking_material_list,
             self.config.dependencies.clone(),
             self.config.remote_compiler_workers.clone(),
-            PathBuf::from(format!("{}\\deps", self.working_dir.display())),
+            PathBuf::from(format!("{}\\deps", self.root_dir.display())),
             optimization,
             &context,
             &builder,

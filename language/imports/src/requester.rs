@@ -2,6 +2,7 @@ use std::{collections::HashMap, net::SocketAddr};
 
 use common::{
     anyhow::Result,
+    compiler::HostInformation,
     dependency::DependencyInfo,
     distributed_compiler::{DependencyRequest, DistributedCompilerWorker},
     error::dependency::DependencyError,
@@ -17,11 +18,14 @@ use common::{
 
 pub fn create_remote_list(
     remotes: Vec<DistributedCompilerWorker>,
+    host_info: HostInformation,
 ) -> HashMap<String, (String, Sender<(String, DependencyInfo)>)>
 {
     let mut remote_list = HashMap::new();
 
     for remote in remotes {
+        let host_info = host_info.clone();
+
         let (sender, mut recv) = tokio::sync::mpsc::channel::<(String, DependencyInfo)>(255);
 
         println!(
@@ -35,12 +39,19 @@ pub fn create_remote_list(
         // Create a remote handler thread
         spawn(async move {
             let mut tcp_handle = TcpStream::connect(remote.address).await.unwrap();
+            let host_info = host_info.clone();
 
             loop {
                 select! {
                     Some((name, info)) = recv.recv() => {
                         // Send the request to the remote
-                        tcp_handle.write_all(&rmp_serde::to_vec(&DependencyRequest { name, version: info.version, features: info.features }).unwrap()).await.unwrap();
+                        let packet = rmp_serde::to_vec(&DependencyRequest {name, version: info.version, features: info.features, target_triple: host_info.target_triple.clone(), cpu_features: host_info.cpu_features.clone(), cpu_name: host_info.cpu_name.clone(), flags_passed_in: String::new() }).unwrap();
+
+                        // Send len
+                        tcp_handle.write_all(&(packet.len() as u32).to_be_bytes()).await.unwrap();
+
+                        // Send packet
+                        tcp_handle.write_all(&packet).await.unwrap();
                     }
                     // Receive and handle the pre-compiled files
                     Ok(len) = tcp_handle.read_u32() => {

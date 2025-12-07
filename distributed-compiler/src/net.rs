@@ -1,14 +1,11 @@
 use common::{
     anyhow,
     dependency::DependencyRequest,
-    reqwest::{
-        blocking::{Client, Response},
-        header::USER_AGENT,
-    },
+    reqwest::{Client, Response, header::USER_AGENT},
     serde_json,
 };
 
-pub fn request_dependency(
+pub async fn request_dependency(
     client: Client,
     remote_url: &str,
     dep_name: String,
@@ -22,5 +19,6 @@ pub fn request_dependency(
             version,
         })?)
         .header(USER_AGENT, format!("FDCN({})", env!("CARGO_PKG_VERSION")))
-        .send()?)
+        .send()
+        .await?)
 }

@@ -1447,6 +1447,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "common",
+ "compiler",
  "crossterm 0.29.0",
  "dashmap 6.1.0",
  "ratatui",

@@ -49,3 +49,30 @@ impl ProjectConfig
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct HostInformation
+{
+    pub cpu_features: Option<String>,
+    pub cpu_name: Option<String>,
+    pub flags_passed_in: Option<String>,
+    pub target_triple: String,
+}
+
+impl HostInformation
+{
+    pub fn new(
+        cpu_features: Option<String>,
+        cpu_name: Option<String>,
+        flags_passed_in: Option<String>,
+        target_triple: String,
+    ) -> Self
+    {
+        Self {
+            cpu_features,
+            cpu_name,
+            flags_passed_in,
+            target_triple,
+        }
+    }
+}

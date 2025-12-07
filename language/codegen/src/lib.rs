@@ -45,7 +45,7 @@ pub fn llvm_codegen_main<'ctx>(
     custom_types: Arc<IndexMap<String, CustomType>>,
     flags_passed_in: &str,
     path_to_src: &str,
-    target_triple_name: Option<String>,
+    target_triple: Arc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> Result<TargetMachine>
@@ -75,14 +75,6 @@ pub fn llvm_codegen_main<'ctx>(
 
     // Init target
     Target::initialize_x86(&InitializationConfig::default());
-
-    // create target triple
-    let target_triple = if let Some(target_triple_name) = target_triple_name {
-        TargetTriple::create(&target_triple_name)
-    }
-    else {
-        TargetMachine::get_default_triple()
-    };
 
     // Create target
     let target = Target::from_triple(&target_triple)
@@ -165,7 +157,7 @@ pub fn llvm_codegen<'ctx>(
     module: common::inkwell::module::Module<'ctx>,
     path_to_src: &str,
     flags_passed_in: &str,
-    target_triple: Option<String>,
+    target_triple: Arc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> Result<(), common::anyhow::Error>
