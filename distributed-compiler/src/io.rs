@@ -6,21 +6,21 @@ use std::{
     path::PathBuf,
     sync::Arc,
     thread::Thread,
+    time::Duration,
 };
 
 use common::{
     anyhow,
-    compression::{decompress_bytes, write_zip_to_fs_async, unzip_from_bytes},
+    compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs_async},
     crossbeam::channel::{Receiver, bounded},
     dependency::construct_dependency_path,
     dependency_manager::Dependency,
     distributed_compiler::DependencyRequest,
+    error::dependency_manager::DependencyManagerError,
     reqwest::Client,
     rmp_serde,
     tokio::{
-        self,
-        io::{AsyncReadExt, AsyncWriteExt},
-        sync::mpsc::{Sender, channel},
+        self, fs, io::{AsyncReadExt, AsyncWriteExt}, sync::mpsc::{Sender, channel}
     },
     ty::OrdSet,
 };
@@ -104,7 +104,7 @@ impl ServerState
 
         let connected_clients_handle = self.connected_clients.clone();
 
-        let http_client = Client::new();
+        let http_client = Client::builder().timeout(Duration::from_secs(60)).build()?;
         let remote_url = self.dependency_manager_url.clone();
 
         let ui_sender_out_clone = ui_sender_out.clone();
@@ -157,6 +157,8 @@ impl ServerState
                                 // Wait for a job to finish with the client
                                 match recv.recv().await {
                                     Some(finished_job) => {
+                                        panic!("{finished_job:?}");
+
                                         // Compiled zip len
                                         let compiled_src =
                                             finished_job.compressed_artifacts_zip.len();
@@ -176,11 +178,17 @@ impl ServerState
                                     None => {
                                         ui_sender
                                             .send((
-                                                format!("Clinet handler for remote `{}` shutting down.", addr),
-                                                ThreadIdentification::new(io_thread_idx, crate::worker::ThreadType::IO),
+                                                format!(
+                                                    "Clinet handler for remote `{}` shutting down.",
+                                                    addr
+                                                ),
+                                                ThreadIdentification::new(
+                                                    io_thread_idx,
+                                                    crate::worker::ThreadType::IO,
+                                                ),
                                             ))
                                             .unwrap();
-                                        
+
                                         break;
                                     },
                                 }
@@ -235,34 +243,54 @@ impl ServerState
                                                         .await
                                                         .unwrap();
 
-                                                        // Get response body from server
-                                                        let req_body =
-                                                            response.bytes().await.unwrap();
+                                                        if response.status().is_success() {
+                                                            // Get response body from server
+                                                            let req_body =
+                                                                response.bytes().await.unwrap();
 
-                                                        // Decompress bytes
-                                                        let deser_bytes =
-                                                            decompress_bytes(&req_body).unwrap();
+                                                            // Decompress bytes
+                                                            let decomp_bytes =
+                                                                decompress_bytes(&req_body)
+                                                                    .unwrap();
 
-                                                        // Serialize bytes
-                                                        let dependency =
-                                                            rmp_serde::from_slice::<Dependency>(
-                                                                &deser_bytes,
+                                                            // Serialize bytes
+                                                            let dependency =
+                                                                    rmp_serde::from_slice::<
+                                                                        Dependency,
+                                                                    >(
+                                                                        &decomp_bytes
+                                                                    )
+                                                                    .unwrap();
+
+                                                            // Write dependency to folder
+                                                            if let Err(err) = write_zip_to_fs_async(
+                                                                dep_path.clone(),
+                                                                unzip_from_bytes(Cursor::new(
+                                                                    dependency.source,
+                                                                ))
+                                                                .unwrap(),
                                                             )
-                                                            .unwrap();
+                                                            .await
+                                                            {
+                                                                ui_sender_out_clone.send((format!("An error occured while writing dependency `{}({})` to fs: {err}", request.name.clone(), request.version.clone()), thread_id)).unwrap();
+                                                                break;
+                                                            };
+                                                        }
+                                                        else {
+                                                            let req_body =
+                                                                response.bytes().await.unwrap();
 
-                                                        // Write dependency to folder
-                                                        if let Err(err) = write_zip_to_fs_async(
-                                                            dep_path.clone(),
-                                                            unzip_from_bytes(Cursor::new(
-                                                                dependency.source,
-                                                            ))
-                                                            .unwrap(),
-                                                        )
-                                                        .await
-                                                        {
-                                                            ui_sender_out_clone.send((format!("An error occured while writing dependency `{}({})` to fs: {err}", request.name.clone(), request.version.clone()), thread_id)).unwrap();
-                                                            break;
-                                                        };
+                                                            // Serialize bytes
+                                                            let dependency_error =
+                                                                rmp_serde::from_slice::<
+                                                                    DependencyManagerError,
+                                                                >(
+                                                                    &req_body
+                                                                )
+                                                                .unwrap();
+
+                                                            // Handle error
+                                                        }
                                                     }
 
                                                     current_jobs.in_progress.push(CompileJob {
@@ -271,7 +299,7 @@ impl ServerState
                                                         features: OrdSet::from_vec(
                                                             request.features,
                                                         ),
-                                                        depdendency_path: dep_path,
+                                                        depdendency_path: fs::canonicalize(dep_path).await.unwrap(),
                                                         cpu_features: request.cpu_features,
                                                         cpu_name: request.cpu_name,
                                                         flags_passed_in: request.flags_passed_in,

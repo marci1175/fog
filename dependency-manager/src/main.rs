@@ -64,6 +64,8 @@ async fn main() -> anyhow::Result<()>
 
     let listener = TcpListener::bind("[::1]:3004").await?;
 
+    println!("Starting dependency manager service...");
+
     serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),

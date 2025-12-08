@@ -24,11 +24,11 @@ pub enum CodeGenError
     #[error("[INTERNAL ERROR] Failed to get TargetTriple for host.")]
     FaliedToAcquireTargetTriple,
     #[error(
-        "The main entrypoint to the binary is not found (`src/main.rs`). If you want to create a library, configure `config.toml` accordingly."
+        "The main entrypoint to the binary is not found (`src/main.f`). If you want to create a library, configure `config.toml` accordingly."
     )]
     NoMain,
     #[error(
-        "The main entrypoint to the binary is found, but the signature is invalid. No arguments should be taken and `I32` is returned."
+        "The main entrypoint to the binary is found, but the signature is invalid. No arguments should be taken and `int` is returned."
     )]
     InvalidMain,
     #[error("[INTERNAL ERROR] A struct's field was not found at codegen.")]

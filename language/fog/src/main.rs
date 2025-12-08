@@ -130,7 +130,8 @@ async fn main() -> common::anyhow::Result<()>
                     cpu_name,
                     cpu_features,
                 )
-            }).await??;
+            })
+            .await??;
 
             // Write build manifest to disc
             fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;

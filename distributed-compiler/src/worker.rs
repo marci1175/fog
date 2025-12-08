@@ -102,6 +102,7 @@ impl ServerState
                 loop {
                     // Fetch the latest job from the job queue, if we couldnt that means we were notified too early.
                     if let Some(job) = job_queue.in_progress.steal().success() {
+
                         match compile_job(job.clone(), ui_sender.clone(), thread_id) {
                             Ok(path_to_output_artifacts) => {
                                 let zipped_artifacts = zip_folder(
@@ -178,7 +179,7 @@ fn compile_job(
         ))
         .unwrap();
 
-    let source_file = fs::read_to_string(format!("{}/src/main.f", job.depdendency_path.display()))
+    let source_file = fs::read_to_string(format!("{}\\src\\main.f", job.depdendency_path.display()))
         .map_err(|_| CodeGenError::NoMain)?;
 
     let build_arctifacts_path = format!(
@@ -199,7 +200,7 @@ fn compile_job(
 
     let build_path = PathBuf::from(format!("{build_artifact_name}.exe",));
 
-    let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest",));
+    let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
 
     let build_manifest = compiler_state.compilation_process(
         &source_file,

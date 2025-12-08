@@ -32,7 +32,7 @@ impl CompilerState
     pub fn new(root_dir: PathBuf, enabled_features: OrdSet<String>) -> anyhow::Result<Self>
     {
         // Read config file
-        let config_file = fs::read_to_string(format!("{}/config.toml", root_dir.display()))
+        let config_file = fs::read_to_string(format!("{}\\config.toml", root_dir.display()))
             .map_err(|_| ApplicationError::ConfigNotFound(root_dir.clone()))?;
 
         let config =
@@ -137,7 +137,7 @@ impl CompilerState
                 }
             }
             else {
-                return Err(CodeGenError::NoMain.into());
+                return Err(CodeGenError::InvalidMain.into());
             }
         }
         else if function_table.contains_key("main") {

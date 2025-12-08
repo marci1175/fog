@@ -5,10 +5,8 @@ build_path = "out"
 additional_linking_material = []
 
 remote_compiler_workers = [
-    { name = "Remote", address = "[::1]:3004" },
+    { name = "Remote", address = "[::1]:3030" },
 ]
 
 [dependencies]
-dep1 = { version = "0.0.1", features = ["alma"] }
-dep2 = { version = "0.0.1", features = ["korte"], remote = "Remote" }
-dep3 = { version = "0.0.1", features = ["banan"], remote = "Remote" }
+dependency-test = { version = "0.0.1", remote = "Remote", features = [] }
