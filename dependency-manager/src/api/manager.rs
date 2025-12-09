@@ -21,10 +21,37 @@ use std::{
 
 pub async fn fetch_dependency_information(
     State(state): State<ServerState>,
-    Json(information): Json<DependencyRequest>,
-) -> Result<Json<()>, StatusCode>
+    Json(request): Json<DependencyRequest>,
+) -> Result<Json<DependencyInformation>, DependencyManagerError>
 {
-    Ok(Json(()))
+    let mut pg_connection = state.db_connection.get().map_err(|err| {
+        eprintln!(
+            "An error occured while fetching login information from db: {}",
+            err
+        );
+
+        DependencyManagerError::GenericDatabaseError
+    })?;
+
+    let dependency_filter = dependencies::table.filter(
+        dependency_name
+            .eq(request.name)
+            .and(dependency_version.eq(request.version)),
+    );
+
+    let query_result = dependency_filter
+        .select(DependencyInformation::as_select())
+        .first(&mut pg_connection)
+        .map_err(|err| {
+            eprintln!(
+                "An error occured while fetching dependencies from db: {}",
+                err
+            );
+
+            DependencyManagerError::DependencyNotFound
+        })?;
+
+    Ok(Json(query_result))
 }
 
 pub async fn publish_dependency(
@@ -56,8 +83,8 @@ pub async fn publish_dependency(
                 dependency_upload.dependency_version.clone(),
             );
 
-            let path_to_dep = write_zip_to_fs(
-                dep_path,
+            write_zip_to_fs(
+                &dep_path,
                 ZipArchive::new(&mut dependency_bytes)
                     .map_err(|_| DependencyManagerError::InvalidZipArchive)?,
             )?;
@@ -69,7 +96,7 @@ pub async fn publish_dependency(
                 .values(DependencyInformation {
                     dependency_name: dependency_upload.dependency_name.clone(),
                     // Dependency name and uploaded folder name must match
-                    dependency_source_path: path_to_dep.to_string_lossy().to_string(),
+                    dependency_source_path: dep_path.to_string_lossy().to_string(),
                     dependency_version: dependency_upload.dependency_version.clone(),
                     author: dependency_upload.author.clone(),
                     date_added: Utc::now().date_naive(),
@@ -159,7 +186,7 @@ pub async fn fetch_dependency_source(
     };
 
     let rmp_serialized = common::rmp_serde::to_vec(&dependency).unwrap();
-    
+
     dbg!(rmp_serialized.len());
 
     let compressed_files =

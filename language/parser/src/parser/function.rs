@@ -19,6 +19,7 @@ use common::{
         parse_signature_argument_tokens,
     },
     tokenizer::Token,
+    tracing::info,
     ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
 };
 
@@ -370,7 +371,7 @@ impl Parser
                         },
                     ));
 
-                    println!("Imported file `{}`.", path.display());
+                    info!("Imported file `{}`.", path.display());
 
                     token_idx += 2;
 
@@ -543,7 +544,7 @@ impl Parser
                 )?,
             };
 
-            println!(
+            info!(
                 "Parsed function `{}({})::{fn_name}` ({}/{})",
                 module_path.join("::"),
                 config.version,

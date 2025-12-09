@@ -202,8 +202,14 @@ async fn main() -> Result<()>
 {
     // Set custom panic hook
     std::panic::set_hook(Box::new(|_panic_info| {
-        println!("Remote compiler encountered fatal error!\nStack backtrace will be output to `log.txt`.");
-        fs::write("err.log", std::backtrace::Backtrace::force_capture().to_string()).unwrap();
+        println!(
+            "Remote compiler encountered fatal error!\nStack backtrace will be output to `log.txt`."
+        );
+        fs::write(
+            "err.log",
+            std::backtrace::Backtrace::force_capture().to_string(),
+        )
+        .unwrap();
     }));
 
     color_eyre::install()?;

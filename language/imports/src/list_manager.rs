@@ -8,7 +8,19 @@ use std::{
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, ensure}, compiler::{HostInformation, ProjectConfig}, dependency::DependencyInfo, distributed_compiler::DistributedCompilerWorker, error::dependency::DependencyError, futures, indexmap::{IndexMap, IndexSet}, inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple}, parking_lot::Mutex, parser::FunctionSignature, tokio, toml, ty::OrdSet
+    anyhow::{self, ensure},
+    compiler::{HostInformation, ProjectConfig},
+    dependency::DependencyInfo,
+    distributed_compiler::DistributedCompilerWorker,
+    error::dependency::DependencyError,
+    futures,
+    indexmap::{IndexMap, IndexSet},
+    inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple},
+    parking_lot::Mutex,
+    parser::FunctionSignature,
+    tokio, toml,
+    tracing::info,
+    ty::OrdSet,
 };
 
 use crate::{
@@ -24,6 +36,7 @@ pub fn create_dependency_functions_list<'ctx>(
     mut dependency_list: HashMap<String, DependencyInfo>,
     remote_workers: Option<Vec<DistributedCompilerWorker>>,
     deps_path: PathBuf,
+    root_dir: PathBuf,
     optimization: bool,
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
@@ -64,14 +77,21 @@ pub fn create_dependency_functions_list<'ctx>(
             cpu_features,
             cpu_name,
             Some(flags_passed_in.to_string()),
-            dbg!(target_triple.as_str().to_string_lossy().to_string()),
+            target_triple.as_str().to_string_lossy().to_string(),
         );
 
         let remote_compiled_deps = Arc::new(Mutex::new(dependency_output_path_list.clone()));
-        let remote_compiled_linking_material = Arc::new(Mutex::new(additional_linking_material_list.clone()));
+        let remote_compiled_linking_material =
+            Arc::new(Mutex::new(additional_linking_material_list.clone()));
 
         // Create a map of the remotes' thread handlers
-        let (remote_handlers, thread_handles) = create_remote_list(remotes, host_information, remote_compiled_deps.clone(), remote_compiled_linking_material.clone(), deps_path);
+        let (remote_handlers, thread_handles) = create_remote_list(
+            remotes,
+            host_information,
+            remote_compiled_deps.clone(),
+            remote_compiled_linking_material.clone(),
+            root_dir.clone(),
+        );
 
         // Request the dependencies from those remotes
         dependency_requester(&mut dependency_list, &remote_handlers)?;
@@ -175,7 +195,7 @@ fn scan_dependency<'ctx>(
             let mut dependency_config = toml::from_str::<ProjectConfig>(&config_file_content)?;
 
             if dependency_config.remote_compiler_workers.is_some() {
-                println!(
+                info!(
                     "WARNING: Dependency {} has set a remote compiler worker. The attribute will be ignored.",
                     dependency_config.name
                 );

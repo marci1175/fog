@@ -56,7 +56,10 @@ async fn main() -> anyhow::Result<()>
     // Start up the webserver
     let router = Router::new()
         .route("/", get(reply_ok))
-        .route("/fetch_dependency_info", get(fetch_dependency_information))
+        .route(
+            "/fetch_dependency_information",
+            get(fetch_dependency_information),
+        )
         .route("/fetch_dependency", get(fetch_dependency_source))
         .route("/publish_dependency", post(publish_dependency))
         .layer(middleware::from_fn(log_request))

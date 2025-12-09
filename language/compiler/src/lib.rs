@@ -15,6 +15,7 @@ use common::{
     },
     linker::BuildManifest,
     toml,
+    tracing::info,
     ty::{OrdSet, TypeDiscriminant},
 };
 use imports::list_manager::create_dependency_functions_list;
@@ -69,22 +70,22 @@ impl CompilerState
             },
         );
 
-        println!("Tokenizing...");
+        info!("Tokenizing...");
         let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
 
         // for (idx, token) in tokens.iter().enumerate() {
-        //     println!(
+        //     info!(
         //         "{idx} Token: {} | Range: {:?} | Lines: {:?}",
         //         token, token_ranges[idx].char_range, token_ranges[idx].lines
         //     );
         // }
 
-        println!("Creating LLVM context...");
+        info!("Creating LLVM context...");
         let context = Context::create();
         let builder = context.create_builder();
         let module = context.create_module("main");
 
-        println!("Initializing LLVM environment...");
+        info!("Initializing LLVM environment...");
         unsafe {
             LLVM_InitializeAllTargetInfos();
             LLVM_InitializeAllTargets();
@@ -96,7 +97,7 @@ impl CompilerState
         let mut dependency_output_paths = Vec::new();
         let mut additional_linking_material_list = self.config.additional_linking_material.clone();
 
-        println!("Analyzing dependencies...");
+        info!("Analyzing dependencies...");
 
         // Create dependency imports
         let dependency_fn_list = create_dependency_functions_list(
@@ -105,6 +106,7 @@ impl CompilerState
             self.config.dependencies.clone(),
             self.config.remote_compiler_workers.clone(),
             PathBuf::from(format!("{}\\deps", self.root_dir.display())),
+            self.root_dir.clone(),
             optimization,
             &context,
             &builder,
@@ -141,10 +143,10 @@ impl CompilerState
             }
         }
         else if function_table.contains_key("main") {
-            println!("A `main` function has been found, but the library flag is set to `true`.");
+            info!("A `main` function has been found, but the library flag is set to `true`.");
         }
 
-        // println!("Recontructed token tree:");
+        // info!("Recontructed token tree:");
         // let lines = file_contents.lines().collect::<Vec<&str>>();
         // for (fn_name, fn_def) in function_table.iter() {
         //     for psd_tkn in &fn_def.inner {
@@ -153,7 +155,7 @@ impl CompilerState
 
         //             let line_fetch = lines[ln_idx].get(dbg!(psd_tkn.debug_information.char_range[idx].clone()));
 
-        //             println!("{}", line_fetch.unwrap());
+        //             info!("{}", line_fetch.unwrap());
         //         }
         //     }
         // }

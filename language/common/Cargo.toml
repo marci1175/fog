@@ -40,3 +40,6 @@ r2d2 = { version = "0.8.10", optional = true }
 base64 = { version = "0.22.1", optional = true }
 diesel = { version = "2.3.4", features = ["extras", "postgres"], optional = true }
 futures = "0.3.31"
+tracing = "0.1.43"
+console-subscriber = "0.5.0"
+tracing-subscriber = "0.3.22"

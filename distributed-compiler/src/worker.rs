@@ -1,11 +1,22 @@
-use std::{collections::HashMap, fs::{self, create_dir, create_dir_all}, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs::{self, create_dir, create_dir_all},
+    io::{self, Write, stdout},
+    mem,
+    net::SocketAddr,
+    path::PathBuf,
+    ptr::{self, replace},
+    sync::Arc,
+};
 
 use crate::io::ServerState;
 use common::{
     anyhow,
     compression::{compress_bytes, zip_folder},
     crossbeam::{channel::Sender, deque, queue::ArrayQueue},
+    distributed_compiler::{CompileJob, FinishedJob},
     error::codegen::CodeGenError,
+    serde::{Deserialize, Serialize},
     tokio, toml,
     ty::OrdSet,
 };
@@ -27,25 +38,6 @@ impl JobHandler
     {
         Self { in_progress }
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct CompileJob
-{
-    pub remote_address: SocketAddr,
-    pub target_triple: String,
-    pub features: OrdSet<String>,
-    pub depdendency_path: PathBuf,
-    pub cpu_features: Option<String>,
-    pub cpu_name: Option<String>,
-    pub flags_passed_in: String,
-}
-
-#[derive(Debug)]
-pub struct FinishedJob
-{
-    pub job: CompileJob,
-    pub compressed_artifacts_zip: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -102,7 +94,6 @@ impl ServerState
                 loop {
                     // Fetch the latest job from the job queue, if we couldnt that means we were notified too early.
                     if let Some(job) = job_queue.in_progress.steal().success() {
-
                         match compile_job(job.clone(), ui_sender.clone(), thread_id) {
                             Ok(path_to_output_artifacts) => {
                                 let zipped_artifacts = zip_folder(
@@ -119,9 +110,8 @@ impl ServerState
 
                                         channel
                                             .try_send(FinishedJob {
-                                                job,
-                                                compressed_artifacts_zip: compress_bytes(&zip)
-                                                    .unwrap(),
+                                                info: job.dependency_information,
+                                                artifacts_zip_bytes: zip
                                             })
                                             .unwrap();
                                     },
@@ -178,9 +168,10 @@ fn compile_job(
             thread_id,
         ))
         .unwrap();
-    
-    let source_file = fs::read_to_string(format!("{}\\src\\main.f", job.depdendency_path.display()))
-        .map_err(|_| CodeGenError::NoMain)?;
+
+    let source_file =
+        fs::read_to_string(format!("{}\\src\\main.f", job.depdendency_path.display()))
+            .map_err(|_| CodeGenError::NoMain)?;
 
     let build_arctifacts_path = format!(
         "{}\\{}",
@@ -195,7 +186,10 @@ fn compile_job(
     );
 
     let _ = create_dir_all(&build_arctifacts_path);
-    let _ = create_dir_all(PathBuf::from(format!("{}\\deps", compiler_state.root_dir.display())));
+    let _ = create_dir_all(PathBuf::from(format!(
+        "{}\\deps",
+        compiler_state.root_dir.display()
+    )));
 
     let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll",));
 
@@ -204,10 +198,10 @@ fn compile_job(
     let build_path = PathBuf::from(format!("{build_artifact_name}.exe",));
 
     let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
-    
+
     let build_manifest = compiler_state.compilation_process(
         &source_file,
-        dbg!(target_ir_path),
+        target_ir_path,
         target_o_path,
         build_path,
         true,
@@ -232,5 +226,5 @@ fn compile_job(
         ))
         .unwrap();
 
-    Ok(build_arctifacts_path.into())
+    Ok(job.depdendency_path)
 }

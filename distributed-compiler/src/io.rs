@@ -10,25 +10,17 @@ use std::{
 };
 
 use common::{
-    anyhow,
-    compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs_async},
-    crossbeam::channel::{Receiver, bounded},
-    dependency::construct_dependency_path,
-    dependency_manager::Dependency,
-    distributed_compiler::DependencyRequest,
-    error::dependency_manager::DependencyManagerError,
-    reqwest::Client,
-    rmp_serde,
-    tokio::{
-        self, fs, io::{AsyncReadExt, AsyncWriteExt}, sync::mpsc::{Sender, channel}
-    },
-    ty::OrdSet,
+    anyhow, compression::{compress_bytes, decompress_bytes, unzip_from_bytes, write_zip_to_fs_async}, crossbeam::channel::{Receiver, bounded}, dependency::construct_dependency_path, dependency_manager::{Dependency, DependencyInformation}, distributed_compiler::{CompileJob, DependencyRequest, FinishedJob}, error::dependency_manager::DependencyManagerError, reqwest::Client, rmp_serde, serde_json, tokio::{
+        self, fs,
+        io::{AsyncReadExt, AsyncWriteExt},
+        sync::mpsc::{Sender, channel},
+    }, ty::OrdSet
 };
 use dashmap::DashMap;
 
 use crate::{
     net,
-    worker::{CompileJob, FinishedJob, JobHandler, JobQueue, ThreadIdentification},
+    worker::{JobHandler, JobQueue, ThreadIdentification},
 };
 
 #[derive(Debug, Clone)]
@@ -157,19 +149,24 @@ impl ServerState
                                 // Wait for a job to finish with the client
                                 match recv.recv().await {
                                     Some(finished_job) => {
+                                        let finished_job_packet =
+                                            rmp_serde::to_vec(&finished_job).unwrap();
+
+                                        let compressed_bytes = compress_bytes(&finished_job_packet).unwrap();
+
                                         // Compiled zip len
-                                        let compiled_src =
-                                            finished_job.compressed_artifacts_zip.len();
+                                        let packet_len =
+                                            compressed_bytes.len();
 
                                         // Send length of the zip
                                         client_sender
-                                            .write_all(&(compiled_src as u32).to_be_bytes())
+                                            .write_all(&(packet_len as u32).to_be_bytes())
                                             .await
                                             .unwrap();
 
                                         // Send the actual zip
                                         client_sender
-                                            .write_all(&finished_job.compressed_artifacts_zip)
+                                            .write_all(&compressed_bytes)
                                             .await
                                             .unwrap();
                                     },
@@ -225,6 +222,10 @@ impl ServerState
                                                         request.version.clone(),
                                                     );
 
+                                                    let mut dependency_information: Option<
+                                                        DependencyInformation,
+                                                    > = None;
+
                                                     // Check if we already have the dependency downloaded
                                                     // Implement hash checking so that it enusres that dependencies are always correctly fetched from remotes
                                                     // Preferrably with an api call
@@ -260,6 +261,9 @@ impl ServerState
                                                                     )
                                                                     .unwrap();
 
+                                                            dependency_information =
+                                                                Some(dependency.info.clone());
+
                                                             // Write dependency to folder
                                                             if let Err(err) = write_zip_to_fs_async(
                                                                 dep_path.clone(),
@@ -291,6 +295,17 @@ impl ServerState
                                                         }
                                                     }
 
+                                                    if dependency_information.is_none() {
+                                                        let dep_info = net::request_dependency_information(http_client.clone(),
+                                                            &remote_url.clone(),
+                                                            request.name.clone(),
+                                                            request.version.clone()).await.unwrap();
+
+                                                        let json_text = dep_info.text().await.unwrap();
+
+                                                        dependency_information = Some(serde_json::from_str::<DependencyInformation>(&json_text).unwrap());
+                                                    }
+
                                                     current_jobs.in_progress.push(CompileJob {
                                                         remote_address: addr.clone(),
                                                         target_triple: request.target_triple,
@@ -301,6 +316,9 @@ impl ServerState
                                                         cpu_features: request.cpu_features,
                                                         cpu_name: request.cpu_name,
                                                         flags_passed_in: request.flags_passed_in,
+                                                        // Ensure this is always Some(_)
+                                                        // Make out a better way of handling if both measures fail (highly unlikely)
+                                                        dependency_information: dependency_information.unwrap(),
                                                     });
 
                                                     // Wake workers

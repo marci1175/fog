@@ -12,6 +12,7 @@ use inkwell::{
     types::{BasicType, BasicTypeEnum},
 };
 use num::Float;
+use serde::{Deserialize, Serialize};
 use strum::EnumTryAs;
 use strum_macros::Display;
 

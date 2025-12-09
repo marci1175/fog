@@ -57,11 +57,15 @@ pub fn unzip_from_bytes<T: Read + Seek>(inner: T) -> anyhow::Result<ZipArchive<T
 }
 
 pub fn write_zip_to_fs<T: Seek + Read>(
-    dependency_path: PathBuf,
+    dependency_path: &PathBuf,
     mut archive: ZipArchive<T>,
-) -> anyhow::Result<PathBuf, DependencyManagerError>
+) -> anyhow::Result<Vec<PathBuf>, DependencyManagerError>
 {
     let mut archive_idx = 0;
+
+    // Paths we have written to
+    let mut paths_written_to = Vec::new();
+
     while let Ok(mut archived_file) = archive.by_index(archive_idx) {
         if let Some(file_path) = archived_file.enclosed_name()
             && archived_file.is_file()
@@ -69,18 +73,25 @@ pub fn write_zip_to_fs<T: Seek + Read>(
             let mut fs_file_path = dependency_path.clone();
             fs_file_path.push(file_path.clone());
 
-            let mut file_folder_path = fs_file_path.clone();
-            file_folder_path.pop();
+            if archived_file.is_file() {
+                let mut file_folder_path = fs_file_path.clone();
+                file_folder_path.pop();
 
-            // Create the directory for the file in the deps folder, if it fails the folder has prolly been created already.
-            let _ = fs::create_dir_all(file_folder_path);
+                // Create the directory for the file in the deps folder, if it fails the folder has prolly been created already.
+                let _ = fs::create_dir_all(file_folder_path);
 
-            if let Ok(mut file_handle) = fs::File::create(fs_file_path) {
-                io::copy(&mut archived_file, &mut file_handle)
-                    .map_err(|_| DependencyManagerError::FailedToWriteToFile(file_path))?;
+                if let Ok(mut file_handle) = fs::File::create(&fs_file_path) {
+                    io::copy(&mut archived_file, &mut file_handle)
+                        .map_err(|_| DependencyManagerError::FailedToWriteToFile(file_path))?;
+                }
+                else {
+                    return Err(DependencyManagerError::FailedToCreateFile(file_path));
+                }
+
+                paths_written_to.push(fs_file_path);
             }
             else {
-                return Err(DependencyManagerError::FailedToCreateFile(file_path));
+                let _ = fs::create_dir_all(fs_file_path);
             }
         }
         else {
@@ -92,7 +103,7 @@ pub fn write_zip_to_fs<T: Seek + Read>(
         archive_idx += 1;
     }
 
-    Ok(dependency_path)
+    Ok(paths_written_to)
 }
 
 pub async fn write_zip_to_fs_async<T: Seek + Read>(

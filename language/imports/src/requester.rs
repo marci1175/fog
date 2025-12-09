@@ -1,14 +1,23 @@
 use std::{collections::HashMap, io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use common::{
-    anyhow::Result, compiler::HostInformation, compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs}, dependency::DependencyInfo, distributed_compiler::{DependencyRequest, DistributedCompilerWorker}, error::dependency::DependencyError, parking_lot::Mutex, rmp_serde, tokio::{
+    anyhow::Result,
+    compiler::HostInformation,
+    compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs},
+    dependency::DependencyInfo,
+    distributed_compiler::{DependencyRequest, DistributedCompilerWorker, FinishedJob},
+    error::dependency::DependencyError,
+    parking_lot::Mutex,
+    rmp_serde,
+    tokio::{
         self,
         io::{AsyncReadExt, AsyncWriteExt},
         net::{TcpSocket, TcpStream},
         select, spawn,
         sync::mpsc::Sender,
         task::JoinHandle,
-    }
+    },
+    tracing::info,
 };
 
 pub fn create_remote_list(
@@ -16,7 +25,7 @@ pub fn create_remote_list(
     host_info: HostInformation,
     remote_compiled_dependencies: Arc<Mutex<Vec<PathBuf>>>,
     remote_compiled_linking_material: Arc<Mutex<Vec<PathBuf>>>,
-    deps_path: PathBuf,
+    root_path: PathBuf,
 ) -> (
     HashMap<String, (String, Sender<(String, DependencyInfo)>)>,
     Vec<JoinHandle<()>>,
@@ -30,7 +39,7 @@ pub fn create_remote_list(
 
         let (sender, mut recv) = tokio::sync::mpsc::channel::<(String, DependencyInfo)>(255);
 
-        println!(
+        info!(
             "Contacting remote compiler `{}` at `{}`",
             remote.name.clone(),
             remote.address.clone()
@@ -38,7 +47,7 @@ pub fn create_remote_list(
 
         remote_list.insert(remote.name, (remote.address.clone(), sender));
 
-        let deps_path = deps_path.clone();
+        let root_path = root_path.clone();
 
         // Create a remote handler thread
         let thread_handle = spawn(async move {
@@ -57,17 +66,19 @@ pub fn create_remote_list(
                         // Send packet
                         tcp_handle.write_all(&packet).await.unwrap();
                     }
-
-
                     // Receive and handle the pre-compiled files and break the loop
                     Ok(len) = tcp_handle.read_u32() => {
-                        let mut message_buffer = vec![0; len as usize];
+                        let mut packet_buf = vec![0; len as usize];
 
-                        tcp_handle.read_exact(&mut message_buffer).await.unwrap();
+                        tcp_handle.read_exact(&mut packet_buf).await.unwrap();
 
-                        let zip = unzip_from_bytes(Cursor::new(decompress_bytes(&message_buffer).unwrap())).unwrap();
+                        let decomp_bytes = decompress_bytes(&packet_buf).unwrap();
 
-                        write_zip_to_fs(format!("{}\\remote_compile\\", deps_path.display()).into(), zip).unwrap();
+                        let finished_job = rmp_serde::from_slice::<FinishedJob>(&decomp_bytes).unwrap();
+
+                        let zip = unzip_from_bytes(Cursor::new(finished_job.artifacts_zip_bytes)).unwrap();
+
+                        let files_written_to = write_zip_to_fs(&format!("{}\\remote_compile\\", root_path.display()).into(), zip).unwrap();
 
                         break;
                     }
@@ -108,7 +119,7 @@ pub fn request_dependency(
 
     match remote_handlers.get(&remote_compiler) {
         Some((peer_addr, thread)) => {
-            println!(
+            info!(
                 "Requesting dependency `{}({})` from remote compiler `{}`",
                 dependency.0.clone(),
                 dependency.1.version.clone(),

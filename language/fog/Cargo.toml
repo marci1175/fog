@@ -12,3 +12,4 @@ linker = { path = "../linker" }
 serde = "1.0.228"
 strum = {version = "0.27.2", features = ["derive"]}
 strum_macros = "0.27.2"
+tracing = "0.1.43"

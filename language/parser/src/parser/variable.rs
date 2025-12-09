@@ -1053,7 +1053,7 @@ pub fn parse_variable_expression(
             }
         },
         _ => {
-            // println!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
+            // info!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
         },
     }
 
