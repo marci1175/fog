@@ -11,14 +11,7 @@ use std::{
 
 use crate::io::ServerState;
 use common::{
-    anyhow,
-    compression::{compress_bytes, zip_folder},
-    crossbeam::{channel::Sender, deque, queue::ArrayQueue},
-    distributed_compiler::{CompileJob, FinishedJob},
-    error::codegen::CodeGenError,
-    serde::{Deserialize, Serialize},
-    tokio, toml,
-    ty::OrdSet,
+    anyhow, compiler::ProjectConfig, compression::{compress_bytes, zip_folder}, crossbeam::{channel::Sender, deque, queue::ArrayQueue}, distributed_compiler::{CompileJob, FinishedJob}, error::codegen::CodeGenError, linker::BuildManifest, serde::{Deserialize, Serialize}, tokio, toml, ty::OrdSet
 };
 use compiler::CompilerState;
 use dashmap::DashMap;
@@ -95,7 +88,7 @@ impl ServerState
                     // Fetch the latest job from the job queue, if we couldnt that means we were notified too early.
                     if let Some(job) = job_queue.in_progress.steal().success() {
                         match compile_job(job.clone(), ui_sender.clone(), thread_id) {
-                            Ok(path_to_output_artifacts) => {
+                            Ok((path_to_output_artifacts, project_config, build_manifest)) => {
                                 let zipped_artifacts = zip_folder(
                                     fs::read_dir(path_to_output_artifacts).unwrap(),
                                     None,
@@ -111,7 +104,9 @@ impl ServerState
                                         channel
                                             .try_send(FinishedJob {
                                                 info: job.dependency_information,
-                                                artifacts_zip_bytes: zip
+                                                artifacts_zip_bytes: zip,
+                                                dependency_config: project_config,
+                                                build_manifest,
                                             })
                                             .unwrap();
                                     },
@@ -153,7 +148,7 @@ fn compile_job(
     job: CompileJob,
     ui_sender: Sender<(String, ThreadIdentification)>,
     thread_id: ThreadIdentification,
-) -> anyhow::Result<PathBuf>
+) -> anyhow::Result<(PathBuf, ProjectConfig, BuildManifest)>
 {
     let compiler_state = CompilerState::new(job.depdendency_path.clone(), job.features).unwrap();
 
@@ -191,11 +186,11 @@ fn compile_job(
         compiler_state.root_dir.display()
     )));
 
-    let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll",));
+    let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll"));
 
-    let target_o_path = PathBuf::from(format!("{build_artifact_name}.obj",));
+    let target_o_path = PathBuf::from(format!("{build_artifact_name}.obj"));
 
-    let build_path = PathBuf::from(format!("{build_artifact_name}.exe",));
+    let build_path = PathBuf::from(format!("{build_artifact_name}.exe"));
 
     let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
 
@@ -212,7 +207,7 @@ fn compile_job(
         job.cpu_name,
         job.cpu_features,
     )?;
-
+    
     fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
 
     ui_sender
@@ -226,5 +221,5 @@ fn compile_job(
         ))
         .unwrap();
 
-    Ok(job.depdendency_path)
+    Ok((job.depdendency_path, compiler_state.config, build_manifest.localize_paths(compiler_state.root_dir)))
 }

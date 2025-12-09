@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, rc::Rc, sync::Arc};
+use std::{fs::{self, create_dir_all}, path::PathBuf, rc::Rc, sync::Arc};
 
 use codegen::llvm_codegen;
 use common::{
@@ -95,9 +95,28 @@ impl CompilerState
         }
 
         let mut dependency_output_paths = Vec::new();
-        let mut additional_linking_material_list = self.config.additional_linking_material.clone();
+        let deps_path = PathBuf::from(format!("{}\\deps", self.root_dir.display()));
 
         info!("Analyzing dependencies...");
+
+        // Create an extern libs folder which we will store all the external (pre compiled) deps in
+        let extern_libs_path = PathBuf::from(format!("{}\\extern_libs", self.config.build_path));
+        
+        let _ = create_dir_all(&extern_libs_path);
+
+        let mut additional_linking_material_list: Vec<PathBuf> = Vec::new();
+
+        // Move all of the external dep files to the folder 
+        for origin_path in &self.config.additional_linking_material {
+            let mut extern_libs_path = extern_libs_path.clone();
+            
+            // Modify path with the file name
+            extern_libs_path.push(origin_path.file_name().unwrap().to_string_lossy().to_string());
+
+            fs::copy(origin_path, &extern_libs_path)?;
+
+            additional_linking_material_list.push(extern_libs_path);
+        }
 
         // Create dependency imports
         let dependency_fn_list = create_dependency_functions_list(
@@ -105,7 +124,7 @@ impl CompilerState
             &mut additional_linking_material_list,
             self.config.dependencies.clone(),
             self.config.remote_compiler_workers.clone(),
-            PathBuf::from(format!("{}\\deps", self.root_dir.display())),
+            deps_path.clone(),
             self.root_dir.clone(),
             optimization,
             &context,
@@ -152,9 +171,7 @@ impl CompilerState
         //     for psd_tkn in &fn_def.inner {
         //         for (idx, ln_idx) in psd_tkn.debug_information.lines.clone().into_iter().enumerate() {
         //             dbg!(&lines[ln_idx]);
-
         //             let line_fetch = lines[ln_idx].get(dbg!(psd_tkn.debug_information.char_range[idx].clone()));
-
         //             info!("{}", line_fetch.unwrap());
         //         }
         //     }
@@ -180,10 +197,12 @@ impl CompilerState
         // Linking the object file
         // link_llvm_to_target(&module, target, target_o_path)?;
         dependency_output_paths.push(target_ir_path.clone());
-
+        
         Ok(BuildManifest {
+            // Localize path for later use, if we cannot strip it, it means that the path is already a stripped version, therefor we can skip that
             build_output_paths: dependency_output_paths,
             additional_linking_material: additional_linking_material_list,
+            // Localize path for later use
             output_path: build_path,
         })
     }

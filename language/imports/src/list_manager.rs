@@ -80,9 +80,9 @@ pub fn create_dependency_functions_list<'ctx>(
             target_triple.as_str().to_string_lossy().to_string(),
         );
 
-        let remote_compiled_deps = Arc::new(Mutex::new(dependency_output_path_list.clone()));
+        let remote_compiled_deps = Arc::new(Mutex::new(Vec::new()));
         let remote_compiled_linking_material =
-            Arc::new(Mutex::new(additional_linking_material_list.clone()));
+            Arc::new(Mutex::new(Vec::new()));
 
         // Create a map of the remotes' thread handlers
         let (remote_handlers, thread_handles) = create_remote_list(
@@ -102,6 +102,7 @@ pub fn create_dependency_functions_list<'ctx>(
         });
 
         *dependency_output_path_list = (*remote_compiled_deps.lock()).to_owned();
+        *additional_linking_material_list = (*remote_compiled_linking_material.lock()).to_owned();
     }
     else if !dependency_list.is_empty() {
         return Err(DependencyError::MissingDependencies(dependency_list).into());

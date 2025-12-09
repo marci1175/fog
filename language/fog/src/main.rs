@@ -3,22 +3,12 @@ mod cli;
 use crate::cli::CliCommand;
 use clap::Parser;
 use common::{
-    anyhow, clap,
-    compiler::ProjectConfig,
-    compression::{compress_bytes, zip_folder},
-    dependency_manager::{DependencyUpload, DependencyUploadReply},
-    error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError},
-    linker::BuildManifest,
-    reqwest::{self, StatusCode, blocking::Client},
-    rmp_serde, serde_json, tokio, toml,
-    tracing::{info, instrument, warn},
-    tracing_subscriber,
-    ty::OrdSet,
+    anyhow, clap, compiler::ProjectConfig, compression::{compress_bytes, zip_folder}, dependency_manager::{DependencyUpload, DependencyUploadReply}, error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError}, linker::BuildManifest, reqwest::{self, StatusCode, blocking::Client}, rmp_serde, serde_json, tokio, toml, tracing::{info, instrument, warn}, tracing_subscriber, ty::OrdSet
 };
 use compiler::CompilerState;
 use linker::link;
-use std::{env, fs, path::PathBuf};
 use tracing::{Level, event, span, subscriber};
+use std::{env, fs, path::PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -30,7 +20,7 @@ pub struct CompilerArgs
 
 #[tokio::main]
 async fn main() -> common::anyhow::Result<()>
-{
+{   
     tracing_subscriber::fmt().init();
 
     let current_working_dir = env::current_dir()?;
@@ -41,7 +31,7 @@ async fn main() -> common::anyhow::Result<()>
     match compiler_command.clone() {
         CliCommand::Link { path } => {
             info!("Reading file on: `{}`", path.display());
-
+            
             let manifest_string = fs::read_to_string(&path)?;
 
             let manifest = toml::from_str::<BuildManifest>(&manifest_string)?;
@@ -108,13 +98,13 @@ async fn main() -> common::anyhow::Result<()>
                 compiler_config.name.clone()
             );
 
-            let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll",));
+            let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll"));
 
-            let target_o_path = PathBuf::from(format!("{build_artifact_name}.obj",));
+            let target_o_path = PathBuf::from(format!("{build_artifact_name}.obj"));
 
-            let build_path = PathBuf::from(format!("{build_artifact_name}.exe",));
+            let build_path = PathBuf::from(format!("{build_artifact_name}.exe"));
 
-            let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest",));
+            let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
             let build_path_clone = build_path.clone();
             let compiler_startup_instant = std::time::Instant::now();
             let root_path_clone = root_path.clone();
@@ -296,8 +286,7 @@ async fn main() -> common::anyhow::Result<()>
                     .post(format!("{url}/publish_dependency"))
                     .header("Content-Type", "application/octet-stream")
                     .body(compressed_body)
-                    .send()
-                    .await?;
+                    .send().await?;
 
                 let response_code = publish_response_code.status();
 

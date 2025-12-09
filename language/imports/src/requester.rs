@@ -48,6 +48,8 @@ pub fn create_remote_list(
         remote_list.insert(remote.name, (remote.address.clone(), sender));
 
         let root_path = root_path.clone();
+        let remote_compiled_dependencies = remote_compiled_dependencies.clone();
+        let remote_compiled_linking_material = remote_compiled_linking_material.clone();
 
         // Create a remote handler thread
         let thread_handle = spawn(async move {
@@ -78,14 +80,23 @@ pub fn create_remote_list(
 
                         let zip = unzip_from_bytes(Cursor::new(finished_job.artifacts_zip_bytes)).unwrap();
 
-                        let files_written_to = write_zip_to_fs(&format!("{}\\remote_compile\\", root_path.display()).into(), zip).unwrap();
+                        // Construct zip fs path
+                        let zip_fs_path = format!("{}\\remote_compile\\{}({})\\", root_path.display(), finished_job.info.dependency_name, finished_job.info.dependency_version);
 
+                        // Write zip contents to fs
+                        write_zip_to_fs(&(zip_fs_path.clone().into()), zip).unwrap();
+                        
+                        // Reconstruct paths 
+                        remote_compiled_dependencies.lock().extend(finished_job.build_manifest.build_output_paths.iter().map(|p| format!("{zip_fs_path}\\{}", p.display()).into()));
+                        remote_compiled_linking_material.lock().extend(finished_job.build_manifest.additional_linking_material.iter().map(|p| format!("{zip_fs_path}\\{}", p.display()).into()));
+
+                        // Quit thread
                         break;
                     }
                 }
             }
         });
-
+        
         threads.push(thread_handle);
     }
 
