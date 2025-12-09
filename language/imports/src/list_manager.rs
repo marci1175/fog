@@ -8,17 +8,7 @@ use std::{
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, ensure},
-    compiler::{HostInformation, ProjectConfig},
-    dependency::DependencyInfo,
-    distributed_compiler::DistributedCompilerWorker,
-    error::dependency::DependencyError,
-    futures,
-    indexmap::{IndexMap, IndexSet},
-    inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple},
-    parser::FunctionSignature,
-    tokio, toml,
-    ty::OrdSet,
+    anyhow::{self, ensure}, compiler::{HostInformation, ProjectConfig}, dependency::DependencyInfo, distributed_compiler::DistributedCompilerWorker, error::dependency::DependencyError, futures, indexmap::{IndexMap, IndexSet}, inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple}, parking_lot::Mutex, parser::FunctionSignature, tokio, toml, ty::OrdSet
 };
 
 use crate::{
@@ -48,7 +38,8 @@ pub fn create_dependency_functions_list<'ctx>(
 
     let mut module_path = vec![];
 
-    let dir_entries = fs::read_dir(deps_path)?;
+    // This will panic if the deps folder is not found
+    let dir_entries = fs::read_dir(&deps_path)?;
 
     scan_dependencies(
         dependency_output_path_list,
@@ -73,11 +64,14 @@ pub fn create_dependency_functions_list<'ctx>(
             cpu_features,
             cpu_name,
             Some(flags_passed_in.to_string()),
-            target_triple.to_string(),
+            dbg!(target_triple.as_str().to_string_lossy().to_string()),
         );
 
+        let remote_compiled_deps = Arc::new(Mutex::new(dependency_output_path_list.clone()));
+        let remote_compiled_linking_material = Arc::new(Mutex::new(additional_linking_material_list.clone()));
+
         // Create a map of the remotes' thread handlers
-        let (remote_handlers, thread_handles) = create_remote_list(remotes, host_information);
+        let (remote_handlers, thread_handles) = create_remote_list(remotes, host_information, remote_compiled_deps.clone(), remote_compiled_linking_material.clone(), deps_path);
 
         // Request the dependencies from those remotes
         dependency_requester(&mut dependency_list, &remote_handlers)?;
@@ -86,8 +80,10 @@ pub fn create_dependency_functions_list<'ctx>(
         tokio::runtime::Handle::current().block_on(async move {
             futures::future::join_all(thread_handles).await;
         });
+
+        *dependency_output_path_list = (*remote_compiled_deps.lock()).to_owned();
     }
-    else {
+    else if !dependency_list.is_empty() {
         return Err(DependencyError::MissingDependencies(dependency_list).into());
     }
 

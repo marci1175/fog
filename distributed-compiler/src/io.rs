@@ -157,8 +157,6 @@ impl ServerState
                                 // Wait for a job to finish with the client
                                 match recv.recv().await {
                                     Some(finished_job) => {
-                                        panic!("{finished_job:?}");
-
                                         // Compiled zip len
                                         let compiled_src =
                                             finished_job.compressed_artifacts_zip.len();

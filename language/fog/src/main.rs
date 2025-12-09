@@ -9,7 +9,7 @@ use common::{
     dependency_manager::{DependencyUpload, DependencyUploadReply},
     error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError},
     linker::BuildManifest,
-    reqwest::{StatusCode, blocking::Client},
+    reqwest::{self, StatusCode, blocking::Client},
     rmp_serde, serde_json, tokio, toml,
     ty::OrdSet,
 };
@@ -260,8 +260,8 @@ async fn main() -> common::anyhow::Result<()>
 
             println!("Resolving `{url}`...");
 
-            let http_client = Client::new();
-            let request_reply = http_client.get(&url).send()?;
+            let http_client = reqwest::Client::new();
+            let request_reply = http_client.get(&url).send().await?;
 
             let response_code = request_reply.status();
 
@@ -293,16 +293,16 @@ async fn main() -> common::anyhow::Result<()>
                     .post(format!("{url}/publish_dependency"))
                     .header("Content-Type", "application/octet-stream")
                     .body(compressed_body)
-                    .send()?;
+                    .send().await?;
 
                 let response_code = publish_response_code.status();
 
                 if response_code == StatusCode::INTERNAL_SERVER_ERROR {
-                    let request_body = publish_response_code.text()?;
+                    let request_body = publish_response_code.text().await?;
                     println!("Received response `{response_code}` from server: {request_body}.");
                 }
                 else {
-                    let reply = request_reply.text()?;
+                    let reply = request_reply.text().await?;
 
                     let dep_reply = serde_json::from_str::<DependencyUploadReply>(&reply)?;
 

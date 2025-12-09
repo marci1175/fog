@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs::{self, create_dir, create_dir_all}, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use crate::io::ServerState;
 use common::{
@@ -178,7 +178,7 @@ fn compile_job(
             thread_id,
         ))
         .unwrap();
-
+    
     let source_file = fs::read_to_string(format!("{}\\src\\main.f", job.depdendency_path.display()))
         .map_err(|_| CodeGenError::NoMain)?;
 
@@ -194,6 +194,9 @@ fn compile_job(
         compiler_state.config.name.clone()
     );
 
+    let _ = create_dir_all(&build_arctifacts_path);
+    let _ = create_dir_all(PathBuf::from(format!("{}\\deps", compiler_state.root_dir.display())));
+
     let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll",));
 
     let target_o_path = PathBuf::from(format!("{build_artifact_name}.obj",));
@@ -201,10 +204,10 @@ fn compile_job(
     let build_path = PathBuf::from(format!("{build_artifact_name}.exe",));
 
     let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
-
+    
     let build_manifest = compiler_state.compilation_process(
         &source_file,
-        target_ir_path,
+        dbg!(target_ir_path),
         target_o_path,
         build_path,
         true,

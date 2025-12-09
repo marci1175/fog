@@ -1,26 +1,22 @@
-use std::{collections::HashMap, io::Cursor, net::SocketAddr};
+use std::{collections::HashMap, io::Cursor, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use common::{
-    anyhow::Result,
-    compiler::HostInformation,
-    compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs},
-    dependency::DependencyInfo,
-    distributed_compiler::{DependencyRequest, DistributedCompilerWorker},
-    error::dependency::DependencyError,
-    rmp_serde,
-    tokio::{
+    anyhow::Result, compiler::HostInformation, compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs}, dependency::DependencyInfo, distributed_compiler::{DependencyRequest, DistributedCompilerWorker}, error::dependency::DependencyError, parking_lot::Mutex, rmp_serde, tokio::{
         self,
         io::{AsyncReadExt, AsyncWriteExt},
         net::{TcpSocket, TcpStream},
         select, spawn,
         sync::mpsc::Sender,
         task::JoinHandle,
-    },
+    }
 };
 
 pub fn create_remote_list(
     remotes: Vec<DistributedCompilerWorker>,
     host_info: HostInformation,
+    remote_compiled_dependencies: Arc<Mutex<Vec<PathBuf>>>,
+    remote_compiled_linking_material: Arc<Mutex<Vec<PathBuf>>>,
+    deps_path: PathBuf,
 ) -> (
     HashMap<String, (String, Sender<(String, DependencyInfo)>)>,
     Vec<JoinHandle<()>>,
@@ -42,6 +38,8 @@ pub fn create_remote_list(
 
         remote_list.insert(remote.name, (remote.address.clone(), sender));
 
+        let deps_path = deps_path.clone();
+
         // Create a remote handler thread
         let thread_handle = spawn(async move {
             let mut tcp_handle = TcpStream::connect(remote.address).await.unwrap();
@@ -54,7 +52,7 @@ pub fn create_remote_list(
                         let packet = rmp_serde::to_vec(&DependencyRequest {name, version: info.version, features: info.features, target_triple: host_info.target_triple.clone(), cpu_features: host_info.cpu_features.clone(), cpu_name: host_info.cpu_name.clone(), flags_passed_in: String::new() }).unwrap();
 
                         // Send len
-                        tcp_handle.write_all(&(dbg!(packet.len()) as u32).to_be_bytes()).await.unwrap();
+                        tcp_handle.write_all(&(packet.len() as u32).to_be_bytes()).await.unwrap();
 
                         // Send packet
                         tcp_handle.write_all(&packet).await.unwrap();
@@ -65,13 +63,11 @@ pub fn create_remote_list(
                     Ok(len) = tcp_handle.read_u32() => {
                         let mut message_buffer = vec![0; len as usize];
 
-                        dbg!(&len);
-
                         tcp_handle.read_exact(&mut message_buffer).await.unwrap();
 
                         let zip = unzip_from_bytes(Cursor::new(decompress_bytes(&message_buffer).unwrap())).unwrap();
 
-                        write_zip_to_fs("downloaded_files/".into(), zip).unwrap();
+                        write_zip_to_fs(format!("{}\\remote_compile\\", deps_path.display()).into(), zip).unwrap();
 
                         break;
                     }
