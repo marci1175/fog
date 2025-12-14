@@ -81,4 +81,8 @@ pub enum ParserError
     InvalidModulePathDefinition(Token),
     #[error("Imported function was not found in the dependencies: `{0:?}`.")]
     FunctionDependencyNotFound(Vec<String>),
+    #[error("Literal contains a non-Utf8 compatible char.")]
+    InvalidUtf8Literal,
+    #[error("Number cannot be represented in 64bits. Please remove numbers too large.")]
+    NumberTooLarge,
 }

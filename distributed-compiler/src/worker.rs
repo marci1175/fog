@@ -11,7 +11,16 @@ use std::{
 
 use crate::io::ServerState;
 use common::{
-    anyhow, compiler::ProjectConfig, compression::{compress_bytes, zip_folder}, crossbeam::{channel::Sender, deque, queue::ArrayQueue}, distributed_compiler::{CompileJob, FinishedJob}, error::codegen::CodeGenError, linker::BuildManifest, serde::{Deserialize, Serialize}, tokio, toml, ty::OrdSet
+    anyhow,
+    compiler::ProjectConfig,
+    compression::{compress_bytes, zip_folder},
+    crossbeam::{channel::Sender, deque, queue::ArrayQueue},
+    distributed_compiler::{CompileJob, FinishedJob},
+    error::codegen::CodeGenError,
+    linker::BuildManifest,
+    serde::{Deserialize, Serialize},
+    tokio, toml,
+    ty::OrdSet,
 };
 use compiler::CompilerState;
 use dashmap::DashMap;
@@ -207,7 +216,7 @@ fn compile_job(
         job.cpu_name,
         job.cpu_features,
     )?;
-    
+
     fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
 
     ui_sender
@@ -221,5 +230,9 @@ fn compile_job(
         ))
         .unwrap();
 
-    Ok((job.depdendency_path, compiler_state.config, build_manifest.localize_paths(compiler_state.root_dir)))
+    Ok((
+        job.depdendency_path,
+        compiler_state.config,
+        build_manifest.localize_paths(compiler_state.root_dir),
+    ))
 }

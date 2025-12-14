@@ -2,7 +2,10 @@ use std::{net::SocketAddr, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{compiler::ProjectConfig, dependency_manager::DependencyInformation, linker::BuildManifest, ty::OrdSet};
+use crate::{
+    compiler::ProjectConfig, dependency_manager::DependencyInformation, linker::BuildManifest,
+    ty::OrdSet,
+};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct DistributedCompilerWorker
@@ -45,5 +48,5 @@ pub struct FinishedJob
     pub info: DependencyInformation,
     pub artifacts_zip_bytes: Vec<u8>,
     pub dependency_config: ProjectConfig,
-    pub build_manifest: BuildManifest
+    pub build_manifest: BuildManifest,
 }

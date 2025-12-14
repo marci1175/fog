@@ -1,5 +1,7 @@
 use std::{
-    fs, path::PathBuf, process::{Command, ExitStatus, Stdio}
+    fs,
+    path::PathBuf,
+    process::{Command, ExitStatus, Stdio},
 };
 
 use serde::{Deserialize, Serialize};
@@ -29,10 +31,27 @@ impl BuildManifest
             .status()?)
     }
 
-    pub fn localize_paths(self, root: PathBuf) -> Self {
+    pub fn localize_paths(self, root: PathBuf) -> Self
+    {
         Self {
-            build_output_paths: self.build_output_paths.iter().map(|p| p.strip_prefix(fs::canonicalize(&root).unwrap().to_path_buf()).unwrap().to_path_buf()).collect::<Vec<PathBuf>>(),
-            additional_linking_material: self.additional_linking_material.iter().map(|p| p.strip_prefix(fs::canonicalize(&root).unwrap().to_path_buf()).unwrap().to_path_buf()).collect::<Vec<PathBuf>>(),
+            build_output_paths: self
+                .build_output_paths
+                .iter()
+                .map(|p| {
+                    p.strip_prefix(fs::canonicalize(&root).unwrap().to_path_buf())
+                        .unwrap()
+                        .to_path_buf()
+                })
+                .collect::<Vec<PathBuf>>(),
+            additional_linking_material: self
+                .additional_linking_material
+                .iter()
+                .map(|p| {
+                    p.strip_prefix(fs::canonicalize(&root).unwrap().to_path_buf())
+                        .unwrap()
+                        .to_path_buf()
+                })
+                .collect::<Vec<PathBuf>>(),
             output_path: self.output_path.strip_prefix(&root).unwrap().to_path_buf(),
         }
     }

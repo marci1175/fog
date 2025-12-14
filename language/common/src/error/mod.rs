@@ -16,10 +16,35 @@ pub struct ErrorWrapper<T>
     pub debug_information: DebugInformation,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Copy)]
 
 pub struct DebugInformation
 {
-    pub char_range: Vec<Range<usize>>,
-    pub lines: Range<usize>,
+    pub char_start: CharPosition,
+    pub char_end: CharPosition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, PartialOrd, Copy)]
+pub struct CharPosition
+{
+    pub line: usize,
+    pub column: usize,
+}
+
+impl Ord for CharPosition
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering
+    {
+        self.line
+            .cmp(&other.line)
+            .then(self.column.cmp(&other.column))
+    }
+}
+
+impl CharPosition
+{
+    pub fn new(line: usize, column: usize) -> Self
+    {
+        Self { line, column }
+    }
 }

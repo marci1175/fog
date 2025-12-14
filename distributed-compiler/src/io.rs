@@ -10,11 +10,21 @@ use std::{
 };
 
 use common::{
-    anyhow, compression::{compress_bytes, decompress_bytes, unzip_from_bytes, write_zip_to_fs_async}, crossbeam::channel::{Receiver, bounded}, dependency::construct_dependency_path, dependency_manager::{Dependency, DependencyInformation}, distributed_compiler::{CompileJob, DependencyRequest, FinishedJob}, error::dependency_manager::DependencyManagerError, reqwest::Client, rmp_serde, serde_json, tokio::{
+    anyhow,
+    compression::{compress_bytes, decompress_bytes, unzip_from_bytes, write_zip_to_fs_async},
+    crossbeam::channel::{Receiver, bounded},
+    dependency::construct_dependency_path,
+    dependency_manager::{Dependency, DependencyInformation},
+    distributed_compiler::{CompileJob, DependencyRequest, FinishedJob},
+    error::dependency_manager::DependencyManagerError,
+    reqwest::Client,
+    rmp_serde, serde_json,
+    tokio::{
         self, fs,
         io::{AsyncReadExt, AsyncWriteExt},
         sync::mpsc::{Sender, channel},
-    }, ty::OrdSet
+    },
+    ty::OrdSet,
 };
 use dashmap::DashMap;
 
@@ -152,11 +162,11 @@ impl ServerState
                                         let finished_job_packet =
                                             rmp_serde::to_vec(&finished_job).unwrap();
 
-                                        let compressed_bytes = compress_bytes(&finished_job_packet).unwrap();
+                                        let compressed_bytes =
+                                            compress_bytes(&finished_job_packet).unwrap();
 
                                         // Compiled zip len
-                                        let packet_len =
-                                            compressed_bytes.len();
+                                        let packet_len = compressed_bytes.len();
 
                                         // Send length of the zip
                                         client_sender
@@ -165,10 +175,7 @@ impl ServerState
                                             .unwrap();
 
                                         // Send the actual zip
-                                        client_sender
-                                            .write_all(&compressed_bytes)
-                                            .await
-                                            .unwrap();
+                                        client_sender.write_all(&compressed_bytes).await.unwrap();
                                     },
                                     None => {
                                         ui_sender
@@ -296,14 +303,27 @@ impl ServerState
                                                     }
 
                                                     if dependency_information.is_none() {
-                                                        let dep_info = net::request_dependency_information(http_client.clone(),
-                                                            &remote_url.clone(),
-                                                            request.name.clone(),
-                                                            request.version.clone()).await.unwrap();
+                                                        let dep_info =
+                                                            net::request_dependency_information(
+                                                                http_client.clone(),
+                                                                &remote_url.clone(),
+                                                                request.name.clone(),
+                                                                request.version.clone(),
+                                                            )
+                                                            .await
+                                                            .unwrap();
 
-                                                        let json_text = dep_info.text().await.unwrap();
+                                                        let json_text =
+                                                            dep_info.text().await.unwrap();
 
-                                                        dependency_information = Some(serde_json::from_str::<DependencyInformation>(&json_text).unwrap());
+                                                        dependency_information = Some(
+                                                            serde_json::from_str::<
+                                                                DependencyInformation,
+                                                            >(
+                                                                &json_text
+                                                            )
+                                                            .unwrap(),
+                                                        );
                                                     }
 
                                                     current_jobs.in_progress.push(CompileJob {
@@ -312,13 +332,18 @@ impl ServerState
                                                         features: OrdSet::from_vec(
                                                             request.features,
                                                         ),
-                                                        depdendency_path: fs::canonicalize(dep_path).await.unwrap(),
+                                                        depdendency_path: fs::canonicalize(
+                                                            dep_path,
+                                                        )
+                                                        .await
+                                                        .unwrap(),
                                                         cpu_features: request.cpu_features,
                                                         cpu_name: request.cpu_name,
                                                         flags_passed_in: request.flags_passed_in,
                                                         // Ensure this is always Some(_)
                                                         // Make out a better way of handling if both measures fail (highly unlikely)
-                                                        dependency_information: dependency_information.unwrap(),
+                                                        dependency_information:
+                                                            dependency_information.unwrap(),
                                                     });
 
                                                     // Wake workers

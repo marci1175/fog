@@ -16,9 +16,7 @@ pub enum Token
     As,
 
     Identifier(String),
-    Comment(String),
     DocComment(String),
-    MultilineComment,
 
     Struct,
     Extend,
@@ -107,15 +105,15 @@ pub enum Token
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.
 pub fn find_closing_angled_bracket_char(
-    paren_start_slice: &[char],
+    paren_start_slice: &[u8],
     angled_bracket_count: usize,
 ) -> Result<usize, ParserError>
 {
     let mut paren_layer_counter = 1;
     for (idx, token) in paren_start_slice.iter().enumerate() {
         match token {
-            '<' => paren_layer_counter += 1,
-            '>' => {
+            b'<' => paren_layer_counter += 1,
+            b'>' => {
                 paren_layer_counter -= 1;
                 if paren_layer_counter == angled_bracket_count {
                     return Ok(idx);

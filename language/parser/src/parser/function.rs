@@ -10,7 +10,7 @@ use common::{
     anyhow::Result,
     codegen::{CustomType, FunctionArgumentIdentifier, If},
     compiler::ProjectConfig,
-    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
@@ -65,7 +65,6 @@ impl Parser
 
         while token_idx < tokens.len() {
             let current_token = tokens[token_idx].clone();
-
             if current_token == Token::Private
                 || current_token == Token::Public
                 || current_token == Token::PublicLibrary
@@ -1328,40 +1327,34 @@ pub fn fetch_and_merge_debug_information(
     let fetched_items = list.get(range);
 
     fetched_items.map(|debug_infos| {
-        let lines_range = combine_ranges(
-            debug_infos.iter().map(|dbg_inf| dbg_inf.lines.clone()),
-            is_ordered,
-        );
+        let lines = combine_ranges(debug_infos, is_ordered);
 
-        DebugInformation {
-            char_range: combine_ranges_per_line(debug_infos, lines_range.clone()),
-            lines: lines_range,
-        }
+        lines
     })
 }
 
 /// This function ignores whether the ranges are joint.
 /// If this function with is_ordered, it will create a range based on the first and the last item of the range
 /// This function will panic if an empty list is passed in
-pub fn combine_ranges<T: Ord + Copy>(
-    mut iter: impl Iterator<Item = Range<T>> + Clone,
-    is_ordered: bool,
-) -> Range<T>
+pub fn combine_ranges(debug_infos: &[DebugInformation], is_ordered: bool) -> DebugInformation
 {
-    if iter.clone().count() == 1 {
-        return iter.next().unwrap();
+    if debug_infos.len() == 1 {
+        return debug_infos[0];
     }
 
     if is_ordered {
-        let start = iter.clone().next().unwrap().start;
-        let end = iter.clone().last().unwrap().end;
+        let start = debug_infos[0];
+        let end = debug_infos[debug_infos.len() - 1];
 
-        start..end
+        DebugInformation {
+            char_start: start.char_start,
+            char_end: end.char_end,
+        }
     }
     else {
-        let mut range = iter.next().unwrap();
+        let mut range = debug_infos[0];
 
-        for rhs in iter {
+        for rhs in &debug_infos[1..] {
             merge_ranges(&mut range, rhs);
         }
 
@@ -1371,54 +1364,13 @@ pub fn combine_ranges<T: Ord + Copy>(
 
 /// Compares two ranges and combines them. (Assumes theyre overlapping)
 #[inline(always)]
-pub fn merge_ranges<T: Ord>(lhs: &mut Range<T>, rhs: Range<T>)
+pub fn merge_ranges(lhs: &mut DebugInformation, rhs: &DebugInformation)
 {
-    if lhs.start > rhs.start {
-        lhs.start = rhs.start;
+    if lhs.char_start > rhs.char_start {
+        lhs.char_start = rhs.char_start;
     }
 
-    if lhs.end < rhs.end {
-        lhs.end = rhs.end;
+    if lhs.char_end < rhs.char_end {
+        lhs.char_end = rhs.char_end;
     }
-}
-
-/// Combines all the [`Range<usize>`]s of the [`DebugInformation`]s separately in different lines.
-pub fn combine_ranges_per_line(
-    dbg_infs: &[DebugInformation],
-    dbg_infs_line_range: Range<usize>,
-) -> Vec<Range<usize>>
-{
-    // Create list with default values because it is easier to handle later.
-    let mut lines = vec![0..0; dbg_infs_line_range.len()];
-
-    // Iterate over the `DebugInformation` instances
-    for (iter_idx, dbg_inf) in dbg_infs.iter().enumerate() {
-        // Iterate over the line count's normalized range
-        //  If `idx` is 0 (aka the first iter.) we will init the first value in the lines with rhs.
-        for idx in normalize_range(dbg_inf.lines.clone()) {
-            // (If the first item (ordered by lines) is at line 20 the corresponding index in the `lines` list is going to be 0. )
-            // Combine the pre-existing value with the fetched value.
-            if iter_idx == 0 {
-                lines[idx] = dbg_inf.char_range[idx].clone();
-            }
-            else {
-                // Check if the range is valid
-                assert_ne!(
-                    dbg_inf.char_range[idx].clone(),
-                    0..0,
-                    "Invalid range in charlist."
-                );
-
-                merge_ranges(&mut lines[idx], dbg_inf.char_range[idx].clone());
-            }
-        }
-    }
-
-    lines
-}
-
-/// Normalizes a Range<T>, by setting the start as T::Default, and subtracting the original beginning from the end.
-pub fn normalize_range<T: Default + Sub<Output = T>>(range: Range<T>) -> Range<T>
-{
-    return T::default()..range.end - range.start;
 }

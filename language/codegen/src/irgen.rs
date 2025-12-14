@@ -1809,7 +1809,7 @@ where
             }
         },
         ParsedToken::SetValue(var_ref_ty, value) => {
-            let ((ptr, ty), ty_disc) = dbg!(access_variable_ptr(
+            let ((ptr, ty), ty_disc) = access_variable_ptr(
                 ctx,
                 module,
                 builder,
@@ -1822,7 +1822,7 @@ where
                 &parsed_functions,
                 &custom_types,
                 dbg!(*var_ref_ty),
-            )?);
+            )?;
 
             create_ir_from_parsed_token(
                 ctx,

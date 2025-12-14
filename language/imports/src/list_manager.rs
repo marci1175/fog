@@ -81,8 +81,7 @@ pub fn create_dependency_functions_list<'ctx>(
         );
 
         let remote_compiled_deps = Arc::new(Mutex::new(Vec::new()));
-        let remote_compiled_linking_material =
-            Arc::new(Mutex::new(Vec::new()));
+        let remote_compiled_linking_material = Arc::new(Mutex::new(Vec::new()));
 
         // Create a map of the remotes' thread handlers
         let (remote_handlers, thread_handles) = create_remote_list(

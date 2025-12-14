@@ -1,4 +1,9 @@
-use std::{fs::{self, create_dir_all}, path::PathBuf, rc::Rc, sync::Arc};
+use std::{
+    fs::{self, create_dir_all},
+    path::PathBuf,
+    rc::Rc,
+    sync::Arc,
+};
 
 use codegen::llvm_codegen;
 use common::{
@@ -101,17 +106,23 @@ impl CompilerState
 
         // Create an extern libs folder which we will store all the external (pre compiled) deps in
         let extern_libs_path = PathBuf::from(format!("{}\\extern_libs", self.config.build_path));
-        
+
         let _ = create_dir_all(&extern_libs_path);
 
         let mut additional_linking_material_list: Vec<PathBuf> = Vec::new();
 
-        // Move all of the external dep files to the folder 
+        // Move all of the external dep files to the folder
         for origin_path in &self.config.additional_linking_material {
             let mut extern_libs_path = extern_libs_path.clone();
-            
+
             // Modify path with the file name
-            extern_libs_path.push(origin_path.file_name().unwrap().to_string_lossy().to_string());
+            extern_libs_path.push(
+                origin_path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string(),
+            );
 
             fs::copy(origin_path, &extern_libs_path)?;
 
@@ -197,7 +208,7 @@ impl CompilerState
         // Linking the object file
         // link_llvm_to_target(&module, target, target_o_path)?;
         dependency_output_paths.push(target_ir_path.clone());
-        
+
         Ok(BuildManifest {
             // Localize path for later use, if we cannot strip it, it means that the path is already a stripped version, therefor we can skip that
             build_output_paths: dependency_output_paths,

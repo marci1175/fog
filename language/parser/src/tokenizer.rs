@@ -1,29 +1,34 @@
-use std::ops::Range;
+use std::{ops::Range, u8, u16, u64};
 
 use common::{
-    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    anyhow,
+    error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError},
     tokenizer::{Token, find_closing_angled_bracket_char},
     ty::{Type, TypeDiscriminant},
 };
 
-fn only_contains_digits(s: &str) -> bool
+pub fn only_contains_digits(s: &[u8]) -> bool
 {
-    s.chars().all(|c| c.is_ascii_digit())
+    s.iter().all(|c| c.is_ascii_digit())
 }
+
+const DOUBLE_BACKSLASH_U8: u8 = b'\\';
+const NEWLINE_CHAR_U8: u8 = b'\n';
+const ENDLINE_CHAR_U8: u8 = b'\r';
 
 pub fn tokenize(
     raw_input: &str,
     stop_at_token: Option<Token>,
-) -> Result<(Vec<Token>, Vec<DebugInformation>, usize), ParserError>
+) -> anyhow::Result<(Vec<Token>, Vec<DebugInformation>, usize)>
 {
     let mut char_idx: usize = 0;
 
     let mut token_list: Vec<Token> = Vec::new();
     let mut token_debug_info: Vec<DebugInformation> = Vec::new();
 
-    let char_list = raw_input.chars().collect::<Vec<char>>();
+    let char_list = raw_input.as_bytes();
 
-    let mut string_buffer = String::new();
+    let mut string_buffer = Vec::new();
 
     let mut line_counter = 0;
     let mut line_char_idx = 0;
@@ -40,478 +45,61 @@ pub fn tokenize(
         let current_char = char_list[char_idx];
 
         let single_char = match current_char {
-            '+' => Some(Token::Addition),
-            '*' => Some(Token::Multiplication),
-            '/' => Some(Token::Division),
-            ')' => Some(Token::CloseParentheses),
-            '(' => Some(Token::OpenParentheses),
-            '}' => Some(Token::CloseBraces),
-            '{' => Some(Token::OpenBraces),
-            '[' => Some(Token::OpenSquareBrackets),
-            ']' => Some(Token::CloseSquareBrackets),
-            ';' => Some(Token::SemiColon),
-            ',' => Some(Token::Comma),
-            '%' => Some(Token::Modulo),
-            '@' => Some(Token::CompilerHintSymbol),
+            b'+' => Some(Token::Addition),
+            b'*' => Some(Token::Multiplication),
+            b'/' => Some(Token::Division),
+            b')' => Some(Token::CloseParentheses),
+            b'(' => Some(Token::OpenParentheses),
+            b'}' => Some(Token::CloseBraces),
+            b'{' => Some(Token::OpenBraces),
+            b'[' => Some(Token::OpenSquareBrackets),
+            b']' => Some(Token::CloseSquareBrackets),
+            b';' => Some(Token::SemiColon),
+            b',' => Some(Token::Comma),
+            b'%' => Some(Token::Modulo),
+            b'@' => Some(Token::CompilerHintSymbol),
             _ => None,
         };
 
         let current_char_idx_in_line = char_idx - line_char_idx;
 
         if let Some(single_char_token) = single_char {
-            if !string_buffer.trim().is_empty() {
-                let token = match_multi_character_expression(string_buffer.clone());
+            if !string_buffer.is_empty() {
+                let token = match_multi_character_expression(&string_buffer)?;
 
                 token_list.push(token);
                 token_debug_info.push(DebugInformation {
-                    char_range: vec![
-                        current_char_idx_in_line - string_buffer.len()..current_char_idx_in_line,
-                    ],
-                    lines: line_counter..line_counter + 1,
+                    char_start: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line - string_buffer.len(),
+                    },
+                    char_end: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line,
+                    },
                 });
             }
 
             token_list.push(single_char_token);
             token_debug_info.push(DebugInformation {
-                char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                lines: line_counter..line_counter + 1,
+                char_start: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line,
+                },
+                char_end: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line + 1,
+                },
             });
 
             string_buffer.clear();
-        }
-        else if current_char == '.' {
-            let next_char = char_list.get(char_idx + 1);
-            let next_char_2 = char_list.get(char_idx + 2);
 
-            if Some(&'.') == next_char_2 && Some(&'.') == next_char {
-                token_list.push(Token::Ellipsis);
-                token_debug_info.push(DebugInformation {
-                    char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 3],
-                    lines: line_counter..line_counter + 1,
-                });
-
-                char_idx += 3;
-
-                continue;
-            }
-            else if only_contains_digits(&string_buffer) && !string_buffer.is_empty()
-            /* This might break ellpisis parsing */
-            {
-                string_buffer.push(current_char);
-            }
-            else {
-                if !string_buffer.is_empty() {
-                    // Push the chars we have collected as an ident
-                    let token = match_multi_character_expression(string_buffer.clone());
-
-                    token_list.push(token);
-                    token_debug_info.push(DebugInformation {
-                        char_range: vec![
-                            current_char_idx_in_line - string_buffer.len()
-                                ..current_char_idx_in_line,
-                        ],
-                        lines: line_counter..line_counter + 1,
-                    });
-
-                    string_buffer.clear();
-                }
-
-                token_list.push(Token::Dot);
-                token_debug_info.push(DebugInformation {
-                    char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                    lines: line_counter..line_counter + 1,
-                });
-            }
-        }
-        else if current_char == '-' {
-            let last_token = &token_list[token_list.len() - 1];
-
-            // If the last token was a number we know that we are subtracting
-            if (matches!(last_token, Token::Literal(_))
-                || matches!(last_token, Token::UnparsedLiteral(_))
-                || matches!(last_token, Token::Identifier(_))
-                || matches!(last_token, Token::CloseParentheses))
-            {
-                token_list.push(Token::Subtraction);
-                token_debug_info.push(DebugInformation {
-                    char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                    lines: line_counter..line_counter + 1,
-                });
-            }
-            // If the last token wasnt a number we know that we are defining a negative number
-            else {
-                string_buffer.push(current_char);
-            }
-        }
-        else if current_char == '#' {
-            let mut comment_buffer = String::new();
-
-            if let Some(char) = char_list.get(char_idx + 1) {
-                if *char == '-' && char_list.get(char_idx + 2) == Some(&'>') {
-                    char_idx += 3;
-
-                    // Capture everything until the finishing #->
-                    // The reason im passing this into a tokenizer function is because the MultilineComment token could be in quotes and that would be invalid to capture.
-                    // We can ignore the captured tokens, we increment the char_idx by the chars parsed.
-                    // The captured output does not contain the contents of the multiline comment.
-                    let (_, _, idx) =
-                        tokenize(&raw_input[char_idx..], Some(Token::MultilineComment))?;
-
-                    if stop_at_token.is_some() {
-                        token_list.push(Token::MultilineComment);
-                        token_debug_info.push(DebugInformation {
-                            char_range: vec![
-                                current_char_idx_in_line - 3..current_char_idx_in_line + idx,
-                            ],
-                            lines: line_counter..line_counter + 1,
-                        });
-
-                        continue;
-                    }
-
-                    char_idx += idx;
-
-                    // Continue looping through the tokens
-                    // We continue here because we dont want to increment the char_idx one more time.
-                    continue;
-                }
-
-                let original_char_idx = char_idx;
-
-                if *char == '#' {
-                    if char_list.get(char_idx + 2) == Some(&'#') {
-                        char_idx += 3;
-
-                        loop {
-                            let quote_char = char_list[char_idx + 1];
-
-                            if quote_char == '\n' {
-                                token_list
-                                    .push(Token::DocComment(comment_buffer.trim().to_string()));
-
-                                token_debug_info.push(DebugInformation {
-                                    char_range: vec![original_char_idx..current_char_idx_in_line],
-                                    lines: original_char_idx..line_counter + 1,
-                                });
-
-                                char_idx += 2;
-
-                                break;
-                            }
-
-                            comment_buffer.push(quote_char);
-
-                            char_idx += 1;
-                        }
-
-                        continue;
-                    }
-                }
-                else {
-                    loop {
-                        let quote_char = char_list[char_idx + 1];
-
-                        if quote_char == '\r' {
-                            token_list.push(Token::Comment(comment_buffer.trim().to_string()));
-
-                            token_debug_info.push(DebugInformation {
-                                char_range: vec![original_char_idx..char_idx],
-                                lines: line_counter..line_counter + 1,
-                            });
-
-                            char_idx += 2;
-
-                            break;
-                        }
-
-                        comment_buffer.push(quote_char);
-
-                        char_idx += 1;
-                    }
-
-                    continue;
-                }
-            }
-        }
-        else if current_char == '"' {
-            let mut quotes_buffer = String::new();
-
-            let mut quote_idx = char_idx + 1;
-
-            loop {
-                let quote_char = char_list.get(quote_idx);
-
-                match quote_char {
-                    Some(quote_char) => {
-                        if *quote_char == '\\' {
-                            match char_list.get(quote_idx + 1) {
-                                Some('n') => {
-                                    quotes_buffer.push('\n');
-
-                                    quote_idx += 2;
-
-                                    continue;
-                                },
-                                Some('r') => {
-                                    quotes_buffer.push('\r');
-
-                                    quote_idx += 2;
-
-                                    continue;
-                                },
-                                Some('t') => {
-                                    quotes_buffer.push('\t');
-
-                                    quote_idx += 2;
-
-                                    continue;
-                                },
-                                Some('0') => {
-                                    quotes_buffer.push('\0');
-
-                                    quote_idx += 2;
-
-                                    continue;
-                                },
-                                Some('\\') => {
-                                    quotes_buffer.push('\\');
-                                    quote_idx += 2;
-
-                                    continue;
-                                },
-                                Some(char) => {
-                                    quotes_buffer.push('\\');
-                                    quotes_buffer.push(*char);
-
-                                    quote_idx += 2;
-
-                                    continue;
-                                },
-
-                                None => {},
-                            }
-                        }
-
-                        if *quote_char == '"' {
-                            token_list.push(Token::Literal(Type::String(quotes_buffer)));
-                            token_debug_info.push(DebugInformation {
-                                char_range: vec![
-                                    char_idx - line_char_idx..quote_idx + 1 - line_char_idx,
-                                ],
-                                lines: line_counter..line_counter + 1,
-                            });
-
-                            char_idx = quote_idx + 1;
-
-                            break;
-                        }
-
-                        quotes_buffer.push(*quote_char);
-
-                        quote_idx += 1;
-                    },
-                    // If there are no more tokens left and we are still in the quote
-                    None => {
-                        return Err(ParserError::SyntaxError(SyntaxError::OpenQuotes));
-                    },
-                }
-            }
+            char_idx += 1;
 
             continue;
         }
-        else if current_char == '=' {
-            if let Some(next_char) = char_list.get(char_idx + 1) {
-                match *next_char {
-                    '=' => {
-                        token_list.push(Token::Equal);
-                        token_debug_info.push(DebugInformation {
-                            char_range: vec![
-                                current_char_idx_in_line..current_char_idx_in_line + 2,
-                            ],
-                            lines: line_counter..line_counter + 1,
-                        });
-
-                        char_idx += 2;
-                    },
-                    '+' => {
-                        token_list.push(Token::SetValueAddition);
-                        token_debug_info.push(DebugInformation {
-                            char_range: vec![
-                                current_char_idx_in_line..current_char_idx_in_line + 2,
-                            ],
-                            lines: line_counter..line_counter + 1,
-                        });
-
-                        char_idx += 2;
-                    },
-                    '-' => {
-                        token_list.push(Token::SetValueSubtraction);
-                        token_debug_info.push(DebugInformation {
-                            char_range: vec![
-                                current_char_idx_in_line..current_char_idx_in_line + 2,
-                            ],
-                            lines: line_counter..line_counter + 1,
-                        });
-
-                        char_idx += 2;
-                    },
-                    '*' => {
-                        token_list.push(Token::SetValueMultiplication);
-                        token_debug_info.push(DebugInformation {
-                            char_range: vec![
-                                current_char_idx_in_line..current_char_idx_in_line + 2,
-                            ],
-                            lines: line_counter..line_counter + 1,
-                        });
-
-                        char_idx += 2;
-                    },
-                    '/' => {
-                        token_list.push(Token::SetValueDivision);
-                        token_debug_info.push(DebugInformation {
-                            char_range: vec![
-                                current_char_idx_in_line..current_char_idx_in_line + 2,
-                            ],
-                            lines: line_counter..line_counter + 1,
-                        });
-
-                        char_idx += 2;
-                    },
-                    '%' => {
-                        token_list.push(Token::SetValueModulo);
-                        token_debug_info.push(DebugInformation {
-                            char_range: vec![
-                                current_char_idx_in_line..current_char_idx_in_line + 2,
-                            ],
-                            lines: line_counter..line_counter + 1,
-                        });
-
-                        char_idx += 2;
-                    },
-
-                    _ => {
-                        token_list.push(Token::SetValue);
-                        token_debug_info.push(DebugInformation {
-                            char_range: vec![
-                                current_char_idx_in_line..current_char_idx_in_line + 2,
-                            ],
-                            lines: line_counter..line_counter + 1,
-                        });
-
-                        char_idx += 1;
-                    },
-                }
-
-                continue;
-            }
-        }
-        else if current_char == ':' {
-            if !string_buffer.trim().is_empty() {
-                let token = match_multi_character_expression(string_buffer.clone());
-
-                token_list.push(token);
-                token_debug_info.push(DebugInformation {
-                    char_range: vec![
-                        current_char_idx_in_line - string_buffer.len()..current_char_idx_in_line,
-                    ],
-                    lines: line_counter..line_counter + 1,
-                });
-
-                string_buffer.clear();
-            }
-
-            if let Some(next_char) = char_list.get(char_idx + 1)
-                && *next_char == ':'
-            {
-                token_list.push(Token::DoubleColon);
-                token_debug_info.push(DebugInformation {
-                    char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 2],
-                    lines: line_counter..line_counter + 1,
-                });
-
-                char_idx += 2;
-                continue;
-            }
-
-            token_list.push(Token::Colon);
-            token_debug_info.push(DebugInformation {
-                char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                lines: line_counter..line_counter + 1,
-            });
-        }
-        else if current_char == '&' {
-            if let Some(next_char) = char_list.get(char_idx + 1)
-                && *next_char == '&'
-            {
-                token_list.push(Token::And);
-                token_debug_info.push(DebugInformation {
-                    char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 2],
-                    lines: line_counter..line_counter + 1,
-                });
-
-                char_idx += 2;
-                continue;
-            }
-
-            token_list.push(Token::BitAnd);
-            token_debug_info.push(DebugInformation {
-                char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                lines: line_counter..line_counter + 1,
-            });
-        }
-        else if current_char == '!' {
-            if let Some(next_char) = char_list.get(char_idx + 1)
-                && *next_char == '='
-            {
-                token_list.push(Token::NotEqual);
-                token_debug_info.push(DebugInformation {
-                    char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 2],
-                    lines: line_counter..line_counter + 1,
-                });
-
-                char_idx += 2;
-                continue;
-            }
-
-            token_list.push(Token::Not);
-            token_debug_info.push(DebugInformation {
-                char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                lines: line_counter..line_counter + 1,
-            });
-        }
-        else if current_char == '>' {
-            if let Some(next_char) = char_list.get(char_idx + 1) {
-                if *next_char == '>' {
-                    token_list.push(Token::BitRight);
-                    token_debug_info.push(DebugInformation {
-                        char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 2],
-                        lines: line_counter..line_counter + 1,
-                    });
-
-                    char_idx += 2;
-                    continue;
-                }
-                else if *next_char == '=' {
-                    token_list.push(Token::EqBigger);
-                    token_debug_info.push(DebugInformation {
-                        char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 2],
-                        lines: line_counter..line_counter + 1,
-                    });
-
-                    char_idx += 2;
-
-                    continue;
-                }
-            }
-
-            token_list.push(Token::Bigger);
-            token_debug_info.push(DebugInformation {
-                char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                lines: line_counter..line_counter + 1,
-            });
-        }
-        else if string_buffer.trim() == "array" {
-            if current_char == '<' {
+        if string_buffer == b"array" {
+            if current_char == b'<' {
                 char_idx += 1;
 
                 let closing_idx = find_closing_angled_bracket_char(&char_list[char_idx..], 0)?;
@@ -519,110 +107,60 @@ pub fn tokenize(
                 let list_type = &char_list[char_idx..closing_idx + char_idx];
 
                 let comma_pos = list_type.len()
-                    - list_type.iter().rev().position(|char| *char == ',').ok_or(
-                        ParserError::SyntaxError(SyntaxError::MissingCommaAtArrayDef),
-                    )?;
+                    - list_type
+                        .iter()
+                        .rev()
+                        .position(|char| *char == b',')
+                        .ok_or(ParserError::SyntaxError(
+                            SyntaxError::MissingCommaAtArrayDef,
+                        ))?;
 
-                let array_len = list_type[comma_pos..]
-                    .iter()
-                    .collect::<String>()
-                    .trim()
-                    .to_string();
-
-                let list_type_def = list_type[..comma_pos - 1]
-                    .iter()
-                    .collect::<String>()
-                    .trim()
-                    .to_string();
+                let array_len = String::from_utf8_lossy(&list_type[comma_pos..]);
+                let list_type_def = String::from_utf8_lossy(&list_type[..comma_pos - 1]);
 
                 let (inner_token, _, _) = tokenize(&list_type_def, None)?;
 
                 if inner_token.len() > 1 {
-                    return Err(ParserError::InvalidArrayTypeDefinition(inner_token));
+                    return Err(ParserError::InvalidArrayTypeDefinition(inner_token).into());
                 }
 
                 token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
                     Box::new(inner_token[0].clone()),
-                    array_len.parse::<usize>().map_err(|_| {
+                    array_len.trim().parse::<usize>().map_err(|_| {
                         ParserError::SyntaxError(SyntaxError::UnparsableExpression(
-                            array_len.clone(),
+                            array_len.clone().to_string(),
                         ))
                     })?,
                 ))));
                 token_debug_info.push(DebugInformation {
-                    char_range: vec![
-                        current_char_idx_in_line..current_char_idx_in_line + closing_idx,
-                    ],
-                    lines: line_counter..line_counter + 1,
+                    char_start: CharPosition::new(line_counter, current_char_idx_in_line),
+                    char_end: CharPosition::new(
+                        line_counter,
+                        current_char_idx_in_line + closing_idx,
+                    ),
                 });
 
                 string_buffer.clear();
 
-                char_idx += closing_idx;
-            }
-        }
-        else if current_char == '<' {
-            if let Some(next_char) = char_list.get(char_idx + 1) {
-                if *next_char == '<' {
-                    token_list.push(Token::BitLeft);
-                    token_debug_info.push(DebugInformation {
-                        char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 2],
-                        lines: line_counter..line_counter + 1,
-                    });
-
-                    char_idx += 2;
-
-                    continue;
-                }
-                else if *next_char == '=' {
-                    token_list.push(Token::EqSmaller);
-                    token_debug_info.push(DebugInformation {
-                        char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 2],
-                        lines: line_counter..line_counter + 1,
-                    });
-
-                    char_idx += 2;
-
-                    continue;
-                }
-            }
-
-            token_list.push(Token::Smaller);
-            token_debug_info.push(DebugInformation {
-                char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                lines: line_counter..line_counter + 1,
-            });
-        }
-        else if current_char == '|' {
-            if let Some(next_char) = char_list.get(char_idx + 1)
-                && *next_char == '|'
-            {
-                token_list.push(Token::Or);
-                token_debug_info.push(DebugInformation {
-                    char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 2],
-                    lines: line_counter..line_counter + 1,
-                });
-
-                char_idx += 2;
+                char_idx += closing_idx + 1;
                 continue;
             }
-
-            token_list.push(Token::BitOr);
-            token_debug_info.push(DebugInformation {
-                char_range: vec![current_char_idx_in_line..current_char_idx_in_line + 1],
-                lines: line_counter..line_counter + 1,
-            });
         }
-        else if (current_char == ' ' || current_char == '\n') && !string_buffer.trim().is_empty()
+        if (current_char == b' ' || current_char as u8 == NEWLINE_CHAR_U8)
+            && !string_buffer.is_empty()
         {
-            let token = match_multi_character_expression(string_buffer.clone());
+            let token = match_multi_character_expression(&string_buffer)?;
 
             token_list.push(token);
             token_debug_info.push(DebugInformation {
-                char_range: vec![
-                    current_char_idx_in_line - string_buffer.len()..current_char_idx_in_line,
-                ],
-                lines: line_counter..line_counter + 1,
+                char_start: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line - string_buffer.len(),
+                },
+                char_end: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line,
+                },
             });
 
             string_buffer.clear();
@@ -630,23 +168,658 @@ pub fn tokenize(
         else if string_buffer.len() + 1 == char_list.len() {
             string_buffer.push(char_list[char_list.len() - 1]);
 
-            let token = match_multi_character_expression(string_buffer.clone());
+            let token = match_multi_character_expression(&string_buffer)?;
 
             token_list.push(token);
             token_debug_info.push(DebugInformation {
-                char_range: vec![
-                    current_char_idx_in_line - (string_buffer.len() - 1)..current_char_idx_in_line,
-                ],
-                lines: line_counter..line_counter + 1,
+                char_start: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line - (string_buffer.len() - 1),
+                },
+                char_end: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line,
+                },
             });
 
             string_buffer.clear();
         }
-        else if current_char != ' ' && current_char != '\n' && current_char != '\r' {
-            string_buffer.push(current_char);
+
+        match current_char {
+            b'.' => {
+                let next_char = char_list.get(char_idx + 1);
+                let next_char_2 = char_list.get(char_idx + 2);
+
+                let dot = '.' as u8;
+                if Some(&dot) == next_char_2 && Some(&dot) == next_char {
+                    token_list.push(Token::Ellipsis);
+                    token_debug_info.push(DebugInformation {
+                        char_start: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line,
+                        },
+                        char_end: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line + 3,
+                        },
+                    });
+
+                    char_idx += 3;
+
+                    continue;
+                }
+                else if only_contains_digits(&string_buffer) && !string_buffer.is_empty()
+                /* This might break ellpisis parsing */
+                {
+                    string_buffer.push(current_char);
+                }
+                else {
+                    if !string_buffer.is_empty() {
+                        // Push the chars we have collected as an ident
+                        let token = match_multi_character_expression(&string_buffer)?;
+
+                        token_list.push(token);
+                        token_debug_info.push(DebugInformation {
+                            char_start: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line - string_buffer.len(),
+                            },
+                            char_end: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line,
+                            },
+                        });
+
+                        string_buffer.clear();
+                    }
+
+                    token_list.push(Token::Dot);
+                    token_debug_info.push(DebugInformation {
+                        char_start: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line,
+                        },
+                        char_end: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line + 1,
+                        },
+                    });
+                }
+            },
+            b'-' => {
+                let last_token = &token_list[token_list.len() - 1];
+
+                // If the last token was a number we know that we are subtracting
+                if (matches!(last_token, Token::Literal(_))
+                    || matches!(last_token, Token::UnparsedLiteral(_))
+                    || matches!(last_token, Token::Identifier(_))
+                    || matches!(last_token, Token::CloseParentheses))
+                {
+                    token_list.push(Token::Subtraction);
+                    token_debug_info.push(DebugInformation {
+                        char_start: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line,
+                        },
+                        char_end: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line + 1,
+                        },
+                    });
+                }
+                // If the last token wasnt a number we know that we are defining a negative number
+                else {
+                    string_buffer.push(current_char);
+                }
+            },
+            b'#' => {
+                if let Some(char) = char_list.get(char_idx + 1) {
+                    if *char == b'-' && char_list.get(char_idx + 2) == Some(&('>' as u8)) {
+                        char_idx += 3;
+
+                        let slice = raw_input[char_idx..].as_bytes();
+                        let sig_bitmask = u32::from_le_bytes(*b"#->\0");
+
+                        let mut i = 0;
+
+                        while i + 2 < slice.len() {
+                            let window_bitmask =
+                                u32::from_le_bytes([slice[i], slice[i + 1], slice[i + 2], 0]);
+
+                            if sig_bitmask == window_bitmask {
+                                break;
+                            }
+                            else {
+                                i += 1;
+                            }
+                        }
+
+                        char_idx += i + 1;
+
+                        continue;
+                    }
+
+                    let original_char_idx = char_idx;
+
+                    let hastag = '#' as u8;
+                    if *char == hastag {
+                        if char_list.get(char_idx + 2) == Some(&hastag) {
+                            char_idx += 3;
+
+                            loop {
+                                let quote_char = char_list[char_idx + 1];
+
+                                if quote_char == NEWLINE_CHAR_U8 {
+                                    token_list.push(Token::DocComment(
+                                        String::from_utf8_lossy(
+                                            &char_list[original_char_idx..char_idx],
+                                        )
+                                        .to_string(),
+                                    ));
+
+                                    token_debug_info.push(DebugInformation {
+                                        char_start: CharPosition {
+                                            line: original_char_idx,
+                                            column: original_char_idx,
+                                        },
+                                        char_end: CharPosition {
+                                            line: line_counter,
+                                            column: current_char_idx_in_line,
+                                        },
+                                    });
+
+                                    char_idx += 2;
+
+                                    break;
+                                }
+
+                                char_idx += 1;
+                            }
+
+                            continue;
+                        }
+                    }
+                    else {
+                        // Parse until nextline char, because then we know that the comment has ended.
+                        // We wont store the comment
+                        loop {
+                            let quote_char = char_list[char_idx + 1];
+
+                            if quote_char == ENDLINE_CHAR_U8 {
+                                char_idx += 2;
+                                break;
+                            }
+
+                            char_idx += 1;
+                        }
+
+                        continue;
+                    }
+                }
+            },
+            b'"' => {
+                let mut quotes_buffer: Vec<u8> = Vec::new();
+
+                let mut quote_idx = char_idx + 1;
+
+                loop {
+                    let quote_char = char_list.get(quote_idx);
+
+                    match quote_char {
+                        Some(quote_char) => {
+                            if *quote_char == DOUBLE_BACKSLASH_U8 {
+                                match char_list.get(quote_idx + 1) {
+                                    Some(b'n') => {
+                                        quotes_buffer.push(NEWLINE_CHAR_U8);
+
+                                        quote_idx += 2;
+
+                                        continue;
+                                    },
+                                    Some(b'r') => {
+                                        quotes_buffer.push(ENDLINE_CHAR_U8);
+
+                                        quote_idx += 2;
+
+                                        continue;
+                                    },
+                                    Some(b't') => {
+                                        quotes_buffer.push(b'\t');
+
+                                        quote_idx += 2;
+
+                                        continue;
+                                    },
+                                    Some(b'0') => {
+                                        quotes_buffer.push(b'\0');
+
+                                        quote_idx += 2;
+
+                                        continue;
+                                    },
+                                    Some(&DOUBLE_BACKSLASH_U8) => {
+                                        quotes_buffer.push(DOUBLE_BACKSLASH_U8);
+                                        quote_idx += 2;
+
+                                        continue;
+                                    },
+                                    Some(char) => {
+                                        quotes_buffer.push(DOUBLE_BACKSLASH_U8 as u8);
+                                        quotes_buffer.push(*char);
+
+                                        quote_idx += 2;
+
+                                        continue;
+                                    },
+
+                                    None => {},
+                                }
+                            }
+
+                            if *quote_char == b'"' {
+                                token_list.push(Token::Literal(Type::String(
+                                    String::from_utf8(quotes_buffer)
+                                        .map_err(|_| ParserError::InvalidUtf8Literal)?,
+                                )));
+                                token_debug_info.push(DebugInformation {
+                                    char_start: CharPosition {
+                                        line: line_counter,
+                                        column: char_idx - line_char_idx,
+                                    },
+                                    char_end: CharPosition {
+                                        line: line_counter,
+                                        column: quote_idx + 1 - line_char_idx,
+                                    },
+                                });
+
+                                char_idx = quote_idx + 1;
+
+                                break;
+                            }
+
+                            quotes_buffer.push(*quote_char);
+
+                            quote_idx += 1;
+                        },
+                        // If there are no more tokens left and we are still in the quote
+                        None => {
+                            return Err(ParserError::SyntaxError(SyntaxError::OpenQuotes).into());
+                        },
+                    }
+                }
+
+                continue;
+            },
+            b'=' => {
+                if let Some(next_char) = char_list.get(char_idx + 1) {
+                    match *next_char {
+                        b'=' => {
+                            token_list.push(Token::Equal);
+                            token_debug_info.push(DebugInformation {
+                                char_start: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line,
+                                },
+                                char_end: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line + 2,
+                                },
+                            });
+
+                            char_idx += 2;
+                        },
+                        b'+' => {
+                            token_list.push(Token::SetValueAddition);
+                            token_debug_info.push(DebugInformation {
+                                char_start: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line,
+                                },
+                                char_end: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line + 2,
+                                },
+                            });
+
+                            char_idx += 2;
+                        },
+                        b'-' => {
+                            token_list.push(Token::SetValueSubtraction);
+                            token_debug_info.push(DebugInformation {
+                                char_start: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line,
+                                },
+                                char_end: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line + 2,
+                                },
+                            });
+
+                            char_idx += 2;
+                        },
+                        b'*' => {
+                            token_list.push(Token::SetValueMultiplication);
+                            token_debug_info.push(DebugInformation {
+                                char_start: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line,
+                                },
+                                char_end: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line + 2,
+                                },
+                            });
+
+                            char_idx += 2;
+                        },
+                        b'/' => {
+                            token_list.push(Token::SetValueDivision);
+                            token_debug_info.push(DebugInformation {
+                                char_start: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line,
+                                },
+                                char_end: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line + 2,
+                                },
+                            });
+
+                            char_idx += 2;
+                        },
+                        b'%' => {
+                            token_list.push(Token::SetValueModulo);
+                            token_debug_info.push(DebugInformation {
+                                char_start: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line,
+                                },
+                                char_end: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line + 2,
+                                },
+                            });
+
+                            char_idx += 2;
+                        },
+
+                        _ => {
+                            token_list.push(Token::SetValue);
+                            token_debug_info.push(DebugInformation {
+                                char_start: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line,
+                                },
+                                char_end: CharPosition {
+                                    line: line_counter,
+                                    column: current_char_idx_in_line + 2,
+                                },
+                            });
+
+                            char_idx += 1;
+                        },
+                    }
+
+                    continue;
+                }
+            },
+            b':' => {
+                if !string_buffer.is_empty() {
+                    let token = match_multi_character_expression(&string_buffer)?;
+
+                    token_list.push(token);
+                    token_debug_info.push(DebugInformation {
+                        char_start: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line - string_buffer.len(),
+                        },
+                        char_end: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line,
+                        },
+                    });
+
+                    string_buffer.clear();
+                }
+
+                if let Some(next_char) = char_list.get(char_idx + 1)
+                    && *next_char == b':'
+                {
+                    token_list.push(Token::DoubleColon);
+                    token_debug_info.push(DebugInformation {
+                        char_start: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line,
+                        },
+                        char_end: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line + 2,
+                        },
+                    });
+
+                    char_idx += 2;
+                    continue;
+                }
+
+                token_list.push(Token::Colon);
+                token_debug_info.push(DebugInformation {
+                    char_start: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line,
+                    },
+                    char_end: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line + 1,
+                    },
+                });
+            },
+            b'&' => {
+                if let Some(next_char) = char_list.get(char_idx + 1)
+                    && *next_char == b'&'
+                {
+                    token_list.push(Token::And);
+                    token_debug_info.push(DebugInformation {
+                        char_start: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line,
+                        },
+                        char_end: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line + 2,
+                        },
+                    });
+
+                    char_idx += 2;
+                    continue;
+                }
+
+                token_list.push(Token::BitAnd);
+                token_debug_info.push(DebugInformation {
+                    char_start: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line,
+                    },
+                    char_end: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line + 1,
+                    },
+                });
+            },
+            b'!' => {
+                if let Some(next_char) = char_list.get(char_idx + 1)
+                    && *next_char == b'='
+                {
+                    token_list.push(Token::NotEqual);
+                    token_debug_info.push(DebugInformation {
+                        char_start: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line,
+                        },
+                        char_end: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line + 2,
+                        },
+                    });
+
+                    char_idx += 2;
+                    continue;
+                }
+
+                token_list.push(Token::Not);
+                token_debug_info.push(DebugInformation {
+                    char_start: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line,
+                    },
+                    char_end: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line + 1,
+                    },
+                });
+            },
+            b'>' => {
+                if let Some(next_char) = char_list.get(char_idx + 1) {
+                    if *next_char == b'>' {
+                        token_list.push(Token::BitRight);
+                        token_debug_info.push(DebugInformation {
+                            char_start: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line,
+                            },
+                            char_end: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line + 2,
+                            },
+                        });
+
+                        char_idx += 2;
+                        continue;
+                    }
+                    else if *next_char == b'=' {
+                        token_list.push(Token::EqBigger);
+                        token_debug_info.push(DebugInformation {
+                            char_start: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line,
+                            },
+                            char_end: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line + 2,
+                            },
+                        });
+
+                        char_idx += 2;
+
+                        continue;
+                    }
+                }
+
+                token_list.push(Token::Bigger);
+                token_debug_info.push(DebugInformation {
+                    char_start: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line,
+                    },
+                    char_end: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line + 1,
+                    },
+                });
+            },
+            b'<' => {
+                if let Some(next_char) = char_list.get(char_idx + 1) {
+                    if *next_char == b'<' {
+                        token_list.push(Token::BitLeft);
+                        token_debug_info.push(DebugInformation {
+                            char_start: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line,
+                            },
+                            char_end: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line + 2,
+                            },
+                        });
+
+                        char_idx += 2;
+
+                        continue;
+                    }
+                    else if *next_char == b'=' {
+                        token_list.push(Token::EqSmaller);
+                        token_debug_info.push(DebugInformation {
+                            char_start: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line,
+                            },
+                            char_end: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line + 2,
+                            },
+                        });
+
+                        char_idx += 2;
+
+                        continue;
+                    }
+                }
+
+                token_list.push(Token::Smaller);
+                token_debug_info.push(DebugInformation {
+                    char_start: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line,
+                    },
+                    char_end: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line + 1,
+                    },
+                });
+            },
+            b'|' => {
+                if let Some(next_char) = char_list.get(char_idx + 1)
+                    && *next_char == b'|'
+                {
+                    token_list.push(Token::Or);
+                    token_debug_info.push(DebugInformation {
+                        char_start: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line,
+                        },
+                        char_end: CharPosition {
+                            line: line_counter,
+                            column: current_char_idx_in_line + 2,
+                        },
+                    });
+
+                    char_idx += 2;
+                    continue;
+                }
+
+                token_list.push(Token::BitOr);
+                token_debug_info.push(DebugInformation {
+                    char_start: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line,
+                    },
+                    char_end: CharPosition {
+                        line: line_counter,
+                        column: current_char_idx_in_line + 1,
+                    },
+                });
+            },
+            _ => {
+                if current_char != b' '
+                    && current_char != NEWLINE_CHAR_U8
+                    && current_char != ENDLINE_CHAR_U8
+                {
+                    string_buffer.push(current_char);
+                }
+            },
         }
 
-        if current_char == '\n' {
+        if current_char == NEWLINE_CHAR_U8 {
             line_counter += 1;
             line_char_idx = char_idx + 1;
         }
@@ -657,89 +830,221 @@ pub fn tokenize(
     Ok((token_list, token_debug_info, char_idx))
 }
 
-fn match_multi_character_expression(string_buffer: String) -> Token
+fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<Token>
 {
-    let trimmed_string = string_buffer.trim();
-
-    match trimmed_string {
-        "int" => Token::TypeDefinition(TypeDiscriminant::I32),
-        "uint" => Token::TypeDefinition(TypeDiscriminant::U32),
-        "float" => Token::TypeDefinition(TypeDiscriminant::F32),
-
-        "inthalf" => Token::TypeDefinition(TypeDiscriminant::I16),
-        "uinthalf" => Token::TypeDefinition(TypeDiscriminant::U16),
-        "floathalf" => Token::TypeDefinition(TypeDiscriminant::F16),
-
-        "intlong" => Token::TypeDefinition(TypeDiscriminant::I64),
-        "uintlong" => Token::TypeDefinition(TypeDiscriminant::U64),
-        "floatlong" => Token::TypeDefinition(TypeDiscriminant::F64),
-
-        "uintsmall" => Token::TypeDefinition(TypeDiscriminant::U8),
-
-        "bool" => Token::TypeDefinition(TypeDiscriminant::Boolean),
-        "void" => Token::TypeDefinition(TypeDiscriminant::Void),
-        "string" => Token::TypeDefinition(TypeDiscriminant::String),
-
-        "==" => Token::Equal,
-        "&&" => Token::And,
-        "||" => Token::Or,
-        "=+" => Token::SetValueAddition,
-        "=-" => Token::SetValueSubtraction,
-        "=*" => Token::SetValueMultiplication,
-        "=/" => Token::SetValueDivision,
-        "%=" => Token::SetValueModulo,
-        "false" => Token::Literal(Type::Boolean(false)),
-        "true" => Token::Literal(Type::Boolean(true)),
-        "external" => Token::External,
-        "import" => Token::Import,
-        "function" => Token::Function,
-        "return" => Token::Return,
-        "as" => Token::As,
-
+    Ok(match string_to_match {
+        b"int" => Token::TypeDefinition(TypeDiscriminant::I32),
+        b"uint" => Token::TypeDefinition(TypeDiscriminant::U32),
+        b"float" => Token::TypeDefinition(TypeDiscriminant::F32),
+        b"inthalf" => Token::TypeDefinition(TypeDiscriminant::I16),
+        b"uinthalf" => Token::TypeDefinition(TypeDiscriminant::U16),
+        b"floathalf" => Token::TypeDefinition(TypeDiscriminant::F16),
+        b"intlong" => Token::TypeDefinition(TypeDiscriminant::I64),
+        b"uintlong" => Token::TypeDefinition(TypeDiscriminant::U64),
+        b"floatlong" => Token::TypeDefinition(TypeDiscriminant::F64),
+        b"uintsmall" => Token::TypeDefinition(TypeDiscriminant::U8),
+        b"bool" => Token::TypeDefinition(TypeDiscriminant::Boolean),
+        b"void" => Token::TypeDefinition(TypeDiscriminant::Void),
+        b"string" => Token::TypeDefinition(TypeDiscriminant::String),
+        b"==" => Token::Equal,
+        b"&&" => Token::And,
+        b"||" => Token::Or,
+        b"=+" => Token::SetValueAddition,
+        b"=-" => Token::SetValueSubtraction,
+        b"=*" => Token::SetValueMultiplication,
+        b"=/" => Token::SetValueDivision,
+        b"%=" => Token::SetValueModulo,
+        b"false" => Token::Literal(Type::Boolean(false)),
+        b"true" => Token::Literal(Type::Boolean(true)),
+        b"external" => Token::External,
+        b"import" => Token::Import,
+        b"function" => Token::Function,
+        b"return" => Token::Return,
+        b"as" => Token::As,
         // Unused
-        "extend" => Token::Extend,
+        b"extend" => Token::Extend,
+        b"struct" => Token::Struct,
+        b"if" => Token::If,
+        b"else" => Token::Else,
+        b"elseif" => Token::ElseIf,
+        b"loop" => Token::Loop,
+        b"for" => Token::For,
+        b"break" => Token::Break,
+        b"continue" => Token::Continue,
+        b"priv" => Token::Private,
+        b"pub" => Token::Public,
+        b"publib" => Token::PublicLibrary,
+        b"exp" => Token::Export,
+        b"cold" => Token::CompilerHint(common::parser::CompilerHint::Cold),
+        b"nofree" => Token::CompilerHint(common::parser::CompilerHint::NoFree),
+        b"nounwind" => Token::CompilerHint(common::parser::CompilerHint::NoUnWind),
+        b"inline" => Token::CompilerHint(common::parser::CompilerHint::Inline),
+        b"feature" => Token::CompilerHint(common::parser::CompilerHint::Feature),
 
-        "struct" => Token::Struct,
-
-        "if" => Token::If,
-        "else" => Token::Else,
-        "elseif" => Token::ElseIf,
-
-        "loop" => Token::Loop,
-        "for" => Token::For,
-        "break" => Token::Break,
-        "continue" => Token::Continue,
-
-        "priv" => Token::Private,
-        "pub" => Token::Public,
-        "publib" => Token::PublicLibrary,
-        "exp" => Token::Export,
-
-        "#->" => Token::MultilineComment,
-
-        "cold" => Token::CompilerHint(common::parser::CompilerHint::Cold),
-        "nofree" => Token::CompilerHint(common::parser::CompilerHint::NoFree),
-        "nounwind" => Token::CompilerHint(common::parser::CompilerHint::NoUnWind),
-        "inline" => Token::CompilerHint(common::parser::CompilerHint::Inline),
-        "feature" => Token::CompilerHint(common::parser::CompilerHint::Feature),
-
-        _ => eval_constant_definition(trimmed_string.to_string()),
-    }
+        _ => eval_constant_definition(string_to_match)?,
+    })
 }
 
 // I guess this works too lol
-pub fn eval_constant_definition(raw_string: String) -> Token
+pub fn eval_constant_definition(raw_string: &[u8]) -> anyhow::Result<Token>
 {
-    if raw_string.parse::<u8>().is_ok()
-        || raw_string.parse::<u32>().is_ok()
-        || raw_string.parse::<f32>().is_ok()
-        || raw_string.parse::<i32>().is_ok()
-    {
-        Token::UnparsedLiteral(raw_string)
-    }
-    else {
-        Token::Identifier(raw_string)
-    }
+    let mut is_floating = false;
+    let mut is_negative = false;
+
+    // If it is a floating point or an integer (this is currently in ascii format)
+    Ok(
+        if raw_string.iter().all(|byte| {
+            if is_negative && *byte == b'-' || is_floating && *byte == b'.' {
+                return false;
+            }
+
+            is_floating = *byte == b'.' || is_floating;
+            is_negative = *byte == b'-' || is_negative;
+
+            byte.is_ascii_digit() || *byte == b'.'
+        }) {
+            let bytes_len = raw_string.len();
+
+            if !is_floating {
+                let number_bytes_count = bytes_len.div_ceil(2);
+                let number_allocated_for_storage = number_bytes_count.next_power_of_two();
+
+                match number_allocated_for_storage {
+                    0 => {
+                        // If a number is too long, feel free to return an error
+                        return Err(ParserError::NumberTooLarge.into());
+                    },
+                    1 => {
+                        if number_bytes_count == 0 {
+                            Token::Identifier(String::new())
+                        }
+                        else {
+                            let mut num;
+
+                            num = raw_string[0] & 0b00001111;
+
+                            if !is_negative {
+                                Token::Literal(Type::U8(num))
+                            }
+                            else {
+                                num = !num;
+
+                                num = num.wrapping_add(1);
+
+                                Token::Literal(Type::I16(num as i16))
+                            }
+                        }
+                    },
+                    2 => {
+                        let mut num = u8::MIN;
+
+                        for ascii_char in raw_string {
+                            let number = ascii_char & 0b00001111;
+
+                            num = (num << 4) | number;
+                        }
+
+                        if !is_negative {
+                            Token::Literal(Type::U8(num))
+                        }
+                        else {
+                            num = !num;
+
+                            num = num.wrapping_add(1);
+
+                            Token::Literal(Type::I16(num as i16))
+                        }
+                    },
+                    4 => {
+                        let mut num = u16::MIN;
+
+                        for ascii_char in raw_string {
+                            let number = ascii_char & 0b00001111;
+
+                            num = (num << 4) | number as u16;
+                        }
+
+                        if !is_negative {
+                            Token::Literal(Type::U16(num))
+                        }
+                        else {
+                            num = !num;
+
+                            num = num.wrapping_add(1);
+
+                            Token::Literal(Type::I16(num as i16))
+                        }
+                    },
+                    8 => {
+                        let mut num = u32::MIN;
+
+                        for ascii_char in raw_string {
+                            let number = ascii_char & 0b00001111;
+
+                            num = (num << 4) | number as u32;
+                        }
+
+                        if !is_negative {
+                            Token::Literal(Type::U32(num))
+                        }
+                        else {
+                            num = !num;
+
+                            num = num.wrapping_add(1);
+
+                            Token::Literal(Type::I32(num as i32))
+                        }
+                    },
+                    16 => {
+                        let mut num = u64::MIN;
+
+                        for ascii_char in raw_string {
+                            let number = ascii_char & 0b00001111;
+
+                            num = (num << 4) | number as u64;
+                        }
+
+                        if !is_negative {
+                            Token::Literal(Type::U64(num))
+                        }
+                        else {
+                            num = !num;
+
+                            num = num.wrapping_add(1);
+
+                            Token::Literal(Type::I64(num as i64))
+                        }
+                    },
+                    
+                    // Number too large
+                    _ => return Err(ParserError::NumberTooLarge.into()),
+                }
+            }
+            else {
+                // Subtract one for the '.'
+                let number_bytes_count = (bytes_len - 1).div_ceil(2);
+
+                // The amount of bytes that will hold the numbers
+                let number_allocated_for_storage = number_bytes_count.next_power_of_two();
+
+                panic!("asd");
+            }
+        }
+        else {
+            Token::Identifier(String::from_utf8_lossy(raw_string).to_string())
+        },
+    )
+
+    // if raw_string.parse::<u8>().is_ok()
+    //     || raw_string.parse::<u32>().is_ok()
+    //     || raw_string.parse::<f32>().is_ok()
+    //     || raw_string.parse::<i32>().is_ok()
+    // {
+    //     Token::UnparsedLiteral(raw_string.to_string())
+    // }
+    // else {
+
+    // }
 }
 
 pub fn strip_range_from_token_list(tokens: &Vec<(Token, Range<usize>)>) -> Vec<Token>

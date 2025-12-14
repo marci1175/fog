@@ -85,8 +85,8 @@ pub fn create_remote_list(
 
                         // Write zip contents to fs
                         write_zip_to_fs(&(zip_fs_path.clone().into()), zip).unwrap();
-                        
-                        // Reconstruct paths 
+
+                        // Reconstruct paths
                         remote_compiled_dependencies.lock().extend(finished_job.build_manifest.build_output_paths.iter().map(|p| format!("{zip_fs_path}\\{}", p.display()).into()));
                         remote_compiled_linking_material.lock().extend(finished_job.build_manifest.additional_linking_material.iter().map(|p| format!("{zip_fs_path}\\{}", p.display()).into()));
 
@@ -96,7 +96,7 @@ pub fn create_remote_list(
                 }
             }
         });
-        
+
         threads.push(thread_handle);
     }
 
