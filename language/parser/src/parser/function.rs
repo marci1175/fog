@@ -70,7 +70,7 @@ impl Parser
                 || current_token == Token::PublicLibrary
             {
                 token_idx += 1;
-
+                
                 if tokens[token_idx] == Token::Function {
                     if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
                         if tokens[token_idx + 2] == Token::OpenParentheses {

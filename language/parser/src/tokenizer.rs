@@ -21,12 +21,12 @@ pub fn tokenize(
     stop_at_token: Option<Token>,
 ) -> anyhow::Result<(Vec<Token>, Vec<DebugInformation>, usize)>
 {
+    let mut dest_num_type: Option<TypeDiscriminant> = None;
     let mut char_idx: usize = 0;
 
-    let mut token_list: Vec<Token> = Vec::new();
-    let mut token_debug_info: Vec<DebugInformation> = Vec::new();
-
     let char_list = raw_input.as_bytes();
+    let mut token_list: Vec<Token> = Vec::with_capacity(char_list.len() / 4);
+    let mut token_debug_info: Vec<DebugInformation> = Vec::with_capacity(char_list.len() / 4);
 
     let mut string_buffer = Vec::new();
 
@@ -830,7 +830,9 @@ pub fn tokenize(
     Ok((token_list, token_debug_info, char_idx))
 }
 
-fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<Token>
+fn match_multi_character_expression(
+    string_to_match: &[u8],
+) -> anyhow::Result<Token>
 {
     Ok(match string_to_match {
         b"int" => Token::TypeDefinition(TypeDiscriminant::I32),
@@ -881,170 +883,24 @@ fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<To
         b"inline" => Token::CompilerHint(common::parser::CompilerHint::Inline),
         b"feature" => Token::CompilerHint(common::parser::CompilerHint::Feature),
 
-        _ => eval_constant_definition(string_to_match)?,
+        _ => eval_constant_definition(string_to_match),
     })
 }
 
-// I guess this works too lol
-pub fn eval_constant_definition(raw_string: &[u8]) -> anyhow::Result<Token>
+pub fn eval_constant_definition(raw_string: &[u8]) -> Token
 {
-    let mut is_floating = false;
-    let mut is_negative = false;
+    let string = String::from_utf8_lossy(raw_string);
 
-    // If it is a floating point or an integer (this is currently in ascii format)
-    Ok(
-        if raw_string.iter().all(|byte| {
-            if is_negative && *byte == b'-' || is_floating && *byte == b'.' {
-                return false;
-            }
-
-            is_floating = *byte == b'.' || is_floating;
-            is_negative = *byte == b'-' || is_negative;
-
-            byte.is_ascii_digit() || *byte == b'.'
-        }) {
-            let bytes_len = raw_string.len();
-
-            if !is_floating {
-                let number_bytes_count = bytes_len.div_ceil(2);
-                let number_allocated_for_storage = number_bytes_count.next_power_of_two();
-
-                match number_allocated_for_storage {
-                    0 => {
-                        // If a number is too long, feel free to return an error
-                        return Err(ParserError::NumberTooLarge.into());
-                    },
-                    1 => {
-                        if number_bytes_count == 0 {
-                            Token::Identifier(String::new())
-                        }
-                        else {
-                            let mut num;
-
-                            num = raw_string[0] & 0b00001111;
-
-                            if !is_negative {
-                                Token::Literal(Type::U8(num))
-                            }
-                            else {
-                                num = !num;
-
-                                num = num.wrapping_add(1);
-
-                                Token::Literal(Type::I16(num as i16))
-                            }
-                        }
-                    },
-                    2 => {
-                        let mut num = u8::MIN;
-
-                        for ascii_char in raw_string {
-                            let number = ascii_char & 0b00001111;
-
-                            num = (num << 4) | number;
-                        }
-
-                        if !is_negative {
-                            Token::Literal(Type::U8(num))
-                        }
-                        else {
-                            num = !num;
-
-                            num = num.wrapping_add(1);
-
-                            Token::Literal(Type::I16(num as i16))
-                        }
-                    },
-                    4 => {
-                        let mut num = u16::MIN;
-
-                        for ascii_char in raw_string {
-                            let number = ascii_char & 0b00001111;
-
-                            num = (num << 4) | number as u16;
-                        }
-
-                        if !is_negative {
-                            Token::Literal(Type::U16(num))
-                        }
-                        else {
-                            num = !num;
-
-                            num = num.wrapping_add(1);
-
-                            Token::Literal(Type::I16(num as i16))
-                        }
-                    },
-                    8 => {
-                        let mut num = u32::MIN;
-
-                        for ascii_char in raw_string {
-                            let number = ascii_char & 0b00001111;
-
-                            num = (num << 4) | number as u32;
-                        }
-
-                        if !is_negative {
-                            Token::Literal(Type::U32(num))
-                        }
-                        else {
-                            num = !num;
-
-                            num = num.wrapping_add(1);
-
-                            Token::Literal(Type::I32(num as i32))
-                        }
-                    },
-                    16 => {
-                        let mut num = u64::MIN;
-
-                        for ascii_char in raw_string {
-                            let number = ascii_char & 0b00001111;
-
-                            num = (num << 4) | number as u64;
-                        }
-
-                        if !is_negative {
-                            Token::Literal(Type::U64(num))
-                        }
-                        else {
-                            num = !num;
-
-                            num = num.wrapping_add(1);
-
-                            Token::Literal(Type::I64(num as i64))
-                        }
-                    },
-                    
-                    // Number too large
-                    _ => return Err(ParserError::NumberTooLarge.into()),
-                }
-            }
-            else {
-                // Subtract one for the '.'
-                let number_bytes_count = (bytes_len - 1).div_ceil(2);
-
-                // The amount of bytes that will hold the numbers
-                let number_allocated_for_storage = number_bytes_count.next_power_of_two();
-
-                panic!("asd");
-            }
-        }
-        else {
-            Token::Identifier(String::from_utf8_lossy(raw_string).to_string())
-        },
-    )
-
-    // if raw_string.parse::<u8>().is_ok()
-    //     || raw_string.parse::<u32>().is_ok()
-    //     || raw_string.parse::<f32>().is_ok()
-    //     || raw_string.parse::<i32>().is_ok()
-    // {
-    //     Token::UnparsedLiteral(raw_string.to_string())
-    // }
-    // else {
-
-    // }
+    if string.parse::<u8>().is_ok()
+        || string.parse::<u32>().is_ok()
+        || string.parse::<f32>().is_ok()
+        || string.parse::<i32>().is_ok()
+    {
+        Token::UnparsedLiteral(string.to_string())
+    }
+    else {
+        Token::Identifier(string.to_string())
+    }
 }
 
 pub fn strip_range_from_token_list(tokens: &Vec<(Token, Range<usize>)>) -> Vec<Token>

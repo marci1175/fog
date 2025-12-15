@@ -51,7 +51,7 @@ pub enum Type
     /// First item is the type of the array
     /// Second item is the length
     Array((Box<Token>, usize)),
-
+    
     Pointer(usize),
 }
 

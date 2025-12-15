@@ -12,7 +12,7 @@ use common::{
     tokio::{
         self,
         io::{AsyncReadExt, AsyncWriteExt},
-        net::{TcpSocket, TcpStream},
+        net::TcpStream,
         select, spawn,
         sync::mpsc::Sender,
         task::JoinHandle,
