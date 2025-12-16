@@ -5,25 +5,10 @@
             "a",
             I32,
             ParsedTokenInstance {
-                inner: TypeCast(
-                    ParsedTokenInstance {
-                        inner: Literal(
-                            U8(
-                                5,
-                            ),
-                        ),
-                        debug_information: DebugInformation {
-                            char_start: CharPosition {
-                                line: 1,
-                                column: 12,
-                            },
-                            char_end: CharPosition {
-                                line: 1,
-                                column: 20,
-                            },
-                        },
-                    },
-                    I32,
+                inner: Literal(
+                    I32(
+                        5,
+                    ),
                 ),
                 debug_information: DebugInformation {
                     char_start: CharPosition {
@@ -32,7 +17,7 @@
                     },
                     char_end: CharPosition {
                         line: 1,
-                        column: 21,
+                        column: 14,
                     },
                 },
             },
@@ -44,7 +29,7 @@
             },
             char_end: CharPosition {
                 line: 1,
-                column: 21,
+                column: 14,
             },
         },
     },
