@@ -42,7 +42,7 @@ pub enum Type
 
     String(String),
     Boolean(bool),
-
+    
     #[default]
     Void,
 

@@ -58,6 +58,7 @@ pub fn tokenize(
             b',' => Some(Token::Comma),
             b'%' => Some(Token::Modulo),
             b'@' => Some(Token::CompilerHintSymbol),
+            b'$' => Some(Token::Pointer),
             _ => None,
         };
 
@@ -833,6 +834,7 @@ pub fn tokenize(
 fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<Token>
 {
     Ok(match string_to_match {
+        b"ptr" => Token::TypeDefinition(TypeDiscriminant::Pointer),
         b"int" => Token::TypeDefinition(TypeDiscriminant::I32),
         b"uint" => Token::TypeDefinition(TypeDiscriminant::U32),
         b"float" => Token::TypeDefinition(TypeDiscriminant::F32),

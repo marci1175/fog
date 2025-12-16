@@ -1,5 +1,9 @@
-pub function main(): int {
-    int a = 5;
+pub function foo(): int {
+    return 10000;
+}
 
-    return a;
+pub function main(): int {
+    ptr a = $foo();
+
+    return 0;
 }

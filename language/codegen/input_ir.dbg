@@ -1,23 +1,21 @@
 [COMPILER IR]
 [
     ParsedTokenInstance {
-        inner: NewVariable(
-            "a",
-            I32,
+        inner: ReturnValue(
             ParsedTokenInstance {
                 inner: Literal(
                     I32(
-                        5,
+                        10000,
                     ),
                 ),
                 debug_information: DebugInformation {
                     char_start: CharPosition {
                         line: 1,
-                        column: 12,
+                        column: 4,
                     },
                     char_end: CharPosition {
                         line: 1,
-                        column: 14,
+                        column: 16,
                     },
                 },
             },
@@ -29,25 +27,98 @@
             },
             char_end: CharPosition {
                 line: 1,
-                column: 14,
+                column: 17,
+            },
+        },
+    },
+][COMPILER IR]
+[
+    ParsedTokenInstance {
+        inner: NewVariable(
+            "a",
+            Pointer,
+            ParsedTokenInstance {
+                inner: GetPointerTo(
+                    ParsedTokenInstance {
+                        inner: FunctionCall(
+                            (
+                                FunctionSignature {
+                                    name: "foo",
+                                    args: FunctionArguments {
+                                        arguments_list: OrdMap(
+                                            {},
+                                        ),
+                                        ellipsis_present: false,
+                                    },
+                                    return_type: I32,
+                                    module_path: [
+                                        "test_project",
+                                        "foo",
+                                    ],
+                                    visibility: Public,
+                                    compiler_hints: OrdSet(
+                                        {},
+                                    ),
+                                    enabling_features: OrdSet(
+                                        {},
+                                    ),
+                                },
+                                "foo",
+                            ),
+                            OrdMap(
+                                {},
+                            ),
+                        ),
+                        debug_information: DebugInformation {
+                            char_start: CharPosition {
+                                line: 5,
+                                column: 13,
+                            },
+                            char_end: CharPosition {
+                                line: 5,
+                                column: 19,
+                            },
+                        },
+                    },
+                ),
+                debug_information: DebugInformation {
+                    char_start: CharPosition {
+                        line: 5,
+                        column: 12,
+                    },
+                    char_end: CharPosition {
+                        line: 7,
+                        column: 10,
+                    },
+                },
+            },
+        ),
+        debug_information: DebugInformation {
+            char_start: CharPosition {
+                line: 5,
+                column: 4,
+            },
+            char_end: CharPosition {
+                line: 5,
+                column: 19,
             },
         },
     },
     ParsedTokenInstance {
         inner: ReturnValue(
             ParsedTokenInstance {
-                inner: VariableReference(
-                    BasicReference(
-                        "a",
+                inner: Literal(
+                    I32(
+                        0,
                     ),
                 ),
                 debug_information: DebugInformation {
                     char_start: CharPosition {
-                        line: 3,
+                        line: 7,
                         column: 4,
                     },
                     char_end: CharPosition {
-                        line: 3,
+                        line: 7,
                         column: 12,
                     },
                 },
@@ -55,11 +126,11 @@
         ),
         debug_information: DebugInformation {
             char_start: CharPosition {
-                line: 3,
+                line: 7,
                 column: 4,
             },
             char_end: CharPosition {
-                line: 3,
+                line: 7,
                 column: 13,
             },
         },

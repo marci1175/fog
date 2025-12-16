@@ -558,7 +558,7 @@ impl Parser
 
     pub fn parse_function_block(
         &self,
-        mut tokens: Vec<Token>,
+        tokens: Vec<Token>,
         tokens_offset: usize,
         function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
         this_function_signature: FunctionSignature,

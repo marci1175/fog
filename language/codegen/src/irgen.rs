@@ -2535,6 +2535,54 @@ where
 
             None
         },
+        ParsedToken::GetPointerTo(value) => {
+            // Try to get a value from this enum
+            let val_reference = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *value.clone(),
+                variable_map,
+                None,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body.clone(),
+                parsed_functions.clone(),
+                custom_types.clone(),
+            )?;
+
+            // If we did not get any value, we cannot return a pointer to it, thus we return an error
+            match val_reference {
+                Some((ptr, ty, ty_disc)) => {
+                    match variable_reference {
+                        Some((_var_name, var_ty, var_ty_disc)) => {
+                            let (var_ptr, _var_type) = var_ty;
+
+                            // Check the type of the value, check for a type mismatch
+                            if var_ty_disc != TypeDiscriminant::Pointer {
+                                return Err(CodeGenError::InternalVariableTypeMismatch(
+                                    var_ty_disc,
+                                    TypeDiscriminant::Pointer,
+                                )
+                                .into());
+                            }
+
+                            builder.build_store(var_ptr, ptr)?;
+
+                            return Ok(None);
+                        }
+                        None => {
+                            return Ok(Some((ptr, ty, ty_disc)))
+                        }
+                    }
+                },
+                None => {
+                    return Err(CodeGenError::GetPointerToFailed(value.inner.clone()).into());
+                }
+            }
+        },
     };
 
     Ok(created_var)

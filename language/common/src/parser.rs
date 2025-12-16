@@ -123,6 +123,8 @@ pub enum ParsedToken
     ArrayIndexing(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
 
     ArrayInitialization(Vec<ParsedTokenInstance>, TypeDiscriminant),
+
+    GetPointerTo(Box<ParsedTokenInstance>),
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]

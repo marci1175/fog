@@ -81,4 +81,6 @@ pub enum CodeGenError
         "CompilerHint `{0}` should be handled elsewhere. (If this a feature, then it should've been handled at the `CompilerHint` list creation.)"
     )]
     InternalFunctionCompilerHintParsingError(CompilerHint),
+    #[error("Could not retrieve pointer to `{0}`. Pointers can only be returned from values.")]
+    GetPointerToFailed(ParsedToken),
 }

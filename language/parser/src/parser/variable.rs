@@ -1,17 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
 use common::{
-    anyhow::Result,
-    codegen::{CustomType, Order},
-    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
-    indexmap::IndexMap,
-    parser::{
+    anyhow::Result, codegen::{CustomType, Order}, error::{DebugInformation, parser::ParserError, syntax::SyntaxError}, indexmap::IndexMap, parser::{
         FunctionSignature, MathematicalSymbol, ParsedToken, ParsedTokenInstance,
         StructFieldReference, UnparsedFunctionDefinition, VariableReference, find_closing_braces,
         find_closing_paren,
-    },
-    tokenizer::Token,
-    ty::{OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe},
+    }, tokenizer::Token, tracing::info, ty::{OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe}
 };
 
 use crate::parser::function::{fetch_and_merge_debug_information, parse_function_call_args};
@@ -157,6 +151,29 @@ pub fn parse_value(
                     comparison_other_side_ty = Some(ty);
                 }
             },
+
+            Token::Pointer => {
+                let (parsed_value, ty) = parse_token_as_value(
+                    tokens,
+                    tokens_offset + token_idx,
+                    debug_infos,
+                    origin_token_idx,
+                    function_signatures.clone(),
+                    variable_scope,
+                    None,
+                    &mut token_idx,
+                    current_token,
+                    function_imports.clone(),
+                    custom_types.clone(),
+                )?;
+
+                // Initialize parsed token with a value.
+                if parsed_token.is_none() {
+                    parsed_token = Some(parsed_value);
+
+                    comparison_other_side_ty = Some(ty);
+                }
+            }
 
             Token::Literal(literal) => {
                 let (parsed_value, ty) = parse_token_as_value(
@@ -715,6 +732,25 @@ pub fn parse_token_as_value(
                 return Err(ParserError::TypeMismatchNonIndexable(desired_variable_type).into());
             }
         },
+        Token::Pointer => {
+            *token_idx += 1;
+
+            let (parsed_token, jmp_idx, _) = parse_value(
+                &tokens[1..],
+                token_offset + *token_idx,
+                debug_infos,
+                origin_token_idx,
+                function_signatures.clone(),
+                variable_scope,
+                None,
+                function_imports,
+                custom_types.clone(),
+            )?;
+
+            *token_idx += jmp_idx + 1;
+
+            (ParsedToken::GetPointerTo(Box::new(parsed_token)), TypeDiscriminant::Pointer)
+        }
         _ => {
             // If we are parsing something else than something that hold a value return an error.
             return Err(
@@ -1051,7 +1087,7 @@ pub fn parse_variable_expression(
             }
         },
         _ => {
-            // info!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
+            info!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
         },
     }
 
