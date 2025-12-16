@@ -344,10 +344,15 @@ pub fn tokenize(
                         // Parse until nextline char, because then we know that the comment has ended.
                         // We wont store the comment
                         loop {
-                            let quote_char = char_list[char_idx + 1];
+                            let quote_char = char_list.get(char_idx + 1);
 
-                            if quote_char == ENDLINE_CHAR_U8 {
-                                char_idx += 2;
+                            if let Some (quote_char) = quote_char {
+                                if *quote_char == ENDLINE_CHAR_U8 {
+                                    char_idx += 2;
+                                    break;
+                                }
+                            }
+                            else {
                                 break;
                             }
 

@@ -307,14 +307,11 @@ impl TypeDiscriminant
             Self::U64 | Self::U32 | Self::U16 | Self::U8 => 7,
             Self::F64 | Self::F32 | Self::F16 => 4,
             Self::Boolean => 2,
-            Self::String => 18,
-            Self::Struct((_, struct_fields)) => {
-                struct_fields
-                    .iter()
-                    .map(|(_, field_t)| field_t.get_dwarf_encoding())
-                    .sum()
-            },
-            // Self::Pointer => 1,
+            Self::String => 12,
+            Self::Struct(_) => 13,
+            Self::Pointer => 15,
+            Self::Array(_) => 1,
+            // Self::Enum(_) => 4,
             _ => panic!("DWARF identifier requested on invalid type."),
         }
     }

@@ -3,31 +3,55 @@
     ParsedTokenInstance {
         inner: ReturnValue(
             ParsedTokenInstance {
-                inner: Literal(
-                    I32(
-                        10000,
+                inner: FunctionCall(
+                    (
+                        FunctionSignature {
+                            name: "struct_ptr_test",
+                            args: FunctionArguments {
+                                arguments_list: OrdMap(
+                                    {},
+                                ),
+                                ellipsis_present: false,
+                            },
+                            return_type: Pointer,
+                            module_path: [
+                                "test_project",
+                                "struct_ptr_test",
+                            ],
+                            visibility: Private,
+                            compiler_hints: OrdSet(
+                                {},
+                            ),
+                            enabling_features: OrdSet(
+                                {},
+                            ),
+                        },
+                        "struct_ptr_test",
+                    ),
+                    OrdMap(
+                        {},
                     ),
                 ),
                 debug_information: DebugInformation {
                     char_start: CharPosition {
-                        line: 1,
+                        line: 10,
                         column: 4,
                     },
                     char_end: CharPosition {
-                        line: 1,
-                        column: 16,
+                        line: 10,
+                        column: 28,
                     },
                 },
             },
         ),
         debug_information: DebugInformation {
             char_start: CharPosition {
-                line: 1,
+                line: 10,
                 column: 4,
             },
             char_end: CharPosition {
-                line: 1,
-                column: 17,
+                line: 10,
+                column: 29,
             },
         },
     },
@@ -38,56 +62,212 @@
             "a",
             Pointer,
             ParsedTokenInstance {
-                inner: GetPointerTo(
-                    ParsedTokenInstance {
-                        inner: FunctionCall(
-                            (
-                                FunctionSignature {
-                                    name: "foo",
-                                    args: FunctionArguments {
-                                        arguments_list: OrdMap(
-                                            {},
-                                        ),
-                                        ellipsis_present: false,
-                                    },
-                                    return_type: I32,
-                                    module_path: [
-                                        "test_project",
-                                        "foo",
-                                    ],
-                                    visibility: Public,
-                                    compiler_hints: OrdSet(
-                                        {},
-                                    ),
-                                    enabling_features: OrdSet(
-                                        {},
-                                    ),
-                                },
+                inner: FunctionCall(
+                    (
+                        FunctionSignature {
+                            name: "foo",
+                            args: FunctionArguments {
+                                arguments_list: OrdMap(
+                                    {},
+                                ),
+                                ellipsis_present: false,
+                            },
+                            return_type: Pointer,
+                            module_path: [
+                                "test_project",
                                 "foo",
-                            ),
-                            OrdMap(
+                            ],
+                            visibility: Public,
+                            compiler_hints: OrdSet(
                                 {},
                             ),
-                        ),
-                        debug_information: DebugInformation {
-                            char_start: CharPosition {
-                                line: 5,
-                                column: 13,
-                            },
-                            char_end: CharPosition {
-                                line: 5,
-                                column: 19,
-                            },
+                            enabling_features: OrdSet(
+                                {},
+                            ),
                         },
-                    },
+                        "foo",
+                    ),
+                    OrdMap(
+                        {},
+                    ),
                 ),
                 debug_information: DebugInformation {
                     char_start: CharPosition {
-                        line: 5,
+                        line: 14,
                         column: 12,
                     },
                     char_end: CharPosition {
-                        line: 7,
+                        line: 14,
+                        column: 18,
+                    },
+                },
+            },
+        ),
+        debug_information: DebugInformation {
+            char_start: CharPosition {
+                line: 14,
+                column: 4,
+            },
+            char_end: CharPosition {
+                line: 14,
+                column: 18,
+            },
+        },
+    },
+    ParsedTokenInstance {
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "printf",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "a": String,
+                            },
+                        ),
+                        ellipsis_present: true,
+                    },
+                    return_type: I32,
+                    module_path: [
+                        "test_project",
+                        "printf",
+                    ],
+                    visibility: Private,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
+                },
+                "printf",
+            ),
+            OrdMap(
+                {
+                    Identifier(
+                        "a",
+                    ): (
+                        ParsedTokenInstance {
+                            inner: Literal(
+                                String(
+                                    "%p\n",
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_start: CharPosition {
+                                    line: 14,
+                                    column: 8,
+                                },
+                                char_end: CharPosition {
+                                    line: 14,
+                                    column: 12,
+                                },
+                            },
+                        },
+                        String,
+                    ),
+                    Index(
+                        1,
+                    ): (
+                        ParsedTokenInstance {
+                            inner: VariableReference(
+                                BasicReference(
+                                    "a",
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_start: CharPosition {
+                                    line: 16,
+                                    column: 19,
+                                },
+                                char_end: CharPosition {
+                                    line: 16,
+                                    column: 21,
+                                },
+                            },
+                        },
+                        Pointer,
+                    ),
+                },
+            ),
+        ),
+        debug_information: DebugInformation {
+            char_start: CharPosition {
+                line: 16,
+                column: 4,
+            },
+            char_end: CharPosition {
+                line: 16,
+                column: 22,
+            },
+        },
+    },
+    ParsedTokenInstance {
+        inner: NewVariable(
+            "szam",
+            I32,
+            ParsedTokenInstance {
+                inner: FunctionCall(
+                    (
+                        FunctionSignature {
+                            name: "tfon_from_pointer",
+                            args: FunctionArguments {
+                                arguments_list: OrdMap(
+                                    {
+                                        "p": Pointer,
+                                    },
+                                ),
+                                ellipsis_present: false,
+                            },
+                            return_type: I32,
+                            module_path: [
+                                "test_project",
+                                "tfon_from_pointer",
+                            ],
+                            visibility: Private,
+                            compiler_hints: OrdSet(
+                                {},
+                            ),
+                            enabling_features: OrdSet(
+                                {},
+                            ),
+                        },
+                        "tfon_from_pointer",
+                    ),
+                    OrdMap(
+                        {
+                            Identifier(
+                                "p",
+                            ): (
+                                ParsedTokenInstance {
+                                    inner: VariableReference(
+                                        BasicReference(
+                                            "a",
+                                        ),
+                                    ),
+                                    debug_information: DebugInformation {
+                                        char_start: CharPosition {
+                                            line: 14,
+                                            column: 8,
+                                        },
+                                        char_end: CharPosition {
+                                            line: 14,
+                                            column: 12,
+                                        },
+                                    },
+                                },
+                                Pointer,
+                            ),
+                        },
+                    ),
+                ),
+                debug_information: DebugInformation {
+                    char_start: CharPosition {
+                        line: 18,
+                        column: 15,
+                    },
+                    char_end: CharPosition {
+                        line: 20,
                         column: 10,
                     },
                 },
@@ -95,12 +275,100 @@
         ),
         debug_information: DebugInformation {
             char_start: CharPosition {
-                line: 5,
+                line: 18,
                 column: 4,
             },
             char_end: CharPosition {
-                line: 5,
-                column: 19,
+                line: 18,
+                column: 36,
+            },
+        },
+    },
+    ParsedTokenInstance {
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "printf",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {
+                                "a": String,
+                            },
+                        ),
+                        ellipsis_present: true,
+                    },
+                    return_type: I32,
+                    module_path: [
+                        "test_project",
+                        "printf",
+                    ],
+                    visibility: Private,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
+                },
+                "printf",
+            ),
+            OrdMap(
+                {
+                    Identifier(
+                        "a",
+                    ): (
+                        ParsedTokenInstance {
+                            inner: Literal(
+                                String(
+                                    "Szam: %i",
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_start: CharPosition {
+                                    line: 14,
+                                    column: 8,
+                                },
+                                char_end: CharPosition {
+                                    line: 14,
+                                    column: 12,
+                                },
+                            },
+                        },
+                        String,
+                    ),
+                    Index(
+                        1,
+                    ): (
+                        ParsedTokenInstance {
+                            inner: VariableReference(
+                                BasicReference(
+                                    "szam",
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_start: CharPosition {
+                                    line: 20,
+                                    column: 23,
+                                },
+                                char_end: CharPosition {
+                                    line: 20,
+                                    column: 28,
+                                },
+                            },
+                        },
+                        I32,
+                    ),
+                },
+            ),
+        ),
+        debug_information: DebugInformation {
+            char_start: CharPosition {
+                line: 20,
+                column: 4,
+            },
+            char_end: CharPosition {
+                line: 20,
+                column: 29,
             },
         },
     },
@@ -114,11 +382,11 @@
                 ),
                 debug_information: DebugInformation {
                     char_start: CharPosition {
-                        line: 7,
+                        line: 22,
                         column: 4,
                     },
                     char_end: CharPosition {
-                        line: 7,
+                        line: 22,
                         column: 12,
                     },
                 },
@@ -126,11 +394,11 @@
         ),
         debug_information: DebugInformation {
             char_start: CharPosition {
-                line: 7,
+                line: 22,
                 column: 4,
             },
             char_end: CharPosition {
-                line: 7,
+                line: 22,
                 column: 13,
             },
         },

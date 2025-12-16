@@ -125,6 +125,8 @@ pub enum ParsedToken
     ArrayInitialization(Vec<ParsedTokenInstance>, TypeDiscriminant),
 
     GetPointerTo(Box<ParsedTokenInstance>),
+
+    DerefPointer(Box<ParsedTokenInstance>),
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
