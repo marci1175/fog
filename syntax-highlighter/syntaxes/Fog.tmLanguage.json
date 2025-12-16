@@ -15,6 +15,9 @@
 			"include": "#strings"
 		},
 		{
+			"include": "#pointer_reference"
+		},
+		{
 			"include": "#types"
 		},
 		{
@@ -75,6 +78,10 @@
 			"name": "keyword.other",
 			"match": "%(?:[a-zA-Z_][a-zA-Z0-9_]*|)"
 		},
+		"pointer_reference": {
+			"name": "keyword.other",
+			"match": "\\$"
+		},
 		"strings": {
 			"name": "string.quoted.double",
 			"begin": "\"",
@@ -98,7 +105,7 @@
 		"types": {
 			"patterns": [{
 				"name": "support.type",
-				"match": "\\b(int|float|uint|inthalf|floathalf|uinthalf|intlong|floatlong|uintlong|uintsmall|string|void|bool|array|vector)\\b"
+				"match": "\\b(int|float|uint|inthalf|floathalf|uinthalf|intlong|floatlong|uintlong|uintsmall|string|void|bool|array|vector|ptr)\\b"
 			}]
 		},
 		"keywords": {

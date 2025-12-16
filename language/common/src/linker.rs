@@ -38,7 +38,7 @@ impl BuildManifest
                 .build_output_paths
                 .iter()
                 .map(|p| {
-                    p.strip_prefix(&fs::canonicalize(&root).unwrap())
+                    p.strip_prefix(fs::canonicalize(&root).unwrap())
                         .unwrap()
                         .to_path_buf()
                 })
@@ -47,7 +47,7 @@ impl BuildManifest
                 .additional_linking_material
                 .iter()
                 .map(|p| {
-                    p.strip_prefix(&fs::canonicalize(&root).unwrap())
+                    p.strip_prefix(fs::canonicalize(&root).unwrap())
                         .unwrap()
                         .to_path_buf()
                 })
