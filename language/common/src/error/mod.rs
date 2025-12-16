@@ -1,4 +1,3 @@
-use std::ops::Range;
 
 pub mod application;
 pub mod cliparser;

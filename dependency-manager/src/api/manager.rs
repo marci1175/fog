@@ -3,7 +3,7 @@ use crate::{
     schema::dependencies::{self, dependency_name, dependency_version},
 };
 use common::{
-    axum::{Json, body::Bytes, extract::State, http::StatusCode},
+    axum::{Json, body::Bytes, extract::State},
     chrono::Utc,
     compression::{compress_bytes, decompress_bytes, write_zip_to_fs, zip_folder},
     dependency::{DependencyRequest, construct_dependency_path},

@@ -1,11 +1,18 @@
 use std::{collections::HashMap, sync::Arc};
 
 use common::{
-    anyhow::Result, codegen::{CustomType, Order}, error::{DebugInformation, parser::ParserError, syntax::SyntaxError}, indexmap::IndexMap, parser::{
+    anyhow::Result,
+    codegen::{CustomType, Order},
+    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    indexmap::IndexMap,
+    parser::{
         FunctionSignature, MathematicalSymbol, ParsedToken, ParsedTokenInstance,
         StructFieldReference, UnparsedFunctionDefinition, VariableReference, find_closing_braces,
         find_closing_paren,
-    }, tokenizer::Token, tracing::info, ty::{OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe}
+    },
+    tokenizer::Token,
+    tracing::info,
+    ty::{OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe},
 };
 
 use crate::parser::function::{fetch_and_merge_debug_information, parse_function_call_args};
@@ -173,7 +180,7 @@ pub fn parse_value(
 
                     comparison_other_side_ty = Some(ty);
                 }
-            }
+            },
 
             Token::Literal(literal) => {
                 let (parsed_value, ty) = parse_token_as_value(
@@ -631,7 +638,7 @@ pub fn parse_token_as_value(
                         )
                         .into());
                     },
-                    CustomType::Enum(index_map) => {
+                    CustomType::Enum(_index_map) => {
                         todo!()
                     },
                 }
@@ -687,7 +694,7 @@ pub fn parse_token_as_value(
 
             // We will check for the valid length of the init value later, at codegen.
             if let TypeDiscriminant::Array((inner_token, _len)) = &desired_variable_type {
-                let inner_ty = token_to_ty(&(**inner_token), &custom_types)?;
+                let inner_ty = token_to_ty(inner_token, &custom_types)?;
 
                 while array_item_idx < tokens_inside_block.len() {
                     // Parse the value of the array
@@ -749,8 +756,11 @@ pub fn parse_token_as_value(
 
             *token_idx += jmp_idx + 1;
 
-            (ParsedToken::GetPointerTo(Box::new(parsed_token)), TypeDiscriminant::Pointer)
-        }
+            (
+                ParsedToken::GetPointerTo(Box::new(parsed_token)),
+                TypeDiscriminant::Pointer,
+            )
+        },
         _ => {
             // If we are parsing something else than something that hold a value return an error.
             return Err(
@@ -1003,8 +1013,8 @@ pub fn parse_variable_expression(
             }
         },
         Token::OpenSquareBrackets => {
-            if let TypeDiscriminant::Array((inner_token, len)) = variable_type {
-                let inner_type = token_to_ty(&*inner_token, &custom_types)?;
+            if let TypeDiscriminant::Array((inner_token, _len)) = variable_type {
+                let inner_type = token_to_ty(&inner_token, &custom_types)?;
 
                 *token_idx += 1;
 
@@ -1270,7 +1280,7 @@ fn handle_variable(
                         }),
                         Box::new(value),
                     ),
-                    token_to_ty(&*inner_ty, custom_types)?,
+                    token_to_ty(&inner_ty, custom_types)?,
                 )?;
 
                 Ok(handling_continuation)
@@ -1313,7 +1323,7 @@ fn set_value_math_expr(
         SyntaxError::InvalidStatementDefinition,
     ))?;
 
-    let (next_token, ty) = parse_token_as_value(
+    let (next_token, _ty) = parse_token_as_value(
         tokens,
         token_offset,
         debug_infos,

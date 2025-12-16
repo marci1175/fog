@@ -224,238 +224,238 @@ where
             None
         },
         ParsedToken::VariableReference(var_ref_variant) => {
-                    if let Some((var_ref_name, (var_ref_ptr, var_ref_ty), var_ref_ty_disc)) =
-                        variable_reference
-                    {
-                        match var_ref_variant {
-                            common::parser::VariableReference::StructFieldReference(
-                                struct_field_stack,
-                                (struct_name, struct_fields),
-                            ) => {
-                                let mut field_stack_iter = struct_field_stack.field_stack.iter();
-        
-                                if let Some(main_struct_var_name) = field_stack_iter.next() {
-                                    if let Some(((ptr, ty), ty_disc)) =
-                                        variable_map.get(main_struct_var_name)
-                                    {
-                                        let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
-                                            ctx,
-                                            builder,
-                                            &mut field_stack_iter,
-                                            &struct_fields,
-                                            (*ptr, *ty),
-                                            custom_types.clone(),
-                                        )?;
-        
-                                        let basic_value =
-                                            builder.build_load(f_ty, f_ptr, "deref_strct_val")?;
-        
-                                        if var_ref_ty.is_struct_type()
-                                            && basic_value.is_struct_value()
-                                            && var_ref_ty.into_struct_type().get_name()
-                                                != Some(basic_value.into_struct_value().get_name())
-                                        {
-                                            return Err(CodeGenError::InternalTypeMismatch.into());
-                                        }
-        
-                                        if var_ref_ty == basic_value.get_type().into() {
-                                            builder.build_store(var_ref_ptr, basic_value)?;
-                                        }
-                                        else {
-                                            return Err(CodeGenError::InternalTypeMismatch.into());
-                                        }
-                                    }
+            if let Some((var_ref_name, (var_ref_ptr, var_ref_ty), var_ref_ty_disc)) =
+                variable_reference
+            {
+                match var_ref_variant {
+                    common::parser::VariableReference::StructFieldReference(
+                        struct_field_stack,
+                        (struct_name, struct_fields),
+                    ) => {
+                        let mut field_stack_iter = struct_field_stack.field_stack.iter();
+
+                        if let Some(main_struct_var_name) = field_stack_iter.next() {
+                            if let Some(((ptr, ty), ty_disc)) =
+                                variable_map.get(main_struct_var_name)
+                            {
+                                let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
+                                    ctx,
+                                    builder,
+                                    &mut field_stack_iter,
+                                    &struct_fields,
+                                    (*ptr, *ty),
+                                    custom_types.clone(),
+                                )?;
+
+                                let basic_value =
+                                    builder.build_load(f_ty, f_ptr, "deref_strct_val")?;
+
+                                if var_ref_ty.is_struct_type()
+                                    && basic_value.is_struct_value()
+                                    && var_ref_ty.into_struct_type().get_name()
+                                        != Some(basic_value.into_struct_value().get_name())
+                                {
+                                    return Err(CodeGenError::InternalTypeMismatch.into());
+                                }
+
+                                if var_ref_ty == basic_value.get_type().into() {
+                                    builder.build_store(var_ref_ptr, basic_value)?;
                                 }
                                 else {
-                                    return Err(CodeGenError::InternalInvalidStructReference.into());
+                                    return Err(CodeGenError::InternalTypeMismatch.into());
                                 }
-                            },
-                            common::parser::VariableReference::BasicReference(var_name) => {
-                                // The referenced variable
-                                let ref_variable_query = variable_map.get(&var_name);
-        
-                                if let ((orig_ptr, orig_ty), Some(((ref_ptr, ref_ty), ref_ty_disc))) = (
-                                    // The original variable we are going to modify
-                                    (var_ref_ptr, var_ref_ty),
-                                    // The referenced variable we are going to set the value of the orginal variable with
-                                    ref_variable_query,
-                                ) {
-                                    if *ref_ty_disc != var_ref_ty_disc {
-                                        return Err(CodeGenError::InternalVariableTypeMismatch(
-                                            ref_ty_disc.clone(),
-                                            var_ref_ty_disc.clone(),
-                                        )
-                                        .into());
-                                    }
-        
-                                    match ref_ty {
-                                        BasicMetadataTypeEnum::ArrayType(array_type) => {
-                                            // Get the referenced variable's value
-                                            let ref_var_val =
-                                                builder.build_load(*array_type, *ref_ptr, "var_deref")?;
-        
-                                            // Store the referenced variable's value in the original
-                                            builder.build_store(orig_ptr, ref_var_val)?;
-                                        },
-                                        BasicMetadataTypeEnum::FloatType(float_type) => {
-                                            // Get the referenced variable's value
-                                            let ref_var_val =
-                                                builder.build_load(*float_type, *ref_ptr, "var_deref")?;
-        
-                                            // Store the referenced variable's value in the original
-                                            builder.build_store(orig_ptr, ref_var_val)?;
-                                        },
-                                        BasicMetadataTypeEnum::IntType(int_type) => {
-                                            // Get the referenced variable's value
-                                            let ref_var_val =
-                                                builder.build_load(*int_type, *ref_ptr, "var_deref")?;
-        
-                                            // Store the referenced variable's value in the original
-                                            builder.build_store(orig_ptr, ref_var_val)?;
-                                        },
-                                        BasicMetadataTypeEnum::PointerType(pointer_type) => {
-                                            // Get the referenced variable's value
-                                            let ref_var_val =
-                                                builder.build_load(*pointer_type, *ref_ptr, "var_deref")?;
-        
-                                            // Store the referenced variable's value in the original
-                                            builder.build_store(orig_ptr, ref_var_val)?;
-                                        },
-                                        BasicMetadataTypeEnum::StructType(struct_type) => {
-                                            // Get the referenced variable's value
-                                            let ref_var_val =
-                                                builder.build_load(*struct_type, *ref_ptr, "var_deref")?;
-        
-                                            // Store the referenced variable's value in the original
-                                            builder.build_store(orig_ptr, ref_var_val)?;
-                                        },
-                                        BasicMetadataTypeEnum::VectorType(vector_type) => {
-                                            // Get the referenced variable's value
-                                            let ref_var_val =
-                                                builder.build_load(*vector_type, *ref_ptr, "var_deref")?;
-        
-                                            // Store the referenced variable's value in the original
-                                            builder.build_store(orig_ptr, ref_var_val)?;
-                                        },
-        
-                                        _ => unimplemented!(),
-                                    };
-                                }
-                            },
-                            common::parser::VariableReference::ArrayReference(
-                                variable_reference,
-                                index,
-                            ) => {
-                                let variable_ptr = variable_map
-                                    .get(&variable_reference)
-                                    .ok_or(CodeGenError::InternalVariableNotFound(
-                                        variable_reference.clone(),
-                                    ))?
-                                    .clone();
-        
-                                let (ptr, ptr_ty, ty_disc) = access_array_index(
-                                    ctx,
-                                    module,
-                                    builder,
-                                    variable_map,
-                                    &fn_ret_ty,
-                                    this_fn_block,
-                                    this_fn,
-                                    allocation_list,
-                                    &is_loop_body,
-                                    &parsed_functions,
-                                    &custom_types,
-                                    variable_ptr,
-                                    index,
-                                )?;
-        
-                                if var_ref_ty_disc != ty_disc {
-                                    return Err(CodeGenError::InternalVariableTypeMismatch(
-                                        var_ref_ty_disc.clone(),
-                                        ty_disc.clone(),
-                                    )
-                                    .into());
-                                }
-        
-                                builder.build_store(var_ref_ptr, ptr)?;
-                            },
+                            }
                         }
-        
-                        None
-                    }
-                    else {
-                        match var_ref_variant {
-                            common::parser::VariableReference::StructFieldReference(
-                                struct_field_stack,
-                                (struct_name, struct_def),
-                            ) => {
-                                let mut field_stack_iter = struct_field_stack.field_stack.iter();
-        
-                                if let Some(main_struct_var_name) = field_stack_iter.next() {
-                                    if let Some(((ptr, ty), ty_disc)) =
-                                        variable_map.get(main_struct_var_name)
-                                    {
-                                        let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
-                                            ctx,
-                                            builder,
-                                            &mut field_stack_iter,
-                                            &struct_def,
-                                            (*ptr, *ty),
-                                            custom_types.clone(),
-                                        )?;
-        
-                                        Some((f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc))
-                                    }
-                                    else {
-                                        return Err(CodeGenError::InternalVariableNotFound(
-                                            main_struct_var_name.clone(),
-                                        )
-                                        .into());
-                                    }
-                                }
-                                else {
-                                    return Err(CodeGenError::InternalInvalidStructReference.into());
-                                }
-                            },
-                            common::parser::VariableReference::BasicReference(basic_ref) => {
-                                let ((ptr, ty), ty_disc) = variable_map
-                                    .get(&basic_ref)
-                                    .ok_or(CodeGenError::InternalVariableNotFound(basic_ref.clone()))?;
-        
-                                Some((*ptr, *ty, ty_disc.clone()))
-                            },
-                            common::parser::VariableReference::ArrayReference(
-                                variable_reference,
-                                index,
-                            ) => {
-                                let variable_ptr = variable_map
-                                    .get(&variable_reference)
-                                    .ok_or(CodeGenError::InternalVariableNotFound(
-                                        variable_reference.clone(),
-                                    ))?
-                                    .clone();
-        
-                                let array_ptr = access_array_index(
-                                    ctx,
-                                    module,
-                                    builder,
-                                    variable_map,
-                                    &fn_ret_ty,
-                                    this_fn_block,
-                                    this_fn,
-                                    allocation_list,
-                                    &is_loop_body,
-                                    &parsed_functions,
-                                    &custom_types,
-                                    variable_ptr,
-                                    index,
-                                )?;
-        
-                                Some(array_ptr)
-                            },
+                        else {
+                            return Err(CodeGenError::InternalInvalidStructReference.into());
                         }
-                    }
-                },
+                    },
+                    common::parser::VariableReference::BasicReference(var_name) => {
+                        // The referenced variable
+                        let ref_variable_query = variable_map.get(&var_name);
+
+                        if let ((orig_ptr, orig_ty), Some(((ref_ptr, ref_ty), ref_ty_disc))) = (
+                            // The original variable we are going to modify
+                            (var_ref_ptr, var_ref_ty),
+                            // The referenced variable we are going to set the value of the orginal variable with
+                            ref_variable_query,
+                        ) {
+                            if *ref_ty_disc != var_ref_ty_disc {
+                                return Err(CodeGenError::InternalVariableTypeMismatch(
+                                    ref_ty_disc.clone(),
+                                    var_ref_ty_disc.clone(),
+                                )
+                                .into());
+                            }
+
+                            match ref_ty {
+                                BasicMetadataTypeEnum::ArrayType(array_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*array_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                },
+                                BasicMetadataTypeEnum::FloatType(float_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*float_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                },
+                                BasicMetadataTypeEnum::IntType(int_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*int_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                },
+                                BasicMetadataTypeEnum::PointerType(pointer_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*pointer_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                },
+                                BasicMetadataTypeEnum::StructType(struct_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*struct_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                },
+                                BasicMetadataTypeEnum::VectorType(vector_type) => {
+                                    // Get the referenced variable's value
+                                    let ref_var_val =
+                                        builder.build_load(*vector_type, *ref_ptr, "var_deref")?;
+
+                                    // Store the referenced variable's value in the original
+                                    builder.build_store(orig_ptr, ref_var_val)?;
+                                },
+
+                                _ => unimplemented!(),
+                            };
+                        }
+                    },
+                    common::parser::VariableReference::ArrayReference(
+                        variable_reference,
+                        index,
+                    ) => {
+                        let variable_ptr = variable_map
+                            .get(&variable_reference)
+                            .ok_or(CodeGenError::InternalVariableNotFound(
+                                variable_reference.clone(),
+                            ))?
+                            .clone();
+
+                        let (ptr, ptr_ty, ty_disc) = access_array_index(
+                            ctx,
+                            module,
+                            builder,
+                            variable_map,
+                            &fn_ret_ty,
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            &is_loop_body,
+                            &parsed_functions,
+                            &custom_types,
+                            variable_ptr,
+                            index,
+                        )?;
+
+                        if var_ref_ty_disc != ty_disc {
+                            return Err(CodeGenError::InternalVariableTypeMismatch(
+                                var_ref_ty_disc.clone(),
+                                ty_disc.clone(),
+                            )
+                            .into());
+                        }
+
+                        builder.build_store(var_ref_ptr, ptr)?;
+                    },
+                }
+
+                None
+            }
+            else {
+                match var_ref_variant {
+                    common::parser::VariableReference::StructFieldReference(
+                        struct_field_stack,
+                        (struct_name, struct_def),
+                    ) => {
+                        let mut field_stack_iter = struct_field_stack.field_stack.iter();
+
+                        if let Some(main_struct_var_name) = field_stack_iter.next() {
+                            if let Some(((ptr, ty), ty_disc)) =
+                                variable_map.get(main_struct_var_name)
+                            {
+                                let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
+                                    ctx,
+                                    builder,
+                                    &mut field_stack_iter,
+                                    &struct_def,
+                                    (*ptr, *ty),
+                                    custom_types.clone(),
+                                )?;
+
+                                Some((f_ptr, ty_enum_to_metadata_ty_enum(f_ty), ty_disc))
+                            }
+                            else {
+                                return Err(CodeGenError::InternalVariableNotFound(
+                                    main_struct_var_name.clone(),
+                                )
+                                .into());
+                            }
+                        }
+                        else {
+                            return Err(CodeGenError::InternalInvalidStructReference.into());
+                        }
+                    },
+                    common::parser::VariableReference::BasicReference(basic_ref) => {
+                        let ((ptr, ty), ty_disc) = variable_map
+                            .get(&basic_ref)
+                            .ok_or(CodeGenError::InternalVariableNotFound(basic_ref.clone()))?;
+
+                        Some((*ptr, *ty, ty_disc.clone()))
+                    },
+                    common::parser::VariableReference::ArrayReference(
+                        variable_reference,
+                        index,
+                    ) => {
+                        let variable_ptr = variable_map
+                            .get(&variable_reference)
+                            .ok_or(CodeGenError::InternalVariableNotFound(
+                                variable_reference.clone(),
+                            ))?
+                            .clone();
+
+                        let array_ptr = access_array_index(
+                            ctx,
+                            module,
+                            builder,
+                            variable_map,
+                            &fn_ret_ty,
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            &is_loop_body,
+                            &parsed_functions,
+                            &custom_types,
+                            variable_ptr,
+                            index,
+                        )?;
+
+                        Some(array_ptr)
+                    },
+                }
+            }
+        },
         ParsedToken::Literal(literal) => {
             // There this is None there is nothing we can do with this so just return
             if let Some(var_ref) = variable_reference {
@@ -2571,15 +2571,13 @@ where
                             builder.build_store(var_ptr, ptr)?;
 
                             return Ok(None);
-                        }
-                        None => {
-                            return Ok(Some((ptr, ty, ty_disc)))
-                        }
+                        },
+                        None => return Ok(Some((ptr, ty, ty_disc))),
                     }
                 },
                 None => {
                     return Err(CodeGenError::GetPointerToFailed(value.inner.clone()).into());
-                }
+                },
             }
         },
         ParsedToken::DerefPointer(parsed_token_instance) => todo!(),

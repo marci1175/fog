@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs, mem,
-    ops::{Range, Sub},
+    ops::Range,
     path::PathBuf,
     sync::Arc,
 };
@@ -10,7 +10,7 @@ use common::{
     anyhow::Result,
     codegen::{CustomType, FunctionArgumentIdentifier, If},
     compiler::ProjectConfig,
-    error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError},
+    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
@@ -96,7 +96,7 @@ impl Parser
                                             CustomType::Struct(struct_def) => {
                                                 TypeDiscriminant::Struct(struct_def.clone())
                                             },
-                                            CustomType::Enum(index_map) => {
+                                            CustomType::Enum(_index_map) => {
                                                 unimplemented!()
                                             },
                                         }
@@ -298,7 +298,7 @@ impl Parser
 
                                         continue;
                                     },
-                                    CustomType::Enum(ord_map) => {},
+                                    CustomType::Enum(_ord_map) => {},
                                 }
                             }
                             else {
@@ -432,7 +432,7 @@ impl Parser
                                                     TypeDiscriminant::Struct(struct_def.clone()),
                                                 );
                                             },
-                                            CustomType::Enum(index_map) => {
+                                            CustomType::Enum(_index_map) => {
                                                 todo!()
                                             },
                                         }
@@ -609,7 +609,7 @@ impl Parser
                             let selected_tokens_range = token_idx + 3..line_break_idx;
                             let selected_tokens = &tokens[selected_tokens_range.clone()];
 
-                            let (parsed_value, idx, _) = parse_value(
+                            let (parsed_value, _idx, _) = parse_value(
                                 selected_tokens,
                                 tokens_offset,
                                 &self.tokens_debug_info,
@@ -861,7 +861,7 @@ impl Parser
                                     );
                                 }
                             },
-                            CustomType::Enum(enum_types) => {},
+                            CustomType::Enum(_enum_types) => {},
                         };
                     }
                     else {
@@ -922,7 +922,7 @@ impl Parser
                         // This is what we have to evaulate in order to execute the appropriate branch of the if statement
                         let cond_slice = &tokens[token_idx..paren_close_idx];
 
-                        let (condition, cond_slice_len, _) = parse_value(
+                        let (condition, _cond_slice_len, _) = parse_value(
                             cond_slice,
                             tokens_offset,
                             &self.tokens_debug_info,
@@ -1327,9 +1327,9 @@ pub fn fetch_and_merge_debug_information(
     let fetched_items = list.get(range);
 
     fetched_items.map(|debug_infos| {
-        let lines = combine_ranges(debug_infos, is_ordered);
+        
 
-        lines
+        combine_ranges(debug_infos, is_ordered)
     })
 }
 

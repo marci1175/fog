@@ -1,11 +1,8 @@
 use std::{
     collections::HashMap,
-    fs::{self, create_dir, create_dir_all},
-    io::{self, Write, stdout},
-    mem,
+    fs::{self, create_dir_all},
     net::SocketAddr,
     path::PathBuf,
-    ptr::{self, replace},
     sync::Arc,
 };
 
@@ -13,14 +10,12 @@ use crate::io::ServerState;
 use common::{
     anyhow,
     compiler::ProjectConfig,
-    compression::{compress_bytes, zip_folder},
-    crossbeam::{channel::Sender, deque, queue::ArrayQueue},
+    compression::zip_folder,
+    crossbeam::{channel::Sender, deque},
     distributed_compiler::{CompileJob, FinishedJob},
     error::codegen::CodeGenError,
     linker::BuildManifest,
-    serde::{Deserialize, Serialize},
     tokio, toml,
-    ty::OrdSet,
 };
 use compiler::CompilerState;
 use dashmap::DashMap;

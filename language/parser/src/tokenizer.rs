@@ -1,4 +1,4 @@
-use std::{ops::Range, u8, u16, u64};
+use std::{ops::Range, u8};
 
 use common::{
     anyhow,
@@ -21,7 +21,7 @@ pub fn tokenize(
     stop_at_token: Option<Token>,
 ) -> anyhow::Result<(Vec<Token>, Vec<DebugInformation>, usize)>
 {
-    let mut dest_num_type: Option<TypeDiscriminant> = None;
+    let _dest_num_type: Option<TypeDiscriminant> = None;
     let mut char_idx: usize = 0;
 
     let char_list = raw_input.as_bytes();
@@ -99,8 +99,8 @@ pub fn tokenize(
 
             continue;
         }
-        if string_buffer == b"array" {
-            if current_char == b'<' {
+        if string_buffer == b"array"
+            && current_char == b'<' {
                 char_idx += 1;
 
                 let closing_idx = find_closing_angled_bracket_char(&char_list[char_idx..], 0)?;
@@ -146,8 +146,7 @@ pub fn tokenize(
                 char_idx += closing_idx + 1;
                 continue;
             }
-        }
-        if (current_char == b' ' || current_char as u8 == NEWLINE_CHAR_U8)
+        if (current_char == b' ' || current_char == NEWLINE_CHAR_U8)
             && !string_buffer.is_empty()
         {
             let token = match_multi_character_expression(&string_buffer)?;
@@ -191,7 +190,7 @@ pub fn tokenize(
                 let next_char = char_list.get(char_idx + 1);
                 let next_char_2 = char_list.get(char_idx + 2);
 
-                let dot = '.' as u8;
+                let dot = b'.';
                 if Some(&dot) == next_char_2 && Some(&dot) == next_char {
                     token_list.push(Token::Ellipsis);
                     token_debug_info.push(DebugInformation {
@@ -275,7 +274,7 @@ pub fn tokenize(
             },
             b'#' => {
                 if let Some(char) = char_list.get(char_idx + 1) {
-                    if *char == b'-' && char_list.get(char_idx + 2) == Some(&('>' as u8)) {
+                    if *char == b'-' && char_list.get(char_idx + 2) == Some(&b'>') {
                         char_idx += 3;
 
                         let slice = raw_input[char_idx..].as_bytes();
@@ -302,7 +301,7 @@ pub fn tokenize(
 
                     let original_char_idx = char_idx;
 
-                    let hastag = '#' as u8;
+                    let hastag = b'#';
                     if *char == hastag {
                         if char_list.get(char_idx + 2) == Some(&hastag) {
                             char_idx += 3;
@@ -346,7 +345,7 @@ pub fn tokenize(
                         loop {
                             let quote_char = char_list.get(char_idx + 1);
 
-                            if let Some (quote_char) = quote_char {
+                            if let Some(quote_char) = quote_char {
                                 if *quote_char == ENDLINE_CHAR_U8 {
                                     char_idx += 2;
                                     break;
@@ -410,7 +409,7 @@ pub fn tokenize(
                                         continue;
                                     },
                                     Some(char) => {
-                                        quotes_buffer.push(DOUBLE_BACKSLASH_U8 as u8);
+                                        quotes_buffer.push(DOUBLE_BACKSLASH_U8);
                                         quotes_buffer.push(*char);
 
                                         quote_idx += 2;

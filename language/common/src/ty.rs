@@ -12,7 +12,6 @@ use inkwell::{
     types::{BasicType, BasicTypeEnum},
 };
 use num::Float;
-use serde::{Deserialize, Serialize};
 use strum::EnumTryAs;
 use strum_macros::Display;
 
@@ -42,7 +41,7 @@ pub enum Type
 
     String(String),
     Boolean(bool),
-    
+
     #[default]
     Void,
 
@@ -277,7 +276,7 @@ pub enum TypeDiscriminant
 //     {
 //         &self.token
 //     }
-    
+
 //     pub fn type_discriminant(&self) -> Option<&Box<TypeDiscriminant>> {
 //         self.type_discriminant.as_ref()
 //     }
@@ -339,7 +338,7 @@ impl TypeDiscriminant
                     .sum()
             },
             Self::Array((inner, _)) => {
-                token_to_ty(&**inner, &custom_types)
+                token_to_ty(inner, &custom_types)
                     .unwrap()
                     .sizeof(custom_types.clone())
             },
@@ -379,7 +378,7 @@ impl TypeDiscriminant
             },
             TypeDiscriminant::Array((array_ty, len)) => {
                 BasicTypeEnum::ArrayType(
-                    token_to_ty(&*array_ty, &custom_types)?
+                    token_to_ty(&array_ty, &custom_types)?
                         .to_basic_type_enum(ctx, custom_types.clone())?
                         .array_type(len as u32),
                 )
@@ -772,7 +771,7 @@ pub fn token_to_ty(
                     CustomType::Struct(struct_def) => {
                         Ok(TypeDiscriminant::Struct(struct_def.clone()))
                     },
-                    CustomType::Enum(ord_map) => unimplemented!(),
+                    CustomType::Enum(_ord_map) => unimplemented!(),
                 }
             }
             else {

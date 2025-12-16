@@ -263,7 +263,7 @@ pub fn ty_enum_to_metadata_ty_enum(ty_enum: BasicTypeEnum<'_>) -> BasicMetadataT
         },
         BasicTypeEnum::StructType(struct_type) => BasicMetadataTypeEnum::StructType(struct_type),
         BasicTypeEnum::VectorType(vector_type) => BasicMetadataTypeEnum::VectorType(vector_type),
-        BasicTypeEnum::ScalableVectorType(scalable_vector_type) => todo!(),
+        BasicTypeEnum::ScalableVectorType(_scalable_vector_type) => todo!(),
     }
 }
 

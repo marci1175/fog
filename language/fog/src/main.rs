@@ -9,16 +9,15 @@ use common::{
     dependency_manager::{DependencyUpload, DependencyUploadReply},
     error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError},
     linker::BuildManifest,
-    reqwest::{self, StatusCode, blocking::Client},
+    reqwest::{self, StatusCode},
     rmp_serde, serde_json, tokio, toml,
-    tracing::{info, instrument, warn},
+    tracing::{info, warn},
     tracing_subscriber,
     ty::OrdSet,
 };
 use compiler::CompilerState;
 use linker::link;
 use std::{env, fs, path::PathBuf};
-use tracing::{Level, event, span, subscriber};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -207,7 +206,7 @@ async fn main() -> common::anyhow::Result<()>
 
             info!("Successfully created project `{}`", project_cfg.name)
         },
-        CliCommand::Init { path } => {
+        CliCommand::Init { path: _ } => {
             info!("Getting folder name...");
 
             let get_folder_name = current_working_dir
@@ -277,7 +276,7 @@ async fn main() -> common::anyhow::Result<()>
             if response_code == StatusCode::OK {
                 info!("Uploading dependency...");
 
-                if let Some(secret_key) = secret {}
+                if let Some(_secret_key) = secret {}
 
                 let dependency_instance = DependencyUpload::new(
                     compiler_config.name.clone(),

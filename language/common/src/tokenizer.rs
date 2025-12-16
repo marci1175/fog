@@ -10,7 +10,7 @@ pub enum Token
 {
     Literal(Type),
     /// $
-    /// Example: ```ptr foo = $bar;``` 
+    /// Example: ```ptr foo = $bar;```
     Pointer,
     UnparsedLiteral(String),
 

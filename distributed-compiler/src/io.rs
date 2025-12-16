@@ -140,7 +140,7 @@ impl ServerState
 
                         connected_clients_handle.insert(addr, "Some client information".into());
 
-                        let client_addr = addr.clone();
+                        let client_addr = addr;
 
                         let (client_recv, mut client_sender) = tokio::io::split(stream);
 
@@ -290,7 +290,7 @@ impl ServerState
                                                                 response.bytes().await.unwrap();
 
                                                             // Serialize bytes
-                                                            let dependency_error =
+                                                            let _dependency_error =
                                                                 rmp_serde::from_slice::<
                                                                     DependencyManagerError,
                                                                 >(
@@ -327,7 +327,7 @@ impl ServerState
                                                     }
 
                                                     current_jobs.in_progress.push(CompileJob {
-                                                        remote_address: addr.clone(),
+                                                        remote_address: addr,
                                                         target_triple: request.target_triple,
                                                         features: OrdSet::from_vec(
                                                             request.features,

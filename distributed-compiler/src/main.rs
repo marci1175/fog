@@ -72,7 +72,7 @@ impl App
         ["Start Compiler Server", "Help", "Quit"]
     }
 
-    fn key_handler(&mut self, key: KeyEvent, terminal: &mut DefaultTerminal)
+    fn key_handler(&mut self, key: KeyEvent, _terminal: &mut DefaultTerminal)
     {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.should_quit = true;
