@@ -830,9 +830,7 @@ pub fn tokenize(
     Ok((token_list, token_debug_info, char_idx))
 }
 
-fn match_multi_character_expression(
-    string_to_match: &[u8],
-) -> anyhow::Result<Token>
+fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<Token>
 {
     Ok(match string_to_match {
         b"int" => Token::TypeDefinition(TypeDiscriminant::I32),
@@ -890,22 +888,31 @@ fn match_multi_character_expression(
 pub fn eval_constant_definition(raw_string: &[u8]) -> Token
 {
     let string = String::from_utf8_lossy(raw_string);
-    
+
     let mut negative_flag = false;
     let mut float_flag = false;
 
     let is_number = raw_string.iter().enumerate().all(|(idx, byte)| {
-        if *byte == b'.' && (float_flag || idx == 0) { return false; }
-        if *byte == b'-' && (negative_flag || idx != 0) { return false; }
-        
-        if *byte == b'.' { float_flag = true; return true; }
-        if *byte == b'-' { negative_flag = true; return true; }
+        if *byte == b'.' && (float_flag || idx == 0) {
+            return false;
+        }
+        if *byte == b'-' && (negative_flag || idx != 0) {
+            return false;
+        }
+
+        if *byte == b'.' {
+            float_flag = true;
+            return true;
+        }
+        if *byte == b'-' {
+            negative_flag = true;
+            return true;
+        }
 
         byte.is_ascii_digit()
     });
 
-    if is_number
-    {
+    if is_number {
         Token::UnparsedLiteral(string.to_string())
     }
     else {

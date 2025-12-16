@@ -70,7 +70,7 @@ impl Parser
                 || current_token == Token::PublicLibrary
             {
                 token_idx += 1;
-                
+
                 if tokens[token_idx] == Token::Function {
                     if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
                         if tokens[token_idx + 2] == Token::OpenParentheses {
@@ -558,7 +558,7 @@ impl Parser
 
     pub fn parse_function_block(
         &self,
-        tokens: Vec<Token>,
+        mut tokens: Vec<Token>,
         tokens_offset: usize,
         function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
         this_function_signature: FunctionSignature,

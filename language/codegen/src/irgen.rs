@@ -2382,7 +2382,7 @@ where
 
             if let Some((ptr, ptr_ty, type_disc)) = var_ref {
                 if let TypeDiscriminant::Array((inner_ty, len)) = type_disc.clone() {
-                    let inner_ty = token_to_ty(*inner_ty, &custom_types)?;
+                    let inner_ty = token_to_ty(&*inner_ty, &custom_types)?;
 
                     let pointee_ty = ty_to_llvm_ty(ctx, &type_disc, custom_types.clone())?;
 

@@ -336,8 +336,7 @@ pub fn parse_signature_args(
                     continue;
                 }
                 else {
-                    let custom_ty =
-                        token_to_ty(token_list[args_idx + 2].clone(), &custom_types.clone())?;
+                    let custom_ty = token_to_ty(&token_list[args_idx + 2], &custom_types)?;
 
                     // Store the argument in the HashMap
                     args.arguments_list.insert(var_name, custom_ty.clone());

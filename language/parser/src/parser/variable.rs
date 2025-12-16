@@ -670,7 +670,7 @@ pub fn parse_token_as_value(
 
             // We will check for the valid length of the init value later, at codegen.
             if let TypeDiscriminant::Array((inner_token, _len)) = &desired_variable_type {
-                let inner_ty = token_to_ty((**inner_token).clone(), &custom_types)?;
+                let inner_ty = token_to_ty(&(**inner_token), &custom_types)?;
 
                 while array_item_idx < tokens_inside_block.len() {
                     // Parse the value of the array
@@ -968,7 +968,7 @@ pub fn parse_variable_expression(
         },
         Token::OpenSquareBrackets => {
             if let TypeDiscriminant::Array((inner_token, len)) = variable_type {
-                let inner_type = token_to_ty(*inner_token, &custom_types)?;
+                let inner_type = token_to_ty(&*inner_token, &custom_types)?;
 
                 *token_idx += 1;
 
@@ -1234,7 +1234,7 @@ fn handle_variable(
                         }),
                         Box::new(value),
                     ),
-                    token_to_ty(*inner_ty.clone(), custom_types)?,
+                    token_to_ty(&*inner_ty, custom_types)?,
                 )?;
 
                 Ok(handling_continuation)

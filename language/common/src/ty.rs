@@ -51,7 +51,7 @@ pub enum Type
     /// First item is the type of the array
     /// Second item is the length
     Array((Box<Token>, usize)),
-    
+
     Pointer(usize),
 }
 
@@ -232,6 +232,57 @@ pub enum TypeDiscriminant
     Pointer,
 }
 
+// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// pub struct LazyTypeResolve
+// {
+//     // A type is resolvable from this token
+//     token: Box<Token>,
+//     // If a type if resolved this field will be a some and will contain a valid type
+//     type_discriminant: Option<Box<TypeDiscriminant>>,
+// }
+
+// impl LazyTypeResolve
+// {
+//     pub fn new(token: Box<Token>, type_discriminant: Option<Box<TypeDiscriminant>>) -> Self
+//     {
+//         Self {
+//             token,
+//             type_discriminant,
+//         }
+//     }
+
+//     pub fn resolve_inner_ty(
+//         &mut self,
+//         custom_types: &IndexMap<String, CustomType>,
+//     ) -> anyhow::Result<TypeDiscriminant>
+//     {
+//         Ok(match self.type_discriminant.clone() {
+//             Some(ty_disc) => *ty_disc,
+//             None => {
+//                 let resolved_ty = token_to_ty(&*self.token, custom_types)?;
+
+//                 self.type_discriminant = Some(Box::new(resolved_ty.clone()));
+
+//                 resolved_ty
+//             },
+//         })
+//     }
+
+//     /// When calling this function **ALWAYS** enusre the inner ty has been resolved. Otherwise this function cannot ensure that a `Some(_)` is returned.
+//     pub fn get_inner_ty(&self) -> Option<Box<TypeDiscriminant>> {
+//         self.type_discriminant.clone()
+//     }
+
+//     pub fn token(&self) -> &Token
+//     {
+//         &self.token
+//     }
+    
+//     pub fn type_discriminant(&self) -> Option<&Box<TypeDiscriminant>> {
+//         self.type_discriminant.as_ref()
+//     }
+// }
+
 impl TypeDiscriminant
 {
     pub fn is_float(&self) -> bool
@@ -291,7 +342,7 @@ impl TypeDiscriminant
                     .sum()
             },
             Self::Array((inner, _)) => {
-                token_to_ty((**inner).clone(), &custom_types)
+                token_to_ty(&**inner, &custom_types)
                     .unwrap()
                     .sizeof(custom_types.clone())
             },
@@ -331,7 +382,7 @@ impl TypeDiscriminant
             },
             TypeDiscriminant::Array((array_ty, len)) => {
                 BasicTypeEnum::ArrayType(
-                    token_to_ty(*array_ty, &custom_types)?
+                    token_to_ty(&*array_ty, &custom_types)?
                         .to_basic_type_enum(ctx, custom_types.clone())?
                         .array_type(len as u32),
                 )
@@ -713,13 +764,13 @@ impl<T: Hash + Eq + Clone> OrdSet<T>
 }
 
 pub fn token_to_ty(
-    token: Token,
+    token: &Token,
     custom_types: &IndexMap<String, CustomType>,
 ) -> anyhow::Result<TypeDiscriminant>
 {
-    match token.clone() {
+    match &token {
         Token::Identifier(ident) => {
-            if let Some(custom_type) = custom_types.get(&ident) {
+            if let Some(custom_type) = custom_types.get(ident) {
                 match custom_type {
                     CustomType::Struct(struct_def) => {
                         Ok(TypeDiscriminant::Struct(struct_def.clone()))
@@ -728,11 +779,11 @@ pub fn token_to_ty(
                 }
             }
             else {
-                Err(ParserError::InvalidType(token).into())
+                Err(ParserError::InvalidType(token.clone()).into())
             }
         },
-        Token::TypeDefinition(type_def) => Ok(type_def),
+        Token::TypeDefinition(type_def) => Ok(type_def.clone()),
 
-        _ => Err(ParserError::InvalidType(token).into()),
+        _ => Err(ParserError::InvalidType(token.clone()).into()),
     }
 }
