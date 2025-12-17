@@ -10,7 +10,7 @@ use common::{
     anyhow::Result,
     codegen::{CustomType, FunctionArgumentIdentifier, If},
     compiler::ProjectConfig,
-    error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError},
+    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
@@ -1319,9 +1319,9 @@ pub fn parse_import_path(tokens: &[Token]) -> Result<(Vec<String>, usize)>
 }
 
 pub fn fetch_and_merge_debug_information(
-    list: &[DebugInformation],
-    range: Range<usize>,
-    is_ordered: bool,
+    _list: &[DebugInformation],
+    _range: Range<usize>,
+    _is_ordered: bool,
 ) -> Option<DebugInformation>
 {
     // TODO: Please rework this this is ridiculous

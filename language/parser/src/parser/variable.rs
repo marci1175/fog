@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use common::{
     anyhow::Result,
-    codegen::{CustomType, Order, fetch_nested_pointer_ty},
+    codegen::{CustomType, Order},
     error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
@@ -779,17 +779,16 @@ pub fn parse_token_as_value(
                 function_signatures.clone(),
                 variable_scope,
                 desired_variable_type
-                    .map(|ty| {
+                    .and_then(|ty| {
                         match ty.clone().try_as_pointer() {
                             Some(inner) => {
                                 inner.map(|inner_token| {
-                                    token_to_ty(&*inner_token, &custom_types).unwrap()
+                                    token_to_ty(&inner_token, &custom_types).unwrap()
                                 })
                             },
                             None => Some(ty.clone()),
                         }
-                    })
-                    .flatten(),
+                    }),
                 function_imports,
                 custom_types.clone(),
             )?;

@@ -363,7 +363,7 @@ pub fn fetch_nested_pointer_ty(
                 Some(inner_token) => {
                     Ok(fetch_nested_pointer_ty(
                         custom_types,
-                        token_to_ty(&*inner_token, custom_types)?,
+                        token_to_ty(&inner_token, custom_types)?,
                     )?)
                 },
                 None => Ok(pointer_ty),
