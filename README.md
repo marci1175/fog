@@ -45,6 +45,6 @@ pub function add(a: int, b: int): int {
 
 pub function main() {
     int x = add(10, 20);
-    println(x);
+    println("%i", x);
 }
 ```
