@@ -246,7 +246,7 @@ pub fn ty_to_llvm_ty<'a>(
 
             inkwell::types::BasicTypeEnum::ArrayType(array_ty)
         },
-        TypeDiscriminant::Pointer => BasicTypeEnum::PointerType(ptr_type),
+        TypeDiscriminant::Pointer(_) => BasicTypeEnum::PointerType(ptr_type),
     };
 
     Ok(field_ty)
@@ -350,4 +350,25 @@ pub fn get_args_from_sig(
 
     // Return the list
     Ok(arg_list)
+}
+
+pub fn fetch_nested_pointer_ty(
+    custom_types: &Arc<IndexMap<String, CustomType>>,
+    pointer_ty: TypeDiscriminant,
+) -> Result<TypeDiscriminant>
+{
+    match pointer_ty.clone().try_as_pointer() {
+        Some(pointer_inner) => {
+            match pointer_inner {
+                Some(inner_token) => {
+                    Ok(fetch_nested_pointer_ty(
+                        custom_types,
+                        token_to_ty(&*inner_token, custom_types)?,
+                    )?)
+                },
+                None => Ok(pointer_ty),
+            }
+        },
+        None => Ok(pointer_ty),
+    }
 }

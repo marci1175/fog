@@ -112,7 +112,7 @@ pub fn import_user_lib_functions<'a>(
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
             TypeDiscriminant::Array(_) => todo!(),
-            TypeDiscriminant::Pointer => {
+            TypeDiscriminant::Pointer(_) => {
                 let return_type =
                     ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
 

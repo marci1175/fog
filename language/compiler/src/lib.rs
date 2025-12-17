@@ -77,7 +77,7 @@ impl CompilerState
 
         info!("Tokenizing...");
         let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
-
+        dbg!(&tokens);
         // for (idx, token) in tokens.iter().enumerate() {
         //     info!(
         //         "{idx} Token: {} | Range: {:?} | Lines: {:?}",

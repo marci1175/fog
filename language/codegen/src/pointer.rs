@@ -384,7 +384,7 @@ pub fn set_value_of_ptr<'ctx>(
             unreachable!()
         },
         Type::Array(inner_ty) => unimplemented!(),
-        Type::Pointer(inner) => {
+        Type::Pointer((inner, _)) => {
             let init_ptr = {
                 #[cfg(target_pointer_width = "64")]
                 {

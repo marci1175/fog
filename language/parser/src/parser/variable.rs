@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use common::{
     anyhow::Result,
-    codegen::{CustomType, Order},
+    codegen::{CustomType, Order, fetch_nested_pointer_ty},
     error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
@@ -159,7 +159,7 @@ pub fn parse_value(
                 }
             },
 
-            Token::Pointer => {
+            Token::Reference => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
                     tokens_offset + token_idx,
@@ -167,7 +167,30 @@ pub fn parse_value(
                     origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
-                    None,
+                    desired_variable_type.clone(),
+                    &mut token_idx,
+                    current_token,
+                    function_imports.clone(),
+                    custom_types.clone(),
+                )?;
+
+                // Initialize parsed token with a value.
+                if parsed_token.is_none() {
+                    parsed_token = Some(parsed_value);
+
+                    comparison_other_side_ty = Some(ty);
+                }
+            },
+
+            Token::Dereference => {
+                let (parsed_value, ty) = parse_token_as_value(
+                    tokens,
+                    tokens_offset + token_idx,
+                    debug_infos,
+                    origin_token_idx,
+                    function_signatures.clone(),
+                    variable_scope,
+                    desired_variable_type.clone(),
                     &mut token_idx,
                     current_token,
                     function_imports.clone(),
@@ -584,6 +607,12 @@ pub fn parse_token_as_value(
                 else {
                     // If there is a desired variable type then check if the two types match
                     if let Some(desired_variable_type) = desired_variable_type {
+                        // let function_ret_ty =
+                        //     fetch_nested_pointer_ty(&custom_types, function_sig.return_type.clone())?;
+
+                        // let desired_variable_type =
+                        //     fetch_nested_pointer_ty(&custom_types, desired_variable_type.clone())?;
+
                         // If the function's return type doesn't match the variable's return type return an error
                         if function_sig.return_type != desired_variable_type {
                             return Err(ParserError::TypeError(
@@ -739,7 +768,40 @@ pub fn parse_token_as_value(
                 return Err(ParserError::TypeMismatchNonIndexable(desired_variable_type).into());
             }
         },
-        Token::Pointer => {
+        Token::Reference => {
+            *token_idx += 1;
+
+            let (parsed_token, jmp_idx, val_ty) = parse_value(
+                &tokens[1..],
+                token_offset + *token_idx,
+                debug_infos,
+                origin_token_idx,
+                function_signatures.clone(),
+                variable_scope,
+                desired_variable_type
+                    .map(|ty| {
+                        match ty.clone().try_as_pointer() {
+                            Some(inner) => {
+                                inner.map(|inner_token| {
+                                    token_to_ty(&*inner_token, &custom_types).unwrap()
+                                })
+                            },
+                            None => Some(ty.clone()),
+                        }
+                    })
+                    .flatten(),
+                function_imports,
+                custom_types.clone(),
+            )?;
+
+            *token_idx += jmp_idx + 1;
+
+            (
+                ParsedToken::GetPointerTo(Box::new(parsed_token)),
+                TypeDiscriminant::Pointer(Some(Box::new(Token::TypeDefinition(val_ty)))),
+            )
+        },
+        Token::Dereference => {
             *token_idx += 1;
 
             let (parsed_token, jmp_idx, _) = parse_value(
@@ -749,7 +811,7 @@ pub fn parse_token_as_value(
                 origin_token_idx,
                 function_signatures.clone(),
                 variable_scope,
-                None,
+                desired_variable_type.clone(),
                 function_imports,
                 custom_types.clone(),
             )?;
@@ -757,8 +819,8 @@ pub fn parse_token_as_value(
             *token_idx += jmp_idx + 1;
 
             (
-                ParsedToken::GetPointerTo(Box::new(parsed_token)),
-                TypeDiscriminant::Pointer,
+                ParsedToken::DerefPointer(Box::new(parsed_token)),
+                TypeDiscriminant::I32,
             )
         },
         _ => {

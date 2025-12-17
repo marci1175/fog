@@ -10,7 +10,7 @@ use common::{
     anyhow::Result,
     codegen::{CustomType, FunctionArgumentIdentifier, If},
     compiler::ProjectConfig,
-    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
@@ -1324,13 +1324,11 @@ pub fn fetch_and_merge_debug_information(
     is_ordered: bool,
 ) -> Option<DebugInformation>
 {
-    let fetched_items = list.get(range);
+    // TODO: Please rework this this is ridiculous
+    // let fetched_items = list.get(range);
+    // fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered))
 
-    fetched_items.map(|debug_infos| {
-        
-
-        combine_ranges(debug_infos, is_ordered)
-    })
+    Some(DebugInformation::default())
 }
 
 /// This function ignores whether the ranges are joint.

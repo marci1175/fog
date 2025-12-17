@@ -1,24 +1,18 @@
-external printf(a: string, ...): int;
-external struct_ptr_test(): ptr;
-external tfon_from_pointer(p: ptr): int;
-
 struct telefon {
     szam: int,
     ido: int,
 }
 
-pub function foo(): ptr {
+external printf(a: string, ...): int;
+external struct_ptr_test(): ptr<telefon>;
+external tfon_from_pointer(p: ptr): int;
+
+pub function foo(): ptr<telefon> {
     return struct_ptr_test();
 }
 
 pub function main(): int {
-    ptr a = foo();
-
-    printf("%p\n", a);
-
-    int szam = tfon_from_pointer(a);
-
-    printf("Szam: %i", szam);
-
-    return 0;
+    ptr<telefon> a = ref struct_ptr_test();
+    telefon b = deref a;
+    return b.szam;
 }

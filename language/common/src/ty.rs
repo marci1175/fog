@@ -51,7 +51,7 @@ pub enum Type
     /// Second item is the length
     Array((Box<Token>, usize)),
 
-    Pointer(usize),
+    Pointer((usize, Option<Box<Token>>)),
 }
 
 #[derive(Debug, Clone)]
@@ -198,7 +198,7 @@ impl Type
                 TypeDiscriminant::Struct((struct_name.clone(), struct_field_ty_list))
             },
             Type::Array(inner) => TypeDiscriminant::Array(inner.clone()),
-            Type::Pointer(_) => TypeDiscriminant::Pointer,
+            Type::Pointer((_, inner_ty)) => TypeDiscriminant::Pointer(inner_ty.clone()),
         }
     }
 }
@@ -228,59 +228,8 @@ pub enum TypeDiscriminant
 
     Struct((String, OrdMap<String, TypeDiscriminant>)),
     Array((Box<Token>, usize)),
-    Pointer,
+    Pointer(Option<Box<Token>>),
 }
-
-// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-// pub struct LazyTypeResolve
-// {
-//     // A type is resolvable from this token
-//     token: Box<Token>,
-//     // If a type if resolved this field will be a some and will contain a valid type
-//     type_discriminant: Option<Box<TypeDiscriminant>>,
-// }
-
-// impl LazyTypeResolve
-// {
-//     pub fn new(token: Box<Token>, type_discriminant: Option<Box<TypeDiscriminant>>) -> Self
-//     {
-//         Self {
-//             token,
-//             type_discriminant,
-//         }
-//     }
-
-//     pub fn resolve_inner_ty(
-//         &mut self,
-//         custom_types: &IndexMap<String, CustomType>,
-//     ) -> anyhow::Result<TypeDiscriminant>
-//     {
-//         Ok(match self.type_discriminant.clone() {
-//             Some(ty_disc) => *ty_disc,
-//             None => {
-//                 let resolved_ty = token_to_ty(&*self.token, custom_types)?;
-
-//                 self.type_discriminant = Some(Box::new(resolved_ty.clone()));
-
-//                 resolved_ty
-//             },
-//         })
-//     }
-
-//     /// When calling this function **ALWAYS** enusre the inner ty has been resolved. Otherwise this function cannot ensure that a `Some(_)` is returned.
-//     pub fn get_inner_ty(&self) -> Option<Box<TypeDiscriminant>> {
-//         self.type_discriminant.clone()
-//     }
-
-//     pub fn token(&self) -> &Token
-//     {
-//         &self.token
-//     }
-
-//     pub fn type_discriminant(&self) -> Option<&Box<TypeDiscriminant>> {
-//         self.type_discriminant.as_ref()
-//     }
-// }
 
 impl TypeDiscriminant
 {
@@ -308,7 +257,7 @@ impl TypeDiscriminant
             Self::Boolean => 2,
             Self::String => 12,
             Self::Struct(_) => 13,
-            Self::Pointer => 15,
+            Self::Pointer(_) => 15,
             Self::Array(_) => 1,
             // Self::Enum(_) => 4,
             _ => panic!("DWARF identifier requested on invalid type."),
@@ -342,7 +291,7 @@ impl TypeDiscriminant
                     .unwrap()
                     .sizeof(custom_types.clone())
             },
-            Self::Pointer => std::mem::size_of::<usize>(),
+            Self::Pointer(_) => std::mem::size_of::<usize>(),
         }
     }
 
@@ -383,7 +332,7 @@ impl TypeDiscriminant
                         .array_type(len as u32),
                 )
             },
-            TypeDiscriminant::Pointer => {
+            TypeDiscriminant::Pointer(_) => {
                 BasicTypeEnum::PointerType(
                     ctx.ptr_type(AddressSpace::from(size_of::<usize>() as u16)),
                 )
@@ -416,7 +365,7 @@ impl From<TypeDiscriminant> for Type
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
             TypeDiscriminant::Array(array) => Self::Array(array),
-            TypeDiscriminant::Pointer => Self::Pointer(0),
+            TypeDiscriminant::Pointer(_) => Self::Pointer((0, None)),
         }
     }
 }
@@ -443,11 +392,12 @@ impl Display for TypeDiscriminant
             TypeDiscriminant::Array((inner_ty, len)) => {
                 format!("Array(ty: {inner_ty}, len:{len})")
             },
-            TypeDiscriminant::Pointer => "Ptr".to_string(),
+            TypeDiscriminant::Pointer(inner_ty) => format!("Ptr<{:?}>", inner_ty),
         })
     }
 }
 
+// TODO: Rework this
 pub fn unparsed_const_to_typed_literal_unsafe(
     raw_string: String,
     dest_type: Option<TypeDiscriminant>,
@@ -572,7 +522,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                     TypeDiscriminant::Array(inner),
                 ));
             },
-            TypeDiscriminant::Pointer => {
+            TypeDiscriminant::Pointer(_) => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
@@ -580,7 +530,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                     ));
                 }
                 else {
-                    Type::Pointer(parsed_num as usize)
+                    Type::Pointer((parsed_num as usize, None))
                 }
             },
         }
@@ -775,11 +725,11 @@ pub fn token_to_ty(
                 }
             }
             else {
-                Err(ParserError::InvalidType(token.clone()).into())
+                Err(ParserError::InvalidType(vec![token.clone()]).into())
             }
         },
         Token::TypeDefinition(type_def) => Ok(type_def.clone()),
 
-        _ => Err(ParserError::InvalidType(token.clone()).into()),
+        _ => Err(ParserError::InvalidType(vec![token.clone()]).into()),
     }
 }

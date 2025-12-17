@@ -9,9 +9,13 @@ use crate::{
 pub enum Token
 {
     Literal(Type),
-    /// $
-    /// Example: ```ptr foo = $bar;```
-    Pointer,
+    /// ref
+    /// Example: ```ptr foo = ref bar;```
+    Reference,
+    /// deref
+    /// Example: ```int foo = deref bar;```
+    Dereference,
+
     UnparsedLiteral(String),
 
     TypeDefinition(TypeDiscriminant),

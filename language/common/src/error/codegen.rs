@@ -18,7 +18,7 @@ pub enum CodeGenError
     #[error("[INTERNAL ERROR] Variable `{0}` was not found in Variable map.")]
     InternalVariableNotFound(String),
     #[error("Type `{0}` mismatches type `{1}`.")]
-    InternalVariableTypeMismatch(TypeDiscriminant, TypeDiscriminant),
+    VariableTypeMismatch(TypeDiscriminant, TypeDiscriminant),
     #[error("[INTERNAL ERROR] The automatic optimizer has failed after the code generation.")]
     InternalOptimisationPassFailed,
     #[error("[INTERNAL ERROR] Failed to get TargetTriple for host.")]
@@ -83,4 +83,8 @@ pub enum CodeGenError
     InternalFunctionCompilerHintParsingError(CompilerHint),
     #[error("Could not retrieve pointer to `{0}`. Pointers can only be returned from values.")]
     GetPointerToFailed(ParsedToken),
+    #[error("Cannot dereference value `{0}`, only a pointer can be.")]
+    InvalidValueDereference(ParsedToken),
+    #[error("A dereferencing must have a desired type to dereference to.")]
+    VagueDereference,
 }

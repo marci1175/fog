@@ -7,6 +7,7 @@ use common::{
     error::codegen::CodeGenError,
     indexmap::IndexMap,
     inkwell::{
+        AddressSpace,
         attributes::Attribute,
         basic_block::BasicBlock,
         builder::Builder,
@@ -17,6 +18,7 @@ use common::{
         values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     },
     parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
+    tokenizer::Token,
     ty::{OrdMap, TypeDiscriminant, token_to_ty},
 };
 use std::{
@@ -281,7 +283,7 @@ where
                             ref_variable_query,
                         ) {
                             if *ref_ty_disc != var_ref_ty_disc {
-                                return Err(CodeGenError::InternalVariableTypeMismatch(
+                                return Err(CodeGenError::VariableTypeMismatch(
                                     ref_ty_disc.clone(),
                                     var_ref_ty_disc.clone(),
                                 )
@@ -370,7 +372,7 @@ where
                         )?;
 
                         if var_ref_ty_disc != ty_disc {
-                            return Err(CodeGenError::InternalVariableTypeMismatch(
+                            return Err(CodeGenError::VariableTypeMismatch(
                                 var_ref_ty_disc.clone(),
                                 ty_disc.clone(),
                             )
@@ -463,7 +465,7 @@ where
 
                 // Check the type of the value, check for a type mismatch
                 if literal.discriminant() != var_ref.2 {
-                    return Err(CodeGenError::InternalVariableTypeMismatch(
+                    return Err(CodeGenError::VariableTypeMismatch(
                         literal.discriminant(),
                         var_ref.2,
                     )
@@ -663,7 +665,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer => todo!(),
+                            TypeDiscriminant::Pointer(_) => todo!(),
                         }
                     },
                     TypeDiscriminant::F64 | TypeDiscriminant::F32 | TypeDiscriminant::F16 => {
@@ -809,7 +811,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer => todo!(),
+                            TypeDiscriminant::Pointer(_) => todo!(),
                         }
                     },
                     TypeDiscriminant::U64
@@ -980,7 +982,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer => todo!(),
+                            TypeDiscriminant::Pointer(_) => todo!(),
                         }
                     },
                     TypeDiscriminant::String => {
@@ -1004,7 +1006,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer => todo!(),
+                            TypeDiscriminant::Pointer(_) => todo!(),
                         }
                     },
                     TypeDiscriminant::Boolean => {
@@ -1185,7 +1187,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer => todo!(),
+                            TypeDiscriminant::Pointer(_) => todo!(),
                         }
                     },
                     TypeDiscriminant::Void => {
@@ -1209,7 +1211,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer => todo!(),
+                            TypeDiscriminant::Pointer(_) => todo!(),
                         }
                     },
                     TypeDiscriminant::Struct(_) => {
@@ -1233,7 +1235,7 @@ where
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer => todo!(),
+                            TypeDiscriminant::Pointer(_) => todo!(),
                         }
                     },
                     TypeDiscriminant::Array(ref type_discriminant) => {
@@ -1259,10 +1261,10 @@ where
                                 )
                                 .into());
                             },
-                            TypeDiscriminant::Pointer => todo!(),
+                            TypeDiscriminant::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::Pointer => todo!(),
+                    TypeDiscriminant::Pointer(_) => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1489,9 +1491,7 @@ where
                     }
                 }
                 else {
-                    return Err(
-                        CodeGenError::InternalVariableTypeMismatch(l_ty_disc, r_ty_disc).into(),
-                    );
+                    return Err(CodeGenError::VariableTypeMismatch(l_ty_disc, r_ty_disc).into());
                 }
             }
             // If either didn't that means that either side contained a parsed token which couldnt be referenced as a variable. Ie it is not a value in any way.
@@ -1761,7 +1761,7 @@ where
 
                         builder.build_store(v_ptr, returned_array)?;
                     },
-                    TypeDiscriminant::Pointer => {
+                    TypeDiscriminant::Pointer(_) => {
                         let returned_pointer = returned.into_pointer_value();
 
                         builder.build_store(v_ptr, returned_pointer)?;
@@ -1771,7 +1771,7 @@ where
                 if let Some((variable_name, (var_ptr, _), ty_disc)) = variable_reference {
                     // Check for type mismatch
                     if ty_disc != fn_sig.return_type {
-                        return Err(CodeGenError::InternalVariableTypeMismatch(
+                        return Err(CodeGenError::VariableTypeMismatch(
                             ty_disc,
                             fn_sig.return_type,
                         )
@@ -2230,13 +2230,13 @@ where
                     unimplemented!()
                 },
                 TypeDiscriminant::Array(type_discriminant) => unimplemented!(),
-                TypeDiscriminant::Pointer => todo!(),
+                TypeDiscriminant::Pointer(_) => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
                 // Make sure that the variable we are setting is of type `Boolean` as a comparison always returns a `Bool`.
                 if ref_var_ty_disc != TypeDiscriminant::Boolean {
-                    return Err(CodeGenError::InternalVariableTypeMismatch(
+                    return Err(CodeGenError::VariableTypeMismatch(
                         ref_var_ty_disc,
                         TypeDiscriminant::Boolean,
                     )
@@ -2556,23 +2556,46 @@ where
             match val_reference {
                 Some((ptr, ty, ty_disc)) => {
                     match variable_reference {
-                        Some((_var_name, var_ty, var_ty_disc)) => {
+                        Some((_, var_ty, var_ty_disc)) => {
                             let (var_ptr, _var_type) = var_ty;
 
-                            // Check the type of the value, check for a type mismatch
-                            if var_ty_disc != TypeDiscriminant::Pointer {
-                                return Err(CodeGenError::InternalVariableTypeMismatch(
+                            // Check the type of the passed in variable to see if it is a pointer
+                            if !matches!(var_ty_disc, TypeDiscriminant::Pointer(_)) {
+                                return Err(CodeGenError::VariableTypeMismatch(
                                     var_ty_disc,
-                                    TypeDiscriminant::Pointer,
+                                    TypeDiscriminant::Pointer(None),
                                 )
                                 .into());
+                            }
+
+                            // If the pointer's inner type has been defined run the type check
+                            // If not ignore the type check
+                            if let TypeDiscriminant::Pointer(Some(inner_token)) = var_ty_disc {
+                                let reference_inner_ty = token_to_ty(&*inner_token, &custom_types)?;
+
+                                // Check the type of the value, check for a type mismatch inside the pointer
+                                if reference_inner_ty != ty_disc {
+                                    return Err(CodeGenError::VariableTypeMismatch(
+                                        reference_inner_ty,
+                                        ty_disc,
+                                    )
+                                    .into());
+                                }
                             }
 
                             builder.build_store(var_ptr, ptr)?;
 
                             return Ok(None);
                         },
-                        None => return Ok(Some((ptr, ty, ty_disc))),
+                        None => {
+                            return Ok(Some((
+                                ptr,
+                                ty,
+                                TypeDiscriminant::Pointer(Some(Box::new(Token::TypeDefinition(
+                                    ty_disc,
+                                )))),
+                            )));
+                        },
                     }
                 },
                 None => {
@@ -2580,7 +2603,101 @@ where
                 },
             }
         },
-        ParsedToken::DerefPointer(parsed_token_instance) => todo!(),
+        ParsedToken::DerefPointer(inner_value) => {
+            // Try to get a pointer from this inner_value
+            // This is a shallow pointer (if not nested by user)
+            // Pointer -> Value
+            let val_reference = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *inner_value.clone(),
+                variable_map,
+                None,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body.clone(),
+                parsed_functions.clone(),
+                custom_types.clone(),
+            )?;
+
+            match val_reference {
+                Some((ptr, ty, ty_disc)) => {
+                    // Check the type of the passed in variable to see if it is a pointer
+                    if !matches!(ty_disc, TypeDiscriminant::Pointer(_)) {
+                        return Err(CodeGenError::VariableTypeMismatch(
+                            ty_disc,
+                            TypeDiscriminant::Pointer(None),
+                        )
+                        .into());
+                    }
+
+                    match variable_reference {
+                        Some((_, var_ty, var_ref_ty_disc)) => {
+                            let (var_ptr, _var_type) = var_ty;
+
+                            let ptr_variant = ty_disc.try_as_pointer().unwrap();
+
+                            // If the inner value does not have a pre-determined inner type of the value the pointer is pointing to, assume the type we want to dereference to is the variable's type
+                            let deref_ty: TypeDiscriminant =
+                                if let Some(pointer_inner) = ptr_variant {
+                                    token_to_ty(&*pointer_inner, &custom_types)?
+                                }
+                                else {
+                                    var_ref_ty_disc.clone()
+                                };
+
+                            // Check for a type mismatch inside the pointer
+                            if deref_ty != var_ref_ty_disc {
+                                return Err(CodeGenError::VariableTypeMismatch(
+                                    deref_ty,
+                                    var_ref_ty_disc,
+                                )
+                                .into());
+                            }
+
+                            // Load the pointer
+                            let inner_ptr = builder.build_load(
+                                ctx.ptr_type(AddressSpace::default()),
+                                ptr,
+                                "ptr_load",
+                            )?;
+
+                            // Dereference the pointer
+                            let dereferenced_value = builder.build_load(
+                                deref_ty.to_basic_type_enum(ctx, custom_types)?,
+                                inner_ptr.into_pointer_value(),
+                                "ptr_deref",
+                            )?;
+
+                            // Store the deref-ed value inside the variable.
+                            builder.build_store(var_ptr, dereferenced_value)?;
+
+                            None
+                        },
+                        None => {
+                            Some((ptr, ty, {
+                                match ty_disc.try_as_pointer().unwrap() {
+                                    Some(pointer_inner) => {
+                                        token_to_ty(&*pointer_inner, &custom_types)?
+                                    },
+                                    None => {
+                                        return Err(CodeGenError::VagueDereference.into());
+                                    },
+                                }
+                            }))
+                        },
+                    }
+                },
+                None => {
+                    return Err(
+                        CodeGenError::InvalidValueDereference(inner_value.inner.clone()).into(),
+                    );
+                },
+            }
+        },
     };
 
     Ok(created_var)

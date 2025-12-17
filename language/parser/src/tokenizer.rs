@@ -58,7 +58,6 @@ pub fn tokenize(
             b',' => Some(Token::Comma),
             b'%' => Some(Token::Modulo),
             b'@' => Some(Token::CompilerHintSymbol),
-            b'$' => Some(Token::Pointer),
             _ => None,
         };
 
@@ -99,56 +98,53 @@ pub fn tokenize(
 
             continue;
         }
-        if string_buffer == b"array"
-            && current_char == b'<' {
-                char_idx += 1;
 
-                let closing_idx = find_closing_angled_bracket_char(&char_list[char_idx..], 0)?;
+        // array<T, L>
+        if string_buffer == b"array" && current_char == b'<' {
+            char_idx += 1;
 
-                let list_type = &char_list[char_idx..closing_idx + char_idx];
+            let closing_idx = find_closing_angled_bracket_char(&char_list[char_idx..], 0)?;
 
-                let comma_pos = list_type.len()
-                    - list_type
-                        .iter()
-                        .rev()
-                        .position(|char| *char == b',')
-                        .ok_or(ParserError::SyntaxError(
-                            SyntaxError::MissingCommaAtArrayDef,
-                        ))?;
+            let list_type = &char_list[char_idx..closing_idx + char_idx];
 
-                let array_len = String::from_utf8_lossy(&list_type[comma_pos..]);
-                let list_type_def = String::from_utf8_lossy(&list_type[..comma_pos - 1]);
+            let comma_pos = list_type.len()
+                - list_type
+                    .iter()
+                    .rev()
+                    .position(|char| *char == b',')
+                    .ok_or(ParserError::SyntaxError(
+                        SyntaxError::MissingCommaAtArrayDef,
+                    ))?;
 
-                let (inner_token, _, _) = tokenize(&list_type_def, None)?;
+            let array_len = String::from_utf8_lossy(&list_type[comma_pos..]);
+            let list_type_def = String::from_utf8_lossy(&list_type[..comma_pos - 1]);
 
-                if inner_token.len() > 1 {
-                    return Err(ParserError::InvalidArrayTypeDefinition(inner_token).into());
-                }
+            let (inner_token, _, _) = tokenize(&list_type_def, None)?;
 
-                token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
-                    Box::new(inner_token[0].clone()),
-                    array_len.trim().parse::<usize>().map_err(|_| {
-                        ParserError::SyntaxError(SyntaxError::UnparsableExpression(
-                            array_len.clone().to_string(),
-                        ))
-                    })?,
-                ))));
-                token_debug_info.push(DebugInformation {
-                    char_start: CharPosition::new(line_counter, current_char_idx_in_line),
-                    char_end: CharPosition::new(
-                        line_counter,
-                        current_char_idx_in_line + closing_idx,
-                    ),
-                });
-
-                string_buffer.clear();
-
-                char_idx += closing_idx + 1;
-                continue;
+            if inner_token.len() > 1 {
+                return Err(ParserError::InvalidArrayTypeDefinition(inner_token).into());
             }
-        if (current_char == b' ' || current_char == NEWLINE_CHAR_U8)
-            && !string_buffer.is_empty()
-        {
+
+            token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
+                Box::new(inner_token[0].clone()),
+                array_len.trim().parse::<usize>().map_err(|_| {
+                    ParserError::SyntaxError(SyntaxError::UnparsableExpression(
+                        array_len.clone().to_string(),
+                    ))
+                })?,
+            ))));
+            token_debug_info.push(DebugInformation {
+                char_start: CharPosition::new(line_counter, current_char_idx_in_line),
+                char_end: CharPosition::new(line_counter, current_char_idx_in_line + closing_idx),
+            });
+
+            string_buffer.clear();
+
+            char_idx += closing_idx + 1;
+            continue;
+        }
+
+        if (current_char == b' ' || current_char == NEWLINE_CHAR_U8) && !string_buffer.is_empty() {
             let token = match_multi_character_expression(&string_buffer)?;
 
             token_list.push(token);
@@ -824,6 +820,52 @@ pub fn tokenize(
             },
         }
 
+        if string_buffer == b"ptr" {
+            char_idx += 1;
+
+            // If we have explicitly expressed the internal type
+            // The compiler is going to do a type check
+            if char_list[char_idx] == b'<' {
+                char_idx += 1;
+                // ref<T> -> ref<i32>
+                let closing_idx = find_closing_angled_bracket_char(&char_list[char_idx..], 0)?;
+
+                let inner_ty = &char_list[char_idx..closing_idx + char_idx];
+
+                let (inner_token, _, _) = tokenize(&String::from_utf8_lossy(inner_ty), None)?;
+
+                // Syntax error
+                if inner_token.len() != 1 {
+                    return Err(ParserError::InvalidType(inner_token).into());
+                }
+
+                token_list.push(Token::TypeDefinition(TypeDiscriminant::Pointer(Some(
+                    Box::new(inner_token[0].clone()),
+                ))));
+                token_debug_info.push(DebugInformation {
+                    char_start: CharPosition::new(line_counter, current_char_idx_in_line),
+                    char_end: CharPosition::new(
+                        line_counter,
+                        current_char_idx_in_line + closing_idx,
+                    ),
+                });
+
+                string_buffer.clear();
+
+                char_idx += closing_idx + 1;
+
+                continue;
+            }
+            // If its a raw pointer with no interal data type
+            else {
+                token_list.push(Token::TypeDefinition(TypeDiscriminant::Pointer(None)));
+
+                string_buffer.clear();
+
+                continue;
+            }
+        }
+
         if current_char == NEWLINE_CHAR_U8 {
             line_counter += 1;
             line_char_idx = char_idx + 1;
@@ -838,7 +880,6 @@ pub fn tokenize(
 fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<Token>
 {
     Ok(match string_to_match {
-        b"ptr" => Token::TypeDefinition(TypeDiscriminant::Pointer),
         b"int" => Token::TypeDefinition(TypeDiscriminant::I32),
         b"uint" => Token::TypeDefinition(TypeDiscriminant::U32),
         b"float" => Token::TypeDefinition(TypeDiscriminant::F32),
@@ -886,7 +927,8 @@ fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<To
         b"nounwind" => Token::CompilerHint(common::parser::CompilerHint::NoUnWind),
         b"inline" => Token::CompilerHint(common::parser::CompilerHint::Inline),
         b"feature" => Token::CompilerHint(common::parser::CompilerHint::Feature),
-
+        b"ref" => Token::Reference,
+        b"deref" => Token::Dereference,
         _ => eval_constant_definition(string_to_match),
     })
 }
