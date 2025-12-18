@@ -243,6 +243,61 @@ pub fn access_nested_struct_field_ptr<'a>(
     }
 }
 
+// pub fn access_nested_struct_field_ptr<'a>(
+//     ctx: &'a Context,
+//     builder: &'a Builder,
+//     field_stack_iter: &mut Iter<String>,
+//     struct_definition: &IndexMap<String, TypeDiscriminant>,
+//     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
+//     custom_types: Arc<IndexMap<String, CustomType>>,
+// ) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, TypeDiscriminant)>
+// {
+//     let field_name = field_stack_iter
+//         .next()
+//         .ok_or_else(|| CodeGenError::InternalStructFieldNotFound)?;
+
+//     let (field_idx, _k, field_ty) = struct_definition
+//         .get_full(field_name)
+//         .ok_or_else(|| CodeGenError::InternalStructFieldNotFound)?;
+
+//     let current_struct_ty = last_field_ptr
+//         .1
+//         .into_struct_type();
+
+//     let field_ptr = builder.build_struct_gep(
+//         current_struct_ty,
+//         last_field_ptr.0,
+//         field_idx as u32,
+//         "nested_field_gep",
+//     )?;
+
+//     // LLVM type of the selected field
+//     let field_llvm_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
+
+//     match field_ty {
+//         TypeDiscriminant::Struct((_name, nested_struct_def)) => {
+//             if field_stack_iter.as_slice().is_empty() {
+//                 Ok((field_ptr, field_llvm_ty, field_ty.clone()))
+//             } else {
+//                 let nested_struct_ty = field_llvm_ty.into_struct_type();
+
+//                 access_nested_struct_field_ptr(
+//                     ctx,
+//                     builder,
+//                     field_stack_iter,
+//                     nested_struct_def,
+//                     (field_ptr, nested_struct_ty.into()),
+//                     custom_types,
+//                 )
+//             }
+//         }
+//         _ => {
+//             Ok((field_ptr, field_llvm_ty, field_ty.clone()))
+//         }
+//     }
+// }
+
+
 /// This function takes in the variable pointer which is dereferenced to set the variable's value.
 /// Ensure that we are setting variable type `T` with value `T`
 pub fn set_value_of_ptr<'ctx>(

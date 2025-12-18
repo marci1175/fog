@@ -1820,7 +1820,7 @@ where
                 &is_loop_body,
                 &parsed_functions,
                 &custom_types,
-                dbg!(*var_ref_ty),
+                *var_ref_ty,
             )?;
 
             create_ir_from_parsed_token(
