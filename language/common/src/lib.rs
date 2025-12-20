@@ -83,6 +83,7 @@ pub use rmp_serde;
 pub use serde_json;
 pub use tracing;
 pub use tracing_subscriber;
+pub use dashmap;
 
 #[cfg(feature = "dependency_manager")]
 pub use base64;

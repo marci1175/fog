@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use common::{compiler::ProjectConfig, ty::OrdSet};
 use criterion::{Criterion, criterion_group, criterion_main};
 use parser::{parser_instance::Parser, tokenizer::tokenize};
@@ -17,7 +19,7 @@ fn criterion_benchmark(c: &mut Criterion)
 
     c.bench_function("Parse big sourec file", |b| {
         b.iter(|| {
-            parser.parse(common::indexmap::IndexMap::new()).unwrap();
+            parser.parse(Arc::new(common::dashmap::DashMap::new())).unwrap();
         })
     });
 }

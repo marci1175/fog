@@ -1,14 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use common::{
-    anyhow::Result,
-    codegen::CustomType,
-    compiler::ProjectConfig,
-    error::{DebugInformation, parser::ParserError},
-    indexmap::IndexMap,
-    parser::{FunctionDefinition, FunctionSignature, FunctionVisibility},
-    tokenizer::Token,
-    ty::OrdSet,
+    anyhow::Result, codegen::CustomType, compiler::ProjectConfig, dashmap::DashMap, error::{DebugInformation, parser::ParserError}, indexmap::IndexMap, parser::{FunctionDefinition, FunctionSignature, FunctionVisibility}, tokenizer::Token, ty::OrdSet
 };
 
 #[derive(Debug, Clone)]
@@ -27,7 +20,7 @@ pub struct Parser
 
 impl Parser
 {
-    pub fn parse(&mut self, dep_fn_list: IndexMap<Vec<String>, FunctionSignature>) -> Result<()>
+    pub fn parse(&mut self, dep_fn_list: Arc<DashMap<Vec<String>, FunctionSignature>>) -> Result<()>
     {
         // Create user defined signature table
         // Create an import table which can be used later by other functions
@@ -37,7 +30,7 @@ impl Parser
             mut external_imports,
             custom_types,
             file_imported_functions,
-        ) = self.create_signature_table(&dep_fn_list)?;
+        ) = self.create_signature_table(dep_fn_list.clone())?;
 
         let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
 

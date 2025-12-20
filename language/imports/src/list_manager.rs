@@ -8,19 +8,7 @@ use std::{
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, ensure},
-    compiler::{HostInformation, ProjectConfig},
-    dependency::DependencyInfo,
-    distributed_compiler::DistributedCompilerWorker,
-    error::dependency::DependencyError,
-    futures,
-    indexmap::{IndexMap, IndexSet},
-    inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple},
-    parking_lot::Mutex,
-    parser::FunctionSignature,
-    tokio, toml,
-    tracing::info,
-    ty::OrdSet,
+    anyhow::{self, ensure}, compiler::{HostInformation, ProjectConfig}, dashmap::DashMap, dependency::DependencyInfo, distributed_compiler::DistributedCompilerWorker, error::dependency::DependencyError, futures, indexmap::{IndexMap, IndexSet}, inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple}, parking_lot::Mutex, parser::FunctionSignature, tokio, toml, tracing::info, ty::OrdSet
 };
 
 use crate::{
@@ -45,9 +33,9 @@ pub fn create_dependency_functions_list<'ctx>(
     target_triple: Arc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
-) -> anyhow::Result<IndexMap<Vec<String>, FunctionSignature>>
+) -> anyhow::Result<Arc<DashMap<Vec<String>, FunctionSignature>>>
 {
-    let mut deps: IndexMap<Vec<String>, FunctionSignature> = IndexMap::new();
+    let deps: Arc<DashMap<Vec<String>, FunctionSignature>> = Arc::new(DashMap::new());
 
     let mut module_path = vec![];
 
@@ -62,7 +50,7 @@ pub fn create_dependency_functions_list<'ctx>(
         context,
         builder,
         root_module,
-        &mut deps,
+        deps.clone(),
         &mut module_path,
         dir_entries,
         flags_passed_in,
@@ -89,6 +77,7 @@ pub fn create_dependency_functions_list<'ctx>(
             host_information,
             remote_compiled_deps.clone(),
             remote_compiled_linking_material.clone(),
+            deps.clone(),
             root_dir.clone(),
         );
 
@@ -118,7 +107,7 @@ fn scan_dependencies<'ctx>(
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
     root_module: &Module<'ctx>,
-    deps: &mut IndexMap<Vec<String>, FunctionSignature>,
+    deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
     module_path: &mut Vec<String>,
     mut dir_entries: fs::ReadDir,
     flags_passed_in: &str,
@@ -145,7 +134,7 @@ fn scan_dependencies<'ctx>(
             dependency_output_path_list,
             additional_linking_material_list,
             dependency_list,
-            deps,
+            deps.clone(),
             &mut dependency_path,
             optimization,
             context,
@@ -166,7 +155,7 @@ fn scan_dependency<'ctx>(
     dependency_output_path_list: &mut Vec<PathBuf>,
     additional_linking_material_list: &mut Vec<PathBuf>,
     dependency_list: &mut HashMap<String, DependencyInfo>,
-    deps: &mut IndexMap<Vec<String>, FunctionSignature>,
+    deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
     dependency_path: &mut PathBuf,
     optimization: bool,
     context: &'ctx Context,
@@ -260,7 +249,7 @@ fn scan_dependency<'ctx>(
                     context,
                     builder,
                     root_module,
-                    deps,
+                    deps.clone(),
                     module_path,
                     fs::read_dir(dependency_path.clone())?,
                     flags_passed_in,
@@ -287,7 +276,9 @@ fn scan_dependency<'ctx>(
                 )?;
 
                 // Store the public functions in the main dep list.
-                deps.extend(parser_state.library_public_function_table().clone());
+                for (path, sig) in parser_state.library_public_function_table().to_owned() {
+                    deps.insert(path, sig);
+                }
 
                 // Specific the paths of the additional linking material and store it
                 additional_linking_material_list.extend(

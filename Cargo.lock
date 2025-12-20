@@ -548,6 +548,7 @@ dependencies = [
  "clap",
  "console-subscriber",
  "crossbeam",
+ "dashmap 6.1.0",
  "diesel",
  "dotenvy",
  "flate2",

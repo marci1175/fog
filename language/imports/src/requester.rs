@@ -1,23 +1,14 @@
 use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc};
 
 use common::{
-    anyhow::Result,
-    compiler::HostInformation,
-    compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs},
-    dependency::DependencyInfo,
-    distributed_compiler::{DependencyRequest, DistributedCompilerWorker, FinishedJob},
-    error::dependency::DependencyError,
-    parking_lot::Mutex,
-    rmp_serde,
-    tokio::{
+    anyhow::Result, compiler::HostInformation, compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs}, dashmap::DashMap, dependency::DependencyInfo, distributed_compiler::{DependencyRequest, DistributedCompilerWorker, FinishedJob}, error::dependency::DependencyError, parking_lot::Mutex, parser::FunctionSignature, rmp_serde, tokio::{
         self,
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpStream,
         select, spawn,
         sync::mpsc::Sender,
         task::JoinHandle,
-    },
-    tracing::info,
+    }, tracing::info
 };
 
 pub fn create_remote_list(
@@ -25,6 +16,7 @@ pub fn create_remote_list(
     host_info: HostInformation,
     remote_compiled_dependencies: Arc<Mutex<Vec<PathBuf>>>,
     remote_compiled_linking_material: Arc<Mutex<Vec<PathBuf>>>,
+    deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
     root_path: PathBuf,
 ) -> (
     HashMap<String, (String, Sender<(String, DependencyInfo)>)>,
@@ -36,6 +28,7 @@ pub fn create_remote_list(
 
     for remote in remotes {
         let host_info = host_info.clone();
+        let deps = deps.clone();
 
         let (sender, mut recv) = tokio::sync::mpsc::channel::<(String, DependencyInfo)>(255);
 
@@ -86,6 +79,9 @@ pub fn create_remote_list(
                         // Write zip contents to fs
                         write_zip_to_fs(&(zip_fs_path.clone().into()), zip).unwrap();
 
+                        // Let scan dependency function signatures
+                        // deps.insert() ---
+                        
                         // Reconstruct paths
                         remote_compiled_dependencies.lock().extend(finished_job.build_manifest.build_output_paths.iter().map(|p| format!("{zip_fs_path}\\{}", p.display()).into()));
                         remote_compiled_linking_material.lock().extend(finished_job.build_manifest.additional_linking_material.iter().map(|p| format!("{zip_fs_path}\\{}", p.display()).into()));
