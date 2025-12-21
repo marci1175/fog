@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fs, io,
     path::PathBuf,
     rc::Rc,
     sync::Arc,
@@ -81,15 +81,10 @@ pub fn create_dependency_functions_list<'ctx>(
             target_triple.as_str().to_string_lossy().to_string(),
         );
 
-        let remote_compiled_deps = Arc::new(Mutex::new(Vec::new()));
-        let remote_compiled_linking_material = Arc::new(Mutex::new(Vec::new()));
         // Create a map of the remotes' thread handlers
-
         let (remote_handlers, thread_handles) = create_remote_list(
             remotes,
             host_information,
-            remote_compiled_deps.clone(),
-            remote_compiled_linking_material.clone(),
             deps.clone(),
             root_dir.clone(),
         );
@@ -101,13 +96,12 @@ pub fn create_dependency_functions_list<'ctx>(
         tokio::runtime::Handle::current().block_on(async move {
             futures::future::join_all(thread_handles).await;
         });
-
-        *dependency_output_path_list = (*remote_compiled_deps.lock()).to_owned();
-        *additional_linking_material_list = (*remote_compiled_linking_material.lock()).to_owned();
     }
     else if !dependency_list.is_empty() {
         return Err(DependencyError::MissingDependencies(dependency_list).into());
     }
+
+    let mut dir_entries_remote = fs::read_dir(&format!("{}\\remote_compile", root_dir.display()))?;
 
     // Scan and parse downloaded dependencies
     scan_dependencies(
@@ -120,7 +114,7 @@ pub fn create_dependency_functions_list<'ctx>(
         root_module,
         deps.clone(),
         &mut module_path,
-        &mut dir_entries,
+        &mut dir_entries_remote,
         flags_passed_in,
         target_triple.clone(),
         cpu_name.clone(),
@@ -270,6 +264,8 @@ fn scan_dependency<'ctx>(
 
                 dependency_path.push("deps");
 
+                fs::create_dir_all(&dependency_path)?;
+
                 // Parse the library's dependecies
                 // We pass in the things mutable because this is how we are checking that every dependency is covered. (See: create_dependency_functions_list)
                 scan_dependencies(
@@ -335,27 +331,30 @@ fn scan_dependency<'ctx>(
                     dependency_config.name
                 ));
 
-                llvm_codegen(
-                    target_ir_path.clone(),
-                    PathBuf::from(format!(
-                        "{}\\{}\\{}.o",
-                        original_dep_path_root.display(),
-                        dependency_config.build_path.clone(),
-                        dependency_config.name
-                    )),
-                    optimization,
-                    parser_state.clone(),
-                    parser_state.function_table(),
-                    imported_functions,
-                    context,
-                    builder,
-                    lib_module.clone(),
-                    &format!("{}\\src", dependency_path.display()),
-                    flags_passed_in,
-                    target_triple,
-                    cpu_name,
-                    cpu_features,
-                )?;
+                // Only generate llvm-ir files if they dont exist for the dependency
+                if !fs::exists(&target_ir_path)? {
+                    llvm_codegen(
+                        target_ir_path.clone(),
+                        PathBuf::from(format!(
+                            "{}\\{}\\{}.o",
+                            original_dep_path_root.display(),
+                            dependency_config.build_path.clone(),
+                            dependency_config.name
+                        )),
+                        optimization,
+                        parser_state.clone(),
+                        parser_state.function_table(),
+                        imported_functions,
+                        context,
+                        builder,
+                        lib_module.clone(),
+                        &format!("{}\\src", dependency_path.display()),
+                        flags_passed_in,
+                        target_triple,
+                        cpu_name,
+                        cpu_features,
+                    )?;
+                }
 
                 dependency_output_path_list.push(target_ir_path);
 

@@ -1,6 +1,47 @@
 [COMPILER IR]
 [
     ParsedTokenInstance {
+        inner: FunctionCall(
+            (
+                FunctionSignature {
+                    name: "szia",
+                    args: FunctionArguments {
+                        arguments_list: OrdMap(
+                            {},
+                        ),
+                        ellipsis_present: false,
+                    },
+                    return_type: I32,
+                    module_path: [
+                        "dependency-test",
+                        "szia",
+                    ],
+                    visibility: PublicLibrary,
+                    compiler_hints: OrdSet(
+                        {},
+                    ),
+                    enabling_features: OrdSet(
+                        {},
+                    ),
+                },
+                "szia",
+            ),
+            OrdMap(
+                {},
+            ),
+        ),
+        debug_information: DebugInformation {
+            char_start: CharPosition {
+                line: 0,
+                column: 0,
+            },
+            char_end: CharPosition {
+                line: 0,
+                column: 0,
+            },
+        },
+    },
+    ParsedTokenInstance {
         inner: ReturnValue(
             ParsedTokenInstance {
                 inner: Literal(

@@ -1,4 +1,9 @@
-external printf(msg: string, ...): void;
+import dependency-test::szia;
+pub function main(): int {
+    szia();
+    
+    return 0;
+}
 
 # struct a {
 #     field1: array<int, 5>,
@@ -13,7 +18,3 @@ external printf(msg: string, ...): void;
 
 #     return 0;
 # }
-
-pub function main(): int {
-    return 0;
-}

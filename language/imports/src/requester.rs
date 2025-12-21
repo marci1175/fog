@@ -27,8 +27,6 @@ use parser::{parser_instance::Parser, tokenizer::tokenize};
 pub fn create_remote_list(
     remotes: Vec<DistributedCompilerWorker>,
     host_info: HostInformation,
-    remote_compiled_dependencies: Arc<Mutex<Vec<PathBuf>>>,
-    remote_compiled_linking_material: Arc<Mutex<Vec<PathBuf>>>,
     deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
     root_path: PathBuf,
 ) -> (
@@ -53,8 +51,6 @@ pub fn create_remote_list(
         remote_list.insert(remote.name, (remote.address.clone(), sender));
 
         let root_path = root_path.clone();
-        let remote_compiled_dependencies = remote_compiled_dependencies.clone();
-        let remote_compiled_linking_material = remote_compiled_linking_material.clone();
 
         // Create a remote handler thread
         let thread_handle = spawn(async move {
@@ -90,10 +86,6 @@ pub fn create_remote_list(
 
                         // Write zip contents to fs
                         write_zip_to_fs(&(dependency_path.clone().into()), zip).unwrap();
-
-                        // Reconstruct paths
-                        remote_compiled_dependencies.lock().extend(finished_job.build_manifest.build_output_paths.iter().map(|p| format!("{dependency_path}\\{}", p.display()).into()));
-                        remote_compiled_linking_material.lock().extend(finished_job.build_manifest.additional_linking_material.iter().map(|p| format!("{dependency_path}\\{}", p.display()).into()));
 
                         // Quit thread
                         break;
