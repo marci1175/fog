@@ -187,8 +187,6 @@ pub async fn fetch_dependency_source(
 
     let rmp_serialized = common::rmp_serde::to_vec(&dependency).unwrap();
 
-    dbg!(rmp_serialized.len());
-
     let compressed_files =
         compress_bytes(&rmp_serialized).map_err(|_err| DependencyManagerError::CompressionError)?;
 

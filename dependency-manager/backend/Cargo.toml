@@ -1,0 +1,12 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = { path = "../../language/common", features = ["dependency_manager"] }
+dioxus = { version = "0.7.1", features = ["web"]}
+env_logger = "0.11.8"
+serde = "1.0.228"
+diesel = { version = "2.3.4", features = ["extras", "postgres"] }
+tokio = { version = "1.48.0", features = ["full"] }

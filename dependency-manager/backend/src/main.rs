@@ -1,17 +1,15 @@
 use common::{
-    anyhow,
-    axum::{
+    anyhow, axum::{
         Router,
         body::Body,
         http::{Request, Response, StatusCode},
         middleware::{self, Next},
         routing::{get, post},
         serve,
-    },
-    dotenvy,
-    tokio::{self, net::TcpListener},
+    }, dependency_manager::urls::{self, api}, dotenvy, tokio::{self, net::TcpListener}
 };
-use dependency_manager::{
+
+use backend::{
     api::manager::{fetch_dependency_information, fetch_dependency_source, publish_dependency},
     establish_state,
 };
@@ -56,12 +54,13 @@ async fn main() -> anyhow::Result<()>
     // Start up the webserver
     let router = Router::new()
         .route("/", get(reply_ok))
+        .route(urls::STATUS, get(reply_ok))
         .route(
-            "/fetch_dependency_information",
+            api::FETCH_DEP_INFO,
             get(fetch_dependency_information),
         )
-        .route("/fetch_dependency", get(fetch_dependency_source))
-        .route("/publish_dependency", post(publish_dependency))
+        .route(api::FETCH_DEP, get(fetch_dependency_source))
+        .route(api::PUBLISH_DEP, post(publish_dependency))
         .layer(middleware::from_fn(log_request))
         .with_state(servere_state);
 

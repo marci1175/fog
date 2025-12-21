@@ -1,11 +1,2 @@
-[package]
-name = "dependency-manager"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-common = { path = "../language/common", features = ["dependency_manager"] }
-dioxus = "0.7.1"
-env_logger = "0.11.8"
-serde = "1.0.228"
-diesel = { version = "2.3.4", features = ["extras", "postgres"] }
+[workspace]
+members = ["backend", "frontend"]

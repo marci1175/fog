@@ -1,11 +1,8 @@
 use common::{
-    anyhow,
-    dependency::DependencyRequest,
-    reqwest::{
+    anyhow, dependency::DependencyRequest, dependency_manager::urls::api, reqwest::{
         Client, Response,
         header::{CONTENT_TYPE, USER_AGENT},
-    },
-    serde_json,
+    }, serde_json
 };
 
 pub async fn request_dependency(
@@ -16,7 +13,7 @@ pub async fn request_dependency(
 ) -> anyhow::Result<Response>
 {
     Ok(client
-        .get(format!("{remote_url}/fetch_dependency"))
+        .get(format!("{remote_url}/{}", api::FETCH_DEP))
         .body(serde_json::to_string(&DependencyRequest {
             name: dep_name,
             version,
@@ -35,7 +32,7 @@ pub async fn request_dependency_information(
 ) -> anyhow::Result<Response>
 {
     Ok(client
-        .get(format!("{remote_url}/fetch_dependency_information"))
+        .get(format!("{remote_url}/{}", api::FETCH_DEP_INFO))
         .body(serde_json::to_string(&DependencyRequest {
             name: dep_name,
             version,

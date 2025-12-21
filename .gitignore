@@ -2,4 +2,5 @@
 /test_project/out
 /.env
 /stored_deps
+/dependency-manager/target
 /deps
