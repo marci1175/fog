@@ -7,12 +7,21 @@ use std::{
 };
 
 use common::{
-    anyhow::Result, codegen::{CustomType, FunctionArgumentIdentifier, If}, compiler::ProjectConfig, dashmap::DashMap, error::{DebugInformation, parser::ParserError, syntax::SyntaxError}, indexmap::IndexMap, parser::{
+    anyhow::Result,
+    codegen::{CustomType, FunctionArgumentIdentifier, If},
+    compiler::ProjectConfig,
+    dashmap::DashMap,
+    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    indexmap::IndexMap,
+    parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
         FunctionVisibility, ParsedToken, ParsedTokenInstance, UnparsedFunctionDefinition,
         VariableReference, find_closing_braces, find_closing_comma, find_closing_paren,
         parse_signature_argument_tokens,
-    }, tokenizer::Token, tracing::info, ty::{OrdMap, OrdSet, Type, TypeDiscriminant}
+    },
+    tokenizer::Token,
+    tracing::info,
+    ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
 };
 
 use crate::{

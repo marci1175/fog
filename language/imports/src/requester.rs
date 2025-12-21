@@ -1,15 +1,28 @@
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, io::Cursor, path::PathBuf, sync::Arc};
 
 use common::{
-    anyhow::Result, compiler::HostInformation, compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs}, dashmap::DashMap, dependency::DependencyInfo, distributed_compiler::{DependencyRequest, DistributedCompilerWorker, FinishedJob}, error::dependency::DependencyError, parking_lot::Mutex, parser::FunctionSignature, rmp_serde, tokio::{
+    anyhow::Result,
+    compiler::{HostInformation, ProjectConfig},
+    compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs},
+    dashmap::DashMap,
+    dependency::DependencyInfo,
+    distributed_compiler::{DependencyRequest, DistributedCompilerWorker, FinishedJob},
+    error::dependency::DependencyError,
+    parking_lot::Mutex,
+    parser::FunctionSignature,
+    rmp_serde,
+    tokio::{
         self,
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpStream,
         select, spawn,
         sync::mpsc::Sender,
         task::JoinHandle,
-    }, tracing::info
+    },
+    tracing::info,
+    ty::OrdSet,
 };
+use parser::{parser_instance::Parser, tokenizer::tokenize};
 
 pub fn create_remote_list(
     remotes: Vec<DistributedCompilerWorker>,
@@ -23,12 +36,11 @@ pub fn create_remote_list(
     Vec<JoinHandle<()>>,
 )
 {
-    let mut remote_list = HashMap::new();
     let mut threads = Vec::new();
+    let mut remote_list = HashMap::new();
 
     for remote in remotes {
         let host_info = host_info.clone();
-        let deps = deps.clone();
 
         let (sender, mut recv) = tokio::sync::mpsc::channel::<(String, DependencyInfo)>(255);
 
@@ -74,17 +86,14 @@ pub fn create_remote_list(
                         let zip = unzip_from_bytes(Cursor::new(finished_job.artifacts_zip_bytes)).unwrap();
 
                         // Construct zip fs path
-                        let zip_fs_path = format!("{}\\remote_compile\\{}({})\\", root_path.display(), finished_job.info.dependency_name, finished_job.info.dependency_version);
+                        let dependency_path = format!("{}\\remote_compile\\{}\\", root_path.display(), finished_job.info.dependency_name.clone());
 
                         // Write zip contents to fs
-                        write_zip_to_fs(&(zip_fs_path.clone().into()), zip).unwrap();
+                        write_zip_to_fs(&(dependency_path.clone().into()), zip).unwrap();
 
-                        // Let scan dependency function signatures
-                        // deps.insert() ---
-                        
                         // Reconstruct paths
-                        remote_compiled_dependencies.lock().extend(finished_job.build_manifest.build_output_paths.iter().map(|p| format!("{zip_fs_path}\\{}", p.display()).into()));
-                        remote_compiled_linking_material.lock().extend(finished_job.build_manifest.additional_linking_material.iter().map(|p| format!("{zip_fs_path}\\{}", p.display()).into()));
+                        remote_compiled_dependencies.lock().extend(finished_job.build_manifest.build_output_paths.iter().map(|p| format!("{dependency_path}\\{}", p.display()).into()));
+                        remote_compiled_linking_material.lock().extend(finished_job.build_manifest.additional_linking_material.iter().map(|p| format!("{dependency_path}\\{}", p.display()).into()));
 
                         // Quit thread
                         break;
@@ -95,16 +104,15 @@ pub fn create_remote_list(
 
         threads.push(thread_handle);
     }
-
     (remote_list, threads)
 }
 
 pub fn dependency_requester(
-    dependencies: &mut HashMap<String, DependencyInfo>,
+    dependencies: &HashMap<String, DependencyInfo>,
     remote_handlers: &HashMap<String, (String, Sender<(String, DependencyInfo)>)>,
 ) -> Result<()>
 {
-    for dep in dependencies.drain() {
+    for dep in dependencies.iter() {
         request_dependency(dep, remote_handlers)?;
     }
 
@@ -112,7 +120,7 @@ pub fn dependency_requester(
 }
 
 pub fn request_dependency(
-    dependency: (String, DependencyInfo),
+    dependency: (&String, &DependencyInfo),
     remote_handlers: &HashMap<String, (String, Sender<(String, DependencyInfo)>)>,
 ) -> Result<()>
 {
@@ -126,9 +134,11 @@ pub fn request_dependency(
 
     match remote_handlers.get(&remote_compiler) {
         Some((peer_addr, thread)) => {
+            let dependency = (dependency.0.clone(), dependency.1.clone());
+
             info!(
                 "Requesting dependency `{}({})` from remote compiler `{}`",
-                dependency.0.clone(),
+                dependency.0,
                 dependency.1.version.clone(),
                 peer_addr
             );

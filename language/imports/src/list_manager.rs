@@ -8,7 +8,20 @@ use std::{
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, ensure}, compiler::{HostInformation, ProjectConfig}, dashmap::DashMap, dependency::DependencyInfo, distributed_compiler::DistributedCompilerWorker, error::dependency::DependencyError, futures, indexmap::{IndexMap, IndexSet}, inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple}, parking_lot::Mutex, parser::FunctionSignature, tokio, toml, tracing::info, ty::OrdSet
+    anyhow::{self, ensure},
+    compiler::{HostInformation, ProjectConfig},
+    dashmap::DashMap,
+    dependency::DependencyInfo,
+    distributed_compiler::DistributedCompilerWorker,
+    error::dependency::DependencyError,
+    futures,
+    indexmap::{IndexMap, IndexSet},
+    inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple},
+    parking_lot::Mutex,
+    parser::FunctionSignature,
+    tokio, toml,
+    tracing::info,
+    ty::OrdSet,
 };
 
 use crate::{
@@ -40,7 +53,7 @@ pub fn create_dependency_functions_list<'ctx>(
     let mut module_path = vec![];
 
     // This will panic if the deps folder is not found
-    let dir_entries = fs::read_dir(&deps_path)?;
+    let mut dir_entries = fs::read_dir(&deps_path)?;
 
     scan_dependencies(
         dependency_output_path_list,
@@ -52,7 +65,7 @@ pub fn create_dependency_functions_list<'ctx>(
         root_module,
         deps.clone(),
         &mut module_path,
-        dir_entries,
+        &mut dir_entries,
         flags_passed_in,
         target_triple.clone(),
         cpu_name.clone(),
@@ -62,16 +75,16 @@ pub fn create_dependency_functions_list<'ctx>(
     // Request remaining dependencies from package handler server
     if let Some(remotes) = remote_workers {
         let host_information = HostInformation::new(
-            cpu_features,
-            cpu_name,
+            cpu_features.clone(),
+            cpu_name.clone(),
             Some(flags_passed_in.to_string()),
             target_triple.as_str().to_string_lossy().to_string(),
         );
 
         let remote_compiled_deps = Arc::new(Mutex::new(Vec::new()));
         let remote_compiled_linking_material = Arc::new(Mutex::new(Vec::new()));
-
         // Create a map of the remotes' thread handlers
+
         let (remote_handlers, thread_handles) = create_remote_list(
             remotes,
             host_information,
@@ -82,7 +95,7 @@ pub fn create_dependency_functions_list<'ctx>(
         );
 
         // Request the dependencies from those remotes
-        dependency_requester(&mut dependency_list, &remote_handlers)?;
+        dependency_requester(&dependency_list, &remote_handlers)?;
 
         // Wait for the threads to finish
         tokio::runtime::Handle::current().block_on(async move {
@@ -95,6 +108,24 @@ pub fn create_dependency_functions_list<'ctx>(
     else if !dependency_list.is_empty() {
         return Err(DependencyError::MissingDependencies(dependency_list).into());
     }
+
+    // Scan and parse downloaded dependencies
+    scan_dependencies(
+        dependency_output_path_list,
+        additional_linking_material_list,
+        &mut dependency_list,
+        optimization,
+        context,
+        builder,
+        root_module,
+        deps.clone(),
+        &mut module_path,
+        &mut dir_entries,
+        flags_passed_in,
+        target_triple.clone(),
+        cpu_name.clone(),
+        cpu_features.clone(),
+    )?;
 
     Ok(deps)
 }
@@ -109,7 +140,7 @@ fn scan_dependencies<'ctx>(
     root_module: &Module<'ctx>,
     deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
     module_path: &mut Vec<String>,
-    mut dir_entries: fs::ReadDir,
+    dir_entries: &mut fs::ReadDir,
     flags_passed_in: &str,
     target_triple: Arc<TargetTriple>,
     cpu_name: Option<String>,
@@ -251,7 +282,7 @@ fn scan_dependency<'ctx>(
                     root_module,
                     deps.clone(),
                     module_path,
-                    fs::read_dir(dependency_path.clone())?,
+                    &mut fs::read_dir(dependency_path.clone())?,
                     flags_passed_in,
                     target_triple.clone(),
                     cpu_name.clone(),

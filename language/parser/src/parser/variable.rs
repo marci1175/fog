@@ -778,17 +778,16 @@ pub fn parse_token_as_value(
                 origin_token_idx,
                 function_signatures.clone(),
                 variable_scope,
-                desired_variable_type
-                    .and_then(|ty| {
-                        match ty.clone().try_as_pointer() {
-                            Some(inner) => {
-                                inner.map(|inner_token| {
-                                    token_to_ty(&inner_token, &custom_types).unwrap()
-                                })
-                            },
-                            None => Some(ty.clone()),
-                        }
-                    }),
+                desired_variable_type.and_then(|ty| {
+                    match ty.clone().try_as_pointer() {
+                        Some(inner) => {
+                            inner.map(|inner_token| {
+                                token_to_ty(&inner_token, &custom_types).unwrap()
+                            })
+                        },
+                        None => Some(ty.clone()),
+                    }
+                }),
                 function_imports,
                 custom_types.clone(),
             )?;

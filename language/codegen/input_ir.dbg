@@ -1,0 +1,34 @@
+[COMPILER IR]
+[
+    ParsedTokenInstance {
+        inner: ReturnValue(
+            ParsedTokenInstance {
+                inner: Literal(
+                    I32(
+                        0,
+                    ),
+                ),
+                debug_information: DebugInformation {
+                    char_start: CharPosition {
+                        line: 0,
+                        column: 0,
+                    },
+                    char_end: CharPosition {
+                        line: 0,
+                        column: 0,
+                    },
+                },
+            },
+        ),
+        debug_information: DebugInformation {
+            char_start: CharPosition {
+                line: 0,
+                column: 0,
+            },
+            char_end: CharPosition {
+                line: 0,
+                column: 0,
+            },
+        },
+    },
+]

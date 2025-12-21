@@ -19,7 +19,9 @@ fn criterion_benchmark(c: &mut Criterion)
 
     c.bench_function("Parse big sourec file", |b| {
         b.iter(|| {
-            parser.parse(Arc::new(common::dashmap::DashMap::new())).unwrap();
+            parser
+                .parse(Arc::new(common::dashmap::DashMap::new()))
+                .unwrap();
         })
     });
 }

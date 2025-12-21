@@ -297,7 +297,6 @@ pub fn access_nested_struct_field_ptr<'a>(
 //     }
 // }
 
-
 /// This function takes in the variable pointer which is dereferenced to set the variable's value.
 /// Ensure that we are setting variable type `T` with value `T`
 pub fn set_value_of_ptr<'ctx>(

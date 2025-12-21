@@ -1,7 +1,15 @@
 use std::{collections::HashMap, sync::Arc};
 
 use common::{
-    anyhow::Result, codegen::CustomType, compiler::ProjectConfig, dashmap::DashMap, error::{DebugInformation, parser::ParserError}, indexmap::IndexMap, parser::{FunctionDefinition, FunctionSignature, FunctionVisibility}, tokenizer::Token, ty::OrdSet
+    anyhow::Result,
+    codegen::CustomType,
+    compiler::ProjectConfig,
+    dashmap::DashMap,
+    error::{DebugInformation, parser::ParserError},
+    indexmap::IndexMap,
+    parser::{FunctionDefinition, FunctionSignature, FunctionVisibility},
+    tokenizer::Token,
+    ty::OrdSet,
 };
 
 #[derive(Debug, Clone)]
@@ -20,7 +28,8 @@ pub struct Parser
 
 impl Parser
 {
-    pub fn parse(&mut self, dep_fn_list: Arc<DashMap<Vec<String>, FunctionSignature>>) -> Result<()>
+    pub fn parse(&mut self, dep_fn_list: Arc<DashMap<Vec<String>, FunctionSignature>>)
+    -> Result<()>
     {
         // Create user defined signature table
         // Create an import table which can be used later by other functions

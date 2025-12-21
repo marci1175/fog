@@ -77,13 +77,13 @@ pub use zip;
 
 pub use axum;
 pub use crossbeam;
+pub use dashmap;
 pub use flate2;
 pub use futures;
 pub use rmp_serde;
 pub use serde_json;
 pub use tracing;
 pub use tracing_subscriber;
-pub use dashmap;
 
 #[cfg(feature = "dependency_manager")]
 pub use base64;
