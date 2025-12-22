@@ -150,10 +150,12 @@ pub fn generate_secret<const LEN: usize>(state: &ServerState) -> String
     state.base64_engine.encode(bytes)
 }
 
-pub mod urls {
+pub mod urls
+{
     pub const STATUS: &str = "/api/status";
 
-    pub mod api {
+    pub mod api
+    {
         pub const FETCH_DEP: &str = "api/fetch_depdendency";
         pub const FETCH_DEP_INFO: &str = "api/fetch_dependency_information";
         pub const PUBLISH_DEP: &str = "api/publish_dependency";

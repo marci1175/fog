@@ -75,7 +75,6 @@ pub use chrono;
 /// Used for uploading/handling dependencies.
 pub use zip;
 
-
 pub use crossbeam;
 pub use dashmap;
 pub use flate2;
@@ -86,6 +85,8 @@ pub use tracing;
 pub use tracing_subscriber;
 
 #[cfg(feature = "dependency_manager")]
+pub use axum;
+#[cfg(feature = "dependency_manager")]
 pub use base64;
 #[cfg(feature = "dependency_manager")]
 pub use diesel;
@@ -93,8 +94,6 @@ pub use diesel;
 pub use r2d2;
 #[cfg(feature = "dependency_manager")]
 pub use rand;
-#[cfg(feature = "dependency_manager")]
-pub use axum;
 
 /// This macro can be used to check if two struct's definitons matches. This will not check field name match, only Type.
 /// Types are only checked shallow, if a field uses a type from a different path this will raise an error.

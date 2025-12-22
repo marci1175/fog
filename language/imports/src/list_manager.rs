@@ -82,12 +82,8 @@ pub fn create_dependency_functions_list<'ctx>(
         );
 
         // Create a map of the remotes' thread handlers
-        let (remote_handlers, thread_handles) = create_remote_list(
-            remotes,
-            host_information,
-            deps.clone(),
-            root_dir.clone(),
-        );
+        let (remote_handlers, thread_handles) =
+            create_remote_list(remotes, host_information, deps.clone(), root_dir.clone());
 
         // Request the dependencies from those remotes
         dependency_requester(&dependency_list, &remote_handlers)?;

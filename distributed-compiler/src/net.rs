@@ -1,8 +1,12 @@
 use common::{
-    anyhow, dependency::DependencyRequest, dependency_manager::urls::api, reqwest::{
+    anyhow,
+    dependency::DependencyRequest,
+    dependency_manager::urls::api,
+    reqwest::{
         Client, Response,
         header::{CONTENT_TYPE, USER_AGENT},
-    }, serde_json
+    },
+    serde_json,
 };
 
 pub async fn request_dependency(
