@@ -1,19 +1,25 @@
 use dioxus::prelude::*;
 
-pub fn root_ui() -> Element
+pub fn root_ui(css: Asset) -> Element
 {
     rsx! {
+        document::Stylesheet { href: css }
+
         div {  
-            id: "main", 
+            id: "title", 
             {
                 rsx! {
                     h1 { id: "main_title_top", {
                         "Dependency Regsitry"
                     } }
-                    p { id: "main_title_bottom", {
-                        "Dependency Regsitry service for"
-                    }}
-                    a { href: "https://github.com/marci1175/fog", {" Fog"} }
+                    div { id: "main_title_bottom", {
+                        rsx! {
+                            p {{
+                                "Dependency Regsitry service for"
+                            }}
+                            a { href: "https://github.com/marci1175/fog", {" Fog"} }
+                        }
+                    } }
                     div { 
                         id: "search_field",
                         {

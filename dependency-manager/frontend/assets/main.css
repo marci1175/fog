@@ -1,0 +1,185 @@
+/* ===== Base ===== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+    background: #f6f7f8; /* smoke white */
+    color: #1b1d21;
+    min-height: 100vh;
+}
+
+/* ===== Title ===== */
+#title {
+    padding: 72px 24px 48px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+#main_title_top {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #0f1115;
+}
+
+/* Subtitle visually attached to title */
+#main_title_bottom {
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 1rem;
+    color: #5f6670;
+}
+
+#main_title_bottom p {
+    white-space: nowrap;
+}
+
+#main_title_bottom a {
+    color: #2e7d32; /* professional green */
+    font-weight: 700;
+    text-decoration: none;
+}
+
+#main_title_bottom a:hover  {
+  animation-name: fog_icon_anim;
+  animation-duration: 200ms;
+  animation-fill-mode:forwards;
+}
+
+@keyframes fog_icon_anim {
+  from { color: #2e7d32; }
+  to { color: #d4b44c; }
+}
+
+/* ===== Search ===== */
+#search_field {
+    margin-top: 36px;
+    max-width: 520px;
+    display: flex;
+    gap: 10px;
+}
+
+#search_text {
+    flex: 1;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    background: #ffffff;
+    border: 1px solid #d6dae0;
+    border-radius: 8px;
+    color: #1b1d21;
+    outline: none;
+}
+
+#search_text::placeholder {
+    color: #8a9098;
+}
+
+#search_text:focus {
+    border-color: #2e7d32;
+}
+
+/* Button — muted yellow */
+#search_icon {
+    padding: 12px 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 8px;
+    border: 1px solid #d4b44c;
+    background: #f4d35e;
+    color: #1b1d21;
+    cursor: pointer;
+}
+
+#search_icon:hover {
+    background: #eacb55;
+}
+
+/* ===== Latest activity ===== */
+#latest_activity {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px;
+}
+
+#latest_act_title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: #1b1d21;
+}
+
+/* Table shell */
+#latest_act_tbl {
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid #d6dae0;
+}
+
+#latest_act_tbl tr {
+    border-bottom: 1px solid #eceff3;
+}
+
+#latest_act_tbl tr:hover {
+    background: #f2f4f7;
+}
+
+/* ===== Bottom menu ===== */
+#bottom_menu {
+    max-width: 1100px;
+    margin: 64px auto 0;
+    padding: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #e1e4e8;
+    color: #6a717a;
+}
+
+#documentation {
+    color: #2e7d32;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+#documentation:hover {
+    text-decoration: underline;
+}
+
+#made_with_hate {
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 640px) {
+    #main_title_top {
+        font-size: 2.4rem;
+    }
+
+    #main_title_bottom {
+        flex-wrap: wrap;
+    }
+
+    #search_field {
+        flex-direction: column;
+    }
+
+    #search_icon {
+        width: 100%;
+    }
+
+    #bottom_menu {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+}
