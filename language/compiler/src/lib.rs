@@ -21,7 +21,7 @@ use common::{
     linker::BuildManifest,
     toml,
     tracing::info,
-    ty::{OrdSet, TypeDiscriminant},
+    ty::{OrdSet, Type},
 };
 use imports::list_manager::create_dependency_functions_list;
 use parser::{parser_instance::Parser, tokenizer::tokenize};
@@ -162,8 +162,8 @@ impl CompilerState
 
         if !is_lib {
             if let Some(fn_sig) = function_table.get("main") {
-                if fn_sig.function_sig.return_type != TypeDiscriminant::I32
-                    || !fn_sig.function_sig.args.arguments_list.is_empty()
+                if fn_sig.signature.return_type != Type::I32
+                    || !fn_sig.signature.args.arguments.is_empty()
                 {
                     return Err(CodeGenError::InvalidMain.into());
                 }

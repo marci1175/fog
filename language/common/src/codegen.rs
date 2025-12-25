@@ -6,10 +6,10 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
+    error::{DebugInformation, codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{FunctionSignature, ParsedToken, ParsedTokenInstance},
     tokenizer::Token,
-    ty::{OrdMap, TypeDiscriminant, token_to_ty},
+    ty::{OrdMap, Type, Value, token_to_ty},
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -26,8 +26,20 @@ use strum::Display;
 #[derive(Debug, Clone, PartialEq, Display)]
 pub enum CustomType
 {
-    Struct((String, OrdMap<String, TypeDiscriminant>)),
-    Enum(OrdMap<String, TypeDiscriminant>),
+    Struct((String, 
+        OrdMap<
+            // Field name
+            String,
+            // Field type
+            Type
+        >
+    )),
+    Enum((
+        // Enum type
+        Type,
+        // Enum variant values
+        OrdMap<String, (Value, DebugInformation)>
+    )),
     // First argument is the struct's name which the Extend extends
     // The second argument is the list of functions the stuct is being extended with
     // Extend(String, IndexMap<String, FunctionDefinition>),
@@ -143,7 +155,7 @@ pub enum PreAllocationEntry<'ctx>
         (
             PointerValue<'ctx>,
             BasicMetadataTypeEnum<'ctx>,
-            TypeDiscriminant,
+            Type,
         ),
     ),
 }
@@ -159,7 +171,7 @@ pub enum FunctionArgumentIdentifier<IDENT, IDX>
 /// The returned types are in order with the struct's fields
 pub fn struct_field_to_ty_list<'a>(
     ctx: &'a Context,
-    struct_inner: &IndexMap<String, TypeDiscriminant>,
+    struct_inner: &IndexMap<String, Type>,
     custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<Vec<BasicTypeEnum<'a>>>
 {
@@ -181,7 +193,7 @@ pub fn struct_field_to_ty_list<'a>(
 /// Converts a `TypeDiscriminant` into a `BasicTypeEnum` which can be used by inkwell.
 pub fn ty_to_llvm_ty<'a>(
     ctx: &'a Context,
-    ty: &TypeDiscriminant,
+    ty: &Type,
     custom_types: Arc<IndexMap<String, CustomType>>,
 ) -> Result<BasicTypeEnum<'a>>
 {
@@ -197,16 +209,16 @@ pub fn ty_to_llvm_ty<'a>(
 
     // Pattern match the type
     let field_ty = match ty {
-        TypeDiscriminant::I32 => BasicTypeEnum::IntType(i32_type),
-        TypeDiscriminant::F32 => BasicTypeEnum::FloatType(f32_type),
-        TypeDiscriminant::U32 => BasicTypeEnum::IntType(i32_type),
-        TypeDiscriminant::U8 => BasicTypeEnum::IntType(i8_type),
-        TypeDiscriminant::String => BasicTypeEnum::PointerType(ptr_type),
-        TypeDiscriminant::Boolean => BasicTypeEnum::IntType(bool_type),
-        TypeDiscriminant::Void => {
+        Type::I32 => BasicTypeEnum::IntType(i32_type),
+        Type::F32 => BasicTypeEnum::FloatType(f32_type),
+        Type::U32 => BasicTypeEnum::IntType(i32_type),
+        Type::U8 => BasicTypeEnum::IntType(i8_type),
+        Type::String => BasicTypeEnum::PointerType(ptr_type),
+        Type::Boolean => BasicTypeEnum::IntType(bool_type),
+        Type::Void => {
             return Err(CodeGenError::InvalidVoidValue.into());
         },
-        TypeDiscriminant::Struct((struct_name, struct_inner)) => {
+        Type::Struct((struct_name, struct_inner)) => {
             // If we are creating a new struct based on the TypeDiscriminant, we should first check if there is a struct created with the name
             let struct_type = if let Some(struct_type) = ctx.get_struct_type(struct_name) {
                 // If we have already created a struct with this name, return the struct type
@@ -229,13 +241,14 @@ pub fn ty_to_llvm_ty<'a>(
 
             BasicTypeEnum::StructType(struct_type)
         },
-        TypeDiscriminant::I64 => BasicTypeEnum::IntType(i64_type),
-        TypeDiscriminant::F64 => BasicTypeEnum::FloatType(f64_type),
-        TypeDiscriminant::U64 => BasicTypeEnum::IntType(i64_type),
-        TypeDiscriminant::I16 => BasicTypeEnum::IntType(i16_type),
-        TypeDiscriminant::F16 => BasicTypeEnum::FloatType(f16_type),
-        TypeDiscriminant::U16 => BasicTypeEnum::IntType(i16_type),
-        TypeDiscriminant::Array((token_ty, len)) => {
+        Type::Enum((ty, _)) => ty_to_llvm_ty(&ctx, &*ty, custom_types.clone())?,
+        Type::I64 => BasicTypeEnum::IntType(i64_type),
+        Type::F64 => BasicTypeEnum::FloatType(f64_type),
+        Type::U64 => BasicTypeEnum::IntType(i64_type),
+        Type::I16 => BasicTypeEnum::IntType(i16_type),
+        Type::F16 => BasicTypeEnum::FloatType(f16_type),
+        Type::U16 => BasicTypeEnum::IntType(i16_type),
+        Type::Array((token_ty, len)) => {
             let llvm_ty = ty_to_llvm_ty(
                 ctx,
                 &token_to_ty(&(*token_ty).clone(), &custom_types)?,
@@ -246,7 +259,7 @@ pub fn ty_to_llvm_ty<'a>(
 
             inkwell::types::BasicTypeEnum::ArrayType(array_ty)
         },
-        TypeDiscriminant::Pointer(_) => BasicTypeEnum::PointerType(ptr_type),
+        Type::Pointer(_) => BasicTypeEnum::PointerType(ptr_type),
     };
 
     Ok(field_ty)
@@ -309,7 +322,7 @@ pub fn create_fn_type_from_ty_disc(
 ) -> Result<FunctionType<'_>>
 {
     // Make an exception if the return type is Void
-    if fn_sig.return_type == TypeDiscriminant::Void {
+    if fn_sig.return_type == Type::Void {
         return Ok(ctx.void_type().fn_type(
             &get_args_from_sig(ctx, fn_sig.clone(), custom_types.clone())?,
             false,
@@ -334,7 +347,7 @@ pub fn get_args_from_sig(
 ) -> Result<Vec<BasicMetadataTypeEnum<'_>>>
 {
     // Create an iterator over the function's arguments
-    let fn_args = fn_sig.args.arguments_list.iter();
+    let fn_args = fn_sig.args.arguments.iter();
 
     // Create a list for all the arguments
     let mut arg_list: Vec<BasicMetadataTypeEnum> = vec![];
@@ -354,8 +367,8 @@ pub fn get_args_from_sig(
 
 pub fn fetch_nested_pointer_ty(
     custom_types: &Arc<IndexMap<String, CustomType>>,
-    pointer_ty: TypeDiscriminant,
-) -> Result<TypeDiscriminant>
+    pointer_ty: Type,
+) -> Result<Type>
 {
     match pointer_ty.clone().try_as_pointer() {
         Some(pointer_inner) => {

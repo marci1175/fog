@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    error::syntax::SyntaxError, parser::VariableReference, tokenizer::Token, ty::TypeDiscriminant,
+    error::syntax::SyntaxError, parser::{ParsedToken, VariableReference}, tokenizer::Token, ty::{OrdMap, Type},
 };
 
 #[derive(Debug, Error)]
@@ -23,11 +23,11 @@ pub enum ParserError
     )]
     DeterminiateArgumentsFunction,
     #[error("Type `{0}` mismatches type `{1}`.")]
-    TypeError(TypeDiscriminant, TypeDiscriminant),
+    TypeError(Type, Type),
     #[error("Source code contains a Syntax Error: {0}")]
     SyntaxError(SyntaxError),
     #[error("Variable `{0}` with type `{1}` mismatches `{2}`.")]
-    VariableTypeMismatch(String, TypeDiscriminant, TypeDiscriminant),
+    VariableTypeMismatch(String, Type, Type),
     #[error("The variable named `{0}` has not been found in the current scope.")]
     VariableNotFound(String),
     #[error("The following argument was not found in the argument list: `{0}`.")]
@@ -45,13 +45,13 @@ pub enum ParserError
     )]
     InternalDesiredTypeMissing,
     #[error("[INTERNAL ERROR] Variable `{0}` has the inner type of `{1}` which is invalid.")]
-    InternalTypeMismatch(VariableReference, TypeDiscriminant),
+    InternalTypeMismatch(VariableReference, Type),
     #[error("A function with name `{0}` has been imported already.")]
     DuplicateSignatureImports(String),
     #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
     LinkedSourceFileError(PathBuf),
     #[error(r#"Type `{1}` cannot be constructed from '{0}'."#)]
-    InvalidTypeCast(String, TypeDiscriminant),
+    InvalidTypeCast(String, Type),
     #[error("`{0:?}` cannot be parsed as a valid type.")]
     InvalidType(Vec<Token>),
     #[error("The type of literal `{0}` could not be guessed.")]
@@ -59,7 +59,7 @@ pub enum ParserError
     #[error("Floats cannot be created with a value of NaN.")]
     FloatIsNAN,
     #[error("Type `{0}` is non-indexable.")]
-    TypeMismatchNonIndexable(TypeDiscriminant),
+    TypeMismatchNonIndexable(Type),
     #[error("Array has type `{0:?}` as its initalizer type.")]
     InvalidArrayTypeDefinition(Vec<Token>),
     #[error(
@@ -83,6 +83,10 @@ pub enum ParserError
     FunctionDependencyNotFound(Vec<String>),
     #[error("Literal contains a non-Utf8 compatible char.")]
     InvalidUtf8Literal,
-    #[error("Number cannot be represented in 64bits. Please remove numbers too large.")]
+    #[error("Number cannot be represented in 64bits. Please truncate numbers which are too large.")]
     NumberTooLarge,
+    #[error("Expected literal value with type `{0:?}`, found `{1}`.")]
+    InvalidValue(Option<Type>, ParsedToken),
+    #[error("Enum variant `{0}` was not found in specified enum.")]
+    EnumVariantNotFound(String),
 }

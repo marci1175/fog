@@ -4,7 +4,7 @@ use common::{
     anyhow,
     error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError},
     tokenizer::{Token, find_closing_angled_bracket_char},
-    ty::{Type, TypeDiscriminant},
+    ty::{Value, Type},
 };
 
 pub fn only_contains_digits(s: &[u8]) -> bool
@@ -21,7 +21,7 @@ pub fn tokenize(
     stop_at_token: Option<Token>,
 ) -> anyhow::Result<(Vec<Token>, Vec<DebugInformation>, usize)>
 {
-    let _dest_num_type: Option<TypeDiscriminant> = None;
+    let _dest_num_type: Option<Type> = None;
     let mut char_idx: usize = 0;
 
     let char_list = raw_input.as_bytes();
@@ -125,7 +125,7 @@ pub fn tokenize(
                 return Err(ParserError::InvalidArrayTypeDefinition(inner_token).into());
             }
 
-            token_list.push(Token::TypeDefinition(TypeDiscriminant::Array((
+            token_list.push(Token::TypeDefinition(Type::Array((
                 Box::new(inner_token[0].clone()),
                 array_len.trim().parse::<usize>().map_err(|_| {
                     ParserError::SyntaxError(SyntaxError::UnparsableExpression(
@@ -418,7 +418,7 @@ pub fn tokenize(
                             }
 
                             if *quote_char == b'"' {
-                                token_list.push(Token::Literal(Type::String(
+                                token_list.push(Token::Literal(Value::String(
                                     String::from_utf8(quotes_buffer)
                                         .map_err(|_| ParserError::InvalidUtf8Literal)?,
                                 )));
@@ -827,6 +827,7 @@ pub fn tokenize(
             // The compiler is going to do a type check
             if char_list[char_idx] == b'<' {
                 char_idx += 1;
+
                 // ref<T> -> ref<i32>
                 let closing_idx = find_closing_angled_bracket_char(&char_list[char_idx..], 0)?;
 
@@ -839,7 +840,7 @@ pub fn tokenize(
                     return Err(ParserError::InvalidType(inner_token).into());
                 }
 
-                token_list.push(Token::TypeDefinition(TypeDiscriminant::Pointer(Some(
+                token_list.push(Token::TypeDefinition(Type::Pointer(Some(
                     Box::new(inner_token[0].clone()),
                 ))));
                 token_debug_info.push(DebugInformation {
@@ -858,7 +859,48 @@ pub fn tokenize(
             }
             // If its a raw pointer with no interal data type
             else {
-                token_list.push(Token::TypeDefinition(TypeDiscriminant::Pointer(None)));
+                token_list.push(Token::TypeDefinition(Type::Pointer(None)));
+
+                string_buffer.clear();
+
+                continue;
+            }
+        }
+
+        if string_buffer == b"enum" {
+            char_idx += 1;
+
+            if char_list[char_idx] == b'<' {
+                char_idx += 1;
+                let closing_idx = find_closing_angled_bracket_char(&char_list[char_idx..], 0)?;
+
+                let inner_ty = &char_list[char_idx..closing_idx + char_idx];
+
+                let (inner_token, _, _) = tokenize(&String::from_utf8_lossy(inner_ty), None)?;
+
+                // Syntax error
+                if inner_token.len() != 1 {
+                    return Err(ParserError::InvalidType(inner_token).into());
+                }
+
+                token_list.push(Token::Enum(Some(Box::new(inner_token[0].clone()))));
+
+                token_debug_info.push(DebugInformation {
+                    char_start: CharPosition::new(line_counter, current_char_idx_in_line),
+                    char_end: CharPosition::new(
+                        line_counter,
+                        current_char_idx_in_line + closing_idx,
+                    ),
+                });
+
+                string_buffer.clear();
+
+                char_idx += closing_idx + 1;
+
+                continue;
+            }
+            else {
+                token_list.push(Token::Enum(None));
 
                 string_buffer.clear();
 
@@ -880,19 +922,19 @@ pub fn tokenize(
 fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<Token>
 {
     Ok(match string_to_match {
-        b"int" => Token::TypeDefinition(TypeDiscriminant::I32),
-        b"uint" => Token::TypeDefinition(TypeDiscriminant::U32),
-        b"float" => Token::TypeDefinition(TypeDiscriminant::F32),
-        b"inthalf" => Token::TypeDefinition(TypeDiscriminant::I16),
-        b"uinthalf" => Token::TypeDefinition(TypeDiscriminant::U16),
-        b"floathalf" => Token::TypeDefinition(TypeDiscriminant::F16),
-        b"intlong" => Token::TypeDefinition(TypeDiscriminant::I64),
-        b"uintlong" => Token::TypeDefinition(TypeDiscriminant::U64),
-        b"floatlong" => Token::TypeDefinition(TypeDiscriminant::F64),
-        b"uintsmall" => Token::TypeDefinition(TypeDiscriminant::U8),
-        b"bool" => Token::TypeDefinition(TypeDiscriminant::Boolean),
-        b"void" => Token::TypeDefinition(TypeDiscriminant::Void),
-        b"string" => Token::TypeDefinition(TypeDiscriminant::String),
+        b"int" => Token::TypeDefinition(Type::I32),
+        b"uint" => Token::TypeDefinition(Type::U32),
+        b"float" => Token::TypeDefinition(Type::F32),
+        b"inthalf" => Token::TypeDefinition(Type::I16),
+        b"uinthalf" => Token::TypeDefinition(Type::U16),
+        b"floathalf" => Token::TypeDefinition(Type::F16),
+        b"intlong" => Token::TypeDefinition(Type::I64),
+        b"uintlong" => Token::TypeDefinition(Type::U64),
+        b"floatlong" => Token::TypeDefinition(Type::F64),
+        b"uintsmall" => Token::TypeDefinition(Type::U8),
+        b"bool" => Token::TypeDefinition(Type::Boolean),
+        b"void" => Token::TypeDefinition(Type::Void),
+        b"string" => Token::TypeDefinition(Type::String),
         b"==" => Token::Equal,
         b"&&" => Token::And,
         b"||" => Token::Or,
@@ -901,15 +943,17 @@ fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<To
         b"=*" => Token::SetValueMultiplication,
         b"=/" => Token::SetValueDivision,
         b"%=" => Token::SetValueModulo,
-        b"false" => Token::Literal(Type::Boolean(false)),
-        b"true" => Token::Literal(Type::Boolean(true)),
+        b"false" => Token::Literal(Value::Boolean(false)),
+        b"true" => Token::Literal(Value::Boolean(true)),
         b"external" => Token::External,
         b"import" => Token::Import,
         b"function" => Token::Function,
         b"return" => Token::Return,
         b"as" => Token::As,
+
         // Unused
         b"extend" => Token::Extend,
+
         b"struct" => Token::Struct,
         b"if" => Token::If,
         b"else" => Token::Else,

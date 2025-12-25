@@ -7,21 +7,12 @@ use std::{
 };
 
 use common::{
-    anyhow::Result,
-    codegen::{CustomType, FunctionArgumentIdentifier, If},
-    compiler::ProjectConfig,
-    dashmap::DashMap,
-    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
-    indexmap::IndexMap,
-    parser::{
+    anyhow::Result, codegen::{CustomType, FunctionArgumentIdentifier, If}, compiler::ProjectConfig, dashmap::DashMap, error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError}, indexmap::IndexMap, parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
         FunctionVisibility, ParsedToken, ParsedTokenInstance, UnparsedFunctionDefinition,
         VariableReference, find_closing_braces, find_closing_comma, find_closing_paren,
         parse_signature_argument_tokens,
-    },
-    tokenizer::Token,
-    tracing::info,
-    ty::{OrdMap, OrdSet, Type, TypeDiscriminant},
+    }, reqwest::header::CONTENT_ENCODING, tokenizer::Token, tracing::info, ty::{OrdMap, OrdSet, Type, Value, token_to_ty}
 };
 
 use crate::{
@@ -50,19 +41,21 @@ impl Parser
 
         let mut token_idx = 0;
 
-        let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
+        /*
+            TODO: Make it so that this function has a side effect on main instead of storing all the imports here.
+            TODO: Recode the importing in the source code.
+        */
 
+        let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
         // The key is the function's name
         let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
-
         let mut dependency_imports: HashSet<Vec<String>> = HashSet::new();
-
         let mut imported_file_list: HashMap<Vec<String>, FunctionDefinition> = HashMap::new();
 
         let mut function_compiler_hint_buffer: OrdSet<CompilerHint> = OrdSet::new();
         let mut function_enabling_feature: OrdSet<String> = OrdSet::new();
 
-        let mut custom_items: IndexMap<String, CustomType> = IndexMap::new();
+        let mut custom_types: IndexMap<String, CustomType> = IndexMap::new();
 
         while token_idx < tokens.len() {
             let current_token = tokens[token_idx].clone();
@@ -77,7 +70,7 @@ impl Parser
                         if tokens[token_idx + 2] == Token::OpenParentheses {
                             let (bracket_close_idx, args) = parse_signature_argument_tokens(
                                 &tokens[token_idx + 3..],
-                                &custom_items,
+                                &custom_types,
                             )?;
 
                             token_idx += bracket_close_idx + 3;
@@ -92,13 +85,15 @@ impl Parser
                                 else if let Token::Identifier(identifier) =
                                     tokens[token_idx + 2].clone()
                                 {
-                                    if let Some(custom_type) = custom_items.get(&identifier) {
+                                    if let Some(custom_type) = custom_types.get(&identifier) {
                                         match custom_type {
                                             CustomType::Struct(struct_def) => {
-                                                TypeDiscriminant::Struct(struct_def.clone())
+                                                Type::Struct(struct_def.clone())
                                             },
-                                            CustomType::Enum(_index_map) => {
-                                                unimplemented!()
+                                            CustomType::Enum((enum_ty, _)) => {
+                                                // When a function is returning an enum its is really just returning its inner type
+                                                // TODO: Make it so that values are only converted at codegen
+                                                enum_ty.clone()
                                             },
                                         }
                                     }
@@ -235,7 +230,7 @@ impl Parser
                     && tokens[token_idx + 2] == Token::OpenParentheses
                 {
                     let (bracket_close_idx, args) =
-                        parse_signature_argument_tokens(&tokens[token_idx + 3..], &custom_items)?;
+                        parse_signature_argument_tokens(&tokens[token_idx + 3..], &custom_types)?;
 
                     token_idx += bracket_close_idx + 3;
 
@@ -276,7 +271,7 @@ impl Parser
                             tokens[token_idx + 2].clone()
                             && tokens[token_idx + 3] == Token::SemiColon
                         {
-                            if let Some(custom_item) = custom_items.get(&custom_item_name) {
+                            if let Some(custom_item) = custom_types.get(&custom_item_name) {
                                 match custom_item {
                                     CustomType::Struct(struct_inner) => {
                                         external_imports.insert(
@@ -284,7 +279,7 @@ impl Parser
                                             FunctionSignature {
                                                 name: identifier,
                                                 args,
-                                                return_type: TypeDiscriminant::Struct(
+                                                return_type: Type::Struct(
                                                     struct_inner.clone(),
                                                 ),
                                                 module_path: mod_path,
@@ -303,7 +298,7 @@ impl Parser
                                 }
                             }
                             else {
-                                dbg!(&custom_items);
+                                dbg!(&custom_types);
 
                                 panic!("not found fasz")
                             }
@@ -327,7 +322,7 @@ impl Parser
 
                     continue;
                 }
-                else if let Token::Literal(Type::String(path_to_linked_file)) =
+                else if let Token::Literal(Value::String(path_to_linked_file)) =
                     tokens[token_idx + 1].clone()
                 {
                     // Turn the String literal into path
@@ -367,7 +362,7 @@ impl Parser
                     // Save the file's name and the functions it contains so that we can refer to it later.
                     imported_file_list.extend(parser_state.function_table().clone().iter().map(
                         |(_fn_name, fn_entry)| {
-                            (fn_entry.function_sig.module_path.clone(), fn_entry.clone())
+                            (fn_entry.signature.module_path.clone(), fn_entry.clone())
                         },
                     ));
 
@@ -391,46 +386,47 @@ impl Parser
                         let struct_slice = tokens[token_idx + 3..braces_idx].to_vec();
 
                         // Create a list for the struct fields
-                        let mut struct_fields: IndexMap<String, TypeDiscriminant> = IndexMap::new();
+                        let mut struct_fields: IndexMap<String, Type> = IndexMap::new();
 
                         // Store the idx
-                        let mut token_idx = 0;
+                        let mut body_idx = 0;
+
                         // Parse the struct fields
-                        while token_idx < struct_slice.len() {
+                        while body_idx < struct_slice.len() {
                             // Get the current token
-                            let current_token = &struct_slice[token_idx];
+                            let current_token = &struct_slice[body_idx];
 
                             // Pattern match the syntax
                             if let Token::Identifier(field_name) = current_token
-                                && let Token::Colon = &struct_slice[token_idx + 1]
+                                && let Token::Colon = &struct_slice[body_idx + 1]
                             {
                                 // Check if there is a comma present in the field, if not check if its the end of the struct definition
                                 // Or the user did not put a comma at the end of the last field definition. This is expected
-                                if Some(&Token::Comma) == struct_slice.get(token_idx + 3)
-                                    || token_idx + 3 == struct_slice.len()
+                                if Some(&Token::Comma) == struct_slice.get(body_idx + 3)
+                                    || body_idx + 3 == struct_slice.len()
                                 {
                                     if let Token::TypeDefinition(field_type) =
-                                        &struct_slice[token_idx + 2]
+                                        &struct_slice[body_idx + 2]
                                     {
                                         // Save the field's type and name
                                         struct_fields
                                             .insert(field_name.clone(), field_type.clone());
 
                                         // Increment the token index
-                                        token_idx += 4;
+                                        body_idx += 4;
 
                                         // Continue looping through, if the pattern doesnt match the syntax return an error
                                         continue;
                                     }
                                     else if let Token::Identifier(custom_type) =
-                                        &struct_slice[token_idx + 2]
-                                        && let Some(custom_item) = custom_items.get(custom_type)
+                                        &struct_slice[body_idx + 2]
+                                        && let Some(custom_item) = custom_types.get(custom_type)
                                     {
                                         match custom_item {
                                             CustomType::Struct(struct_def) => {
                                                 struct_fields.insert(
                                                     field_name.to_string(),
-                                                    TypeDiscriminant::Struct(struct_def.clone()),
+                                                    Type::Struct(struct_def.clone()),
                                                 );
                                             },
                                             CustomType::Enum(_index_map) => {
@@ -439,7 +435,7 @@ impl Parser
                                         }
 
                                         // Increment the token index
-                                        token_idx += 4;
+                                        body_idx += 4;
 
                                         // Continue looping through, if the pattern doesnt match the syntax return an error
                                         continue;
@@ -455,17 +451,19 @@ impl Parser
                         }
 
                         // Save the custom item
-                        custom_items.insert(
+                        custom_types.insert(
                             struct_name.to_string(),
                             CustomType::Struct((struct_name.clone(), struct_fields.into())),
                         );
+
+                        token_idx = braces_idx + 1;
+                        continue;
                     }
                 }
-                else {
-                    return Err(
-                        ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into(),
-                    );
-                }
+
+                return Err(
+                    ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into(),
+                );
             }
             else if current_token == Token::CompilerHintSymbol {
                 token_idx += 1;
@@ -474,7 +472,7 @@ impl Parser
                     if *compiler_hint == CompilerHint::Feature {
                         token_idx += 1;
 
-                        if let Some(Token::Literal(Type::String(feature_name))) =
+                        if let Some(Token::Literal(Value::String(feature_name))) =
                             tokens.get(token_idx)
                         {
                             if let Some(available_features) = &project_config.features
@@ -503,6 +501,79 @@ impl Parser
                     return Err(ParserError::InvalidCompilerHint(tokens[token_idx].clone()).into());
                 }
             }
+            else if let Token::Enum(ty) = current_token.clone() {
+                let is_ty_inferred = ty.is_none();
+                // If there is an inner type try to fetch.
+                // If the inner function fails it raises an error.
+                // If there was no pre defined type we will use `U32` as default.
+                let variant_type = ty.map(|inner| token_to_ty(&inner, &custom_types)).unwrap_or(Ok(Type::U32))?;
+
+                if let Some(Token::Identifier(enum_name)) = tokens.get(token_idx + 1) {
+                    if let Some(Token::OpenBraces) = tokens.get(token_idx + 2) {
+                        // Search for the closing brace's index
+                        let braces_idx =
+                            find_closing_braces(&tokens[token_idx + 3..], 0)? + token_idx + 3;
+
+                        // Retrive the tokens from the braces
+                        let variant_body = tokens[token_idx + 3..braces_idx].to_vec();
+                        let mut body_idx = 0;
+
+                        let mut variant_fields: OrdMap<String, (Value, DebugInformation)> = OrdMap::new();
+
+                        while body_idx < variant_body.len() {
+                            if let Some(Token::Identifier(variant_name)) = variant_body.get(body_idx) {
+                                if let Some(Token::SetValue) = variant_body.get(body_idx + 1) {
+                                    body_idx += 2;
+
+                                    // This function will stop parsing at `,` or `;` or `)`
+                                    let (parsed_token_instance, idx, _ty) = parse_value(&variant_body[body_idx..], 0, &self.tokens_debug_info, token_idx, Arc::new(function_list.clone()), &mut IndexMap::new(), Some(variant_type.clone()), self.imported_functions.clone(), Arc::new(custom_types.clone()))?;
+                                    
+                                    body_idx += idx;
+                                    
+                                    // Check correct signature by checking if we are currently at a `,`.
+                                    if let Some(Token::Comma) = variant_body.get(body_idx) {
+                                        let parsed_token_clone = parsed_token_instance.inner.clone();
+                                        
+                                        // Store enum variant                                    
+                                        variant_fields.insert(variant_name.clone(), (parsed_token_instance.inner.try_as_literal().ok_or(ParserError::InvalidValue(Some(variant_type.clone()), parsed_token_clone))?, parsed_token_instance.debug_information));
+
+                                        // Increment index and iterate once again
+                                        body_idx += 1;
+
+                                        continue;
+                                    }
+                                }
+                                // Check if we can infer value
+                                else if is_ty_inferred {
+                                    // Get which enum variant is this one
+                                    let nth = variant_fields.len();
+
+                                    // Store the variant inferred value
+                                    variant_fields.insert(variant_name.clone(), (Value::U32(nth as u32), fetch_and_merge_debug_information(&self.tokens_debug_info, token_idx + body_idx..token_idx + body_idx + 2, true).unwrap()));
+
+                                    // Check for correct syntax
+                                    if let Some(Token::Comma) = variant_body.get(body_idx + 1) {
+                                        body_idx += 2;
+                                    
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            return Err(ParserError::SyntaxError(SyntaxError::InvalidEnumBodyDefinition).into())
+                        }
+
+                        // Store custom type
+                        custom_types.insert(enum_name.clone(), CustomType::Enum((variant_type, variant_fields)));
+
+                        token_idx = braces_idx + 1;
+
+                        continue;
+                    }
+                }
+
+                return Err(ParserError::SyntaxError(SyntaxError::CustomTypeRequiresName(current_token)).into());
+            }
 
             token_idx += 1;
         }
@@ -511,7 +582,7 @@ impl Parser
             function_list,
             dependency_imports,
             external_imports,
-            custom_items,
+            dbg!(custom_types),
             imported_file_list,
         ))
     }
@@ -531,7 +602,7 @@ impl Parser
         for (fn_idx, (fn_name, unparsed_function)) in unparsed_functions.clone().iter().enumerate()
         {
             let function_definition = FunctionDefinition {
-                function_sig: unparsed_function.function_sig.clone(),
+                signature: unparsed_function.function_sig.clone(),
                 inner: self.parse_function_block(
                     unparsed_function.inner.clone(),
                     unparsed_function.token_offset,
@@ -566,7 +637,7 @@ impl Parser
         function_imports: Arc<HashMap<String, FunctionSignature>>,
         custom_items: Arc<IndexMap<String, CustomType>>,
         this_fn_args: FunctionArguments,
-        additional_variables: OrdMap<String, TypeDiscriminant>,
+        additional_variables: OrdMap<String, Type>,
     ) -> Result<Vec<ParsedTokenInstance>>
     {
         let module_path = self.module_path.clone();
@@ -578,7 +649,7 @@ impl Parser
 
         let mut token_idx = 0;
 
-        let mut variable_scope = this_fn_args.arguments_list.clone();
+        let mut variable_scope = this_fn_args.arguments.clone();
 
         variable_scope.extend(
             additional_variables
@@ -809,7 +880,8 @@ impl Parser
                         match custom_type {
                             CustomType::Struct(struct_instance) => {
                                 let variable_type =
-                                    TypeDiscriminant::Struct(struct_instance.clone());
+                                    Type::Struct(struct_instance.clone());
+
                                 token_idx += 1;
 
                                 if let Some(Token::Identifier(var_name)) = tokens.get(token_idx)
@@ -844,7 +916,7 @@ impl Parser
                                     parsed_token_instances.push(ParsedTokenInstance {
                                         inner: ParsedToken::NewVariable(
                                             var_name.clone(),
-                                            variable_type,
+                                            variable_type.clone(),
                                             Box::new(parsed_token),
                                         ),
                                         debug_information: fetch_and_merge_debug_information(
@@ -858,11 +930,65 @@ impl Parser
 
                                     variable_scope.insert(
                                         var_name.clone(),
-                                        TypeDiscriminant::Struct(struct_instance.clone()),
+                                        variable_type,
                                     );
                                 }
                             },
-                            CustomType::Enum(_enum_types) => {},
+                            CustomType::Enum(inner) => {
+                                let variable_type = Type::Enum((Box::new(inner.0.clone()), inner.1.clone()));
+
+                                token_idx += 1;
+
+                                if let Some(Token::Identifier(var_name)) = tokens.get(token_idx)
+                                    && let Some(Token::SetValue) = tokens.get(token_idx + 1)
+                                {
+                                    let line_break_idx = tokens
+                                        .iter()
+                                        .skip(token_idx)
+                                        .position(|token| *token == Token::SemiColon)
+                                        .ok_or({
+                                            ParserError::SyntaxError(SyntaxError::MissingSemiColon)
+                                        })?
+                                        + token_idx;
+
+                                    let selected_tokens_range = token_idx + 2..line_break_idx;
+                                    let selected_tokens = &tokens[selected_tokens_range.clone()];
+
+                                    token_idx += selected_tokens.len() + 1;
+
+                                    let (parsed_token, _, _) = parse_value(
+                                        selected_tokens,
+                                        tokens_offset,
+                                        &self.tokens_debug_info,
+                                        token_idx,
+                                        function_signatures.clone(),
+                                        &mut variable_scope,
+                                        Some(variable_type.clone()),
+                                        function_imports.clone(),
+                                        custom_items.clone(),
+                                    )?;
+
+                                    parsed_token_instances.push(ParsedTokenInstance {
+                                        inner: ParsedToken::NewVariable(
+                                            var_name.clone(),
+                                            variable_type.clone(),
+                                            Box::new(parsed_token),
+                                        ),
+                                        debug_information: fetch_and_merge_debug_information(
+                                            &self.tokens_debug_info,
+                                            origin_token_idx + tokens_offset
+                                                ..token_idx + tokens_offset + 2,
+                                            true,
+                                        )
+                                        .unwrap(),
+                                    });
+
+                                    variable_scope.insert(
+                                        var_name.clone(),
+                                        variable_type,
+                                    );
+                                }
+                            },
                         };
                     }
                     else {
@@ -876,7 +1002,7 @@ impl Parser
 
                     let next_token = &tokens[token_idx];
 
-                    if this_function_signature.return_type.clone() == TypeDiscriminant::Void {
+                    if this_function_signature.return_type.clone() == Type::Void {
                         if *next_token != Token::SemiColon
                             && this_function_signature.visibility != FunctionVisibility::Branch
                         {
@@ -952,7 +1078,7 @@ impl Parser
                                 FunctionSignature {
                                     name: String::new(),
                                     args: FunctionArguments::new(),
-                                    return_type: TypeDiscriminant::Void,
+                                    return_type: Type::Void,
                                     module_path: module_path.clone(),
                                     visibility: common::parser::FunctionVisibility::Branch,
                                     compiler_hints: OrdSet::new(),
@@ -987,7 +1113,7 @@ impl Parser
                                         FunctionSignature {
                                             name: String::new(),
                                             args: FunctionArguments::new(),
-                                            return_type: TypeDiscriminant::Void,
+                                            return_type: Type::Void,
                                             visibility: common::parser::FunctionVisibility::Branch,
                                             module_path: module_path.clone(),
                                             compiler_hints: OrdSet::new(),
@@ -1045,7 +1171,7 @@ impl Parser
                             FunctionSignature {
                                 name: String::new(),
                                 args: FunctionArguments::new(),
-                                return_type: TypeDiscriminant::Void,
+                                return_type: Type::Void,
                                 visibility: common::parser::FunctionVisibility::Branch,
                                 module_path: module_path.clone(),
                                 compiler_hints: OrdSet::new(),
@@ -1106,7 +1232,7 @@ impl Parser
         }
 
         // If there isnt a returned value and the returned type isnt `Void` raise an error
-        if !has_return && this_function_signature.return_type != TypeDiscriminant::Void {
+        if !has_return && this_function_signature.return_type != Type::Void {
             return Err(ParserError::SyntaxError(SyntaxError::FunctionRequiresReturn).into());
         }
 
@@ -1120,13 +1246,13 @@ pub fn parse_function_call_args(
     tokens_offset: usize,
     mut origin_token_idx: usize,
     debug_infos: &[DebugInformation],
-    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    variable_scope: &mut IndexMap<String, Type>,
     mut this_function_args: FunctionArguments,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
 ) -> Result<(
-    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, TypeDiscriminant)>,
+    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, Type)>,
     usize,
 )>
 {
@@ -1137,7 +1263,7 @@ pub fn parse_function_call_args(
     // Arguments which will passed in to the function
     let mut arguments: OrdMap<
         FunctionArgumentIdentifier<String, usize>,
-        (ParsedTokenInstance, TypeDiscriminant),
+        (ParsedTokenInstance, Type),
     > = OrdMap::new();
 
     // If there are no arguments just return everything as is
@@ -1151,7 +1277,7 @@ pub fn parse_function_call_args(
         if let Token::Identifier(arg_name) = current_token.clone() {
             if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
                 let argument_type = this_function_args
-                    .arguments_list
+                    .arguments
                     .get(&arg_name)
                     .ok_or(ParserError::ArgumentError(arg_name.clone()))?;
 
@@ -1174,7 +1300,7 @@ pub fn parse_function_call_args(
                 tokens_idx += jump_idx;
 
                 // Remove tha argument from the argument list so we can parse unnamed arguments easier
-                this_function_args.arguments_list.shift_remove(&arg_name);
+                this_function_args.arguments.shift_remove(&arg_name);
 
                 arguments.insert(
                     FunctionArgumentIdentifier::Identifier(arg_name.clone()),
@@ -1216,7 +1342,7 @@ pub fn parse_function_call_args(
                     token_buf.push(token.clone());
                 }
 
-                let fn_argument = this_function_args.arguments_list.first_entry();
+                let fn_argument = this_function_args.arguments.first_entry();
 
                 if let Some(fn_argument) = fn_argument {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
@@ -1277,7 +1403,7 @@ pub fn parse_function_call_args(
         }
     }
 
-    if !this_function_args.arguments_list.is_empty() {
+    if !this_function_args.arguments.is_empty() {
         return Err(ParserError::InvalidFunctionArgumentCount.into());
     }
 

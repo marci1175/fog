@@ -3,7 +3,7 @@ use thiserror::Error;
 use crate::{
     parser::FunctionSignature,
     tokenizer::Token,
-    ty::{OrdMap, TypeDiscriminant},
+    ty::{OrdMap, Type},
 };
 
 #[derive(Debug, Error)]
@@ -50,7 +50,7 @@ pub enum SyntaxError
     #[error("Invalid Dot placement, variable cannot have fields.")]
     InvalidDotPlacement,
     #[error("Struct field `{0}` was not found in Struct `{0}`.")]
-    StructFieldNotFound(String, (String, OrdMap<String, TypeDiscriminant>)),
+    StructFieldNotFound(String, (String, OrdMap<String, Type>)),
     #[error("Invalid Struct field definition.")]
     InvalidStructFieldDefinition,
     #[error("Missing/Invalid Struct body definition.")]
@@ -70,7 +70,13 @@ pub enum SyntaxError
     #[error("A comma has been left out when defining an array.")]
     MissingCommaAtArrayDef,
     #[error("The type `{0}` cannot be indexed with.")]
-    InvalidIndex(TypeDiscriminant),
+    InvalidIndex(Type),
     #[error("Unparsable expression: `{0}`")]
     UnparsableExpression(String),
+    #[error("Enum variants should be accessed like items inside modules. ie. `Foo::Bar`")]
+    InvalidEnumVariantDefinition,
+    #[error("Variant values are defined as `<variant_name> = <value>,`.")]
+    InvalidEnumBodyDefinition,
+    #[error("Custom type `{0}` requires a name.")]
+    CustomTypeRequiresName(Token),
 }

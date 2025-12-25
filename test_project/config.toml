@@ -4,9 +4,9 @@ version = "0.0.1"
 build_path = "out"
 additional_linking_material = ["deps\\dep1\\external_deps\\PtrTest.lib"]
 
-remote_compiler_workers = [
-    { name = "Remote", address = "[::1]:3030" },
-]
+# remote_compiler_workers = [
+#     { name = "Remote", address = "[::1]:3030" },
+# ]
 
 [dependencies]
-dependency-test = { version = "0.0.1", remote = "Remote", features = [] }
+# dependency-test = { version = "0.0.1", remote = "Remote", features = [] }

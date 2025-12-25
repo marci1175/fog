@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::{
     parser::{CompilerHint, ParsedToken},
-    ty::TypeDiscriminant,
+    ty::Type,
 };
 
 #[derive(Debug, Error)]
@@ -14,11 +14,11 @@ pub enum CodeGenError
     #[error("[INTERNAL ERROR] Function `{0}` was not found in the module at codegen.")]
     InternalFunctionNotFound(String),
     #[error("[INTERNAL ERROR] Function did not return anything when the returned type was {0}.")]
-    InternalFunctionReturnedVoid(TypeDiscriminant),
+    InternalFunctionReturnedVoid(Type),
     #[error("[INTERNAL ERROR] Variable `{0}` was not found in Variable map.")]
     InternalVariableNotFound(String),
     #[error("Type `{0}` mismatches type `{1}`.")]
-    VariableTypeMismatch(TypeDiscriminant, TypeDiscriminant),
+    VariableTypeMismatch(Type, Type),
     #[error("[INTERNAL ERROR] The automatic optimizer has failed after the code generation.")]
     InternalOptimisationPassFailed,
     #[error("[INTERNAL ERROR] Failed to get TargetTriple for host.")]
@@ -36,13 +36,13 @@ pub enum CodeGenError
     #[error("[INTERNAL ERROR] A variable type mismatch has occurred.")]
     InternalTypeMismatch,
     #[error("A type mismatch has occurred at codegen. Type `{0}` mismatches type `{1}`.")]
-    CodegenTypeMismatch(TypeDiscriminant, TypeDiscriminant),
+    CodegenTypeMismatch(Type, Type),
     #[error("[INTERNAL ERROR] A reference to an inexistent struct has been provided.")]
     InternalInvalidStructReference,
     #[error("Comparsions are not implemented for type `{0}`.")]
-    ComparisonIncompatibility(TypeDiscriminant),
+    ComparisonIncompatibility(Type),
     #[error("Type `{0}` cannot be casted to type `{1}`.")]
-    InvalidTypeCast(TypeDiscriminant, TypeDiscriminant),
+    InvalidTypeCast(Type, Type),
     #[error(
         "The if statement contains an invalid condition. The condition has to return a boolean value."
     )]
@@ -67,7 +67,7 @@ pub enum CodeGenError
     ArrayLengthMismatch(usize, usize),
 
     #[error("Cannot index into a list with type `{0}`.")]
-    NonIndexType(TypeDiscriminant),
+    NonIndexType(Type),
     #[error("Value `{0}` cannot be indexed with.")]
     InvalidIndexValue(ParsedToken),
     #[error("ParsedToken `{0}` is not a valid variable reference.")]

@@ -50,13 +50,13 @@ impl Parser
             }
             else if let Some(file_imported_fn) = file_imported_functions.get(import) {
                 self.function_table.insert(
-                    file_imported_fn.function_sig.name.clone(),
+                    file_imported_fn.signature.name.clone(),
                     file_imported_fn.clone(),
                 );
 
                 external_imports.insert(
-                    file_imported_fn.function_sig.name.clone(),
-                    file_imported_fn.function_sig.clone(),
+                    file_imported_fn.signature.name.clone(),
+                    file_imported_fn.signature.clone(),
                 )
             }
             else {

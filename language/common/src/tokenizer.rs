@@ -1,14 +1,14 @@
 use crate::{
     error::{parser::ParserError, syntax::SyntaxError},
     parser::CompilerHint,
-    ty::{Type, TypeDiscriminant},
+    ty::{Value, Type},
 };
 
 /// The basic output type of the tokenizer.
 #[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
 pub enum Token
 {
-    Literal(Type),
+    Literal(Value),
     /// ref
     /// Example: ```ptr foo = ref bar;```
     Reference,
@@ -18,13 +18,17 @@ pub enum Token
 
     UnparsedLiteral(String),
 
-    TypeDefinition(TypeDiscriminant),
+    TypeDefinition(Type),
     As,
 
     Identifier(String),
     DocComment(String),
 
     Struct,
+    
+    /// Kinda like C enums but with any type
+    Enum(Option<Box<Token>>),
+
     Extend,
     Function,
     Ellipsis,
@@ -117,6 +121,8 @@ pub fn find_closing_angled_bracket_char(
 {
     let mut paren_layer_counter = 1;
     for (idx, token) in paren_start_slice.iter().enumerate() {
+        dbg!(*token as char);
+
         match token {
             b'<' => paren_layer_counter += 1,
             b'>' => {

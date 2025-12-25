@@ -1,16 +1,19 @@
-import dependency-test::szia;
-pub function main(): int {
-    szia();
+# import dependency-test::szia;
+# pub function main(): int {
+#     szia();
     
-    return 0;
-}
+#     return 0;
+# }
 
 # struct a {
 #     field1: array<int, 5>,
+#     field2: array<int, 5>,
+#     field3: array<int, 5>,
+#     field4: array<int, 5>,
 # }
 
 # pub function main(): int {  
-#     a b = a { field1: {0, 1, 2, 3, 4} };
+#     a b = a { field1: {0, 1, 2, 3, 4}, field2: {0, 1, 2, 3, 4}, field3: {0, 1, 2, 3, 4}, field4: {0, 1, 2, 3, 4} };
 
 #     a.field1[2] = 400;
 
@@ -18,3 +21,12 @@ pub function main(): int {
 
 #     return 0;
 # }
+
+enum b {
+    kutya,
+    cica,
+}
+
+pub function main(): int {
+    return 0;
+}

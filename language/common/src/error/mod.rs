@@ -22,6 +22,12 @@ pub struct DebugInformation
     pub char_end: CharPosition,
 }
 
+impl DebugInformation {
+    pub fn new(char_start: CharPosition, char_end: CharPosition) -> Self {
+        Self { char_start, char_end }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, PartialOrd, Copy)]
 pub struct CharPosition
 {

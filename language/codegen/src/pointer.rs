@@ -14,7 +14,7 @@ use common::{
         values::{FunctionValue, PointerValue},
     },
     parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
-    ty::{Type, TypeDiscriminant, token_to_ty},
+    ty::{Value, Type, token_to_ty},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -37,17 +37,17 @@ pub fn access_variable_ptr<'main, 'ctx>(
         String,
         (
             (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            TypeDiscriminant,
+            Type,
         ),
     >,
-    fn_ret_ty: &TypeDiscriminant,
+    fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     allocation_list: &mut VecDeque<(
         ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
-        TypeDiscriminant,
+        Type,
     )>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
@@ -55,7 +55,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
     parsed_token_instance: ParsedTokenInstance,
 ) -> Result<(
     (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-    TypeDiscriminant,
+    Type,
 )>
 {
     let parsed_token = parsed_token_instance.inner;
@@ -170,7 +170,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
                             )?
                         };
 
-                        if let TypeDiscriminant::Array((inner_ty, _len)) = &ty_disc {
+                        if let Type::Array((inner_ty, _len)) = &ty_disc {
                             let array_inner_type = token_to_ty(&(**inner_ty), custom_types)?;
 
                             return Ok((
@@ -203,14 +203,14 @@ pub fn access_nested_struct_field_ptr<'a>(
     ctx: &'a Context,
     builder: &'a Builder,
     field_stack_iter: &mut Iter<String>,
-    struct_definition: &IndexMap<String, TypeDiscriminant>,
+    struct_definition: &IndexMap<String, Type>,
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, TypeDiscriminant)>
+) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, Type)>
 {
     if let Some(field_stack_entry) = field_stack_iter.next() {
         if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry) {
-            if let TypeDiscriminant::Struct((_, struct_def)) = field_ty {
+            if let Type::Struct((_, struct_def)) = field_ty {
                 let pointee_ty = last_field_ptr.1.into_struct_type();
                 let struct_field_ptr = builder.build_struct_gep(
                     pointee_ty,
@@ -303,7 +303,7 @@ pub fn set_value_of_ptr<'ctx>(
     ctx: &'ctx Context,
     builder: &Builder,
     module: &Module<'ctx>,
-    value: Type,
+    value: Value,
     v_ptr: PointerValue<'_>,
 ) -> Result<()>
 {
@@ -318,77 +318,77 @@ pub fn set_value_of_ptr<'ctx>(
     let ptr_type = ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
 
     match value {
-        Type::I64(inner) => {
+        Value::I64(inner) => {
             // Initialize const value
             let init_val = i64_type.const_int(inner as u64, true);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::F64(inner) => {
+        Value::F64(inner) => {
             // Initialize const value
             let init_val = f64_type.const_float(*inner);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::U64(inner) => {
+        Value::U64(inner) => {
             // Initialize const value
             let init_val = i64_type.const_int(inner, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::I16(inner) => {
+        Value::I16(inner) => {
             // Initialize const value
             let init_val = i16_type.const_int(inner as u64, true);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::F16(inner) => {
+        Value::F16(inner) => {
             // Initialize const value
             let init_val = f16_type.const_float(*inner as f64);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::U16(inner) => {
+        Value::U16(inner) => {
             // Initialize const value
             let init_val = i16_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::I32(inner) => {
+        Value::I32(inner) => {
             // Initialize const value
             let init_val = i32_type.const_int(inner as u64, true);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::F32(inner) => {
+        Value::F32(inner) => {
             // Initialize const value
             let init_val = f32_type.const_float(*inner as f64);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::U32(inner) => {
+        Value::U32(inner) => {
             // Initialize const value
             let init_val = i32_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::U8(inner) => {
+        Value::U8(inner) => {
             // Initialize const value
             let init_val = i8_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::String(inner) => {
+        Value::String(inner) => {
             let string_bytes = inner.as_bytes();
 
             let char_array =
@@ -424,21 +424,21 @@ pub fn set_value_of_ptr<'ctx>(
             // Store const
             builder.build_store(v_ptr, input_ptr)?;
         },
-        Type::Boolean(inner) => {
+        Value::Boolean(inner) => {
             // Initialize const value
             let init_val = bool_type.const_int(inner as u64, false);
 
             // Store const
             builder.build_store(v_ptr, init_val)?;
         },
-        Type::Void => {
+        Value::Void => {
             unreachable!()
         },
-        Type::Struct((struct_name, struct_inner)) => {
+        Value::Struct((struct_name, struct_inner)) => {
             unreachable!()
         },
-        Type::Array(inner_ty) => unimplemented!(),
-        Type::Pointer((inner, _)) => {
+        Value::Array(inner_ty) => unimplemented!(),
+        Value::Pointer((inner, _)) => {
             let init_ptr = {
                 #[cfg(target_pointer_width = "64")]
                 {
@@ -464,30 +464,30 @@ pub fn access_array_index<'main, 'ctx>(
         String,
         (
             (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            TypeDiscriminant,
+            Type,
         ),
     >,
-    fn_ret_ty: &TypeDiscriminant,
+    fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     allocation_list: &mut VecDeque<(
         ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
-        TypeDiscriminant,
+        Type,
     )>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: &Arc<IndexMap<String, CustomType>>,
     ((array_ptr, _ptr_ty), ty_disc): (
         (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-        TypeDiscriminant,
+        Type,
     ),
     index: Box<ParsedTokenInstance>,
 ) -> Result<(
     PointerValue<'ctx>,
     BasicMetadataTypeEnum<'ctx>,
-    TypeDiscriminant,
+    Type,
 )>
 where
     'main: 'ctx,

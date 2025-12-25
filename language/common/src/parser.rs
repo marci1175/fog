@@ -7,7 +7,7 @@ use crate::{
     codegen::{CustomType, FunctionArgumentIdentifier, If, Order},
     error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     tokenizer::Token,
-    ty::{OrdMap, OrdSet, Type, TypeDiscriminant, token_to_ty},
+    ty::{OrdMap, OrdSet, Value, Type, token_to_ty},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -67,15 +67,15 @@ impl PartialEq<ParsedToken> for ParsedTokenInstance
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum ParsedToken
 {
-    NewVariable(String, TypeDiscriminant, Box<ParsedTokenInstance>),
+    NewVariable(String, Type, Box<ParsedTokenInstance>),
 
     /// This is the token for referencing a variable. This is the lowest layer of referencing a variable.
     /// Other tokens might wrap it like an `ArrayIndexing`. This is the last token which points to the variable.
     VariableReference(VariableReference),
 
-    Literal(Type),
+    Literal(Value),
 
-    TypeCast(Box<ParsedTokenInstance>, TypeDiscriminant),
+    TypeCast(Box<ParsedTokenInstance>, Type),
 
     MathematicalExpression(
         Box<ParsedTokenInstance>,
@@ -83,11 +83,11 @@ pub enum ParsedToken
         Box<ParsedTokenInstance>,
     ),
 
-    Brackets(Vec<ParsedToken>, TypeDiscriminant),
+    Brackets(Vec<ParsedToken>, Type),
 
     FunctionCall(
         (FunctionSignature, String),
-        OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, TypeDiscriminant)>,
+        OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, Type)>,
     ),
 
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
@@ -102,13 +102,13 @@ pub enum ParsedToken
         Box<ParsedTokenInstance>,
         Order,
         Box<ParsedTokenInstance>,
-        TypeDiscriminant,
+        Type,
     ),
 
     If(If),
 
     InitializeStruct(
-        OrdMap<String, TypeDiscriminant>,
+        OrdMap<String, Type>,
         OrdMap<String, Box<ParsedTokenInstance>>,
     ),
 
@@ -122,7 +122,7 @@ pub enum ParsedToken
     /// The second argument is the index we are referencing at.
     ArrayIndexing(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
 
-    ArrayInitialization(Vec<ParsedTokenInstance>, TypeDiscriminant),
+    ArrayInitialization(Vec<ParsedTokenInstance>, Type),
 
     GetPointerTo(Box<ParsedTokenInstance>),
 
@@ -144,7 +144,7 @@ pub enum VariableReference
     /// Variable name, (struct_name, struct_type)
     StructFieldReference(
         StructFieldReference,
-        (String, OrdMap<String, TypeDiscriminant>),
+        (String, OrdMap<String, Type>),
     ),
     /// Variable name
     BasicReference(String),
@@ -207,7 +207,7 @@ pub struct UnparsedFunctionDefinition
 #[derive(Debug, Clone)]
 pub struct FunctionDefinition
 {
-    pub function_sig: FunctionSignature,
+    pub signature: FunctionSignature,
     pub inner: Vec<ParsedTokenInstance>,
 }
 
@@ -243,7 +243,7 @@ pub struct FunctionSignature
 {
     pub name: String,
     pub args: FunctionArguments,
-    pub return_type: TypeDiscriminant,
+    pub return_type: Type,
     pub module_path: Vec<String>,
     pub visibility: FunctionVisibility,
     pub compiler_hints: OrdSet<CompilerHint>,
@@ -264,7 +264,7 @@ impl Display for FunctionSignature
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionArguments
 {
-    pub arguments_list: OrdMap<String, TypeDiscriminant>,
+    pub arguments: OrdMap<String, Type>,
     pub ellipsis_present: bool,
 }
 
@@ -273,7 +273,7 @@ impl FunctionArguments
     pub fn new() -> Self
     {
         Self {
-            arguments_list: OrdMap::new(),
+            arguments: OrdMap::new(),
             ellipsis_present: false,
         }
     }
@@ -326,7 +326,7 @@ pub fn parse_signature_args(
                 // Get the type of the argument
                 if let Token::TypeDefinition(var_type) = &token_list[args_idx + 2] {
                     // Store the argument in the HashMap
-                    args.arguments_list.insert(var_name, var_type.clone());
+                    args.arguments.insert(var_name, var_type.clone());
 
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {
@@ -343,7 +343,7 @@ pub fn parse_signature_args(
                     let custom_ty = token_to_ty(&token_list[args_idx + 2], custom_types)?;
 
                     // Store the argument in the HashMap
-                    args.arguments_list.insert(var_name, custom_ty.clone());
+                    args.arguments.insert(var_name, custom_ty.clone());
 
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {
@@ -374,8 +374,6 @@ pub fn parse_signature_args(
             continue;
         }
 
-        dbg!(&token_list[args_idx]);
-        dbg!(&token_list);
         // If the pattern didnt match the tokens return an error
         return Err(ParserError::InvalidSignatureDefinition.into());
     }

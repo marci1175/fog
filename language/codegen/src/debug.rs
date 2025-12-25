@@ -21,7 +21,7 @@ use common::{
         types::AsTypeRef,
     },
     parser::FunctionDefinition,
-    ty::{TypeDiscriminant, token_to_ty},
+    ty::{Type, token_to_ty},
 };
 use std::{
     ffi::{CStr, CString},
@@ -37,7 +37,7 @@ pub fn generate_debug_inforamtion_types<'ctx>(
     module: &Module<'ctx>,
     types_buffer: &mut Vec<common::inkwell::debug_info::DIType<'ctx>>,
     debug_info_builder: &DebugInfoBuilder<'ctx>,
-    type_discriminants: Vec<TypeDiscriminant>,
+    type_discriminants: Vec<Type>,
     custom_types: Arc<IndexMap<String, CustomType>>,
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
@@ -69,14 +69,14 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
     module: &Module<'ctx>,
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     custom_types: &Arc<IndexMap<String, CustomType>>,
-    type_disc: TypeDiscriminant,
+    type_disc: Type,
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
     unique_id_source: &mut u32,
 ) -> Result<DIType<'ctx>>
 {
     let debug_type = match type_disc.clone() {
-        TypeDiscriminant::Array((array_ty, len)) => {
+        Type::Array((array_ty, len)) => {
             let inner_ty_disc = token_to_ty(&*array_ty, custom_types).unwrap();
 
             let inner_type = get_basic_debug_type_from_ty(
@@ -94,13 +94,13 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
                 )
                 .as_type()
         },
-        TypeDiscriminant::Struct((struct_name, struct_def)) => {
+        Type::Struct((struct_name, struct_def)) => {
             let mut struct_field_types: Vec<DIType> = Vec::new();
 
             let type_discs = struct_def
                 .iter()
                 .map(|(_, val)| val.clone())
-                .collect::<Vec<TypeDiscriminant>>();
+                .collect::<Vec<Type>>();
 
             // Call the function recursively
             generate_debug_inforamtion_types(
@@ -203,7 +203,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
 fn get_basic_debug_type_from_ty<'ctx>(
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-    type_disc: TypeDiscriminant,
+    type_disc: Type,
 ) -> Result<common::inkwell::debug_info::DIBasicType<'ctx>>
 {
     let debug_type = debug_info_builder.create_basic_type(
@@ -229,10 +229,10 @@ pub fn create_subprogram_debug_information<'ctx>(
     unique_id_source: &mut u32,
     function_name: &String,
     function_definition: &FunctionDefinition,
-    return_type: TypeDiscriminant,
+    return_type: Type,
 ) -> Result<common::inkwell::debug_info::DISubprogram<'ctx>>
 {
-    let debug_return_type = if return_type == TypeDiscriminant::Void {
+    let debug_return_type = if return_type == Type::Void {
         None
     }
     else {
@@ -256,12 +256,12 @@ pub fn create_subprogram_debug_information<'ctx>(
         &mut param_types,
         debug_info_builder,
         function_definition
-            .function_sig
+            .signature
             .args
-            .arguments_list
+            .arguments
             .iter()
             .map(|(_key, value)| value.clone())
-            .collect::<Vec<TypeDiscriminant>>(),
+            .collect::<Vec<Type>>(),
         custom_types.clone(),
         debug_scope,
         debug_info_file,

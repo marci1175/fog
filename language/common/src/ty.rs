@@ -18,12 +18,12 @@ use strum_macros::Display;
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     codegen::{CustomType, struct_field_to_ty_list},
-    error::parser::ParserError,
+    error::{DebugInformation, parser::ParserError},
     tokenizer::Token,
 };
 
 #[derive(Debug, Clone, Display, Default, PartialEq, Eq, Hash)]
-pub enum Type
+pub enum Value
 {
     I64(i64),
     F64(NotNan<f64>),
@@ -45,7 +45,7 @@ pub enum Type
     #[default]
     Void,
 
-    Struct((String, OrdMap<String, Type>)),
+    Struct((String, OrdMap<String, Value>)),
 
     /// First item is the type of the array
     /// Second item is the length
@@ -170,41 +170,41 @@ impl FloatBits for f64
 
 impl<T: PartialEq + Debug> Eq for NotNan<T> {}
 
-impl Type
+impl Value
 {
-    pub fn discriminant(&self) -> TypeDiscriminant
+    pub fn discriminant(&self) -> Type
     {
         match self {
-            Type::I64(_) => TypeDiscriminant::I64,
-            Type::F64(_) => TypeDiscriminant::F64,
-            Type::U64(_) => TypeDiscriminant::U64,
-            Type::I32(_) => TypeDiscriminant::I32,
-            Type::F32(_) => TypeDiscriminant::F32,
-            Type::U32(_) => TypeDiscriminant::U32,
-            Type::I16(_) => TypeDiscriminant::I16,
-            Type::F16(_) => TypeDiscriminant::F16,
-            Type::U16(_) => TypeDiscriminant::U16,
-            Type::U8(_) => TypeDiscriminant::U8,
-            Type::String(_) => TypeDiscriminant::String,
-            Type::Boolean(_) => TypeDiscriminant::Boolean,
-            Type::Void => TypeDiscriminant::Void,
-            Type::Struct((struct_name, struct_fields)) => {
+            Value::I64(_) => Type::I64,
+            Value::F64(_) => Type::F64,
+            Value::U64(_) => Type::U64,
+            Value::I32(_) => Type::I32,
+            Value::F32(_) => Type::F32,
+            Value::U32(_) => Type::U32,
+            Value::I16(_) => Type::I16,
+            Value::F16(_) => Type::F16,
+            Value::U16(_) => Type::U16,
+            Value::U8(_) => Type::U8,
+            Value::String(_) => Type::String,
+            Value::Boolean(_) => Type::Boolean,
+            Value::Void => Type::Void,
+            Value::Struct((struct_name, struct_fields)) => {
                 let mut struct_field_ty_list = OrdMap::new();
 
                 for (name, ty) in struct_fields.iter() {
                     struct_field_ty_list.insert(name.clone(), ty.discriminant());
                 }
 
-                TypeDiscriminant::Struct((struct_name.clone(), struct_field_ty_list))
+                Type::Struct((struct_name.clone(), struct_field_ty_list))
             },
-            Type::Array(inner) => TypeDiscriminant::Array(inner.clone()),
-            Type::Pointer((_, inner_ty)) => TypeDiscriminant::Pointer(inner_ty.clone()),
+            Value::Array(inner) => Type::Array(inner.clone()),
+            Value::Pointer((_, inner_ty)) => Type::Pointer(inner_ty.clone()),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Eq, Hash, EnumTryAs)]
-pub enum TypeDiscriminant
+pub enum Type
 {
     I64,
     F64,
@@ -225,13 +225,16 @@ pub enum TypeDiscriminant
 
     #[default]
     Void,
-
-    Struct((String, OrdMap<String, TypeDiscriminant>)),
+    
+    /// Automatic type casting is not implemented for enum variants due to it being ineffecient and difficult with the current codebase. (aka im too lazy)
+    Enum((Box<Type>, OrdMap<String, (Value, DebugInformation)>)),
+    
+    Struct((String, OrdMap<String, Type>)),
     Array((Box<Token>, usize)),
     Pointer(Option<Box<Token>>),
 }
 
-impl TypeDiscriminant
+impl Type
 {
     pub fn is_float(&self) -> bool
     {
@@ -259,7 +262,7 @@ impl TypeDiscriminant
             Self::Struct(_) => 13,
             Self::Pointer(_) => 15,
             Self::Array(_) => 1,
-            // Self::Enum(_) => 4,
+            Self::Enum(_) => 4,
             _ => panic!("DWARF identifier requested on invalid type."),
         }
     }
@@ -286,6 +289,7 @@ impl TypeDiscriminant
                     .map(|(_, ty)| ty.sizeof(custom_types.clone()))
                     .sum()
             },
+            Self::Enum((inner_ty, _)) => inner_ty.sizeof(custom_types.clone()),
             Self::Array((inner, _)) => {
                 token_to_ty(inner, &custom_types)
                     .unwrap()
@@ -302,37 +306,38 @@ impl TypeDiscriminant
     ) -> anyhow::Result<BasicTypeEnum<'_>>
     {
         let basic_ty = match self {
-            TypeDiscriminant::I64 => BasicTypeEnum::IntType(ctx.i64_type()),
-            TypeDiscriminant::F64 => BasicTypeEnum::FloatType(ctx.f64_type()),
-            TypeDiscriminant::U64 => BasicTypeEnum::IntType(ctx.i64_type()),
-            TypeDiscriminant::I32 => BasicTypeEnum::IntType(ctx.i32_type()),
-            TypeDiscriminant::F32 => BasicTypeEnum::FloatType(ctx.f32_type()),
-            TypeDiscriminant::U32 => BasicTypeEnum::IntType(ctx.i32_type()),
-            TypeDiscriminant::I16 => BasicTypeEnum::IntType(ctx.i16_type()),
-            TypeDiscriminant::F16 => BasicTypeEnum::FloatType(ctx.f16_type()),
-            TypeDiscriminant::U16 => BasicTypeEnum::IntType(ctx.i16_type()),
-            TypeDiscriminant::U8 => BasicTypeEnum::IntType(ctx.i8_type()),
-            TypeDiscriminant::String => {
+            Type::I64 => BasicTypeEnum::IntType(ctx.i64_type()),
+            Type::F64 => BasicTypeEnum::FloatType(ctx.f64_type()),
+            Type::U64 => BasicTypeEnum::IntType(ctx.i64_type()),
+            Type::I32 => BasicTypeEnum::IntType(ctx.i32_type()),
+            Type::F32 => BasicTypeEnum::FloatType(ctx.f32_type()),
+            Type::U32 => BasicTypeEnum::IntType(ctx.i32_type()),
+            Type::I16 => BasicTypeEnum::IntType(ctx.i16_type()),
+            Type::F16 => BasicTypeEnum::FloatType(ctx.f16_type()),
+            Type::U16 => BasicTypeEnum::IntType(ctx.i16_type()),
+            Type::U8 => BasicTypeEnum::IntType(ctx.i8_type()),
+            Type::String => {
                 BasicTypeEnum::PointerType(
                     ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE)),
                 )
             },
-            TypeDiscriminant::Boolean => BasicTypeEnum::IntType(ctx.bool_type()),
-            TypeDiscriminant::Void => unimplemented!("A BasicTypeEnum cannot be a `Void` type."),
-            TypeDiscriminant::Struct((_struct_name, fields)) => {
+            Type::Boolean => BasicTypeEnum::IntType(ctx.bool_type()),
+            Type::Void => unimplemented!("A BasicTypeEnum cannot be a `Void` type."),
+            Type::Struct((_struct_name, fields)) => {
                 BasicTypeEnum::StructType(ctx.struct_type(
                     &struct_field_to_ty_list(ctx, &fields, custom_types.clone())?,
                     false,
                 ))
             },
-            TypeDiscriminant::Array((array_ty, len)) => {
+            Type::Array((array_ty, len)) => {
                 BasicTypeEnum::ArrayType(
                     token_to_ty(&array_ty, &custom_types)?
                         .to_basic_type_enum(ctx, custom_types.clone())?
                         .array_type(len as u32),
                 )
             },
-            TypeDiscriminant::Pointer(_) => {
+            Type::Enum((ty, _)) => ty.to_basic_type_enum(&ctx, custom_types.clone())?,
+            Type::Pointer(_) => {
                 BasicTypeEnum::PointerType(
                     ctx.ptr_type(AddressSpace::from(size_of::<usize>() as u16)),
                 )
@@ -343,56 +348,60 @@ impl TypeDiscriminant
     }
 }
 
-impl From<TypeDiscriminant> for Type
+impl From<Type> for Value
 {
-    fn from(value: TypeDiscriminant) -> Self
+    fn from(value: Type) -> Self
     {
         match value {
-            TypeDiscriminant::I64 => Self::I64(0),
-            TypeDiscriminant::F64 => Self::F64(NotNan::new(0.0).unwrap()),
-            TypeDiscriminant::U64 => Self::U64(0),
-            TypeDiscriminant::I32 => Self::I32(0),
-            TypeDiscriminant::F32 => Self::F32(NotNan::new(0.0).unwrap()),
-            TypeDiscriminant::U32 => Self::U32(0),
-            TypeDiscriminant::I16 => Self::I16(0),
-            TypeDiscriminant::F16 => Self::F16(NotNan::new_f16(0.0).unwrap()),
-            TypeDiscriminant::U16 => Self::U16(0),
-            TypeDiscriminant::U8 => Self::U8(0),
-            TypeDiscriminant::String => Self::String(String::new()),
-            TypeDiscriminant::Boolean => Self::Boolean(false),
-            TypeDiscriminant::Void => Self::Void,
-            TypeDiscriminant::Struct(_) => {
+            Type::I64 => Self::I64(0),
+            Type::F64 => Self::F64(NotNan::new(0.0).unwrap()),
+            Type::U64 => Self::U64(0),
+            Type::I32 => Self::I32(0),
+            Type::F32 => Self::F32(NotNan::new(0.0).unwrap()),
+            Type::U32 => Self::U32(0),
+            Type::I16 => Self::I16(0),
+            Type::F16 => Self::F16(NotNan::new_f16(0.0).unwrap()),
+            Type::U16 => Self::U16(0),
+            Type::U8 => Self::U8(0),
+            Type::String => Self::String(String::new()),
+            Type::Boolean => Self::Boolean(false),
+            Type::Void => Self::Void,
+            Type::Struct(_) => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
-            TypeDiscriminant::Array(array) => Self::Array(array),
-            TypeDiscriminant::Pointer(_) => Self::Pointer((0, None)),
+            Type::Enum(_) => {
+                unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
+            },
+            Type::Array(array) => Self::Array(array),
+            Type::Pointer(_) => Self::Pointer((0, None)),
         }
     }
 }
 
-impl Display for TypeDiscriminant
+impl Display for Type
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
     {
         f.write_str(&match self {
-            TypeDiscriminant::I64 => "I64".to_string(),
-            TypeDiscriminant::F64 => "F64".to_string(),
-            TypeDiscriminant::U64 => "U64".to_string(),
-            TypeDiscriminant::I16 => "I16".to_string(),
-            TypeDiscriminant::F16 => "F16".to_string(),
-            TypeDiscriminant::U16 => "U16".to_string(),
-            TypeDiscriminant::I32 => "I32".to_string(),
-            TypeDiscriminant::F32 => "F32".to_string(),
-            TypeDiscriminant::U32 => "U32".to_string(),
-            TypeDiscriminant::U8 => "U8".to_string(),
-            TypeDiscriminant::String => "String".to_string(),
-            TypeDiscriminant::Boolean => "Boolean".to_string(),
-            TypeDiscriminant::Void => "Void".to_string(),
-            TypeDiscriminant::Struct((struct_name, _)) => format!("Struct({struct_name})"),
-            TypeDiscriminant::Array((inner_ty, len)) => {
+            Type::I64 => "I64".to_string(),
+            Type::F64 => "F64".to_string(),
+            Type::U64 => "U64".to_string(),
+            Type::I16 => "I16".to_string(),
+            Type::F16 => "F16".to_string(),
+            Type::U16 => "U16".to_string(),
+            Type::I32 => "I32".to_string(),
+            Type::F32 => "F32".to_string(),
+            Type::U32 => "U32".to_string(),
+            Type::U8 => "U8".to_string(),
+            Type::String => "String".to_string(),
+            Type::Boolean => "Boolean".to_string(),
+            Type::Void => "Void".to_string(),
+            Type::Struct((struct_name, _)) => format!("Struct({struct_name})"),
+            Type::Array((inner_ty, len)) => {
                 format!("Array(ty: {inner_ty}, len:{len})")
             },
-            TypeDiscriminant::Pointer(inner_ty) => format!("Ptr<{:?}>", inner_ty),
+            Type::Pointer(inner_ty) => format!("Ptr<{:?}>", inner_ty),
+            Type::Enum((ty, _)) => format!("Enum<{ty}>"),
         })
     }
 }
@@ -400,8 +409,8 @@ impl Display for TypeDiscriminant
 // TODO: Rework this
 pub fn unparsed_const_to_typed_literal_unsafe(
     raw_string: String,
-    dest_type: Option<TypeDiscriminant>,
-) -> Result<Type, ParserError>
+    dest_type: Option<Type>,
+) -> Result<Value, ParserError>
 {
     let parsed_val = if let Some(dest_type) = dest_type {
         let parsed_num = raw_string
@@ -409,130 +418,136 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             .map_err(|_| ParserError::InvalidTypeCast(raw_string.clone(), dest_type.clone()))?;
 
         match dest_type {
-            TypeDiscriminant::I64 => {
+            Type::I64 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
-                        TypeDiscriminant::I64,
+                        Type::I64,
                     ));
                 }
                 else {
-                    Type::I64(parsed_num as i64)
+                    Value::I64(parsed_num as i64)
                 }
             },
-            TypeDiscriminant::F64 => Type::F64(parsed_num.into()),
-            TypeDiscriminant::U64 => {
+            Type::F64 => Value::F64(parsed_num.into()),
+            Type::U64 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
-                        TypeDiscriminant::U64,
+                        Type::U64,
                     ));
                 }
                 else {
-                    Type::U64(parsed_num as u64)
+                    Value::U64(parsed_num as u64)
                 }
             },
-            TypeDiscriminant::I16 => {
+            Type::I16 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
-                        TypeDiscriminant::I16,
+                        Type::I16,
                     ));
                 }
                 else {
-                    Type::I16(parsed_num as i16)
+                    Value::I16(parsed_num as i16)
                 }
             },
-            TypeDiscriminant::F16 => Type::F16(NotNan::new_f16(parsed_num as f16)?),
-            TypeDiscriminant::U16 => {
+            Type::F16 => Value::F16(NotNan::new_f16(parsed_num as f16)?),
+            Type::U16 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
-                        TypeDiscriminant::U16,
+                        Type::U16,
                     ));
                 }
                 else {
-                    Type::U16(parsed_num as u16)
+                    Value::U16(parsed_num as u16)
                 }
             },
-            TypeDiscriminant::I32 => {
+            Type::I32 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
-                        TypeDiscriminant::I32,
+                        Type::I32,
                     ));
                 }
                 else {
-                    Type::I32(parsed_num as i32)
+                    Value::I32(parsed_num as i32)
                 }
             },
-            TypeDiscriminant::F32 => Type::F32(NotNan::new(parsed_num as f32)?),
-            TypeDiscriminant::U32 => {
+            Type::F32 => Value::F32(NotNan::new(parsed_num as f32)?),
+            Type::U32 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
-                        TypeDiscriminant::U32,
+                        Type::U32,
                     ));
                 }
                 else {
-                    Type::U32(parsed_num as u32)
+                    Value::U32(parsed_num as u32)
                 }
             },
-            TypeDiscriminant::U8 => {
+            Type::U8 => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
-                        TypeDiscriminant::U32,
+                        Type::U32,
                     ));
                 }
                 else {
-                    Type::U8(parsed_num as u8)
+                    Value::U8(parsed_num as u8)
                 }
             },
-            TypeDiscriminant::String => {
+            Type::String => {
                 return Err(ParserError::InvalidTypeCast(
                     parsed_num.to_string(),
-                    TypeDiscriminant::String,
+                    Type::String,
                 ));
             },
-            TypeDiscriminant::Boolean => {
+            Type::Boolean => {
                 if parsed_num == 1.0 {
-                    Type::Boolean(true)
+                    Value::Boolean(true)
                 }
                 else if parsed_num == 0.0 {
-                    Type::Boolean(false)
+                    Value::Boolean(false)
                 }
                 else {
                     return Err(ParserError::InvalidTypeCast(
                         raw_string.clone(),
-                        TypeDiscriminant::Boolean,
+                        Type::Boolean,
                     ));
                 }
             },
-            TypeDiscriminant::Void => Type::Void,
-            TypeDiscriminant::Struct(inner) => {
+            Type::Void => Value::Void,
+            Type::Struct(inner) => {
                 return Err(ParserError::InvalidTypeCast(
                     raw_string,
-                    TypeDiscriminant::Struct(inner),
+                    Type::Struct(inner),
                 ));
             },
-            TypeDiscriminant::Array(inner) => {
+            Type::Array(inner) => {
                 return Err(ParserError::InvalidTypeCast(
                     raw_string,
-                    TypeDiscriminant::Array(inner),
+                    Type::Array(inner),
                 ));
             },
-            TypeDiscriminant::Pointer(_) => {
+            Type::Pointer(_) => {
                 if parsed_num.floor() != parsed_num {
                     return Err(ParserError::InvalidTypeCast(
                         parsed_num.to_string(),
-                        TypeDiscriminant::I16,
+                        Type::I16,
                     ));
                 }
                 else {
-                    Type::Pointer((parsed_num as usize, None))
+                    Value::Pointer((parsed_num as usize, None))
                 }
             },
+            Type::Enum(inner) => {
+                return Err(ParserError::InvalidTypeCast(
+                    raw_string,
+                    Type::Enum(inner),
+                ));
+            }
         }
     }
     else {
@@ -541,10 +556,10 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             .map_err(|_| ParserError::ValueTypeUnknown(raw_string.clone()))?;
 
         if raw_string.contains('.') {
-            Type::F64(parsed_num.into())
+            Value::F64(parsed_num.into())
         }
         else {
-            Type::I64(parsed_num as i64)
+            Value::I64(parsed_num as i64)
         }
     };
 
@@ -712,14 +727,14 @@ impl<T: Hash + Eq + Clone> OrdSet<T>
 pub fn token_to_ty(
     token: &Token,
     custom_types: &IndexMap<String, CustomType>,
-) -> anyhow::Result<TypeDiscriminant>
+) -> anyhow::Result<Type>
 {
     match &token {
         Token::Identifier(ident) => {
             if let Some(custom_type) = custom_types.get(ident) {
                 match custom_type {
                     CustomType::Struct(struct_def) => {
-                        Ok(TypeDiscriminant::Struct(struct_def.clone()))
+                        Ok(Type::Struct(struct_def.clone()))
                     },
                     CustomType::Enum(_ord_map) => unimplemented!(),
                 }

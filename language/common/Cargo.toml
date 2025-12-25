@@ -45,3 +45,4 @@ console-subscriber = "0.5.0"
 tracing-subscriber = "0.3.22"
 
 dashmap = "6.1.0"
+double-map = "0.14.0"

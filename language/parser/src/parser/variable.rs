@@ -12,30 +12,31 @@ use common::{
     },
     tokenizer::Token,
     tracing::info,
-    ty::{OrdMap, TypeDiscriminant, token_to_ty, unparsed_const_to_typed_literal_unsafe},
+    ty::{OrdMap, Type, token_to_ty, unparsed_const_to_typed_literal_unsafe},
 };
 
 use crate::parser::function::{fetch_and_merge_debug_information, parse_function_call_args};
 
 /// This is a top level implementation for `parse_token_as_value`
+/// TODO: Check if the Arcs are necessary.
 pub fn parse_value(
     tokens: &[Token],
     tokens_offset: usize,
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    variable_scope: &mut IndexMap<String, Type>,
     // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
-    mut desired_variable_type: Option<TypeDiscriminant>,
+    mut desired_variable_type: Option<Type>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<(ParsedTokenInstance, usize, TypeDiscriminant)>
+) -> Result<(ParsedTokenInstance, usize, Type)>
 {
     let mut token_idx = 0;
 
     // This is used for parsing mathematical expressions, comparisons
     let mut parsed_token: Option<ParsedTokenInstance> = None;
-    let mut comparison_other_side_ty: Option<TypeDiscriminant> = None;
+    let mut comparison_other_side_ty: Option<Type> = None;
 
     while token_idx < tokens.len() {
         let current_token = &tokens.get(token_idx).ok_or({
@@ -355,16 +356,16 @@ pub fn parse_token_as_value(
     // Functions available
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     // Variables available
-    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    variable_scope: &mut IndexMap<String, Type>,
     // The variable's type which we are parsing for
-    desired_variable_type: Option<TypeDiscriminant>,
+    desired_variable_type: Option<Type>,
     // Universal token_idx, this sets which token we are currently parsing
     token_idx: &mut usize,
     // The token we want to evaluate, this is the first token of the slice most of the time
     eval_token: &Token,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-) -> Result<(ParsedTokenInstance, TypeDiscriminant)>
+) -> Result<(ParsedTokenInstance, Type)>
 {
     // Match the token
     let (inner_parsed_token, inner_parsed_token_ty) = match eval_token {
@@ -655,7 +656,7 @@ pub fn parse_token_as_value(
 
                             return Ok((
                                 init_struct_token,
-                                TypeDiscriminant::Struct((
+                                Type::Struct((
                                     _struct_name.clone(),
                                     struct_inner.clone(),
                                 )),
@@ -667,8 +668,29 @@ pub fn parse_token_as_value(
                         )
                         .into());
                     },
-                    CustomType::Enum(_index_map) => {
-                        todo!()
+                    CustomType::Enum((ty, variants)) => {
+                        if let Some(Token::DoubleColon) = tokens.get(*token_idx + 1) && let Some(Token::Identifier(variant_name)) = tokens.get(*token_idx + 2) {
+                            // Lookup enum variant with name
+                            let variant = variants.get(variant_name);
+
+                            match variant {
+                                Some((variant_val, dbg_inf)) => {
+                                    return Ok((
+                                        ParsedTokenInstance {
+                                            inner: ParsedToken::Literal(variant_val.clone()),
+                                            debug_information: *dbg_inf
+                                        },
+                                        Type::Enum((Box::new(ty.clone()), variants.clone()))
+                                    ));
+                                },
+                                // If the variant was not found we can raise an error
+                                None => {
+                                    return Err(ParserError::EnumVariantNotFound(variant_name.clone()).into());
+                                },
+                            }
+                        }
+
+                        return Err(ParserError::SyntaxError(SyntaxError::InvalidEnumVariantDefinition).into())
                     },
                 }
             }
@@ -722,7 +744,7 @@ pub fn parse_token_as_value(
             let mut vec_values = Vec::new();
 
             // We will check for the valid length of the init value later, at codegen.
-            if let TypeDiscriminant::Array((inner_token, _len)) = &desired_variable_type {
+            if let Type::Array((inner_token, _len)) = &desired_variable_type {
                 let inner_ty = token_to_ty(inner_token, &custom_types)?;
 
                 while array_item_idx < tokens_inside_block.len() {
@@ -796,7 +818,7 @@ pub fn parse_token_as_value(
 
             (
                 ParsedToken::GetPointerTo(Box::new(parsed_token)),
-                TypeDiscriminant::Pointer(Some(Box::new(Token::TypeDefinition(val_ty)))),
+                Type::Pointer(Some(Box::new(Token::TypeDefinition(val_ty)))),
             )
         },
         Token::Dereference => {
@@ -818,7 +840,7 @@ pub fn parse_token_as_value(
 
             (
                 ParsedToken::DerefPointer(Box::new(parsed_token)),
-                TypeDiscriminant::I32,
+                Type::I32,
             )
         },
         _ => {
@@ -853,8 +875,8 @@ pub fn parse_variable_expression(
     token_idx: &mut usize,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
-    variable_type: TypeDiscriminant,
+    variable_scope: &mut IndexMap<String, Type>,
+    variable_type: Type,
     custom_types: Arc<IndexMap<String, CustomType>>,
     mut variable_ref: ParsedTokenInstance,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
@@ -984,7 +1006,7 @@ pub fn parse_variable_expression(
         Token::Dot => {
             let field_name = &tokens.get(*token_idx + 1);
 
-            if let TypeDiscriminant::Struct((struct_name, struct_def)) = variable_type {
+            if let Type::Struct((struct_name, struct_def)) = variable_type {
                 if let Some(Token::Identifier(field_name)) = field_name {
                     if let Some(struct_field_ty) = struct_def.get(field_name) {
                         if let ParsedTokenInstance {
@@ -1073,7 +1095,7 @@ pub fn parse_variable_expression(
             }
         },
         Token::OpenSquareBrackets => {
-            if let TypeDiscriminant::Array((inner_token, _len)) = variable_type {
+            if let Type::Array((inner_token, _len)) = variable_type {
                 let inner_type = token_to_ty(&inner_token, &custom_types)?;
 
                 *token_idx += 1;
@@ -1096,7 +1118,7 @@ pub fn parse_variable_expression(
                     origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
-                    Some(TypeDiscriminant::U32),
+                    Some(Type::U32),
                     function_imports.clone(),
                     custom_types.clone(),
                 )?;
@@ -1170,8 +1192,8 @@ fn handle_variable(
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
     function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
-    desired_variable_type: Option<TypeDiscriminant>,
+    variable_scope: &mut IndexMap<String, Type>,
+    desired_variable_type: Option<Type>,
     token_idx: &mut usize,
     function_imports: &Arc<HashMap<String, FunctionSignature>>,
     custom_types: &Arc<IndexMap<String, CustomType>>,
@@ -1180,8 +1202,8 @@ fn handle_variable(
     // Last parsed token parsed
     parsed_token: ParsedToken,
     // Last parsed token's type
-    variable_type: TypeDiscriminant,
-) -> Result<(ParsedToken, TypeDiscriminant)>
+    variable_type: Type,
+) -> Result<(ParsedToken, Type)>
 {
     if let Some(Token::As) = tokens.get(*token_idx) {
         if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
@@ -1235,7 +1257,7 @@ fn handle_variable(
         }
     }
     else if let Some(Token::Dot) = tokens.get(*token_idx) {
-        if let TypeDiscriminant::Struct(struct_def) = variable_type {
+        if let Type::Struct(struct_def) = variable_type {
             *token_idx += 1;
 
             let mut struct_field_reference =
@@ -1279,7 +1301,7 @@ fn handle_variable(
         }
     }
     else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
-        if !matches!(variable_type, TypeDiscriminant::Array(_)) {
+        if !matches!(variable_type, Type::Array(_)) {
             return Err(ParserError::TypeMismatchNonIndexable(variable_type.clone()).into());
         }
 
@@ -1303,7 +1325,7 @@ fn handle_variable(
             origin_token_idx,
             function_signatures.clone(),
             variable_scope,
-            Some(TypeDiscriminant::U32),
+            Some(Type::U32),
             function_imports.clone(),
             custom_types.clone(),
         )?;
@@ -1313,7 +1335,7 @@ fn handle_variable(
         if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
             *token_idx += 1;
 
-            if let TypeDiscriminant::Array((inner_ty, _len)) = variable_type.clone() {
+            if let Type::Array((inner_ty, _len)) = variable_type.clone() {
                 let handling_continuation = handle_variable(
                     tokens,
                     token_offset,
@@ -1367,8 +1389,8 @@ fn set_value_math_expr(
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
-    variable_type: TypeDiscriminant,
+    variable_scope: &mut IndexMap<String, Type>,
+    variable_type: Type,
     variable_reference: ParsedTokenInstance,
     math_symbol: MathematicalSymbol,
     standard_function_table: Arc<HashMap<String, FunctionSignature>>,
@@ -1429,13 +1451,13 @@ fn get_struct_field_stack(
     tokens: &[Token],
     token_idx: &mut usize,
     identifier: &String,
-    (struct_name, struct_fields): &(String, OrdMap<String, TypeDiscriminant>),
+    (struct_name, struct_fields): &(String, OrdMap<String, Type>),
     struct_field_stack: &mut StructFieldReference,
-) -> Result<TypeDiscriminant>
+) -> Result<Type>
 {
     if let Some(Token::Identifier(field_name)) = tokens.get(*token_idx) {
         let struct_field_query = struct_fields.get(field_name);
-        if let Some(TypeDiscriminant::Struct(struct_def)) = struct_field_query {
+        if let Some(Type::Struct(struct_def)) = struct_field_query {
             *token_idx += 1;
 
             struct_field_stack.field_stack.push(field_name.clone());
@@ -1480,11 +1502,11 @@ pub fn init_struct(
     token_offset: usize,
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
-    this_struct_field: &IndexMap<String, TypeDiscriminant>,
+    this_struct_field: &IndexMap<String, Type>,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
-    variable_scope: &mut IndexMap<String, TypeDiscriminant>,
+    variable_scope: &mut IndexMap<String, Type>,
 ) -> Result<(usize, ParsedTokenInstance)>
 {
     let mut struct_field_init_map: IndexMap<String, Box<ParsedTokenInstance>> = IndexMap::new();

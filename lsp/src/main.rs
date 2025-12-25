@@ -58,7 +58,6 @@ impl LanguageServer for Backend
                     commands: vec!["dummy.do_something".to_string()],
                     work_done_progress_options: Default::default(),
                 }),
-
                 workspace: Some(WorkspaceServerCapabilities {
                     workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
@@ -72,7 +71,7 @@ impl LanguageServer for Backend
                             text_document_registration_options: {
                                 TextDocumentRegistrationOptions {
                                     document_selector: Some(vec![DocumentFilter {
-                                        language: Some("nrs".to_string()),
+                                        language: Some("fog".to_string()),
                                         scheme: Some("file".to_string()),
                                         pattern: None,
                                     }]),

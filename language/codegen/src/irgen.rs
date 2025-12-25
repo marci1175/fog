@@ -19,7 +19,7 @@ use common::{
     },
     parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
     tokenizer::Token,
-    ty::{OrdMap, TypeDiscriminant, token_to_ty},
+    ty::{OrdMap, Type, token_to_ty},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -44,9 +44,9 @@ pub fn create_ir<'main, 'ctx>(
     // The list of ParsedToken-s
     parsed_tokens: Vec<ParsedTokenInstance>,
     // This argument is initialized with the HashMap of the arguments
-    available_arguments: HashMap<String, (BasicValueEnum<'ctx>, TypeDiscriminant)>,
+    available_arguments: HashMap<String, (BasicValueEnum<'ctx>, Type)>,
     // Type returned type of the Function
-    fn_ret_ty: TypeDiscriminant,
+    fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
@@ -57,7 +57,7 @@ where
 {
     let mut variable_map: HashMap<
         String,
-        ((PointerValue, BasicMetadataTypeEnum), TypeDiscriminant),
+        ((PointerValue, BasicMetadataTypeEnum), Type),
     > = HashMap::new();
 
     for (arg_name, (arg_val, arg_ty)) in available_arguments {
@@ -126,24 +126,24 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
         String,
         (
             (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            TypeDiscriminant,
+            Type,
         ),
     >,
     variable_reference: Option<(
         String,
         (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-        TypeDiscriminant,
+        Type,
     )>,
 
     // Type returned type of the Function
-    fn_ret_ty: TypeDiscriminant,
+    fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     allocation_list: &mut VecDeque<(
         ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
-        TypeDiscriminant,
+        Type,
     )>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
@@ -157,7 +157,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
         // Type of the variable
         BasicMetadataTypeEnum<'ctx>,
         // TypeDiscriminant of the variable
-        TypeDiscriminant,
+        Type,
     )>,
 >
 where
@@ -523,15 +523,15 @@ where
                 };
 
                 match ty_disc {
-                    TypeDiscriminant::I64 | TypeDiscriminant::I32 | TypeDiscriminant::I16 => {
+                    Type::I64 | Type::I32 | Type::I16 => {
                         match desired_type {
-                            TypeDiscriminant::I64 => {
+                            Type::I64 => {
                                 builder.build_store(
                                     ref_ptr,
                                     builder.build_load(var_ty.into_int_type(), var_ptr, "")?,
                                 )?;
                             },
-                            TypeDiscriminant::F64 => {
+                            Type::F64 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -544,7 +544,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::U64 => {
+                            Type::U64 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -554,7 +554,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::I32 | TypeDiscriminant::U32 => {
+                            Type::I32 | Type::U32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -567,7 +567,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::F32 => {
+                            Type::F32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -580,7 +580,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::I16 | TypeDiscriminant::U16 => {
+                            Type::I16 | Type::U16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -593,7 +593,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::F16 => {
+                            Type::F16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -606,7 +606,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::U8 => {
+                            Type::U8 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -619,7 +619,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::String => {
+                            Type::String => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -633,7 +633,7 @@ where
 
                                 builder.build_store(ref_ptr, buf_ptr)?;
                             },
-                            TypeDiscriminant::Boolean => {
+                            Type::Boolean => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -650,27 +650,27 @@ where
 
                                 builder.build_store(ref_ptr, bool_value)?;
                             },
-                            TypeDiscriminant::Void => {
+                            Type::Void => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Struct(_) => {
+                            Type::Struct(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Array(_) => {
+                            Type::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer(_) => todo!(),
+                            Type::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::F64 | TypeDiscriminant::F32 | TypeDiscriminant::F16 => {
+                    Type::F64 | Type::F32 | Type::F16 => {
                         match desired_type {
-                            TypeDiscriminant::I64 => {
+                            Type::I64 => {
                                 let value = builder.build_float_to_signed_int(
                                     builder
                                         .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -680,13 +680,13 @@ where
                                 )?;
                                 builder.build_store(ref_ptr, value)?;
                             },
-                            TypeDiscriminant::F64 => {
+                            Type::F64 => {
                                 builder.build_store(
                                     ref_ptr,
                                     builder.build_load(var_ty.into_float_type(), var_ptr, "")?,
                                 )?;
                             },
-                            TypeDiscriminant::U64 => {
+                            Type::U64 => {
                                 let value = builder.build_float_to_unsigned_int(
                                     builder
                                         .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -696,7 +696,7 @@ where
                                 )?;
                                 builder.build_store(ref_ptr, value)?;
                             },
-                            TypeDiscriminant::I32 => {
+                            Type::I32 => {
                                 let value = builder.build_float_to_signed_int(
                                     builder
                                         .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -706,7 +706,7 @@ where
                                 )?;
                                 builder.build_store(ref_ptr, value)?;
                             },
-                            TypeDiscriminant::F32 => {
+                            Type::F32 => {
                                 let value = builder
                                     .build_load(var_ty.into_float_type(), var_ptr, "")?
                                     .into_float_value();
@@ -716,7 +716,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::U32 => {
+                            Type::U32 => {
                                 let value = builder.build_float_to_unsigned_int(
                                     builder
                                         .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -726,7 +726,7 @@ where
                                 )?;
                                 builder.build_store(ref_ptr, value)?;
                             },
-                            TypeDiscriminant::I16 => {
+                            Type::I16 => {
                                 let value = builder.build_float_to_signed_int(
                                     builder
                                         .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -736,7 +736,7 @@ where
                                 )?;
                                 builder.build_store(ref_ptr, value)?;
                             },
-                            TypeDiscriminant::F16 => {
+                            Type::F16 => {
                                 let value = builder
                                     .build_load(var_ty.into_float_type(), var_ptr, "")?
                                     .into_float_value();
@@ -746,7 +746,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::U16 => {
+                            Type::U16 => {
                                 let value = builder.build_float_to_unsigned_int(
                                     builder
                                         .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -756,7 +756,7 @@ where
                                 )?;
                                 builder.build_store(ref_ptr, value)?;
                             },
-                            TypeDiscriminant::U8 => {
+                            Type::U8 => {
                                 let value = builder.build_float_to_unsigned_int(
                                     builder
                                         .build_load(var_ty.into_float_type(), var_ptr, "")?
@@ -766,7 +766,7 @@ where
                                 )?;
                                 builder.build_store(ref_ptr, value)?;
                             },
-                            TypeDiscriminant::String => {
+                            Type::String => {
                                 let value = builder
                                     .build_load(var_ty.into_float_type(), var_ptr, "")?
                                     .into_float_value();
@@ -780,7 +780,7 @@ where
 
                                 builder.build_store(ref_ptr, buf_ptr)?;
                             },
-                            TypeDiscriminant::Boolean => {
+                            Type::Boolean => {
                                 let value = builder
                                     .build_load(var_ty.into_float_type(), var_ptr, "")?
                                     .into_float_value();
@@ -796,30 +796,30 @@ where
 
                                 builder.build_store(ref_ptr, bool_value)?;
                             },
-                            TypeDiscriminant::Void => {
+                            Type::Void => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Struct(_) => {
+                            Type::Struct(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Array(_) => {
+                            Type::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer(_) => todo!(),
+                            Type::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::U64
-                    | TypeDiscriminant::U32
-                    | TypeDiscriminant::U16
-                    | TypeDiscriminant::U8 => {
+                    Type::U64
+                    | Type::U32
+                    | Type::U16
+                    | Type::U8 => {
                         match desired_type {
-                            TypeDiscriminant::I64 => {
+                            Type::I64 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -831,7 +831,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::F64 => {
+                            Type::F64 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -844,13 +844,13 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::U64 => {
+                            Type::U64 => {
                                 builder.build_store(
                                     ref_ptr,
                                     builder.build_load(var_ty.into_int_type(), var_ptr, "")?,
                                 )?;
                             },
-                            TypeDiscriminant::I32 => {
+                            Type::I32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -862,7 +862,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::F32 => {
+                            Type::F32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -875,7 +875,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::U32 => {
+                            Type::U32 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -887,7 +887,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::I16 => {
+                            Type::I16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -899,7 +899,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::F16 => {
+                            Type::F16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -912,7 +912,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::U16 => {
+                            Type::U16 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -924,7 +924,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::U8 => {
+                            Type::U8 => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -936,7 +936,7 @@ where
 
                                 builder.build_store(ref_ptr, cast_res)?;
                             },
-                            TypeDiscriminant::String => {
+                            Type::String => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -950,7 +950,7 @@ where
 
                                 builder.build_store(ref_ptr, buf_ptr)?;
                             },
-                            TypeDiscriminant::Boolean => {
+                            Type::Boolean => {
                                 let value = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -967,51 +967,51 @@ where
 
                                 builder.build_store(ref_ptr, bool_value)?;
                             },
-                            TypeDiscriminant::Void => {
+                            Type::Void => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Struct(_) => {
+                            Type::Struct(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Array(_) => {
+                            Type::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer(_) => todo!(),
+                            Type::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::String => {
+                    Type::String => {
                         match desired_type {
-                            TypeDiscriminant::I64 => todo!(),
-                            TypeDiscriminant::F64 => todo!(),
-                            TypeDiscriminant::U64 => todo!(),
-                            TypeDiscriminant::I32 => todo!(),
-                            TypeDiscriminant::F32 => todo!(),
-                            TypeDiscriminant::U32 => todo!(),
-                            TypeDiscriminant::I16 => todo!(),
-                            TypeDiscriminant::F16 => todo!(),
-                            TypeDiscriminant::U16 => todo!(),
-                            TypeDiscriminant::U8 => todo!(),
-                            TypeDiscriminant::String => todo!(),
-                            TypeDiscriminant::Boolean => todo!(),
-                            TypeDiscriminant::Void => todo!(),
-                            TypeDiscriminant::Struct(_) => todo!(),
-                            TypeDiscriminant::Array(_) => {
+                            Type::I64 => todo!(),
+                            Type::F64 => todo!(),
+                            Type::U64 => todo!(),
+                            Type::I32 => todo!(),
+                            Type::F32 => todo!(),
+                            Type::U32 => todo!(),
+                            Type::I16 => todo!(),
+                            Type::F16 => todo!(),
+                            Type::U16 => todo!(),
+                            Type::U8 => todo!(),
+                            Type::String => todo!(),
+                            Type::Boolean => todo!(),
+                            Type::Void => todo!(),
+                            Type::Struct(_) => todo!(),
+                            Type::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer(_) => todo!(),
+                            Type::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::Boolean => {
+                    Type::Boolean => {
                         match desired_type {
-                            TypeDiscriminant::I64 => {
+                            Type::I64 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1025,7 +1025,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::F64 => {
+                            Type::F64 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1039,7 +1039,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::U64 => {
+                            Type::U64 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1053,7 +1053,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::I32 => {
+                            Type::I32 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1066,7 +1066,7 @@ where
 
                                 builder.build_store(ref_ptr, i32_val)?;
                             },
-                            TypeDiscriminant::F32 => {
+                            Type::F32 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1080,7 +1080,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::U32 => {
+                            Type::U32 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1094,7 +1094,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::I16 => {
+                            Type::I16 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1108,7 +1108,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::F16 => {
+                            Type::F16 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1122,7 +1122,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::U16 => {
+                            Type::U16 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1136,7 +1136,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::U8 => {
+                            Type::U8 => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1150,7 +1150,7 @@ where
 
                                 builder.build_store(var_ptr, val)?;
                             },
-                            TypeDiscriminant::String => {
+                            Type::String => {
                                 let val = builder
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
@@ -1166,105 +1166,105 @@ where
 
                                 builder.build_store(var_ptr, buf)?;
                             },
-                            TypeDiscriminant::Boolean => {
+                            Type::Boolean => {
                                 builder.build_store(
                                     ref_ptr,
                                     builder.build_load(var_ty.into_int_type(), var_ptr, "")?,
                                 )?;
                             },
-                            TypeDiscriminant::Void => {
+                            Type::Void => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Struct(_) => {
+                            Type::Struct(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Array(_) => {
+                            Type::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer(_) => todo!(),
+                            Type::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::Void => {
+                    Type::Void => {
                         match desired_type {
-                            TypeDiscriminant::I64 => todo!(),
-                            TypeDiscriminant::F64 => todo!(),
-                            TypeDiscriminant::U64 => todo!(),
-                            TypeDiscriminant::I32 => todo!(),
-                            TypeDiscriminant::F32 => todo!(),
-                            TypeDiscriminant::U32 => todo!(),
-                            TypeDiscriminant::I16 => todo!(),
-                            TypeDiscriminant::F16 => todo!(),
-                            TypeDiscriminant::U16 => todo!(),
-                            TypeDiscriminant::U8 => todo!(),
-                            TypeDiscriminant::String => todo!(),
-                            TypeDiscriminant::Boolean => todo!(),
-                            TypeDiscriminant::Void => todo!(),
-                            TypeDiscriminant::Struct(_) => todo!(),
-                            TypeDiscriminant::Array(_) => {
+                            Type::I64 => todo!(),
+                            Type::F64 => todo!(),
+                            Type::U64 => todo!(),
+                            Type::I32 => todo!(),
+                            Type::F32 => todo!(),
+                            Type::U32 => todo!(),
+                            Type::I16 => todo!(),
+                            Type::F16 => todo!(),
+                            Type::U16 => todo!(),
+                            Type::U8 => todo!(),
+                            Type::String => todo!(),
+                            Type::Boolean => todo!(),
+                            Type::Void => todo!(),
+                            Type::Struct(_) => todo!(),
+                            Type::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer(_) => todo!(),
+                            Type::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::Struct(_) => {
+                    Type::Struct(_) => {
                         match desired_type {
-                            TypeDiscriminant::I64 => todo!(),
-                            TypeDiscriminant::F64 => todo!(),
-                            TypeDiscriminant::U64 => todo!(),
-                            TypeDiscriminant::I32 => todo!(),
-                            TypeDiscriminant::F32 => todo!(),
-                            TypeDiscriminant::U32 => todo!(),
-                            TypeDiscriminant::I16 => todo!(),
-                            TypeDiscriminant::F16 => todo!(),
-                            TypeDiscriminant::U16 => todo!(),
-                            TypeDiscriminant::U8 => todo!(),
-                            TypeDiscriminant::String => todo!(),
-                            TypeDiscriminant::Boolean => todo!(),
-                            TypeDiscriminant::Void => todo!(),
-                            TypeDiscriminant::Struct(_) => todo!(),
-                            TypeDiscriminant::Array(_) => {
+                            Type::I64 => todo!(),
+                            Type::F64 => todo!(),
+                            Type::U64 => todo!(),
+                            Type::I32 => todo!(),
+                            Type::F32 => todo!(),
+                            Type::U32 => todo!(),
+                            Type::I16 => todo!(),
+                            Type::F16 => todo!(),
+                            Type::U16 => todo!(),
+                            Type::U8 => todo!(),
+                            Type::String => todo!(),
+                            Type::Boolean => todo!(),
+                            Type::Void => todo!(),
+                            Type::Struct(_) => todo!(),
+                            Type::Array(_) => {
                                 return Err(
                                     CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
                                 );
                             },
-                            TypeDiscriminant::Pointer(_) => todo!(),
+                            Type::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::Array(ref type_discriminant) => {
+                    Type::Array(ref type_discriminant) => {
                         match desired_type {
-                            TypeDiscriminant::I64 => todo!(),
-                            TypeDiscriminant::F64 => todo!(),
-                            TypeDiscriminant::U64 => todo!(),
-                            TypeDiscriminant::I32 => todo!(),
-                            TypeDiscriminant::F32 => todo!(),
-                            TypeDiscriminant::U32 => todo!(),
-                            TypeDiscriminant::I16 => todo!(),
-                            TypeDiscriminant::F16 => todo!(),
-                            TypeDiscriminant::U16 => todo!(),
-                            TypeDiscriminant::U8 => todo!(),
-                            TypeDiscriminant::String => todo!(),
-                            TypeDiscriminant::Boolean => todo!(),
-                            TypeDiscriminant::Void => todo!(),
-                            TypeDiscriminant::Struct(_) => todo!(),
-                            TypeDiscriminant::Array(_) => {
+                            Type::I64 => todo!(),
+                            Type::F64 => todo!(),
+                            Type::U64 => todo!(),
+                            Type::I32 => todo!(),
+                            Type::F32 => todo!(),
+                            Type::U32 => todo!(),
+                            Type::I16 => todo!(),
+                            Type::F16 => todo!(),
+                            Type::U16 => todo!(),
+                            Type::U8 => todo!(),
+                            Type::String => todo!(),
+                            Type::Boolean => todo!(),
+                            Type::Void => todo!(),
+                            Type::Struct(_) => todo!(),
+                            Type::Array(_) => {
                                 return Err(CodeGenError::InvalidTypeCast(
                                     ty_disc.clone(),
                                     desired_type,
                                 )
                                 .into());
                             },
-                            TypeDiscriminant::Pointer(_) => todo!(),
+                            Type::Pointer(_) => todo!(),
                         }
                     },
-                    TypeDiscriminant::Pointer(_) => todo!(),
+                    Type::Pointer(_) => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1281,7 +1281,7 @@ where
         ParsedToken::MathematicalExpression(lhs, mathematical_symbol, rhs) => {
             // Allocate memory on the stack for the value stored in the lhs
             let parsed_lhs =
-                (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
+                (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, Type)>> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         allocation_list.front().cloned()
                         && *lhs == current_token
@@ -1309,7 +1309,7 @@ where
 
             // Allocate memory on the stack for the value stored in the rhs
             let parsed_rhs =
-                (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, TypeDiscriminant)>> {
+                (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, Type)>> {
                     if let Some((current_token, ptr, ptr_ty, disc)) =
                         allocation_list.front().cloned()
                         && *rhs == current_token
@@ -1516,7 +1516,7 @@ where
                         (
                             match fn_sig
                                 .args
-                                .arguments_list
+                                .arguments
                                 .get_index(argument_idx)
                                 .map(|inner| inner.0.clone())
                             {
@@ -1530,7 +1530,7 @@ where
             // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
             let fn_argument_list: OrdMap<
                 FunctionArgumentIdentifier<String, usize>,
-                (ParsedTokenInstance, TypeDiscriminant),
+                (ParsedTokenInstance, Type),
             > = IndexMap::from_iter(arg_iter).into();
 
             // Keep the list of the arguments passed in
@@ -1673,95 +1673,95 @@ where
                 };
 
                 match fn_sig.return_type.clone() {
-                    TypeDiscriminant::I32 => {
+                    Type::I32 => {
                         // Get returned float value
                         let returned_int = returned.into_int_value();
 
                         // Store the const in the pointer
                         builder.build_store(v_ptr, returned_int)?;
                     },
-                    TypeDiscriminant::F32 => {
+                    Type::F32 => {
                         // Get returned float value
                         let returned_float = returned.into_float_value();
 
                         // Store the const in the pointer
                         builder.build_store(v_ptr, returned_float)?;
                     },
-                    TypeDiscriminant::U32 => {
+                    Type::U32 => {
                         // Get returned float value
                         let returned_float = returned.into_int_value();
 
                         // Store the const in the pointer
                         builder.build_store(v_ptr, returned_float)?;
                     },
-                    TypeDiscriminant::U8 => {
+                    Type::U8 => {
                         // Get returned float value
                         let returned_smalint = returned.into_int_value();
 
                         // Store the const in the pointer
                         builder.build_store(v_ptr, returned_smalint)?;
                     },
-                    TypeDiscriminant::String => {
+                    Type::String => {
                         // Get returned pointer value
                         let returned_ptr = returned.into_pointer_value();
 
                         // Store the const in the pointer
                         builder.build_store(v_ptr, returned_ptr)?;
                     },
-                    TypeDiscriminant::Boolean => {
+                    Type::Boolean => {
                         // Get returned boolean value
                         let returned_bool = returned.into_int_value();
 
                         builder.build_store(v_ptr, returned_bool)?;
                     },
-                    TypeDiscriminant::Void => {
+                    Type::Void => {
                         unreachable!(
                             "A void can not be parsed, as a void functuion returns a `None`."
                         );
                     },
-                    TypeDiscriminant::Struct((struct_name, struct_inner)) => {
+                    Type::Struct((struct_name, struct_inner)) => {
                         // Get returned pointer value
                         let returned_struct = returned.into_struct_value();
 
                         // Store the const in the pointer
                         builder.build_store(v_ptr, returned_struct)?;
                     },
-                    TypeDiscriminant::I64 => {
+                    Type::I64 => {
                         let returned_int = returned.into_int_value();
 
                         builder.build_store(v_ptr, returned_int)?;
                     },
-                    TypeDiscriminant::F64 => {
+                    Type::F64 => {
                         let returned_float = returned.into_float_value();
 
                         builder.build_store(v_ptr, returned_float)?;
                     },
-                    TypeDiscriminant::U64 => {
+                    Type::U64 => {
                         let returned_int = returned.into_int_value();
 
                         builder.build_store(v_ptr, returned_int)?;
                     },
-                    TypeDiscriminant::I16 => {
+                    Type::I16 => {
                         let returned_int = returned.into_int_value();
 
                         builder.build_store(v_ptr, returned_int)?;
                     },
-                    TypeDiscriminant::F16 => {
+                    Type::F16 => {
                         let returned_float = returned.into_float_value();
 
                         builder.build_store(v_ptr, returned_float)?;
                     },
-                    TypeDiscriminant::U16 => {
+                    Type::U16 => {
                         let returned_int = returned.into_int_value();
 
                         builder.build_store(v_ptr, returned_int)?;
                     },
-                    TypeDiscriminant::Array(_) => {
+                    Type::Array(_) => {
                         let returned_array = returned.into_array_value();
 
                         builder.build_store(v_ptr, returned_array)?;
                     },
-                    TypeDiscriminant::Pointer(_) => {
+                    Type::Pointer(_) => {
                         let returned_pointer = returned.into_pointer_value();
 
                         builder.build_store(v_ptr, returned_pointer)?;
@@ -1797,7 +1797,7 @@ where
             }
             else {
                 // Ensure the return type was `Void` else raise an error
-                if fn_sig.return_type != TypeDiscriminant::Void {
+                if fn_sig.return_type != Type::Void {
                     return Err(
                         CodeGenError::InternalFunctionReturnedVoid(fn_sig.return_type).into(),
                     );
@@ -1944,7 +1944,7 @@ where
                     builder,
                     ctx,
                     if_definition.complete_body,
-                    TypeDiscriminant::Void,
+                    Type::Void,
                     branch_compl,
                     variable_map,
                     this_fn,
@@ -1964,7 +1964,7 @@ where
                     builder,
                     ctx,
                     if_definition.incomplete_body,
-                    TypeDiscriminant::Void,
+                    Type::Void,
                     branch_incompl,
                     variable_map,
                     this_fn,
@@ -2194,7 +2194,7 @@ where
             let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
 
             let cmp_result = match comparison_hand_side_ty {
-                TypeDiscriminant::I16 | TypeDiscriminant::I32 | TypeDiscriminant::I64 => {
+                Type::I16 | Type::I32 | Type::I64 => {
                     builder.build_int_compare(
                         order.into_int_predicate(true),
                         lhs_val.into_int_value(),
@@ -2202,7 +2202,7 @@ where
                         "cmp",
                     )?
                 },
-                TypeDiscriminant::F16 | TypeDiscriminant::F32 | TypeDiscriminant::F64 => {
+                Type::F16 | Type::F32 | Type::F64 => {
                     builder.build_float_compare(
                         order.into_float_predicate(),
                         lhs_val.into_float_value(),
@@ -2210,11 +2210,11 @@ where
                         "cmp",
                     )?
                 },
-                TypeDiscriminant::U8
-                | TypeDiscriminant::U16
-                | TypeDiscriminant::U32
-                | TypeDiscriminant::U64
-                | TypeDiscriminant::Boolean => {
+                Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::Boolean => {
                     builder.build_int_compare(
                         order.into_int_predicate(false),
                         lhs_val.into_int_value(),
@@ -2222,23 +2222,23 @@ where
                         "cmp",
                     )?
                 },
-                TypeDiscriminant::String => {
+                Type::String => {
                     unimplemented!()
                 },
-                TypeDiscriminant::Void => ctx.bool_type().const_int(1, false),
-                TypeDiscriminant::Struct(_) => {
+                Type::Void => ctx.bool_type().const_int(1, false),
+                Type::Struct(_) => {
                     unimplemented!()
                 },
-                TypeDiscriminant::Array(type_discriminant) => unimplemented!(),
-                TypeDiscriminant::Pointer(_) => todo!(),
+                Type::Array(type_discriminant) => unimplemented!(),
+                Type::Pointer(_) => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
                 // Make sure that the variable we are setting is of type `Boolean` as a comparison always returns a `Bool`.
-                if ref_var_ty_disc != TypeDiscriminant::Boolean {
+                if ref_var_ty_disc != Type::Boolean {
                     return Err(CodeGenError::VariableTypeMismatch(
                         ref_var_ty_disc,
-                        TypeDiscriminant::Boolean,
+                        Type::Boolean,
                     )
                     .into());
                 }
@@ -2258,20 +2258,20 @@ where
 
                 allocation_list.pop_front();
 
-                Some((cmp_ptr, cmp_ty, TypeDiscriminant::Boolean))
+                Some((cmp_ptr, cmp_ty, Type::Boolean))
             }
             else {
                 let (v_ptr, v_ty) = create_new_variable(
                     ctx,
                     builder,
                     "cmp_result",
-                    &TypeDiscriminant::Boolean,
+                    &Type::Boolean,
                     custom_types.clone(),
                 )?;
 
                 builder.build_store(v_ptr, cmp_result)?;
 
-                Some((v_ptr, v_ty, TypeDiscriminant::Boolean))
+                Some((v_ptr, v_ty, Type::Boolean))
             }
         },
         ParsedToken::CodeBlock(parsed_tokens) => todo!(),
@@ -2311,7 +2311,7 @@ where
                 builder,
                 ctx,
                 parsed_tokens,
-                TypeDiscriminant::Void,
+                Type::Void,
                 loop_body,
                 variable_map,
                 this_fn,
@@ -2380,7 +2380,7 @@ where
             )?;
 
             if let Some((ptr, ptr_ty, type_disc)) = var_ref {
-                if let TypeDiscriminant::Array((inner_ty, len)) = type_disc.clone() {
+                if let Type::Array((inner_ty, len)) = type_disc.clone() {
                     let inner_ty = token_to_ty(&*inner_ty, &custom_types)?;
 
                     let pointee_ty = ty_to_llvm_ty(ctx, &type_disc, custom_types.clone())?;
@@ -2468,7 +2468,7 @@ where
         },
         ParsedToken::ArrayInitialization(values, inner_ty) => {
             if let Some((_, (ptr, _ptr_ty), ty_disc)) = variable_reference
-                && let TypeDiscriminant::Array((_, len)) = ty_disc
+                && let Type::Array((_, len)) = ty_disc
             {
                 let mut array_values: Vec<BasicValueEnum> = Vec::new();
 
@@ -2560,17 +2560,17 @@ where
                             let (var_ptr, _var_type) = var_ty;
 
                             // Check the type of the passed in variable to see if it is a pointer
-                            if !matches!(var_ty_disc, TypeDiscriminant::Pointer(_)) {
+                            if !matches!(var_ty_disc, Type::Pointer(_)) {
                                 return Err(CodeGenError::VariableTypeMismatch(
                                     var_ty_disc,
-                                    TypeDiscriminant::Pointer(None),
+                                    Type::Pointer(None),
                                 )
                                 .into());
                             }
 
                             // If the pointer's inner type has been defined run the type check
                             // If not ignore the type check
-                            if let TypeDiscriminant::Pointer(Some(inner_token)) = var_ty_disc {
+                            if let Type::Pointer(Some(inner_token)) = var_ty_disc {
                                 let reference_inner_ty = token_to_ty(&*inner_token, &custom_types)?;
 
                                 // Check the type of the value, check for a type mismatch inside the pointer
@@ -2591,7 +2591,7 @@ where
                             return Ok(Some((
                                 ptr,
                                 ty,
-                                TypeDiscriminant::Pointer(Some(Box::new(Token::TypeDefinition(
+                                Type::Pointer(Some(Box::new(Token::TypeDefinition(
                                     ty_disc,
                                 )))),
                             )));
@@ -2626,10 +2626,10 @@ where
             match val_reference {
                 Some((ptr, ty, ty_disc)) => {
                     // Check the type of the passed in variable to see if it is a pointer
-                    if !matches!(ty_disc, TypeDiscriminant::Pointer(_)) {
+                    if !matches!(ty_disc, Type::Pointer(_)) {
                         return Err(CodeGenError::VariableTypeMismatch(
                             ty_disc,
-                            TypeDiscriminant::Pointer(None),
+                            Type::Pointer(None),
                         )
                         .into());
                     }
@@ -2641,7 +2641,7 @@ where
                             let ptr_variant = ty_disc.try_as_pointer().unwrap();
 
                             // If the inner value does not have a pre-determined inner type of the value the pointer is pointing to, assume the type we want to dereference to is the variable's type
-                            let deref_ty: TypeDiscriminant =
+                            let deref_ty: Type =
                                 if let Some(pointer_inner) = ptr_variant {
                                     token_to_ty(&*pointer_inner, &custom_types)?
                                 }
@@ -2759,14 +2759,14 @@ pub fn generate_ir<'ctx>(
     for (function_name, function_definition) in parsed_functions.iter() {
         let function_type = create_fn_type_from_ty_disc(
             context,
-            function_definition.function_sig.clone(),
+            function_definition.signature.clone(),
             custom_types.clone(),
         )?;
 
         // Create function signature
         let function = module.add_function(function_name, function_type, None);
 
-        for hint in function_definition.function_sig.compiler_hints.iter() {
+        for hint in function_definition.signature.compiler_hints.iter() {
             match hint {
                 common::parser::CompilerHint::Cold => {
                     let attr =
@@ -2805,7 +2805,7 @@ pub fn generate_ir<'ctx>(
             }
         }
 
-        let return_type = function_definition.function_sig.return_type.clone();
+        let return_type = function_definition.signature.return_type.clone();
 
         if !is_optimized {
             let debug_subprogram = create_subprogram_debug_information(
@@ -2834,7 +2834,7 @@ pub fn generate_ir<'ctx>(
 
         // Check if the return type is Void.
         // We dont require the user to insert a return void instruction, instead we do it automaticly.
-        if function_definition.function_sig.return_type == TypeDiscriminant::Void {
+        if function_definition.signature.return_type == Type::Void {
             // Insert the return void instruction
             let instruction = builder.build_return(None)?;
 
@@ -2843,15 +2843,15 @@ pub fn generate_ir<'ctx>(
         }
 
         // Create a HashMap of the arguments the function takes
-        let mut arguments: HashMap<String, (BasicValueEnum, TypeDiscriminant)> = HashMap::new();
+        let mut arguments: HashMap<String, (BasicValueEnum, Type)> = HashMap::new();
 
         // Get the arguments and store them in the HashMap
         for (idx, argument) in function.get_param_iter().enumerate() {
             // Get the name of the argument from the function signature's argument list
             let argument_entry = function_definition
-                .function_sig
+                .signature
                 .args
-                .arguments_list
+                .arguments
                 .get_index(idx)
                 .unwrap();
 
@@ -2877,7 +2877,7 @@ pub fn generate_ir<'ctx>(
             context,
             function_definition.inner.clone(),
             arguments,
-            function_definition.function_sig.return_type.clone(),
+            function_definition.signature.return_type.clone(),
             basic_block,
             function,
             parsed_functions.clone(),
@@ -2897,13 +2897,13 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // The list of ParsedToken-s
     parsed_tokens: Vec<ParsedTokenInstance>,
     // Type returned type of the Function
-    fn_ret_ty: TypeDiscriminant,
+    fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
     variable_map: &mut HashMap<
         String,
         (
             (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            TypeDiscriminant,
+            Type,
         ),
     >,
     this_fn: FunctionValue<'ctx>,
@@ -2915,7 +2915,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
         ParsedTokenInstance,
         PointerValue<'ctx>,
         BasicMetadataTypeEnum<'ctx>,
-        TypeDiscriminant,
+        Type,
     )>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,

@@ -5,7 +5,7 @@ use common::{
     indexmap::IndexMap,
     inkwell::{AddressSpace, context::Context, module::Module},
     parser::{FunctionDefinition, FunctionSignature},
-    ty::TypeDiscriminant,
+    ty::Type,
 };
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 
@@ -26,7 +26,7 @@ pub fn import_user_lib_functions<'a>(
 
         let mut args = Vec::new();
 
-        for (_, arg_ty) in import_sig.args.arguments_list.iter() {
+        for (_, arg_ty) in import_sig.args.arguments.iter() {
             let argument_sig = ty_enum_to_metadata_ty_enum(
                 arg_ty
                     .clone()
@@ -37,43 +37,43 @@ pub fn import_user_lib_functions<'a>(
         }
 
         let function_type = match &import_sig.return_type {
-            TypeDiscriminant::I32 => {
+            Type::I32 => {
                 let return_type = ctx.i32_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::F32 => {
+            Type::F32 => {
                 let return_type = ctx.f32_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::U32 => {
+            Type::U32 => {
                 let return_type = ctx.i32_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::U8 => {
+            Type::U8 => {
                 let return_type = ctx.i32_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::String => {
+            Type::String => {
                 let return_type =
                     ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::Boolean => {
+            Type::Boolean => {
                 let return_type = ctx.bool_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::Void => {
+            Type::Void => {
                 let return_type = ctx.void_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::Struct((_struct_name, struct_inner)) => {
+            Type::Struct((_struct_name, struct_inner)) => {
                 let return_type = ctx.struct_type(
                     &struct_field_to_ty_list(ctx, struct_inner, custom_types.clone())?,
                     import_sig.args.ellipsis_present,
@@ -81,38 +81,38 @@ pub fn import_user_lib_functions<'a>(
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::I64 => {
+            Type::I64 => {
                 let return_type = ctx.i64_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::F64 => {
+            Type::F64 => {
                 let return_type = ctx.f32_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::U64 => {
+            Type::U64 => {
                 let return_type = ctx.i64_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::I16 => {
+            Type::I16 => {
                 let return_type = ctx.i16_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::F16 => {
+            Type::F16 => {
                 let return_type = ctx.f16_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::U16 => {
+            Type::U16 => {
                 let return_type = ctx.i16_type();
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            TypeDiscriminant::Array(_) => todo!(),
-            TypeDiscriminant::Pointer(_) => {
+            Type::Array(_) => todo!(),
+            Type::Pointer(_) => {
                 let return_type =
                     ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
 
