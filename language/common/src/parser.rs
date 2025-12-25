@@ -7,7 +7,7 @@ use crate::{
     codegen::{CustomType, FunctionArgumentIdentifier, If, Order},
     error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     tokenizer::Token,
-    ty::{OrdMap, OrdSet, Type, Value, token_to_ty},
+    ty::{OrdMap, OrdSet, Type, Value, ty_from_token},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -337,7 +337,7 @@ pub fn parse_signature_args(
                     continue;
                 }
                 else {
-                    let custom_ty = token_to_ty(&token_list[args_idx + 2], custom_types)?;
+                    let custom_ty = ty_from_token(&token_list[args_idx + 2], custom_types)?;
 
                     // Store the argument in the HashMap
                     args.arguments.insert(var_name, custom_ty.clone());

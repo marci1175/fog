@@ -19,7 +19,7 @@ use common::{
     },
     parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
     tokenizer::Token,
-    ty::{OrdMap, Type, token_to_ty},
+    ty::{OrdMap, Type, ty_from_token},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -455,11 +455,13 @@ where
             if let Some(var_ref) = variable_reference {
                 let (ptr, _var_type) = var_ref.1;
 
+                let var_ref_ty = var_ref.2;
+
                 // Check the type of the value, check for a type mismatch
-                if literal.discriminant() != var_ref.2.try_get_enum_inner().clone() {
+                if literal.discriminant() != var_ref_ty {
                     return Err(CodeGenError::VariableTypeMismatch(
                         literal.discriminant(),
-                        var_ref.2.try_get_enum_inner().clone(),
+                        var_ref_ty,
                     )
                     .into());
                 }
@@ -514,6 +516,34 @@ where
                     (ptr, ty_disc)
                 };
 
+                // Try to get the literal of the original value which hasnt been converted yet.
+                if let Some(literal) = parsed_token.inner.try_as_literal_ref() {
+                    // Check if the type is an enum
+                    if let Type::Enum((ty, _body)) = literal.discriminant() {
+                        // Check if the enum's inner type matches with the desired type. If not raise an error
+                        if &*ty == &desired_type {
+                            builder.build_store(
+                                ref_ptr,
+                                builder.build_load(
+                                    desired_type.to_basic_type_enum(&ctx, custom_types.clone())?,
+                                    var_ptr,
+                                    "get_enum_inner",
+                                )?,
+                            )?;
+
+                            return Ok(None);
+                        }
+                        else {
+                            return Err(CodeGenError::EnumInnerTypeMismatch(
+                                (*ty).clone(),
+                                desired_type.clone(),
+                            )
+                            .into());
+                        }
+                    }
+                }
+
+                // If the shorter path fails try manually converting the values
                 match ty_disc {
                     Type::I64 | Type::I32 | Type::I16 => {
                         match desired_type {
@@ -658,7 +688,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => todo!(),
+                            Type::Enum(_) => unreachable!(),
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -805,7 +835,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => todo!(),
+                            Type::Enum(_) => unreachable!(),
                         }
                     },
                     Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
@@ -974,7 +1004,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => todo!(),
+                            Type::Enum(_) => unreachable!(),
                         }
                     },
                     Type::String => {
@@ -999,7 +1029,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => todo!(),
+                            Type::Enum(_) => unreachable!(),
                         }
                     },
                     Type::Boolean => {
@@ -1181,7 +1211,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => todo!(),
+                            Type::Enum(_) => unreachable!(),
                         }
                     },
                     Type::Void => {
@@ -1206,7 +1236,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => todo!(),
+                            Type::Enum(_) => unreachable!(),
                         }
                     },
                     Type::Struct(_) => {
@@ -1231,7 +1261,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => todo!(),
+                            Type::Enum(_) => unreachable!(),
                         }
                     },
                     Type::Array(ref type_discriminant) => {
@@ -1258,11 +1288,11 @@ where
                                 .into());
                             },
                             Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => todo!(),
+                            Type::Enum(_) => unreachable!(),
                         }
                     },
                     Type::Pointer(_) => todo!(),
-                    Type::Enum(_) => todo!(),
+                    Type::Enum(_) => unreachable!(),
                 }
 
                 if variable_reference.is_none() {
@@ -2281,7 +2311,7 @@ where
 
             if let Some((ptr, ptr_ty, type_disc)) = var_ref {
                 if let Type::Array((inner_ty, len)) = type_disc.clone() {
-                    let inner_ty = token_to_ty(&*inner_ty, &custom_types)?;
+                    let inner_ty = ty_from_token(&*inner_ty, &custom_types)?;
 
                     let pointee_ty = ty_to_llvm_ty(ctx, &type_disc, custom_types.clone())?;
 
@@ -2471,7 +2501,8 @@ where
                             // If the pointer's inner type has been defined run the type check
                             // If not ignore the type check
                             if let Type::Pointer(Some(inner_token)) = var_ty_disc {
-                                let reference_inner_ty = token_to_ty(&*inner_token, &custom_types)?;
+                                let reference_inner_ty =
+                                    ty_from_token(&*inner_token, &custom_types)?;
 
                                 // Check the type of the value, check for a type mismatch inside the pointer
                                 if reference_inner_ty != ty_disc {
@@ -2540,7 +2571,7 @@ where
 
                             // If the inner value does not have a pre-determined inner type of the value the pointer is pointing to, assume the type we want to dereference to is the variable's type
                             let deref_ty: Type = if let Some(pointer_inner) = ptr_variant {
-                                token_to_ty(&*pointer_inner, &custom_types)?
+                                ty_from_token(&*pointer_inner, &custom_types)?
                             }
                             else {
                                 var_ref_ty_disc.clone()
@@ -2578,7 +2609,7 @@ where
                             Some((ptr, ty, {
                                 match ty_disc.try_as_pointer().unwrap() {
                                     Some(pointer_inner) => {
-                                        token_to_ty(&*pointer_inner, &custom_types)?
+                                        ty_from_token(&*pointer_inner, &custom_types)?
                                     },
                                     None => {
                                         return Err(CodeGenError::VagueDereference.into());

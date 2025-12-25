@@ -12,7 +12,7 @@ use common::{
     },
     tokenizer::Token,
     tracing::info,
-    ty::{OrdMap, Type, token_to_ty, unparsed_const_to_typed_literal_unsafe},
+    ty::{OrdMap, Type, ty_from_token, unparsed_const_to_typed_literal_unsafe},
 };
 
 use crate::parser::function::{fetch_and_merge_debug_information, parse_function_call_args};
@@ -674,13 +674,17 @@ pub fn parse_token_as_value(
                             let variant = variants.get(variant_name);
 
                             match variant {
-                                Some((variant_val, dbg_inf)) => {
+                                Some(parsed_token) => {
                                     *token_idx += 3;
 
                                     return Ok((
                                         ParsedTokenInstance {
-                                            inner: ParsedToken::Literal(variant_val.clone()),
-                                            debug_information: *dbg_inf,
+                                            inner: ParsedToken::Literal(common::ty::Value::Enum((
+                                                ty.clone(),
+                                                variants.clone(),
+                                                variant_name.clone(),
+                                            ))),
+                                            debug_information: parsed_token.debug_information,
                                         },
                                         Type::Enum((Box::new(ty.clone()), variants.clone())),
                                     ));
@@ -753,7 +757,7 @@ pub fn parse_token_as_value(
 
             // We will check for the valid length of the init value later, at codegen.
             if let Type::Array((inner_token, _len)) = &desired_variable_type {
-                let inner_ty = token_to_ty(inner_token, &custom_types)?;
+                let inner_ty = ty_from_token(inner_token, &custom_types)?;
 
                 while array_item_idx < tokens_inside_block.len() {
                     // Parse the value of the array
@@ -812,7 +816,7 @@ pub fn parse_token_as_value(
                     match ty.clone().try_as_pointer() {
                         Some(inner) => {
                             inner.map(|inner_token| {
-                                token_to_ty(&inner_token, &custom_types).unwrap()
+                                ty_from_token(&inner_token, &custom_types).unwrap()
                             })
                         },
                         None => Some(ty.clone()),
@@ -1101,7 +1105,7 @@ pub fn parse_variable_expression(
         },
         Token::OpenSquareBrackets => {
             if let Type::Array((inner_token, _len)) = variable_type {
-                let inner_type = token_to_ty(&inner_token, &custom_types)?;
+                let inner_type = ty_from_token(&inner_token, &custom_types)?;
 
                 *token_idx += 1;
 
@@ -1367,7 +1371,7 @@ fn handle_variable(
                         }),
                         Box::new(value),
                     ),
-                    token_to_ty(&inner_ty, custom_types)?,
+                    ty_from_token(&inner_ty, custom_types)?,
                 )?;
 
                 Ok(handling_continuation)

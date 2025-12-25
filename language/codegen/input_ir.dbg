@@ -1,39 +1,6 @@
 [COMPILER IR]
 [
     ParsedTokenInstance {
-        inner: ReturnValue(
-            ParsedTokenInstance {
-                inner: VariableReference(
-                    BasicReference(
-                        "n",
-                    ),
-                ),
-                debug_information: DebugInformation {
-                    char_start: CharPosition {
-                        line: 0,
-                        column: 0,
-                    },
-                    char_end: CharPosition {
-                        line: 0,
-                        column: 0,
-                    },
-                },
-            },
-        ),
-        debug_information: DebugInformation {
-            char_start: CharPosition {
-                line: 0,
-                column: 0,
-            },
-            char_end: CharPosition {
-                line: 0,
-                column: 0,
-            },
-        },
-    },
-][COMPILER IR]
-[
-    ParsedTokenInstance {
         inner: NewVariable(
             "macska",
             Enum(
@@ -41,11 +8,13 @@
                     String,
                     OrdMap(
                         {
-                            "kutya": (
-                                String(
-                                    "kutya",
+                            "kutya": ParsedTokenInstance {
+                                inner: Literal(
+                                    String(
+                                        "kutya",
+                                    ),
                                 ),
-                                DebugInformation {
+                                debug_information: DebugInformation {
                                     char_start: CharPosition {
                                         line: 0,
                                         column: 0,
@@ -55,12 +24,14 @@
                                         column: 0,
                                     },
                                 },
-                            ),
-                            "cica": (
-                                String(
-                                    "cica",
+                            },
+                            "cica": ParsedTokenInstance {
+                                inner: Literal(
+                                    String(
+                                        "cica",
+                                    ),
                                 ),
-                                DebugInformation {
+                                debug_information: DebugInformation {
                                     char_start: CharPosition {
                                         line: 0,
                                         column: 0,
@@ -70,15 +41,56 @@
                                         column: 0,
                                     },
                                 },
-                            ),
+                            },
                         },
                     ),
                 ),
             ),
             ParsedTokenInstance {
                 inner: Literal(
-                    String(
-                        "cica",
+                    Enum(
+                        (
+                            String,
+                            OrdMap(
+                                {
+                                    "kutya": ParsedTokenInstance {
+                                        inner: Literal(
+                                            String(
+                                                "kutya",
+                                            ),
+                                        ),
+                                        debug_information: DebugInformation {
+                                            char_start: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                            char_end: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                        },
+                                    },
+                                    "cica": ParsedTokenInstance {
+                                        inner: Literal(
+                                            String(
+                                                "cica",
+                                            ),
+                                        ),
+                                        debug_information: DebugInformation {
+                                            char_start: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                            char_end: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                        },
+                                    },
+                                },
+                            ),
+                            "cica",
+                        ),
                     ),
                 ),
                 debug_information: DebugInformation {
@@ -107,213 +119,68 @@
     ParsedTokenInstance {
         inner: NewVariable(
             "kutya",
-            Enum(
-                (
-                    String,
-                    OrdMap(
-                        {
-                            "kutya": (
-                                String(
-                                    "kutya",
-                                ),
-                                DebugInformation {
-                                    char_start: CharPosition {
-                                        line: 0,
-                                        column: 0,
-                                    },
-                                    char_end: CharPosition {
-                                        line: 0,
-                                        column: 0,
-                                    },
-                                },
-                            ),
-                            "cica": (
-                                String(
-                                    "cica",
-                                ),
-                                DebugInformation {
-                                    char_start: CharPosition {
-                                        line: 0,
-                                        column: 0,
-                                    },
-                                    char_end: CharPosition {
-                                        line: 0,
-                                        column: 0,
-                                    },
-                                },
-                            ),
-                        },
-                    ),
-                ),
-            ),
+            String,
             ParsedTokenInstance {
-                inner: FunctionCall(
-                    (
-                        FunctionSignature {
-                            name: "fn",
-                            args: FunctionArguments {
-                                arguments: OrdMap(
-                                    {
-                                        "n": Enum(
-                                            (
-                                                String,
-                                                OrdMap(
-                                                    {
-                                                        "kutya": (
-                                                            String(
-                                                                "kutya",
-                                                            ),
-                                                            DebugInformation {
-                                                                char_start: CharPosition {
-                                                                    line: 0,
-                                                                    column: 0,
-                                                                },
-                                                                char_end: CharPosition {
-                                                                    line: 0,
-                                                                    column: 0,
-                                                                },
-                                                            },
-                                                        ),
-                                                        "cica": (
-                                                            String(
-                                                                "cica",
-                                                            ),
-                                                            DebugInformation {
-                                                                char_start: CharPosition {
-                                                                    line: 0,
-                                                                    column: 0,
-                                                                },
-                                                                char_end: CharPosition {
-                                                                    line: 0,
-                                                                    column: 0,
-                                                                },
-                                                            },
-                                                        ),
-                                                    },
-                                                ),
-                                            ),
-                                        ),
-                                    },
-                                ),
-                                ellipsis_present: false,
-                            },
-                            return_type: Enum(
+                inner: TypeCast(
+                    ParsedTokenInstance {
+                        inner: Literal(
+                            Enum(
                                 (
                                     String,
                                     OrdMap(
                                         {
-                                            "kutya": (
-                                                String(
-                                                    "kutya",
-                                                ),
-                                                DebugInformation {
-                                                    char_start: CharPosition {
-                                                        line: 0,
-                                                        column: 0,
-                                                    },
-                                                    char_end: CharPosition {
-                                                        line: 0,
-                                                        column: 0,
-                                                    },
-                                                },
-                                            ),
-                                            "cica": (
-                                                String(
-                                                    "cica",
-                                                ),
-                                                DebugInformation {
-                                                    char_start: CharPosition {
-                                                        line: 0,
-                                                        column: 0,
-                                                    },
-                                                    char_end: CharPosition {
-                                                        line: 0,
-                                                        column: 0,
-                                                    },
-                                                },
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            ),
-                            module_path: [
-                                "test_project",
-                                "fn",
-                            ],
-                            visibility: Public,
-                            compiler_hints: OrdSet(
-                                {},
-                            ),
-                            enabling_features: OrdSet(
-                                {},
-                            ),
-                        },
-                        "fn",
-                    ),
-                    OrdMap(
-                        {
-                            Identifier(
-                                "n",
-                            ): (
-                                ParsedTokenInstance {
-                                    inner: Literal(
-                                        String(
-                                            "kutya",
-                                        ),
-                                    ),
-                                    debug_information: DebugInformation {
-                                        char_start: CharPosition {
-                                            line: 0,
-                                            column: 0,
-                                        },
-                                        char_end: CharPosition {
-                                            line: 0,
-                                            column: 0,
-                                        },
-                                    },
-                                },
-                                Enum(
-                                    (
-                                        String,
-                                        OrdMap(
-                                            {
-                                                "kutya": (
+                                            "kutya": ParsedTokenInstance {
+                                                inner: Literal(
                                                     String(
                                                         "kutya",
                                                     ),
-                                                    DebugInformation {
-                                                        char_start: CharPosition {
-                                                            line: 0,
-                                                            column: 0,
-                                                        },
-                                                        char_end: CharPosition {
-                                                            line: 0,
-                                                            column: 0,
-                                                        },
-                                                    },
                                                 ),
-                                                "cica": (
+                                                debug_information: DebugInformation {
+                                                    char_start: CharPosition {
+                                                        line: 0,
+                                                        column: 0,
+                                                    },
+                                                    char_end: CharPosition {
+                                                        line: 0,
+                                                        column: 0,
+                                                    },
+                                                },
+                                            },
+                                            "cica": ParsedTokenInstance {
+                                                inner: Literal(
                                                     String(
                                                         "cica",
                                                     ),
-                                                    DebugInformation {
-                                                        char_start: CharPosition {
-                                                            line: 0,
-                                                            column: 0,
-                                                        },
-                                                        char_end: CharPosition {
-                                                            line: 0,
-                                                            column: 0,
-                                                        },
-                                                    },
                                                 ),
+                                                debug_information: DebugInformation {
+                                                    char_start: CharPosition {
+                                                        line: 0,
+                                                        column: 0,
+                                                    },
+                                                    char_end: CharPosition {
+                                                        line: 0,
+                                                        column: 0,
+                                                    },
+                                                },
                                             },
-                                        ),
+                                        },
                                     ),
+                                    "kutya",
                                 ),
                             ),
+                        ),
+                        debug_information: DebugInformation {
+                            char_start: CharPosition {
+                                line: 0,
+                                column: 0,
+                            },
+                            char_end: CharPosition {
+                                line: 0,
+                                column: 0,
+                            },
                         },
-                    ),
+                    },
+                    String,
                 ),
                 debug_information: DebugInformation {
                     char_start: CharPosition {
@@ -415,11 +282,13 @@
                                 String,
                                 OrdMap(
                                     {
-                                        "kutya": (
-                                            String(
-                                                "kutya",
+                                        "kutya": ParsedTokenInstance {
+                                            inner: Literal(
+                                                String(
+                                                    "kutya",
+                                                ),
                                             ),
-                                            DebugInformation {
+                                            debug_information: DebugInformation {
                                                 char_start: CharPosition {
                                                     line: 0,
                                                     column: 0,
@@ -429,12 +298,14 @@
                                                     column: 0,
                                                 },
                                             },
-                                        ),
-                                        "cica": (
-                                            String(
-                                                "cica",
+                                        },
+                                        "cica": ParsedTokenInstance {
+                                            inner: Literal(
+                                                String(
+                                                    "cica",
+                                                ),
                                             ),
-                                            DebugInformation {
+                                            debug_information: DebugInformation {
                                                 char_start: CharPosition {
                                                     line: 0,
                                                     column: 0,
@@ -444,7 +315,7 @@
                                                     column: 0,
                                                 },
                                             },
-                                        ),
+                                        },
                                     },
                                 ),
                             ),
@@ -470,45 +341,7 @@
                                 },
                             },
                         },
-                        Enum(
-                            (
-                                String,
-                                OrdMap(
-                                    {
-                                        "kutya": (
-                                            String(
-                                                "kutya",
-                                            ),
-                                            DebugInformation {
-                                                char_start: CharPosition {
-                                                    line: 0,
-                                                    column: 0,
-                                                },
-                                                char_end: CharPosition {
-                                                    line: 0,
-                                                    column: 0,
-                                                },
-                                            },
-                                        ),
-                                        "cica": (
-                                            String(
-                                                "cica",
-                                            ),
-                                            DebugInformation {
-                                                char_start: CharPosition {
-                                                    line: 0,
-                                                    column: 0,
-                                                },
-                                                char_end: CharPosition {
-                                                    line: 0,
-                                                    column: 0,
-                                                },
-                                            },
-                                        ),
-                                    },
-                                ),
-                            ),
-                        ),
+                        String,
                     ),
                 },
             ),

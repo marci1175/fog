@@ -6,10 +6,10 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    error::{DebugInformation, codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
+    error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{FunctionSignature, ParsedToken, ParsedTokenInstance},
     tokenizer::Token,
-    ty::{OrdMap, Type, Value, token_to_ty},
+    ty::{OrdMap, Type, ty_from_token},
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -42,7 +42,7 @@ pub enum CustomType
             // Enum type
             Type,
             // Enum variant values
-            OrdMap<String, (Value, DebugInformation)>,
+            OrdMap<String, ParsedTokenInstance>,
         ),
     ),
     // First argument is the struct's name which the Extend extends
@@ -250,7 +250,7 @@ pub fn ty_to_llvm_ty<'a>(
         Type::Array((token_ty, len)) => {
             let llvm_ty = ty_to_llvm_ty(
                 ctx,
-                &token_to_ty(&(*token_ty).clone(), &custom_types)?,
+                &ty_from_token(&(*token_ty).clone(), &custom_types)?,
                 custom_types.clone(),
             )?;
 
@@ -375,7 +375,7 @@ pub fn fetch_nested_pointer_ty(
                 Some(inner_token) => {
                     Ok(fetch_nested_pointer_ty(
                         custom_types,
-                        token_to_ty(&inner_token, custom_types)?,
+                        ty_from_token(&inner_token, custom_types)?,
                     )?)
                 },
                 None => Ok(pointer_ty),

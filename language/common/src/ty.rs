@@ -18,7 +18,8 @@ use strum_macros::Display;
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     codegen::{CustomType, struct_field_to_ty_list},
-    error::{DebugInformation, parser::ParserError},
+    error::parser::ParserError,
+    parser::ParsedTokenInstance,
     tokenizer::Token,
 };
 
@@ -50,7 +51,7 @@ pub enum Value
     /// First item is the type of the array
     /// Second item is the length
     Array((Box<Token>, usize)),
-
+    Enum((Type, OrdMap<String, ParsedTokenInstance>, String)),
     Pointer((usize, Option<Box<Token>>)),
 }
 
@@ -198,6 +199,7 @@ impl Value
                 Type::Struct((struct_name.clone(), struct_field_ty_list))
             },
             Value::Array(inner) => Type::Array(inner.clone()),
+            Value::Enum((ty, body, _)) => Type::Enum((Box::new(ty.clone()), body.clone())),
             Value::Pointer((_, inner_ty)) => Type::Pointer(inner_ty.clone()),
         }
     }
@@ -227,7 +229,7 @@ pub enum Type
     Void,
 
     /// Automatic type casting is not implemented for enum variants due to it being ineffecient and difficult with the current codebase. (aka im too lazy)
-    Enum((Box<Type>, OrdMap<String, (Value, DebugInformation)>)),
+    Enum((Box<Type>, OrdMap<String, ParsedTokenInstance>)),
 
     Struct((String, OrdMap<String, Type>)),
     Array((Box<Token>, usize)),
@@ -291,7 +293,7 @@ impl Type
             },
             Self::Enum((inner_ty, _)) => inner_ty.sizeof(custom_types.clone()),
             Self::Array((inner, _)) => {
-                token_to_ty(inner, &custom_types)
+                ty_from_token(inner, &custom_types)
                     .unwrap()
                     .sizeof(custom_types.clone())
             },
@@ -299,11 +301,11 @@ impl Type
         }
     }
 
-    pub fn to_basic_type_enum(
-        self,
-        ctx: &Context,
+    pub fn to_basic_type_enum<'a>(
+        &self,
+        ctx: &'a Context,
         custom_types: Arc<IndexMap<String, CustomType>>,
-    ) -> anyhow::Result<BasicTypeEnum<'_>>
+    ) -> anyhow::Result<BasicTypeEnum<'a>>
     {
         let basic_ty = match self {
             Type::I64 => BasicTypeEnum::IntType(ctx.i64_type()),
@@ -325,15 +327,15 @@ impl Type
             Type::Void => unimplemented!("A BasicTypeEnum cannot be a `Void` type."),
             Type::Struct((_struct_name, fields)) => {
                 BasicTypeEnum::StructType(ctx.struct_type(
-                    &struct_field_to_ty_list(ctx, &fields, custom_types.clone())?,
+                    &struct_field_to_ty_list(ctx, fields, custom_types.clone())?,
                     false,
                 ))
             },
             Type::Array((array_ty, len)) => {
                 BasicTypeEnum::ArrayType(
-                    token_to_ty(&array_ty, &custom_types)?
+                    ty_from_token(array_ty, &custom_types)?
                         .to_basic_type_enum(ctx, custom_types.clone())?
-                        .array_type(len as u32),
+                        .array_type(*len as u32),
                 )
             },
             Type::Enum((ty, _)) => ty.to_basic_type_enum(ctx, custom_types.clone())?,
@@ -350,9 +352,10 @@ impl Type
     /// Returns the inner type of an enum, if it is an enum.
     /// This function is made so that code can be shortened
     /// Be cautious when using this function to ensure correctness in the codebase.
-    pub fn try_get_enum_inner(&self) -> &Self {
+    pub fn try_get_enum_inner(self) -> Self
+    {
         if let Self::Enum((inner_ty, _)) = self {
-            return &*inner_ty;
+            return *inner_ty;
         }
 
         self
@@ -729,7 +732,7 @@ impl<T: Hash + Eq + Clone> OrdSet<T>
     }
 }
 
-pub fn token_to_ty(
+pub fn ty_from_token(
     token: &Token,
     custom_types: &IndexMap<String, CustomType>,
 ) -> anyhow::Result<Type>
@@ -739,7 +742,9 @@ pub fn token_to_ty(
             if let Some(custom_type) = custom_types.get(ident) {
                 match custom_type {
                     CustomType::Struct(struct_def) => Ok(Type::Struct(struct_def.clone())),
-                    CustomType::Enum((ty, body)) => Ok(Type::Enum((Box::new(ty.clone()), body.clone()))),
+                    CustomType::Enum((ty, body)) => {
+                        Ok(Type::Enum((Box::new(ty.clone()), body.clone())))
+                    },
                 }
             }
             else {

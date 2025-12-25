@@ -2,7 +2,7 @@ use common::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     anyhow::Result,
     codegen::{CustomType, LoopBodyBlocks, ty_to_llvm_ty},
-    error::codegen::CodeGenError,
+    error::{codegen::CodeGenError, parser::ParserError},
     indexmap::IndexMap,
     inkwell::{
         AddressSpace,
@@ -14,7 +14,7 @@ use common::{
         values::{FunctionValue, PointerValue},
     },
     parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
-    ty::{Type, Value, token_to_ty},
+    ty::{Type, Value, ty_from_token},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -162,7 +162,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
                         };
 
                         if let Type::Array((inner_ty, _len)) = &ty_disc {
-                            let array_inner_type = token_to_ty(&(**inner_ty), custom_types)?;
+                            let array_inner_type = ty_from_token(&(**inner_ty), custom_types)?;
 
                             return Ok((
                                 (
@@ -430,17 +430,23 @@ pub fn set_value_of_ptr<'ctx>(
         },
         Value::Array(inner_ty) => unimplemented!(),
         Value::Pointer((inner, _)) => {
-            let init_ptr = {
-                #[cfg(target_pointer_width = "64")]
-                {
-                    i64_type.const_int(inner as u64, false)
-                }
-
-                #[cfg(target_pointer_width = "32")]
-                {
-                    i32_type.const_int(inner as u32, false)
-                }
-            };
+            // LLVM does let us initalize a pointer type with a pre-determined address
+            builder.build_store(v_ptr, ptr_type.const_null())?;
+        },
+        Value::Enum((_ty, body, val)) => {
+            set_value_of_ptr(
+                &ctx,
+                &builder,
+                &module,
+                body.get(&val)
+                    .ok_or(ParserError::EnumVariantNotFound(val))?
+                    .inner
+                    .clone()
+                    .try_as_literal()
+                    .unwrap()
+                    .clone(),
+                v_ptr,
+            )?;
         },
     }
 
@@ -507,7 +513,7 @@ where
         };
 
         let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
-        let inner_ty = token_to_ty(&*inner_ty_token, custom_types)?;
+        let inner_ty = ty_from_token(&*inner_ty_token, custom_types)?;
 
         Ok((
             gep_ptr,

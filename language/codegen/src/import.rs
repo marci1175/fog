@@ -5,7 +5,7 @@ use common::{
     indexmap::IndexMap,
     inkwell::{AddressSpace, context::Context, module::Module, types::BasicType},
     parser::{FunctionDefinition, FunctionSignature},
-    ty::Type,
+    ty::{Type, ty_from_token},
 };
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 
@@ -119,7 +119,7 @@ pub fn import_user_lib_functions<'a>(
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
             Type::Enum((ty, _)) => {
-                let return_type = ty.clone().to_basic_type_enum(&ctx, custom_types.clone())?;
+                let return_type = ty.to_basic_type_enum(&ctx, custom_types.clone())?;
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },

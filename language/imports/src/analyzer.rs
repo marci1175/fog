@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use common::{
-    anyhow, compiler::ProjectConfig, dashmap::DashMap,
-    parser::FunctionSignature, ty::OrdSet,
+    anyhow, compiler::ProjectConfig, dashmap::DashMap, parser::FunctionSignature, ty::OrdSet,
 };
 use parser::{parser_instance::Parser, tokenizer::tokenize};
 

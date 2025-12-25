@@ -87,4 +87,6 @@ pub enum CodeGenError
     InvalidValueDereference(ParsedToken),
     #[error("A dereferencing must have a desired type to dereference to.")]
     VagueDereference,
+    #[error("Cannot cast inner value of enum with inner type of `{0}` to `{1}`.")]
+    EnumInnerTypeMismatch(Type, Type),
 }

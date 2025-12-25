@@ -121,8 +121,6 @@ pub fn find_closing_angled_bracket_char(
 {
     let mut paren_layer_counter = 1;
     for (idx, token) in paren_start_slice.iter().enumerate() {
-        dbg!(*token as char);
-
         match token {
             b'<' => paren_layer_counter += 1,
             b'>' => {

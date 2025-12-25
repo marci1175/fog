@@ -29,14 +29,10 @@ enum<string> allat {
     cica = "cica",
 }
 
-pub function fn(n: allat): allat {
-    return n;
-}
-
 pub function main(): int {
     allat macska = allat::cica;
 
-    allat kutya = fn(allat::kutya);
+    string kutya = allat::kutya as string;
 
     printf("%s, %s", macska, kutya);
 
