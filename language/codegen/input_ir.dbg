@@ -2,16 +2,16 @@
 [
     ParsedTokenInstance {
         inner: NewVariable(
-            "macska",
+            "null",
             Enum(
                 (
-                    String,
+                    U32,
                     OrdMap(
                         {
-                            "kutya": ParsedTokenInstance {
+                            "Zero": ParsedTokenInstance {
                                 inner: Literal(
-                                    String(
-                                        "kutya",
+                                    U32(
+                                        0,
                                     ),
                                 ),
                                 debug_information: DebugInformation {
@@ -25,10 +25,27 @@
                                     },
                                 },
                             },
-                            "cica": ParsedTokenInstance {
+                            "Two": ParsedTokenInstance {
                                 inner: Literal(
-                                    String(
-                                        "cica",
+                                    U32(
+                                        1,
+                                    ),
+                                ),
+                                debug_information: DebugInformation {
+                                    char_start: CharPosition {
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                    char_end: CharPosition {
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                },
+                            },
+                            "SixtySeven": ParsedTokenInstance {
+                                inner: Literal(
+                                    U32(
+                                        67,
                                     ),
                                 ),
                                 debug_information: DebugInformation {
@@ -50,13 +67,13 @@
                 inner: Literal(
                     Enum(
                         (
-                            String,
+                            U32,
                             OrdMap(
                                 {
-                                    "kutya": ParsedTokenInstance {
+                                    "Zero": ParsedTokenInstance {
                                         inner: Literal(
-                                            String(
-                                                "kutya",
+                                            U32(
+                                                0,
                                             ),
                                         ),
                                         debug_information: DebugInformation {
@@ -70,10 +87,27 @@
                                             },
                                         },
                                     },
-                                    "cica": ParsedTokenInstance {
+                                    "Two": ParsedTokenInstance {
                                         inner: Literal(
-                                            String(
-                                                "cica",
+                                            U32(
+                                                1,
+                                            ),
+                                        ),
+                                        debug_information: DebugInformation {
+                                            char_start: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                            char_end: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                        },
+                                    },
+                                    "SixtySeven": ParsedTokenInstance {
+                                        inner: Literal(
+                                            U32(
+                                                67,
                                             ),
                                         ),
                                         debug_information: DebugInformation {
@@ -89,7 +123,7 @@
                                     },
                                 },
                             ),
-                            "cica",
+                            "Zero",
                         ),
                     ),
                 ),
@@ -118,69 +152,130 @@
     },
     ParsedTokenInstance {
         inner: NewVariable(
-            "kutya",
-            String,
-            ParsedTokenInstance {
-                inner: TypeCast(
-                    ParsedTokenInstance {
-                        inner: Literal(
-                            Enum(
-                                (
-                                    String,
-                                    OrdMap(
-                                        {
-                                            "kutya": ParsedTokenInstance {
-                                                inner: Literal(
-                                                    String(
-                                                        "kutya",
-                                                    ),
-                                                ),
-                                                debug_information: DebugInformation {
-                                                    char_start: CharPosition {
-                                                        line: 0,
-                                                        column: 0,
-                                                    },
-                                                    char_end: CharPosition {
-                                                        line: 0,
-                                                        column: 0,
-                                                    },
-                                                },
-                                            },
-                                            "cica": ParsedTokenInstance {
-                                                inner: Literal(
-                                                    String(
-                                                        "cica",
-                                                    ),
-                                                ),
-                                                debug_information: DebugInformation {
-                                                    char_start: CharPosition {
-                                                        line: 0,
-                                                        column: 0,
-                                                    },
-                                                    char_end: CharPosition {
-                                                        line: 0,
-                                                        column: 0,
-                                                    },
-                                                },
-                                            },
-                                        },
+            "kys",
+            Enum(
+                (
+                    U32,
+                    OrdMap(
+                        {
+                            "Zero": ParsedTokenInstance {
+                                inner: Literal(
+                                    U32(
+                                        0,
                                     ),
-                                    "kutya",
                                 ),
-                            ),
-                        ),
-                        debug_information: DebugInformation {
-                            char_start: CharPosition {
-                                line: 0,
-                                column: 0,
+                                debug_information: DebugInformation {
+                                    char_start: CharPosition {
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                    char_end: CharPosition {
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                },
                             },
-                            char_end: CharPosition {
-                                line: 0,
-                                column: 0,
+                            "Two": ParsedTokenInstance {
+                                inner: Literal(
+                                    U32(
+                                        1,
+                                    ),
+                                ),
+                                debug_information: DebugInformation {
+                                    char_start: CharPosition {
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                    char_end: CharPosition {
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                },
+                            },
+                            "SixtySeven": ParsedTokenInstance {
+                                inner: Literal(
+                                    U32(
+                                        67,
+                                    ),
+                                ),
+                                debug_information: DebugInformation {
+                                    char_start: CharPosition {
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                    char_end: CharPosition {
+                                        line: 0,
+                                        column: 0,
+                                    },
+                                },
                             },
                         },
-                    },
-                    String,
+                    ),
+                ),
+            ),
+            ParsedTokenInstance {
+                inner: Literal(
+                    Enum(
+                        (
+                            U32,
+                            OrdMap(
+                                {
+                                    "Zero": ParsedTokenInstance {
+                                        inner: Literal(
+                                            U32(
+                                                0,
+                                            ),
+                                        ),
+                                        debug_information: DebugInformation {
+                                            char_start: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                            char_end: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                        },
+                                    },
+                                    "Two": ParsedTokenInstance {
+                                        inner: Literal(
+                                            U32(
+                                                1,
+                                            ),
+                                        ),
+                                        debug_information: DebugInformation {
+                                            char_start: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                            char_end: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                        },
+                                    },
+                                    "SixtySeven": ParsedTokenInstance {
+                                        inner: Literal(
+                                            U32(
+                                                67,
+                                            ),
+                                        ),
+                                        debug_information: DebugInformation {
+                                            char_start: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                            char_end: CharPosition {
+                                                line: 0,
+                                                column: 0,
+                                            },
+                                        },
+                                    },
+                                },
+                            ),
+                            "SixtySeven",
+                        ),
+                    ),
                 ),
                 debug_information: DebugInformation {
                     char_start: CharPosition {
@@ -241,7 +336,7 @@
                         ParsedTokenInstance {
                             inner: Literal(
                                 String(
-                                    "%s, %s",
+                                    "%i, %i",
                                 ),
                             ),
                             debug_information: DebugInformation {
@@ -263,7 +358,7 @@
                         ParsedTokenInstance {
                             inner: VariableReference(
                                 BasicReference(
-                                    "macska",
+                                    "null",
                                 ),
                             ),
                             debug_information: DebugInformation {
@@ -279,13 +374,13 @@
                         },
                         Enum(
                             (
-                                String,
+                                U32,
                                 OrdMap(
                                     {
-                                        "kutya": ParsedTokenInstance {
+                                        "Zero": ParsedTokenInstance {
                                             inner: Literal(
-                                                String(
-                                                    "kutya",
+                                                U32(
+                                                    0,
                                                 ),
                                             ),
                                             debug_information: DebugInformation {
@@ -299,10 +394,27 @@
                                                 },
                                             },
                                         },
-                                        "cica": ParsedTokenInstance {
+                                        "Two": ParsedTokenInstance {
                                             inner: Literal(
-                                                String(
-                                                    "cica",
+                                                U32(
+                                                    1,
+                                                ),
+                                            ),
+                                            debug_information: DebugInformation {
+                                                char_start: CharPosition {
+                                                    line: 0,
+                                                    column: 0,
+                                                },
+                                                char_end: CharPosition {
+                                                    line: 0,
+                                                    column: 0,
+                                                },
+                                            },
+                                        },
+                                        "SixtySeven": ParsedTokenInstance {
+                                            inner: Literal(
+                                                U32(
+                                                    67,
                                                 ),
                                             ),
                                             debug_information: DebugInformation {
@@ -327,7 +439,7 @@
                         ParsedTokenInstance {
                             inner: VariableReference(
                                 BasicReference(
-                                    "kutya",
+                                    "kys",
                                 ),
                             ),
                             debug_information: DebugInformation {
@@ -341,7 +453,66 @@
                                 },
                             },
                         },
-                        String,
+                        Enum(
+                            (
+                                U32,
+                                OrdMap(
+                                    {
+                                        "Zero": ParsedTokenInstance {
+                                            inner: Literal(
+                                                U32(
+                                                    0,
+                                                ),
+                                            ),
+                                            debug_information: DebugInformation {
+                                                char_start: CharPosition {
+                                                    line: 0,
+                                                    column: 0,
+                                                },
+                                                char_end: CharPosition {
+                                                    line: 0,
+                                                    column: 0,
+                                                },
+                                            },
+                                        },
+                                        "Two": ParsedTokenInstance {
+                                            inner: Literal(
+                                                U32(
+                                                    1,
+                                                ),
+                                            ),
+                                            debug_information: DebugInformation {
+                                                char_start: CharPosition {
+                                                    line: 0,
+                                                    column: 0,
+                                                },
+                                                char_end: CharPosition {
+                                                    line: 0,
+                                                    column: 0,
+                                                },
+                                            },
+                                        },
+                                        "SixtySeven": ParsedTokenInstance {
+                                            inner: Literal(
+                                                U32(
+                                                    67,
+                                                ),
+                                            ),
+                                            debug_information: DebugInformation {
+                                                char_start: CharPosition {
+                                                    line: 0,
+                                                    column: 0,
+                                                },
+                                                char_end: CharPosition {
+                                                    line: 0,
+                                                    column: 0,
+                                                },
+                                            },
+                                        },
+                                    },
+                                ),
+                            ),
+                        ),
                     ),
                 },
             ),

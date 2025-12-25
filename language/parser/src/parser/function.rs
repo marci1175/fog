@@ -559,7 +559,7 @@ impl Parser
                             if let Some(Token::SetValue) = variant_body.get(body_idx + 1) {
                                 body_idx += 2;
 
-                                // This function will stop parsing at `,` or `;` or `)`
+                                // This function will stop parsing at `,` or `;` or `)` or at the end of the list
                                 let (parsed_token_instance, idx, _ty) = parse_value(
                                     &variant_body[body_idx..],
                                     0,
@@ -574,14 +574,17 @@ impl Parser
 
                                 body_idx += idx;
 
-                                // Check correct signature by checking if we are currently at a `,`.
-                                if let Some(Token::Comma) = variant_body.get(body_idx) {
+                                // Check correct signature by checking if we are currently at a `,` or at the end of the token list
+                                if variant_body.get(body_idx) == Some(&Token::Comma) || body_idx == variant_body.len() {
                                     // Store enum variant
                                     variant_fields
                                         .insert(variant_name.clone(), parsed_token_instance);
 
-                                    // Increment index and iterate once again
-                                    body_idx += 1;
+                                    // If we are not at the end of the list increment the body_idx by one.
+                                    if body_idx != variant_body.len() {
+                                        // Increment index and iterate once again
+                                        body_idx += 1;
+                                    }
 
                                     continue;
                                 }

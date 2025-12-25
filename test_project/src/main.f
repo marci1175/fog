@@ -24,17 +24,28 @@
 
 external printf(inp: string, ...): int;
 
-enum<string> allat {
-    kutya = "kutya",
-    cica = "cica",
+struct Apple {
+    color: float,
+    name: string
+}
+
+enum<Apple> Apples {
+    Idared = Apple { color: 1.0, name: "Idared" },
+    Granny = Apple { color: 0.5, name: "Granny Smith" }
+}
+
+enum Numbers {
+    Zero,
+    Two,
+    SixtySeven = 67
 }
 
 pub function main(): int {
-    allat macska = allat::cica;
+    Numbers null = Numbers::Zero;
+    Numbers kys = Numbers::SixtySeven;
+    # Apple idared = Apples::Idared;
 
-    string kutya = allat::kutya as string;
-
-    printf("%s, %s", macska, kutya);
+    printf("%i, %i", null, kys);
 
     return 0;
 }

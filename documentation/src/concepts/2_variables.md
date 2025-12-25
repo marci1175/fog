@@ -36,7 +36,7 @@ struct Apple {
     name: string
 }
 
-enum Apples<Apple> {
+enum<Apple> Apples {
     Idared = Apple { color: 1.0, name: "Idared" },
     Granny = Apple { color: 0.5, name: "Granny Smith" }
 }
