@@ -14,7 +14,7 @@ use common::{
         values::{FunctionValue, PointerValue},
     },
     parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
-    ty::{Value, Type, token_to_ty},
+    ty::{Type, Value, token_to_ty},
 };
 use std::{
     collections::{HashMap, VecDeque},
@@ -33,13 +33,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
     ctx: &'ctx Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            Type,
-        ),
-    >,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
     fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
@@ -53,10 +47,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: &Arc<IndexMap<String, CustomType>>,
     parsed_token_instance: ParsedTokenInstance,
-) -> Result<(
-    (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-    Type,
-)>
+) -> Result<((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>
 {
     let parsed_token = parsed_token_instance.inner;
 
@@ -460,13 +451,7 @@ pub fn access_array_index<'main, 'ctx>(
     ctx: &'main Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            Type,
-        ),
-    >,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
     fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
@@ -479,16 +464,9 @@ pub fn access_array_index<'main, 'ctx>(
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: &Arc<IndexMap<String, CustomType>>,
-    ((array_ptr, _ptr_ty), ty_disc): (
-        (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-        Type,
-    ),
+    ((array_ptr, _ptr_ty), ty_disc): ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type),
     index: Box<ParsedTokenInstance>,
-) -> Result<(
-    PointerValue<'ctx>,
-    BasicMetadataTypeEnum<'ctx>,
-    Type,
-)>
+) -> Result<(PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, Type)>
 where
     'main: 'ctx,
 {

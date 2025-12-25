@@ -7,12 +7,21 @@ use std::{
 };
 
 use common::{
-    anyhow::Result, codegen::{CustomType, FunctionArgumentIdentifier, If}, compiler::ProjectConfig, dashmap::DashMap, error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError}, indexmap::IndexMap, parser::{
+    anyhow::Result,
+    codegen::{CustomType, FunctionArgumentIdentifier, If},
+    compiler::ProjectConfig,
+    dashmap::DashMap,
+    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    indexmap::IndexMap,
+    parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
         FunctionVisibility, ParsedToken, ParsedTokenInstance, UnparsedFunctionDefinition,
         VariableReference, find_closing_braces, find_closing_comma, find_closing_paren,
         parse_signature_argument_tokens,
-    }, reqwest::header::CONTENT_ENCODING, tokenizer::Token, tracing::info, ty::{OrdMap, OrdSet, Type, Value, token_to_ty}
+    },
+    tokenizer::Token,
+    tracing::info,
+    ty::{OrdMap, OrdSet, Type, Value, token_to_ty},
 };
 
 use crate::{
@@ -279,9 +288,7 @@ impl Parser
                                             FunctionSignature {
                                                 name: identifier,
                                                 args,
-                                                return_type: Type::Struct(
-                                                    struct_inner.clone(),
-                                                ),
+                                                return_type: Type::Struct(struct_inner.clone()),
                                                 module_path: mod_path,
                                                 // Imported functions can only be accessed at the source file they were imported at
                                                 // I might change this later to smth like pub import similar to pub mod in rust
@@ -376,8 +383,8 @@ impl Parser
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidImportDefinition).into());
             }
             else if current_token == Token::Struct {
-                if let Some(Token::Identifier(struct_name)) = tokens.get(token_idx + 1) {
-                    if let Some(Token::OpenBraces) = tokens.get(token_idx + 2) {
+                if let Some(Token::Identifier(struct_name)) = tokens.get(token_idx + 1)
+                    && let Some(Token::OpenBraces) = tokens.get(token_idx + 2) {
                         // Search for the closing brace's index
                         let braces_idx =
                             find_closing_braces(&tokens[token_idx + 3..], 0)? + token_idx + 3;
@@ -459,11 +466,8 @@ impl Parser
                         token_idx = braces_idx + 1;
                         continue;
                     }
-                }
 
-                return Err(
-                    ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into(),
-                );
+                return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
             }
             else if current_token == Token::CompilerHintSymbol {
                 token_idx += 1;
@@ -506,10 +510,12 @@ impl Parser
                 // If there is an inner type try to fetch.
                 // If the inner function fails it raises an error.
                 // If there was no pre defined type we will use `U32` as default.
-                let variant_type = ty.map(|inner| token_to_ty(&inner, &custom_types)).unwrap_or(Ok(Type::U32))?;
+                let variant_type = ty
+                    .map(|inner| token_to_ty(&inner, &custom_types))
+                    .unwrap_or(Ok(Type::U32))?;
 
-                if let Some(Token::Identifier(enum_name)) = tokens.get(token_idx + 1) {
-                    if let Some(Token::OpenBraces) = tokens.get(token_idx + 2) {
+                if let Some(Token::Identifier(enum_name)) = tokens.get(token_idx + 1)
+                    && let Some(Token::OpenBraces) = tokens.get(token_idx + 2) {
                         // Search for the closing brace's index
                         let braces_idx =
                             find_closing_braces(&tokens[token_idx + 3..], 0)? + token_idx + 3;
@@ -518,24 +524,50 @@ impl Parser
                         let variant_body = tokens[token_idx + 3..braces_idx].to_vec();
                         let mut body_idx = 0;
 
-                        let mut variant_fields: OrdMap<String, (Value, DebugInformation)> = OrdMap::new();
+                        let mut variant_fields: OrdMap<String, (Value, DebugInformation)> =
+                            OrdMap::new();
 
                         while body_idx < variant_body.len() {
-                            if let Some(Token::Identifier(variant_name)) = variant_body.get(body_idx) {
+                            if let Some(Token::Identifier(variant_name)) =
+                                variant_body.get(body_idx)
+                            {
                                 if let Some(Token::SetValue) = variant_body.get(body_idx + 1) {
                                     body_idx += 2;
 
                                     // This function will stop parsing at `,` or `;` or `)`
-                                    let (parsed_token_instance, idx, _ty) = parse_value(&variant_body[body_idx..], 0, &self.tokens_debug_info, token_idx, Arc::new(function_list.clone()), &mut IndexMap::new(), Some(variant_type.clone()), self.imported_functions.clone(), Arc::new(custom_types.clone()))?;
-                                    
+                                    let (parsed_token_instance, idx, _ty) = parse_value(
+                                        &variant_body[body_idx..],
+                                        0,
+                                        &self.tokens_debug_info,
+                                        token_idx,
+                                        Arc::new(function_list.clone()),
+                                        &mut IndexMap::new(),
+                                        Some(variant_type.clone()),
+                                        self.imported_functions.clone(),
+                                        Arc::new(custom_types.clone()),
+                                    )?;
+
                                     body_idx += idx;
-                                    
+
                                     // Check correct signature by checking if we are currently at a `,`.
                                     if let Some(Token::Comma) = variant_body.get(body_idx) {
-                                        let parsed_token_clone = parsed_token_instance.inner.clone();
-                                        
-                                        // Store enum variant                                    
-                                        variant_fields.insert(variant_name.clone(), (parsed_token_instance.inner.try_as_literal().ok_or(ParserError::InvalidValue(Some(variant_type.clone()), parsed_token_clone))?, parsed_token_instance.debug_information));
+                                        let parsed_token_clone =
+                                            parsed_token_instance.inner.clone();
+
+                                        // Store enum variant
+                                        variant_fields.insert(
+                                            variant_name.clone(),
+                                            (
+                                                parsed_token_instance
+                                                    .inner
+                                                    .try_as_literal()
+                                                    .ok_or(ParserError::InvalidValue(
+                                                        Some(variant_type.clone()),
+                                                        parsed_token_clone,
+                                                    ))?,
+                                                parsed_token_instance.debug_information,
+                                            ),
+                                        );
 
                                         // Increment index and iterate once again
                                         body_idx += 1;
@@ -549,30 +581,49 @@ impl Parser
                                     let nth = variant_fields.len();
 
                                     // Store the variant inferred value
-                                    variant_fields.insert(variant_name.clone(), (Value::U32(nth as u32), fetch_and_merge_debug_information(&self.tokens_debug_info, token_idx + body_idx..token_idx + body_idx + 2, true).unwrap()));
+                                    variant_fields.insert(
+                                        variant_name.clone(),
+                                        (
+                                            Value::U32(nth as u32),
+                                            fetch_and_merge_debug_information(
+                                                &self.tokens_debug_info,
+                                                token_idx + body_idx..token_idx + body_idx + 2,
+                                                true,
+                                            )
+                                            .unwrap(),
+                                        ),
+                                    );
 
                                     // Check for correct syntax
                                     if let Some(Token::Comma) = variant_body.get(body_idx + 1) {
                                         body_idx += 2;
-                                    
+
                                         continue;
                                     }
                                 }
                             }
 
-                            return Err(ParserError::SyntaxError(SyntaxError::InvalidEnumBodyDefinition).into())
+                            return Err(ParserError::SyntaxError(
+                                SyntaxError::InvalidEnumBodyDefinition,
+                            )
+                            .into());
                         }
 
                         // Store custom type
-                        custom_types.insert(enum_name.clone(), CustomType::Enum((variant_type, variant_fields)));
+                        custom_types.insert(
+                            enum_name.clone(),
+                            CustomType::Enum((variant_type, variant_fields)),
+                        );
 
                         token_idx = braces_idx + 1;
 
                         continue;
                     }
-                }
 
-                return Err(ParserError::SyntaxError(SyntaxError::CustomTypeRequiresName(current_token)).into());
+                return Err(
+                    ParserError::SyntaxError(SyntaxError::CustomTypeRequiresName(current_token))
+                        .into(),
+                );
             }
 
             token_idx += 1;
@@ -879,8 +930,7 @@ impl Parser
                     else if let Some(custom_type) = custom_items.get(ident_name) {
                         match custom_type {
                             CustomType::Struct(struct_instance) => {
-                                let variable_type =
-                                    Type::Struct(struct_instance.clone());
+                                let variable_type = Type::Struct(struct_instance.clone());
 
                                 token_idx += 1;
 
@@ -928,14 +978,12 @@ impl Parser
                                         .unwrap(),
                                     });
 
-                                    variable_scope.insert(
-                                        var_name.clone(),
-                                        variable_type,
-                                    );
+                                    variable_scope.insert(var_name.clone(), variable_type);
                                 }
                             },
                             CustomType::Enum(inner) => {
-                                let variable_type = Type::Enum((Box::new(inner.0.clone()), inner.1.clone()));
+                                let variable_type =
+                                    Type::Enum((Box::new(inner.0.clone()), inner.1.clone()));
 
                                 token_idx += 1;
 
@@ -983,10 +1031,7 @@ impl Parser
                                         .unwrap(),
                                     });
 
-                                    variable_scope.insert(
-                                        var_name.clone(),
-                                        variable_type,
-                                    );
+                                    variable_scope.insert(var_name.clone(), variable_type);
                                 }
                             },
                         };

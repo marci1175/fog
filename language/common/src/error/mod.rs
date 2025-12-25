@@ -22,9 +22,14 @@ pub struct DebugInformation
     pub char_end: CharPosition,
 }
 
-impl DebugInformation {
-    pub fn new(char_start: CharPosition, char_end: CharPosition) -> Self {
-        Self { char_start, char_end }
+impl DebugInformation
+{
+    pub fn new(char_start: CharPosition, char_end: CharPosition) -> Self
+    {
+        Self {
+            char_start,
+            char_end,
+        }
     }
 }
 

@@ -225,10 +225,10 @@ pub enum Type
 
     #[default]
     Void,
-    
+
     /// Automatic type casting is not implemented for enum variants due to it being ineffecient and difficult with the current codebase. (aka im too lazy)
     Enum((Box<Type>, OrdMap<String, (Value, DebugInformation)>)),
-    
+
     Struct((String, OrdMap<String, Type>)),
     Array((Box<Token>, usize)),
     Pointer(Option<Box<Token>>),
@@ -336,7 +336,7 @@ impl Type
                         .array_type(len as u32),
                 )
             },
-            Type::Enum((ty, _)) => ty.to_basic_type_enum(&ctx, custom_types.clone())?,
+            Type::Enum((ty, _)) => ty.to_basic_type_enum(ctx, custom_types.clone())?,
             Type::Pointer(_) => {
                 BasicTypeEnum::PointerType(
                     ctx.ptr_type(AddressSpace::from(size_of::<usize>() as u16)),
@@ -526,10 +526,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                 ));
             },
             Type::Array(inner) => {
-                return Err(ParserError::InvalidTypeCast(
-                    raw_string,
-                    Type::Array(inner),
-                ));
+                return Err(ParserError::InvalidTypeCast(raw_string, Type::Array(inner)));
             },
             Type::Pointer(_) => {
                 if parsed_num.floor() != parsed_num {
@@ -543,11 +540,8 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                 }
             },
             Type::Enum(inner) => {
-                return Err(ParserError::InvalidTypeCast(
-                    raw_string,
-                    Type::Enum(inner),
-                ));
-            }
+                return Err(ParserError::InvalidTypeCast(raw_string, Type::Enum(inner)));
+            },
         }
     }
     else {
@@ -733,9 +727,7 @@ pub fn token_to_ty(
         Token::Identifier(ident) => {
             if let Some(custom_type) = custom_types.get(ident) {
                 match custom_type {
-                    CustomType::Struct(struct_def) => {
-                        Ok(Type::Struct(struct_def.clone()))
-                    },
+                    CustomType::Struct(struct_def) => Ok(Type::Struct(struct_def.clone())),
                     CustomType::Enum(_ord_map) => unimplemented!(),
                 }
             }

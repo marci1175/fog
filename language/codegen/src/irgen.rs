@@ -55,10 +55,8 @@ pub fn create_ir<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    let mut variable_map: HashMap<
-        String,
-        ((PointerValue, BasicMetadataTypeEnum), Type),
-    > = HashMap::new();
+    let mut variable_map: HashMap<String, ((PointerValue, BasicMetadataTypeEnum), Type)> =
+        HashMap::new();
 
     for (arg_name, (arg_val, arg_ty)) in available_arguments {
         let (v_ptr, ty) = match arg_val {
@@ -122,13 +120,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
     parsed_token_instance: ParsedTokenInstance,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            Type,
-        ),
-    >,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
     variable_reference: Option<(
         String,
         (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
@@ -666,6 +658,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => todo!(),
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -812,12 +805,10 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => todo!(),
                         }
                     },
-                    Type::U64
-                    | Type::U32
-                    | Type::U16
-                    | Type::U8 => {
+                    Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
                         match desired_type {
                             Type::I64 => {
                                 let value = builder
@@ -983,6 +974,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => todo!(),
                         }
                     },
                     Type::String => {
@@ -1007,6 +999,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => todo!(),
                         }
                     },
                     Type::Boolean => {
@@ -1188,6 +1181,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => todo!(),
                         }
                     },
                     Type::Void => {
@@ -1212,6 +1206,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => todo!(),
                         }
                     },
                     Type::Struct(_) => {
@@ -1236,6 +1231,7 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => todo!(),
                         }
                     },
                     Type::Array(ref type_discriminant) => {
@@ -1262,9 +1258,11 @@ where
                                 .into());
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => todo!(),
                         }
                     },
                     Type::Pointer(_) => todo!(),
+                    Type::Enum(_) => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1672,101 +1670,8 @@ where
                     (v_ptr, v_ty)
                 };
 
-                match fn_sig.return_type.clone() {
-                    Type::I32 => {
-                        // Get returned float value
-                        let returned_int = returned.into_int_value();
-
-                        // Store the const in the pointer
-                        builder.build_store(v_ptr, returned_int)?;
-                    },
-                    Type::F32 => {
-                        // Get returned float value
-                        let returned_float = returned.into_float_value();
-
-                        // Store the const in the pointer
-                        builder.build_store(v_ptr, returned_float)?;
-                    },
-                    Type::U32 => {
-                        // Get returned float value
-                        let returned_float = returned.into_int_value();
-
-                        // Store the const in the pointer
-                        builder.build_store(v_ptr, returned_float)?;
-                    },
-                    Type::U8 => {
-                        // Get returned float value
-                        let returned_smalint = returned.into_int_value();
-
-                        // Store the const in the pointer
-                        builder.build_store(v_ptr, returned_smalint)?;
-                    },
-                    Type::String => {
-                        // Get returned pointer value
-                        let returned_ptr = returned.into_pointer_value();
-
-                        // Store the const in the pointer
-                        builder.build_store(v_ptr, returned_ptr)?;
-                    },
-                    Type::Boolean => {
-                        // Get returned boolean value
-                        let returned_bool = returned.into_int_value();
-
-                        builder.build_store(v_ptr, returned_bool)?;
-                    },
-                    Type::Void => {
-                        unreachable!(
-                            "A void can not be parsed, as a void functuion returns a `None`."
-                        );
-                    },
-                    Type::Struct((struct_name, struct_inner)) => {
-                        // Get returned pointer value
-                        let returned_struct = returned.into_struct_value();
-
-                        // Store the const in the pointer
-                        builder.build_store(v_ptr, returned_struct)?;
-                    },
-                    Type::I64 => {
-                        let returned_int = returned.into_int_value();
-
-                        builder.build_store(v_ptr, returned_int)?;
-                    },
-                    Type::F64 => {
-                        let returned_float = returned.into_float_value();
-
-                        builder.build_store(v_ptr, returned_float)?;
-                    },
-                    Type::U64 => {
-                        let returned_int = returned.into_int_value();
-
-                        builder.build_store(v_ptr, returned_int)?;
-                    },
-                    Type::I16 => {
-                        let returned_int = returned.into_int_value();
-
-                        builder.build_store(v_ptr, returned_int)?;
-                    },
-                    Type::F16 => {
-                        let returned_float = returned.into_float_value();
-
-                        builder.build_store(v_ptr, returned_float)?;
-                    },
-                    Type::U16 => {
-                        let returned_int = returned.into_int_value();
-
-                        builder.build_store(v_ptr, returned_int)?;
-                    },
-                    Type::Array(_) => {
-                        let returned_array = returned.into_array_value();
-
-                        builder.build_store(v_ptr, returned_array)?;
-                    },
-                    Type::Pointer(_) => {
-                        let returned_pointer = returned.into_pointer_value();
-
-                        builder.build_store(v_ptr, returned_pointer)?;
-                    },
-                };
+                // Store the returned value
+                builder.build_store(v_ptr, returned)?;
 
                 if let Some((variable_name, (var_ptr, _), ty_disc)) = variable_reference {
                     // Check for type mismatch
@@ -2210,11 +2115,7 @@ where
                         "cmp",
                     )?
                 },
-                Type::U8
-                | Type::U16
-                | Type::U32
-                | Type::U64
-                | Type::Boolean => {
+                Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::Boolean => {
                     builder.build_int_compare(
                         order.into_int_predicate(false),
                         lhs_val.into_int_value(),
@@ -2231,16 +2132,15 @@ where
                 },
                 Type::Array(type_discriminant) => unimplemented!(),
                 Type::Pointer(_) => todo!(),
+                Type::Enum(_) => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
                 // Make sure that the variable we are setting is of type `Boolean` as a comparison always returns a `Bool`.
                 if ref_var_ty_disc != Type::Boolean {
-                    return Err(CodeGenError::VariableTypeMismatch(
-                        ref_var_ty_disc,
-                        Type::Boolean,
-                    )
-                    .into());
+                    return Err(
+                        CodeGenError::VariableTypeMismatch(ref_var_ty_disc, Type::Boolean).into(),
+                    );
                 }
 
                 builder.build_store(var_ptr, cmp_result)?;
@@ -2591,9 +2491,7 @@ where
                             return Ok(Some((
                                 ptr,
                                 ty,
-                                Type::Pointer(Some(Box::new(Token::TypeDefinition(
-                                    ty_disc,
-                                )))),
+                                Type::Pointer(Some(Box::new(Token::TypeDefinition(ty_disc)))),
                             )));
                         },
                     }
@@ -2641,13 +2539,12 @@ where
                             let ptr_variant = ty_disc.try_as_pointer().unwrap();
 
                             // If the inner value does not have a pre-determined inner type of the value the pointer is pointing to, assume the type we want to dereference to is the variable's type
-                            let deref_ty: Type =
-                                if let Some(pointer_inner) = ptr_variant {
-                                    token_to_ty(&*pointer_inner, &custom_types)?
-                                }
-                                else {
-                                    var_ref_ty_disc.clone()
-                                };
+                            let deref_ty: Type = if let Some(pointer_inner) = ptr_variant {
+                                token_to_ty(&*pointer_inner, &custom_types)?
+                            }
+                            else {
+                                var_ref_ty_disc.clone()
+                            };
 
                             // Check for a type mismatch inside the pointer
                             if deref_ty != var_ref_ty_disc {
@@ -2899,13 +2796,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // Type returned type of the Function
     fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            Type,
-        ),
-    >,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
     this_fn: FunctionValue<'ctx>,
     // Allocation tables are used when the ParsedTokens run in a loop
     // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow

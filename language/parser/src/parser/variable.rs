@@ -656,10 +656,7 @@ pub fn parse_token_as_value(
 
                             return Ok((
                                 init_struct_token,
-                                Type::Struct((
-                                    _struct_name.clone(),
-                                    struct_inner.clone(),
-                                )),
+                                Type::Struct((_struct_name.clone(), struct_inner.clone())),
                             ));
                         }
 
@@ -669,7 +666,10 @@ pub fn parse_token_as_value(
                         .into());
                     },
                     CustomType::Enum((ty, variants)) => {
-                        if let Some(Token::DoubleColon) = tokens.get(*token_idx + 1) && let Some(Token::Identifier(variant_name)) = tokens.get(*token_idx + 2) {
+                        if let Some(Token::DoubleColon) = tokens.get(*token_idx + 1)
+                            && let Some(Token::Identifier(variant_name)) =
+                                tokens.get(*token_idx + 2)
+                        {
                             // Lookup enum variant with name
                             let variant = variants.get(variant_name);
 
@@ -678,19 +678,25 @@ pub fn parse_token_as_value(
                                     return Ok((
                                         ParsedTokenInstance {
                                             inner: ParsedToken::Literal(variant_val.clone()),
-                                            debug_information: *dbg_inf
+                                            debug_information: *dbg_inf,
                                         },
-                                        Type::Enum((Box::new(ty.clone()), variants.clone()))
+                                        Type::Enum((Box::new(ty.clone()), variants.clone())),
                                     ));
                                 },
                                 // If the variant was not found we can raise an error
                                 None => {
-                                    return Err(ParserError::EnumVariantNotFound(variant_name.clone()).into());
+                                    return Err(ParserError::EnumVariantNotFound(
+                                        variant_name.clone(),
+                                    )
+                                    .into());
                                 },
                             }
                         }
 
-                        return Err(ParserError::SyntaxError(SyntaxError::InvalidEnumVariantDefinition).into())
+                        return Err(ParserError::SyntaxError(
+                            SyntaxError::InvalidEnumVariantDefinition,
+                        )
+                        .into());
                     },
                 }
             }
@@ -838,10 +844,7 @@ pub fn parse_token_as_value(
 
             *token_idx += jmp_idx + 1;
 
-            (
-                ParsedToken::DerefPointer(Box::new(parsed_token)),
-                Type::I32,
-            )
+            (ParsedToken::DerefPointer(Box::new(parsed_token)), Type::I32)
         },
         _ => {
             // If we are parsing something else than something that hold a value return an error.

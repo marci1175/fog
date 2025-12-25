@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs, io,
+    fs,
     path::PathBuf,
     rc::Rc,
     sync::Arc,
@@ -15,9 +15,8 @@ use common::{
     distributed_compiler::DistributedCompilerWorker,
     error::dependency::DependencyError,
     futures,
-    indexmap::{IndexMap, IndexSet},
+    indexmap::IndexSet,
     inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple},
-    parking_lot::Mutex,
     parser::FunctionSignature,
     tokio, toml,
     tracing::info,
@@ -97,7 +96,7 @@ pub fn create_dependency_functions_list<'ctx>(
         return Err(DependencyError::MissingDependencies(dependency_list).into());
     }
 
-    let mut dir_entries_remote = fs::read_dir(&format!("{}\\remote_compile", root_dir.display()))?;
+    let mut dir_entries_remote = fs::read_dir(format!("{}\\remote_compile", root_dir.display()))?;
 
     // Scan and parse downloaded dependencies
     scan_dependencies(

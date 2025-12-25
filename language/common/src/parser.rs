@@ -7,7 +7,7 @@ use crate::{
     codegen::{CustomType, FunctionArgumentIdentifier, If, Order},
     error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
     tokenizer::Token,
-    ty::{OrdMap, OrdSet, Value, Type, token_to_ty},
+    ty::{OrdMap, OrdSet, Type, Value, token_to_ty},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -142,10 +142,7 @@ pub enum ControlFlowType
 pub enum VariableReference
 {
     /// Variable name, (struct_name, struct_type)
-    StructFieldReference(
-        StructFieldReference,
-        (String, OrdMap<String, Type>),
-    ),
+    StructFieldReference(StructFieldReference, (String, OrdMap<String, Type>)),
     /// Variable name
     BasicReference(String),
     /// Variable name, array index

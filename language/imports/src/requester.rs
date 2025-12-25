@@ -1,14 +1,13 @@
-use std::{collections::HashMap, fs, io::Cursor, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc};
 
 use common::{
     anyhow::Result,
-    compiler::{HostInformation, ProjectConfig},
+    compiler::HostInformation,
     compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs},
     dashmap::DashMap,
     dependency::DependencyInfo,
     distributed_compiler::{DependencyRequest, DistributedCompilerWorker, FinishedJob},
     error::dependency::DependencyError,
-    parking_lot::Mutex,
     parser::FunctionSignature,
     rmp_serde,
     tokio::{
@@ -20,14 +19,12 @@ use common::{
         task::JoinHandle,
     },
     tracing::info,
-    ty::OrdSet,
 };
-use parser::{parser_instance::Parser, tokenizer::tokenize};
 
 pub fn create_remote_list(
     remotes: Vec<DistributedCompilerWorker>,
     host_info: HostInformation,
-    deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
+    _deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
     root_path: PathBuf,
 ) -> (
     HashMap<String, (String, Sender<(String, DependencyInfo)>)>,

@@ -26,20 +26,25 @@ use strum::Display;
 #[derive(Debug, Clone, PartialEq, Display)]
 pub enum CustomType
 {
-    Struct((String, 
-        OrdMap<
-            // Field name
+    Struct(
+        (
             String,
-            // Field type
-            Type
-        >
-    )),
-    Enum((
-        // Enum type
-        Type,
-        // Enum variant values
-        OrdMap<String, (Value, DebugInformation)>
-    )),
+            OrdMap<
+                // Field name
+                String,
+                // Field type
+                Type,
+            >,
+        ),
+    ),
+    Enum(
+        (
+            // Enum type
+            Type,
+            // Enum variant values
+            OrdMap<String, (Value, DebugInformation)>,
+        ),
+    ),
     // First argument is the struct's name which the Extend extends
     // The second argument is the list of functions the stuct is being extended with
     // Extend(String, IndexMap<String, FunctionDefinition>),
@@ -151,13 +156,7 @@ impl Order
 pub enum PreAllocationEntry<'ctx>
 {
     AllocationMap(HashMap<ParsedToken, PreAllocationEntry<'ctx>>),
-    PreAllocationPtr(
-        (
-            PointerValue<'ctx>,
-            BasicMetadataTypeEnum<'ctx>,
-            Type,
-        ),
-    ),
+    PreAllocationPtr((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, Type)),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -241,7 +240,7 @@ pub fn ty_to_llvm_ty<'a>(
 
             BasicTypeEnum::StructType(struct_type)
         },
-        Type::Enum((ty, _)) => ty_to_llvm_ty(&ctx, &*ty, custom_types.clone())?,
+        Type::Enum((ty, _)) => ty_to_llvm_ty(ctx, ty, custom_types.clone())?,
         Type::I64 => BasicTypeEnum::IntType(i64_type),
         Type::F64 => BasicTypeEnum::FloatType(f64_type),
         Type::U64 => BasicTypeEnum::IntType(i64_type),

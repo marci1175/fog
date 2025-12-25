@@ -3,7 +3,7 @@ use common::{
     anyhow::Result,
     codegen::{CustomType, struct_field_to_ty_list, ty_enum_to_metadata_ty_enum},
     indexmap::IndexMap,
-    inkwell::{AddressSpace, context::Context, module::Module},
+    inkwell::{AddressSpace, context::Context, module::Module, types::BasicType},
     parser::{FunctionDefinition, FunctionSignature},
     ty::Type,
 };
@@ -115,6 +115,11 @@ pub fn import_user_lib_functions<'a>(
             Type::Pointer(_) => {
                 let return_type =
                     ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
+
+                return_type.fn_type(&args, import_sig.args.ellipsis_present)
+            },
+            Type::Enum((ty, _)) => {
+                let return_type = ty.clone().to_basic_type_enum(&ctx, custom_types.clone())?;
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },

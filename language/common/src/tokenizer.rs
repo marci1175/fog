@@ -1,7 +1,7 @@
 use crate::{
     error::{parser::ParserError, syntax::SyntaxError},
     parser::CompilerHint,
-    ty::{Value, Type},
+    ty::{Type, Value},
 };
 
 /// The basic output type of the tokenizer.
@@ -25,7 +25,7 @@ pub enum Token
     DocComment(String),
 
     Struct,
-    
+
     /// Kinda like C enums but with any type
     Enum(Option<Box<Token>>),
 

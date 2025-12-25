@@ -34,13 +34,7 @@ pub fn create_alloca_table<'main, 'ctx>(
     // Type returned type of the Function
     fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            Type,
-        ),
-    >,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     custom_items: Arc<IndexMap<String, CustomType>>,
@@ -90,13 +84,7 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
     parsed_token_instance: ParsedTokenInstance,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            Type,
-        ),
-    >,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
     // Type returned type of the Function
     fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
@@ -479,6 +467,11 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -716,12 +709,14 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
-                    Type::U64
-                    | Type::U32
-                    | Type::U16
-                    | Type::U8 => {
+                    Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
                         match desired_type {
                             Type::I64 => {
                                 let value = builder
@@ -976,6 +971,11 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
                     Type::String => {
@@ -1000,6 +1000,11 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
                     Type::Boolean => {
@@ -1024,6 +1029,11 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
                     Type::Void => {
@@ -1048,6 +1058,11 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
                     Type::Struct(_) => {
@@ -1072,10 +1087,18 @@ where
                                 );
                             },
                             Type::Pointer(_) => todo!(),
+                            Type::Enum(_) => {
+                                return Err(
+                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
+                                );
+                            },
                         }
                     },
                     Type::Array(type_discriminant) => todo!(),
                     Type::Pointer(_) => todo!(),
+                    Type::Enum(_) => {
+                        return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                    },
                 };
 
                 if let Some((ptr, ptr_ty, var_type)) = returned_alloca {

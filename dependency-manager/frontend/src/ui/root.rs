@@ -5,8 +5,8 @@ pub fn root_ui(css: Asset) -> Element
     rsx! {
         document::Stylesheet { href: css }
 
-        div {  
-            id: "title", 
+        div {
+            id: "title",
             {
                 rsx! {
                     h1 { id: "main_title_top", {
@@ -20,17 +20,17 @@ pub fn root_ui(css: Asset) -> Element
                             a { href: "https://github.com/marci1175/fog", {" Fog"} }
                         }
                     } }
-                    div { 
+                    div {
                         id: "search_field",
                         {
                             rsx! {
                                 input { id: "search_text", placeholder: "Enter text", {  } }
                                 button { id: "search_icon", { "Search" } }
                             }
-                        } 
+                        }
                     }
                 }
-            } 
+            }
         }
 
         div {
@@ -40,9 +40,9 @@ pub fn root_ui(css: Asset) -> Element
                     h2 { id: "latest_act_title", {"Latest activity"} },
                     table { id: "latest_act_tbl" }
                 }
-            } 
+            }
         }
-        
+
         div {
             id: "bottom_menu",
             {

@@ -4,7 +4,7 @@ use common::{
     anyhow,
     error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError},
     tokenizer::{Token, find_closing_angled_bracket_char},
-    ty::{Value, Type},
+    ty::{Type, Value},
 };
 
 pub fn only_contains_digits(s: &[u8]) -> bool
@@ -840,9 +840,9 @@ pub fn tokenize(
                     return Err(ParserError::InvalidType(inner_token).into());
                 }
 
-                token_list.push(Token::TypeDefinition(Type::Pointer(Some(
-                    Box::new(inner_token[0].clone()),
-                ))));
+                token_list.push(Token::TypeDefinition(Type::Pointer(Some(Box::new(
+                    inner_token[0].clone(),
+                )))));
                 token_debug_info.push(DebugInformation {
                     char_start: CharPosition::new(line_counter, current_char_idx_in_line),
                     char_end: CharPosition::new(
