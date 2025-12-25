@@ -24,7 +24,7 @@ struct person {
 person somebody = person { age: 23, name: "marci", is_male: true };
 ```
 
-Accessing an enum variable is no different from other languages. The default type for an enum is an `int` if not defined by the user.
+Accessing an enum variable is no different from other languages. The default type for an enum is a `uint` if not defined by the user.
 
 ```fog
 struct Apple {
