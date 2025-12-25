@@ -456,10 +456,10 @@ where
                 let (ptr, _var_type) = var_ref.1;
 
                 // Check the type of the value, check for a type mismatch
-                if literal.discriminant() != var_ref.2 {
+                if literal.discriminant() != var_ref.2.try_get_enum_inner().clone() {
                     return Err(CodeGenError::VariableTypeMismatch(
                         literal.discriminant(),
-                        var_ref.2,
+                        var_ref.2.try_get_enum_inner().clone(),
                     )
                     .into());
                 }

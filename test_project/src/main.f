@@ -22,11 +22,23 @@
 #     return 0;
 # }
 
-enum b {
-    kutya,
-    cica,
+external printf(inp: string, ...): int;
+
+enum<string> allat {
+    kutya = "kutya",
+    cica = "cica",
+}
+
+pub function fn(n: allat): allat {
+    return n;
 }
 
 pub function main(): int {
+    allat macska = allat::cica;
+
+    allat kutya = fn(allat::kutya);
+
+    printf("%s, %s", macska, kutya);
+
     return 0;
 }

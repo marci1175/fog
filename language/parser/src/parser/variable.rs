@@ -675,6 +675,8 @@ pub fn parse_token_as_value(
 
                             match variant {
                                 Some((variant_val, dbg_inf)) => {
+                                    *token_idx += 3;
+
                                     return Ok((
                                         ParsedTokenInstance {
                                             inner: ParsedToken::Literal(variant_val.clone()),

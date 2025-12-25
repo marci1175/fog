@@ -99,10 +99,8 @@ impl Parser
                                             CustomType::Struct(struct_def) => {
                                                 Type::Struct(struct_def.clone())
                                             },
-                                            CustomType::Enum((enum_ty, _)) => {
-                                                // When a function is returning an enum its is really just returning its inner type
-                                                // TODO: Make it so that values are only converted at codegen
-                                                enum_ty.clone()
+                                            CustomType::Enum((ty, enum_def)) => {
+                                                Type::Enum((Box::new(ty.clone()), enum_def.clone()))
                                             },
                                         }
                                     }
@@ -291,7 +289,7 @@ impl Parser
                                                 return_type: Type::Struct(struct_inner.clone()),
                                                 module_path: mod_path,
                                                 // Imported functions can only be accessed at the source file they were imported at
-                                                // I might change this later to smth like pub import similar to pub mod in rust
+                                                // I might change this later to smth like pub import similar to pub use in rust
                                                 visibility:
                                                     common::parser::FunctionVisibility::Private,
                                                 compiler_hints: OrdSet::new(),
@@ -301,13 +299,31 @@ impl Parser
 
                                         continue;
                                     },
-                                    CustomType::Enum(_ord_map) => {},
+                                    CustomType::Enum((ty, body)) => {
+                                        external_imports.insert(
+                                            identifier.clone(),
+                                            FunctionSignature {
+                                                name: identifier,
+                                                args,
+                                                return_type: Type::Enum((Box::new(ty.clone()), body.clone())),
+                                                module_path: mod_path,
+                                                // Imported functions can only be accessed at the source file they were imported at
+                                                // I might change this later to smth like pub import similar to pub use in rust
+                                                visibility:
+                                                    common::parser::FunctionVisibility::Private,
+                                                compiler_hints: OrdSet::new(),
+                                                enabling_features: OrdSet::new(),
+                                            },
+                                        );
+
+                                        continue;
+                                    },
                                 }
                             }
                             else {
                                 dbg!(&custom_types);
 
-                                panic!("not found fasz")
+                                panic!("Custom type not found, check custom types map...... Monkey see Monkey think")
                             }
                         }
                         else {
@@ -436,8 +452,11 @@ impl Parser
                                                     Type::Struct(struct_def.clone()),
                                                 );
                                             },
-                                            CustomType::Enum(_index_map) => {
-                                                todo!()
+                                            CustomType::Enum((ty, enum_body)) => {
+                                                struct_fields.insert(
+                                                    field_name.to_string(),
+                                                    Type::Enum((Box::new(ty.clone()), enum_body.clone())),
+                                                );
                                             },
                                         }
 

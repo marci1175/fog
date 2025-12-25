@@ -346,6 +346,17 @@ impl Type
 
         Ok(basic_ty)
     }
+
+    /// Returns the inner type of an enum, if it is an enum.
+    /// This function is made so that code can be shortened
+    /// Be cautious when using this function to ensure correctness in the codebase.
+    pub fn try_get_enum_inner(&self) -> &Self {
+        if let Self::Enum((inner_ty, _)) = self {
+            return &*inner_ty;
+        }
+
+        self
+    }
 }
 
 impl From<Type> for Value
@@ -728,7 +739,7 @@ pub fn token_to_ty(
             if let Some(custom_type) = custom_types.get(ident) {
                 match custom_type {
                     CustomType::Struct(struct_def) => Ok(Type::Struct(struct_def.clone())),
-                    CustomType::Enum(_ord_map) => unimplemented!(),
+                    CustomType::Enum((ty, body)) => Ok(Type::Enum((Box::new(ty.clone()), body.clone()))),
                 }
             }
             else {
