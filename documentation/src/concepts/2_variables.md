@@ -26,10 +26,6 @@ person somebody = person { age: 23, name: "marci", is_male: true };
 
 Accessing an enum variable is no different from other languages. The default type for an enum is an `int` if not defined by the user.
 
----
-> **This is currently in development and may not be available in the latest edition of the compiler!**
----
-
 ```fog
 struct Apple {
     color: float,
@@ -49,5 +45,7 @@ enum Numbers {
 
 string ida_name = Apples::Idared.name;
 int integer_zwei = Numbers::Two;
+
+# Error
 int float_zwei = Numbers::Two as float;
 ```
