@@ -300,7 +300,9 @@ pub fn parse_value(
 
             Token::As => {
                 if let Some(last_token) = &parsed_token {
-                    if let Some(Token::TypeDefinition(target_type)) = tokens.get(token_idx + 1) {
+                    if let Some(token) = dbg!(tokens.get(token_idx + 1)) {
+                        let target_type = ty_from_token(token, &custom_types)?;
+                        
                         token_idx += 2;
 
                         parsed_token = Some(ParsedTokenInstance {

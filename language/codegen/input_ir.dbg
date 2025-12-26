@@ -152,7 +152,7 @@
     },
     ParsedTokenInstance {
         inner: NewVariable(
-            "kys",
+            "fu",
             Enum(
                 (
                     U32,
@@ -301,6 +301,211 @@
         },
     },
     ParsedTokenInstance {
+        inner: NewVariable(
+            "idared",
+            Struct(
+                (
+                    "Apple",
+                    OrdMap(
+                        {
+                            "color": F32,
+                            "name": String,
+                        },
+                    ),
+                ),
+            ),
+            ParsedTokenInstance {
+                inner: TypeCast(
+                    ParsedTokenInstance {
+                        inner: Literal(
+                            Enum(
+                                (
+                                    Struct(
+                                        (
+                                            "Apple",
+                                            OrdMap(
+                                                {
+                                                    "color": F32,
+                                                    "name": String,
+                                                },
+                                            ),
+                                        ),
+                                    ),
+                                    OrdMap(
+                                        {
+                                            "Idared": ParsedTokenInstance {
+                                                inner: InitializeStruct(
+                                                    OrdMap(
+                                                        {
+                                                            "color": F32,
+                                                            "name": String,
+                                                        },
+                                                    ),
+                                                    OrdMap(
+                                                        {
+                                                            "color": ParsedTokenInstance {
+                                                                inner: Literal(
+                                                                    F32(
+                                                                        NotNan(
+                                                                            1.0,
+                                                                        ),
+                                                                    ),
+                                                                ),
+                                                                debug_information: DebugInformation {
+                                                                    char_start: CharPosition {
+                                                                        line: 0,
+                                                                        column: 0,
+                                                                    },
+                                                                    char_end: CharPosition {
+                                                                        line: 0,
+                                                                        column: 0,
+                                                                    },
+                                                                },
+                                                            },
+                                                            "name": ParsedTokenInstance {
+                                                                inner: Literal(
+                                                                    String(
+                                                                        "Idared",
+                                                                    ),
+                                                                ),
+                                                                debug_information: DebugInformation {
+                                                                    char_start: CharPosition {
+                                                                        line: 0,
+                                                                        column: 0,
+                                                                    },
+                                                                    char_end: CharPosition {
+                                                                        line: 0,
+                                                                        column: 0,
+                                                                    },
+                                                                },
+                                                            },
+                                                        },
+                                                    ),
+                                                ),
+                                                debug_information: DebugInformation {
+                                                    char_start: CharPosition {
+                                                        line: 0,
+                                                        column: 0,
+                                                    },
+                                                    char_end: CharPosition {
+                                                        line: 0,
+                                                        column: 0,
+                                                    },
+                                                },
+                                            },
+                                            "Granny": ParsedTokenInstance {
+                                                inner: InitializeStruct(
+                                                    OrdMap(
+                                                        {
+                                                            "color": F32,
+                                                            "name": String,
+                                                        },
+                                                    ),
+                                                    OrdMap(
+                                                        {
+                                                            "color": ParsedTokenInstance {
+                                                                inner: Literal(
+                                                                    F32(
+                                                                        NotNan(
+                                                                            0.5,
+                                                                        ),
+                                                                    ),
+                                                                ),
+                                                                debug_information: DebugInformation {
+                                                                    char_start: CharPosition {
+                                                                        line: 0,
+                                                                        column: 0,
+                                                                    },
+                                                                    char_end: CharPosition {
+                                                                        line: 0,
+                                                                        column: 0,
+                                                                    },
+                                                                },
+                                                            },
+                                                            "name": ParsedTokenInstance {
+                                                                inner: Literal(
+                                                                    String(
+                                                                        "Granny Smith",
+                                                                    ),
+                                                                ),
+                                                                debug_information: DebugInformation {
+                                                                    char_start: CharPosition {
+                                                                        line: 0,
+                                                                        column: 0,
+                                                                    },
+                                                                    char_end: CharPosition {
+                                                                        line: 0,
+                                                                        column: 0,
+                                                                    },
+                                                                },
+                                                            },
+                                                        },
+                                                    ),
+                                                ),
+                                                debug_information: DebugInformation {
+                                                    char_start: CharPosition {
+                                                        line: 0,
+                                                        column: 0,
+                                                    },
+                                                    char_end: CharPosition {
+                                                        line: 0,
+                                                        column: 0,
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    ),
+                                    "Idared",
+                                ),
+                            ),
+                        ),
+                        debug_information: DebugInformation {
+                            char_start: CharPosition {
+                                line: 0,
+                                column: 0,
+                            },
+                            char_end: CharPosition {
+                                line: 0,
+                                column: 0,
+                            },
+                        },
+                    },
+                    Struct(
+                        (
+                            "Apple",
+                            OrdMap(
+                                {
+                                    "color": F32,
+                                    "name": String,
+                                },
+                            ),
+                        ),
+                    ),
+                ),
+                debug_information: DebugInformation {
+                    char_start: CharPosition {
+                        line: 0,
+                        column: 0,
+                    },
+                    char_end: CharPosition {
+                        line: 0,
+                        column: 0,
+                    },
+                },
+            },
+        ),
+        debug_information: DebugInformation {
+            char_start: CharPosition {
+                line: 0,
+                column: 0,
+            },
+            char_end: CharPosition {
+                line: 0,
+                column: 0,
+            },
+        },
+    },
+    ParsedTokenInstance {
         inner: FunctionCall(
             (
                 FunctionSignature {
@@ -336,7 +541,7 @@
                         ParsedTokenInstance {
                             inner: Literal(
                                 String(
-                                    "%i, %i",
+                                    "%i, %i, %s",
                                 ),
                             ),
                             debug_information: DebugInformation {
@@ -439,7 +644,7 @@
                         ParsedTokenInstance {
                             inner: VariableReference(
                                 BasicReference(
-                                    "kys",
+                                    "fu",
                                 ),
                             ),
                             debug_information: DebugInformation {
@@ -513,6 +718,42 @@
                                 ),
                             ),
                         ),
+                    ),
+                    Index(
+                        3,
+                    ): (
+                        ParsedTokenInstance {
+                            inner: VariableReference(
+                                StructFieldReference(
+                                    StructFieldReference {
+                                        field_stack: [
+                                            "idared",
+                                            "name",
+                                        ],
+                                    },
+                                    (
+                                        "Apple",
+                                        OrdMap(
+                                            {
+                                                "color": F32,
+                                                "name": String,
+                                            },
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            debug_information: DebugInformation {
+                                char_start: CharPosition {
+                                    line: 0,
+                                    column: 0,
+                                },
+                                char_end: CharPosition {
+                                    line: 0,
+                                    column: 0,
+                                },
+                            },
+                        },
+                        String,
                     ),
                 },
             ),

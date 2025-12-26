@@ -43,7 +43,7 @@ enum Numbers {
 pub function main(): int {
     Numbers null = Numbers::Zero;
     Numbers fu = Numbers::SixtySeven;
-    Apple idared = Apples::Idared;
+    Apple idared = Apples::Idared as Apple;
 
     printf("%i, %i, %s", null, fu, idared.name);
 

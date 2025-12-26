@@ -438,10 +438,11 @@ pub fn set_value_of_ptr<'ctx>(
                 &ctx,
                 &builder,
                 &module,
-                body.get(&val)
-                    .ok_or(ParserError::EnumVariantNotFound(val))?
-                    .inner
-                    .clone()
+                // TODO: Remove InitializeStruct token just make it a struct value
+                dbg!(body.get(&val)
+                                    .ok_or(ParserError::EnumVariantNotFound(val))?
+                                    .inner
+                                    .clone())
                     .try_as_literal()
                     .unwrap()
                     .clone(),
