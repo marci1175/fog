@@ -71,7 +71,7 @@ impl LanguageServer for Backend
                             text_document_registration_options: {
                                 TextDocumentRegistrationOptions {
                                     document_selector: Some(vec![DocumentFilter {
-                                        language: Some("fog".to_string()),
+                                        language: Some("nrs".to_string()),
                                         scheme: Some("file".to_string()),
                                         pattern: None,
                                     }]),

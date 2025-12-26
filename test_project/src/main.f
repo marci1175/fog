@@ -42,10 +42,10 @@ enum Numbers {
 
 pub function main(): int {
     Numbers null = Numbers::Zero;
-    Numbers kys = Numbers::SixtySeven;
-    # Apple idared = Apples::Idared;
+    Numbers fu = Numbers::SixtySeven;
+    Apple idared = Apples::Idared;
 
-    printf("%i, %i", null, kys);
+    printf("%i, %i, %s", null, fu, idared.name);
 
     return 0;
 }
