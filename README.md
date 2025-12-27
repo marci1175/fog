@@ -3,7 +3,7 @@
 ---
 
 **Fog is a lightweight, high-performance programming language designed to be simple, flexible, and expressive.  
-It focuses on minimalism, predictable semantics, and fast native compilation — with optional [tooling](https://github.com/marci1175/fog/tree/master/fog_distributed_compiler) for large-scale workloads.**
+It focuses on minimalism, predictable semantics, and fast native compilation — with optional [tooling](https://github.com/marci1175/fog/tree/master/distributed-compiler) for large-scale workloads.**
 
 ---
 
