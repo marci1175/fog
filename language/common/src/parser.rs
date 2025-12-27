@@ -107,11 +107,6 @@ pub enum ParsedToken
 
     If(If),
 
-    InitializeStruct(
-        OrdMap<String, Type>,
-        OrdMap<String, Box<ParsedTokenInstance>>,
-    ),
-
     CodeBlock(Vec<ParsedToken>),
 
     Loop(Vec<ParsedTokenInstance>),

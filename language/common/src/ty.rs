@@ -46,7 +46,13 @@ pub enum Value
     #[default]
     Void,
 
-    Struct((String, OrdMap<String, Value>)),
+    Struct(
+        (
+            String,
+            OrdMap<String, Type>,
+            OrdMap<String, Box<ParsedTokenInstance>>,
+        ),
+    ),
 
     /// First item is the type of the array
     /// Second item is the length
@@ -189,11 +195,11 @@ impl Value
             Value::String(_) => Type::String,
             Value::Boolean(_) => Type::Boolean,
             Value::Void => Type::Void,
-            Value::Struct((struct_name, struct_fields)) => {
+            Value::Struct((struct_name, struct_fields, _struct_values)) => {
                 let mut struct_field_ty_list = OrdMap::new();
 
                 for (name, ty) in struct_fields.iter() {
-                    struct_field_ty_list.insert(name.clone(), ty.discriminant());
+                    struct_field_ty_list.insert(name.clone(), ty.clone());
                 }
 
                 Type::Struct((struct_name.clone(), struct_field_ty_list))

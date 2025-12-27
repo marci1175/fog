@@ -192,6 +192,7 @@ where
                                 &struct_def,
                                 (*ptr, *ty),
                                 custom_types.clone(),
+                                ty.into_struct_type(),
                             )?;
 
                             pre_allocation_list.push((

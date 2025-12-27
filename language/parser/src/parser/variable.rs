@@ -300,9 +300,9 @@ pub fn parse_value(
 
             Token::As => {
                 if let Some(last_token) = &parsed_token {
-                    if let Some(token) = dbg!(tokens.get(token_idx + 1)) {
+                    if let Some(token) = tokens.get(token_idx + 1) {
                         let target_type = ty_from_token(token, &custom_types)?;
-                        
+
                         token_idx += 2;
 
                         parsed_token = Some(ParsedTokenInstance {
@@ -635,7 +635,7 @@ pub fn parse_token_as_value(
             }
             else if let Some(custom_type) = custom_types.get(identifier) {
                 match custom_type {
-                    CustomType::Struct((_struct_name, struct_inner)) => {
+                    CustomType::Struct((struct_name, struct_inner)) => {
                         if let Some(Token::OpenBraces) = tokens.get(*token_idx + 1) {
                             let closing_idx = find_closing_braces(&tokens[*token_idx + 2..], 0)?;
 
@@ -648,6 +648,7 @@ pub fn parse_token_as_value(
                                 debug_infos,
                                 origin_token_idx,
                                 struct_inner,
+                                struct_name.clone(),
                                 function_signatures.clone(),
                                 function_imports,
                                 custom_types.clone(),
@@ -658,7 +659,7 @@ pub fn parse_token_as_value(
 
                             return Ok((
                                 init_struct_token,
-                                Type::Struct((_struct_name.clone(), struct_inner.clone())),
+                                Type::Struct((struct_name.clone(), struct_inner.clone())),
                             ));
                         }
 
@@ -1514,6 +1515,7 @@ pub fn init_struct(
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
     this_struct_field: &IndexMap<String, Type>,
+    this_struct_name: String,
     function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Arc<HashMap<String, FunctionSignature>>,
     custom_types: Arc<IndexMap<String, CustomType>>,
@@ -1573,10 +1575,11 @@ pub fn init_struct(
     Ok((
         idx,
         ParsedTokenInstance {
-            inner: ParsedToken::InitializeStruct(
+            inner: ParsedToken::Literal(common::ty::Value::Struct((
+                this_struct_name,
                 this_struct_field.clone().into(),
                 struct_field_init_map.into(),
-            ),
+            ))),
             debug_information: fetch_and_merge_debug_information(
                 debug_infos,
                 origin_token_idx + token_offset..origin_token_idx + idx + token_offset,

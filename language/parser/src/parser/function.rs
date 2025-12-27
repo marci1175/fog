@@ -575,7 +575,9 @@ impl Parser
                                 body_idx += idx;
 
                                 // Check correct signature by checking if we are currently at a `,` or at the end of the token list
-                                if variant_body.get(body_idx) == Some(&Token::Comma) || body_idx == variant_body.len() {
+                                if variant_body.get(body_idx) == Some(&Token::Comma)
+                                    || body_idx == variant_body.len()
+                                {
                                     // Store enum variant
                                     variant_fields
                                         .insert(variant_name.clone(), parsed_token_instance);

@@ -10,7 +10,7 @@ use common::{
         builder::Builder,
         context::Context,
         module::Module,
-        types::{BasicMetadataTypeEnum, BasicTypeEnum},
+        types::{BasicMetadataTypeEnum, BasicTypeEnum, PointerType, StructType},
         values::{FunctionValue, PointerValue},
     },
     parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
@@ -23,7 +23,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::create_ir_from_parsed_token;
+use crate::{allocate::create_new_variable, create_ir_from_parsed_token};
 
 /// This function accesses any kind of variable.
 /// This is a recursive function so that nested variables i.e nested variables inside arrays and structs can be fetched.
@@ -107,6 +107,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
                             &struct_definition,
                             (*ptr, *ty),
                             custom_types.clone(),
+                            ty.into_struct_type(),
                         )?;
 
                         Ok(((f_ptr, f_ty.into()), ty_disc))
@@ -197,32 +198,38 @@ pub fn access_nested_struct_field_ptr<'a>(
     struct_definition: &IndexMap<String, Type>,
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
     custom_types: Arc<IndexMap<String, CustomType>>,
+    this_struct_ty: StructType<'a>,
 ) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, Type)>
 {
     if let Some(field_stack_entry) = field_stack_iter.next() {
         if let Some((field_idx, _, field_ty)) = struct_definition.get_full(field_stack_entry) {
-            if let Type::Struct((_, struct_def)) = field_ty {
-                let pointee_ty = last_field_ptr.1.into_struct_type();
-                let struct_field_ptr = builder.build_struct_gep(
-                    pointee_ty,
-                    last_field_ptr.0,
-                    field_idx as u32,
-                    "deref_nested_strct",
-                )?;
+            let field_ptr = builder.build_struct_gep(
+                this_struct_ty,
+                last_field_ptr.0,
+                field_idx as u32,
+                "deref_struct_field",
+            )?;
 
-                access_nested_struct_field_ptr(
-                    ctx,
-                    builder,
-                    field_stack_iter,
-                    struct_def,
-                    (struct_field_ptr, pointee_ty.into()),
-                    custom_types.clone(),
-                )
-            }
-            else {
-                let pointee_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
+            match field_ty {
+                Type::Struct((_, struct_def)) => {
+                    let field_struct_ty =
+                        ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?.into_struct_type();
 
-                Ok((last_field_ptr.0, pointee_ty, field_ty.clone()))
+                    access_nested_struct_field_ptr(
+                        ctx,
+                        builder,
+                        field_stack_iter,
+                        struct_def,
+                        (field_ptr, field_struct_ty.into()),
+                        custom_types.clone(),
+                        field_struct_ty,
+                    )
+                },
+
+                _ => {
+                    let llvm_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
+                    Ok((field_ptr, llvm_ty, field_ty.clone()))
+                },
             }
         }
         else {
@@ -292,10 +299,23 @@ pub fn access_nested_struct_field_ptr<'a>(
 /// Ensure that we are setting variable type `T` with value `T`
 pub fn set_value_of_ptr<'ctx>(
     ctx: &'ctx Context,
-    builder: &Builder,
+    builder: &'ctx Builder,
     module: &Module<'ctx>,
     value: Value,
     v_ptr: PointerValue<'_>,
+    custom_types: Arc<IndexMap<String, CustomType>>,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
+    fn_ret_ty: &Type,
+    this_fn_block: BasicBlock<'ctx>,
+    this_fn: FunctionValue<'ctx>,
+    allocation_list: &mut VecDeque<(
+        ParsedTokenInstance,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        Type,
+    )>,
+    is_loop_body: &Option<LoopBodyBlocks<'_>>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
 ) -> Result<()>
 {
     let bool_type = ctx.bool_type();
@@ -425,28 +445,94 @@ pub fn set_value_of_ptr<'ctx>(
         Value::Void => {
             unreachable!()
         },
-        Value::Struct((struct_name, struct_inner)) => {
-            unreachable!()
+        Value::Struct((struct_name, struct_fields, struct_values)) => {
+            // Get the struct pointer's ty
+            let pointee_struct_ty = ty_to_llvm_ty(
+                &ctx,
+                &Type::Struct((struct_name, struct_fields.clone())),
+                custom_types.clone(),
+            )?
+            .into_struct_type();
+
+            // Pre-Allocate a struct so that it can be accessed later
+            let allocate_struct = builder.build_alloca(pointee_struct_ty, "strct_init")?;
+
+            // Iterate over the struct's fields
+            for (field_idx, (field_name, field_ty)) in struct_fields.iter().enumerate() {
+                // Convert to llvm type
+                let llvm_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
+
+                // Create a new temp variable according to the struct's field type
+                let (ptr, ty) =
+                    create_new_variable(ctx, builder, field_name, field_ty, custom_types.clone())?;
+
+                // Parse the value for the temp var
+                create_ir_from_parsed_token(
+                    ctx,
+                    module,
+                    builder,
+                    *(struct_values.get(field_name).unwrap().clone()),
+                    variable_map,
+                    Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
+                    fn_ret_ty.clone(),
+                    this_fn_block,
+                    this_fn,
+                    allocation_list,
+                    is_loop_body.clone(),
+                    parsed_functions.clone(),
+                    custom_types.clone(),
+                )?;
+
+                // Load the temp value to memory and store it
+                let temp_val = builder.build_load(llvm_ty, ptr, field_name)?;
+
+                // Get the struct's field gep
+                let struct_field_ptr = builder.build_struct_gep(
+                    pointee_struct_ty,
+                    allocate_struct,
+                    field_idx as u32,
+                    "field_gep",
+                )?;
+
+                // Store the temp value in the struct through the struct's field gep
+                builder.build_store(struct_field_ptr, temp_val)?;
+            }
+
+            // Load the allocated struct into memory
+            let constructed_struct = builder
+                .build_load(pointee_struct_ty, allocate_struct, "constructed_struct")?
+                .into_struct_value();
+
+            // Store the struct in the main variable
+            builder.build_store(v_ptr, constructed_struct)?;
         },
         Value::Array(inner_ty) => unimplemented!(),
         Value::Pointer((inner, _)) => {
-            // LLVM does let us initalize a pointer type with a pre-determined address
-            builder.build_store(v_ptr, ptr_type.const_null())?;
+            // // LLVM does let us initalize a pointer type with a pre-determined address
+            // builder.build_store(v_ptr, ptr_type.const_null())?;
+            unimplemented!()
         },
         Value::Enum((_ty, body, val)) => {
             set_value_of_ptr(
                 &ctx,
                 &builder,
                 &module,
-                // TODO: Remove InitializeStruct token just make it a struct value
-                dbg!(body.get(&val)
-                                    .ok_or(ParserError::EnumVariantNotFound(val))?
-                                    .inner
-                                    .clone())
+                body.get(&val)
+                    .ok_or(ParserError::EnumVariantNotFound(val))?
+                    .inner
+                    .clone()
                     .try_as_literal()
                     .unwrap()
                     .clone(),
                 v_ptr,
+                custom_types.clone(),
+                variable_map,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body,
+                parsed_functions,
             )?;
         },
     }
