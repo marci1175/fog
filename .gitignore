@@ -4,4 +4,4 @@
 /stored_deps
 /dependency-manager/target
 /deps
-/language/codegen/input_ir.dbg
+language/codegen/input_ir.dbg
