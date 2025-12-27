@@ -18,7 +18,7 @@ It focuses on minimalism, predictable semantics, and fast native compilation —
 | Distributed Build Infrastructure | Supported ✅ |
 | Rich Error Diagnostics | Supported ✅ |
 | Fog IR + LLVM IR Emission | Supported ✅ |
-| Structs & Custom Types | Partially Supported ⚠️ |
+| Structs & Custom Types | Supported ✅ |
 | Module System | Partially Supported ⚠️ |
 | Debug Information | Partially Supported ⚠️ |
 | FFI (C ABI) | Partially Supported ⚠️ |
