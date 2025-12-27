@@ -950,6 +950,7 @@ impl Parser
 
                                 token_idx += 1;
 
+                                // Check the next token after the struct name
                                 if let Some(Token::Identifier(var_name)) = tokens.get(token_idx)
                                     && let Some(Token::SetValue) = tokens.get(token_idx + 1)
                                 {
@@ -995,6 +996,10 @@ impl Parser
                                     });
 
                                     variable_scope.insert(var_name.clone(), variable_type);
+                                }
+                                else {
+                                    // Assume that the user tried to access the struct name as a variable
+                                    return Err(ParserError::VariableNotFound(ident_name.clone()).into());
                                 }
                             },
                             CustomType::Enum(inner) => {

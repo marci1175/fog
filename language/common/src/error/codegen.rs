@@ -37,7 +37,7 @@ pub enum CodeGenError
     InternalTypeMismatch,
     #[error("A type mismatch has occurred at codegen. Type `{0}` mismatches type `{1}`.")]
     CodegenTypeMismatch(Type, Type),
-    #[error("[INTERNAL ERROR] A reference to an inexistent struct has been provided.")]
+    #[error("[INTERNAL ERROR] A reference to an inexistent struct / field has been provided.")]
     InternalInvalidStructReference,
     #[error("Comparsions are not implemented for type `{0}`.")]
     ComparisonIncompatibility(Type),

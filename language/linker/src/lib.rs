@@ -1,6 +1,6 @@
 #![feature(iterator_try_collect)]
 
-use common::{error::linker::LinkerError, linker::BuildManifest, toml};
+use common::{error::linker::LinkerError, linker::BuildManifest, toml, tracing::info};
 use std::{
     env, fs,
     path::PathBuf,
@@ -72,8 +72,8 @@ pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>
 
     args.push("-o".to_string());
     args.push(build_manifest.output_path.display().to_string());
-
-    println!("Linking...");
+    
+    info!("Linking...");
 
     let clang_out = Command::new("clang")
         .args(args.iter())
