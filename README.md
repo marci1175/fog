@@ -18,13 +18,13 @@ It focuses on minimalism, predictable semantics, and fast native compilation —
 | Distributed Build Infrastructure | Supported ✅ |
 | Rich Error Diagnostics | Supported ✅ |
 | Fog IR + LLVM IR Emission | Supported ✅ |
-| Structs & Custom Types | Supported ✅ |
+| Custom Types | Supported ✅ |
 | Module System | Partially Supported ⚠️ |
 | Debug Information | Partially Supported ⚠️ |
 | FFI (C ABI) | Partially Supported ⚠️ |
 | Cross-Compilation | Partially Supported ⚠️ |
 | Dependency System | Partially Supported ⚠️ |
-| Function Generics | Planned 🔵 |
+| Function Generics & Traits | Planned 🔵 |
 | Dynamic Memory Allocation | Planned 🔵 |
 | Async / Tasks | Planned 🔵 |
 | Incremental Compilation | Planned 🔵 |
