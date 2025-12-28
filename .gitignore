@@ -3,5 +3,5 @@
 /.env
 /stored_deps
 /dependency-manager/target
-/deps
+deps/
 language/codegen/input_ir.dbg

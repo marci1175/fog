@@ -31,7 +31,7 @@ use std::{
 
 use crate::get_unique_id;
 
-/// Stores the DebugInformation type equivalents of the passed in [`TypeDiscriminant`]s.
+/// Stores the DebugInformation type equivalents of the passed in [`Type`]s.
 pub fn generate_debug_inforamtion_types<'ctx>(
     ctx: &'ctx Context,
     module: &Module<'ctx>,
@@ -62,7 +62,7 @@ pub fn generate_debug_inforamtion_types<'ctx>(
     Ok(())
 }
 
-/// Generates a debug type from a [`TypeDiscriminant`].
+/// Generates a debug type from a [`Type`].
 /// This can be used to generate debug information, which can be added into the llvm-ir.
 pub fn generate_debug_type_from_type_disc<'ctx>(
     ctx: &'ctx Context,

@@ -826,7 +826,7 @@
                         line: 0,
                         column: 0,
                     },
-                }
+                },
             },
         ),
         debug_information: DebugInformation {

@@ -258,7 +258,7 @@ impl Type
     }
 
     /// Returns DWARF encoding for a type. For more complex types see: [`generate_debug_type_from_type_disc`].
-    /// Reference arcticle: https://dwarfstd.org/doc/DWARF5.pdf
+    /// Reference arcticle: <https://dwarfstd.org/doc/DWARF5.pdf>
     pub fn get_dwarf_encoding(&self) -> u32
     {
         match self {
