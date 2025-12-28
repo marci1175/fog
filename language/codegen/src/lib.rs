@@ -42,10 +42,10 @@ pub fn llvm_codegen_main<'ctx>(
     path_to_o_output: PathBuf,
     is_optimized: bool,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     flags_passed_in: &str,
     path_to_src: &str,
-    target_triple: Arc<TargetTriple>,
+    target_triple: Rc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> Result<TargetMachine>
@@ -157,7 +157,7 @@ pub fn llvm_codegen<'ctx>(
     module: common::inkwell::module::Module<'ctx>,
     path_to_src: &str,
     flags_passed_in: &str,
-    target_triple: Arc<TargetTriple>,
+    target_triple: Rc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> Result<(), common::anyhow::Error>

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use common::{
     anyhow, compiler::ProjectConfig, dashmap::DashMap, parser::FunctionSignature, ty::OrdSet,
@@ -7,7 +7,7 @@ use parser::{parser_instance::Parser, tokenizer::tokenize};
 
 pub fn analyze_dependency(
     source_file_contents: &str,
-    deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
+    deps: Rc<DashMap<Vec<String>, FunctionSignature>>,
     config: ProjectConfig,
     module_path: Vec<String>,
     enabled_features: OrdSet<String>,

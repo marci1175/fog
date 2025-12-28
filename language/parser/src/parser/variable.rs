@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc};
 
 use common::{
     anyhow::Result,
@@ -24,12 +24,12 @@ pub fn parse_value(
     tokens_offset: usize,
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
-    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &mut IndexMap<String, Type>,
     // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
     mut desired_variable_type: Option<Type>,
-    function_imports: Arc<HashMap<String, FunctionSignature>>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    function_imports: Rc<HashMap<String, FunctionSignature>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<(ParsedTokenInstance, usize, Type)>
 {
     let mut token_idx = 0;
@@ -51,7 +51,7 @@ pub fn parse_value(
                 || *next_token == Token::Bigger
                 || *next_token == Token::Smaller)
         {
-            // TODO: Check why am I doing this.....
+            // I do this so that the parser wont check the type of the value it parses to avoid returning an error here
             desired_variable_type = None;
         }
 
@@ -356,7 +356,7 @@ pub fn parse_token_as_value(
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
     // Functions available
-    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     // Variables available
     variable_scope: &mut IndexMap<String, Type>,
     // The variable's type which we are parsing for
@@ -365,8 +365,8 @@ pub fn parse_token_as_value(
     token_idx: &mut usize,
     // The token we want to evaluate, this is the first token of the slice most of the time
     eval_token: &Token,
-    function_imports: Arc<HashMap<String, FunctionSignature>>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    function_imports: Rc<HashMap<String, FunctionSignature>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<(ParsedTokenInstance, Type)>
 {
     // Match the token
@@ -530,7 +530,7 @@ pub fn parse_token_as_value(
                     }
                 }
             }
-            // If the identifier could not be found in the function list search in the variable scope
+            // If the identifier could not be found in the function list seRch in the variable scope
             else if let Some(variable_type) = variable_scope.get(identifier).cloned() {
                 let basic_reference = VariableReference::BasicReference(identifier.clone());
 
@@ -885,11 +885,11 @@ pub fn parse_variable_expression(
     debug_infos: &[DebugInformation],
     current_token: &Token,
     token_idx: &mut usize,
-    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
-    function_imports: Arc<HashMap<String, FunctionSignature>>,
+    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_imports: Rc<HashMap<String, FunctionSignature>>,
     variable_scope: &mut IndexMap<String, Type>,
     variable_type: Type,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     mut variable_ref: ParsedTokenInstance,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
 ) -> Result<()>
@@ -1203,12 +1203,12 @@ fn handle_variable(
     token_offset: usize,
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
-    function_signatures: &Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: &Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &mut IndexMap<String, Type>,
     desired_variable_type: Option<Type>,
     token_idx: &mut usize,
-    function_imports: &Arc<HashMap<String, FunctionSignature>>,
-    custom_types: &Arc<IndexMap<String, CustomType>>,
+    function_imports: &Rc<HashMap<String, FunctionSignature>>,
+    custom_types: &Rc<IndexMap<String, CustomType>>,
     identifier: &String,
     variable_reference: VariableReference,
     // Last parsed token parsed
@@ -1398,15 +1398,15 @@ fn set_value_math_expr(
     tokens: &[Token],
     token_offset: usize,
     debug_infos: &[DebugInformation],
-    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
     variable_scope: &mut IndexMap<String, Type>,
     variable_type: Type,
     variable_reference: ParsedTokenInstance,
     math_symbol: MathematicalSymbol,
-    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    standard_function_table: Rc<HashMap<String, FunctionSignature>>,
+    custom_items: Rc<IndexMap<String, CustomType>>,
 ) -> Result<()>
 {
     let origin_token_idx = *token_idx;
@@ -1516,9 +1516,9 @@ pub fn init_struct(
     origin_token_idx: usize,
     this_struct_field: &IndexMap<String, Type>,
     this_struct_name: String,
-    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
-    function_imports: Arc<HashMap<String, FunctionSignature>>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_imports: Rc<HashMap<String, FunctionSignature>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     variable_scope: &mut IndexMap<String, Type>,
 ) -> Result<(usize, ParsedTokenInstance)>
 {

@@ -37,7 +37,7 @@ pub fn create_alloca_table<'main, 'ctx>(
     variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    custom_items: Rc<IndexMap<String, CustomType>>,
 ) -> Result<
     VecDeque<(
         ParsedTokenInstance,
@@ -90,7 +90,7 @@ pub fn fetch_alloca_ptr<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<
     Vec<(
         ParsedTokenInstance,
@@ -1361,7 +1361,7 @@ pub fn create_new_variable<'a, 'b>(
     builder: &'a Builder<'_>,
     var_name: &str,
     var_type: &Type,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>)>
 {
     // Turn a `TypeDiscriminant` into an LLVM type

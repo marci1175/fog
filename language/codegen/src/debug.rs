@@ -24,9 +24,7 @@ use common::{
     ty::{Type, ty_from_token},
 };
 use std::{
-    ffi::{CStr, CString},
-    ptr,
-    sync::Arc,
+    ffi::{CStr, CString}, ptr, rc::Rc, sync::Arc
 };
 
 use crate::get_unique_id;
@@ -38,7 +36,7 @@ pub fn generate_debug_inforamtion_types<'ctx>(
     types_buffer: &mut Vec<common::inkwell::debug_info::DIType<'ctx>>,
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     type_discriminants: Vec<Type>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
     unique_id_source: &mut u32,
@@ -49,7 +47,7 @@ pub fn generate_debug_inforamtion_types<'ctx>(
             ctx,
             module,
             debug_info_builder,
-            &custom_types,
+            custom_types.clone(),
             type_disc,
             scope,
             file,
@@ -68,7 +66,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
     ctx: &'ctx Context,
     module: &Module<'ctx>,
     debug_info_builder: &DebugInfoBuilder<'ctx>,
-    custom_types: &Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     type_disc: Type,
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
@@ -77,7 +75,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
 {
     let debug_type = match type_disc.clone() {
         Type::Array((array_ty, len)) => {
-            let inner_ty_disc = ty_from_token(&*array_ty, custom_types).unwrap();
+            let inner_ty_disc = ty_from_token(&*array_ty, &custom_types).unwrap();
 
             let inner_type = get_basic_debug_type_from_ty(
                 debug_info_builder,
@@ -202,7 +200,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
 /// A simple type is basically any primitive which encoding is int or uint.
 fn get_basic_debug_type_from_ty<'ctx>(
     debug_info_builder: &DebugInfoBuilder<'ctx>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     type_disc: Type,
 ) -> Result<common::inkwell::debug_info::DIBasicType<'ctx>>
 {
@@ -221,7 +219,7 @@ fn get_basic_debug_type_from_ty<'ctx>(
 pub fn create_subprogram_debug_information<'ctx>(
     context: &'ctx Context,
     module: &Module<'ctx>,
-    custom_types: &Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     is_optimized: bool,
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     debug_info_file: DIFile<'ctx>,
@@ -240,7 +238,7 @@ pub fn create_subprogram_debug_information<'ctx>(
             context,
             module,
             debug_info_builder,
-            custom_types,
+            custom_types.clone(),
             return_type,
             debug_scope,
             debug_info_file,

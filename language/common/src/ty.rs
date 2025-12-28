@@ -1,8 +1,5 @@
 use std::{
-    fmt::{Debug, Display},
-    hash::Hash,
-    ops::{Deref, DerefMut},
-    sync::Arc,
+    fmt::{Debug, Display}, hash::Hash, ops::{Deref, DerefMut}, rc::Rc
 };
 
 use indexmap::{IndexMap, IndexSet};
@@ -275,7 +272,7 @@ impl Type
         }
     }
 
-    pub fn sizeof(&self, custom_types: Arc<IndexMap<String, CustomType>>) -> usize
+    pub fn sizeof(&self, custom_types: Rc<IndexMap<String, CustomType>>) -> usize
     {
         match self {
             Self::I64 => std::mem::size_of::<i64>(),
@@ -310,7 +307,7 @@ impl Type
     pub fn to_basic_type_enum<'a>(
         &self,
         ctx: &'a Context,
-        custom_types: Arc<IndexMap<String, CustomType>>,
+        custom_types: Rc<IndexMap<String, CustomType>>,
     ) -> anyhow::Result<BasicTypeEnum<'a>>
     {
         let basic_ty = match self {

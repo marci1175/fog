@@ -3,7 +3,6 @@ use std::{
     fs,
     path::PathBuf,
     rc::Rc,
-    sync::Arc,
 };
 
 use codegen::llvm_codegen;
@@ -42,12 +41,12 @@ pub fn create_dependency_functions_list<'ctx>(
     builder: &'ctx Builder<'ctx>,
     root_module: &Module<'ctx>,
     flags_passed_in: &str,
-    target_triple: Arc<TargetTriple>,
+    target_triple: Rc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
-) -> anyhow::Result<Arc<DashMap<Vec<String>, FunctionSignature>>>
+) -> anyhow::Result<Rc<DashMap<Vec<String>, FunctionSignature>>>
 {
-    let deps: Arc<DashMap<Vec<String>, FunctionSignature>> = Arc::new(DashMap::new());
+    let deps: Rc<DashMap<Vec<String>, FunctionSignature>> = Rc::new(DashMap::new());
 
     let mut module_path = vec![];
 
@@ -82,7 +81,7 @@ pub fn create_dependency_functions_list<'ctx>(
 
         // Create a map of the remotes' thread handlers
         let (remote_handlers, thread_handles) =
-            create_remote_list(remotes, host_information, deps.clone(), root_dir.clone());
+            create_remote_list(remotes, host_information, root_dir.clone());
 
         // Request the dependencies from those remotes
         dependency_requester(&dependency_list, &remote_handlers)?;
@@ -127,11 +126,11 @@ fn scan_dependencies<'ctx>(
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
     root_module: &Module<'ctx>,
-    deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
+    deps: Rc<DashMap<Vec<String>, FunctionSignature>>,
     module_path: &mut Vec<String>,
     dir_entries: &mut fs::ReadDir,
     flags_passed_in: &str,
-    target_triple: Arc<TargetTriple>,
+    target_triple: Rc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> Result<(), anyhow::Error>
@@ -175,7 +174,7 @@ fn scan_dependency<'ctx>(
     dependency_output_path_list: &mut Vec<PathBuf>,
     additional_linking_material_list: &mut Vec<PathBuf>,
     dependency_list: &mut HashMap<String, DependencyInfo>,
-    deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
+    deps: Rc<DashMap<Vec<String>, FunctionSignature>>,
     dependency_path: &mut PathBuf,
     optimization: bool,
     context: &'ctx Context,
@@ -183,7 +182,7 @@ fn scan_dependency<'ctx>(
     root_module: &Module<'ctx>,
     module_path: &mut Vec<String>,
     flags_passed_in: &str,
-    target_triple: Arc<TargetTriple>,
+    target_triple: Rc<TargetTriple>,
     cpu_name: Option<String>,
     cpu_features: Option<String>,
 ) -> Result<(), anyhow::Error>

@@ -14,7 +14,7 @@ pub fn import_user_lib_functions<'a>(
     module: &Module<'a>,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<()>
 {
     for (import_name, import_sig) in imported_functions.iter() {

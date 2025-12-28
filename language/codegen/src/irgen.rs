@@ -50,7 +50,7 @@ pub fn create_ir<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    custom_items: Rc<IndexMap<String, CustomType>>,
 ) -> Result<()>
 where
     'main: 'ctx,
@@ -139,7 +139,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     )>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
     // The return value is None if the `variable_reference` of the function is `Some`, as the variable will have its value set to the value of the returned value.
@@ -2667,7 +2667,7 @@ pub fn generate_ir<'ctx>(
     context: &'ctx Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     is_optimized: bool,
     flags_passed_in: &str,
     path_to_src_file: &str,
@@ -2769,7 +2769,7 @@ pub fn generate_ir<'ctx>(
             let debug_subprogram = create_subprogram_debug_information(
                 context,
                 module,
-                &custom_types,
+                custom_types.clone(),
                 is_optimized,
                 &debug_info_builder,
                 debug_info_file,
@@ -2871,7 +2871,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     )>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    custom_items: Rc<IndexMap<String, CustomType>>,
 ) -> Result<()>
 where
     'main: 'ctx,

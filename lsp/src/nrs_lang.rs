@@ -413,7 +413,7 @@ fn expr_parser() -> impl Parser<Token, Spanned<Expr>, Error = Simple<Token>> + C
             .or(raw_expr.clone())
             .then(just(Token::Ctrl(';')).ignore_then(expr.or_not()).repeated())
             .foldl(|a, b| {
-                let span = a.1.clone(); // TODO: Not correct
+                let span = a.1.clone();
                 (
                     Expr::Then(
                         Box::new(a),

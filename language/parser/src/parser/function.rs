@@ -1,9 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
-    fs, mem,
-    ops::Range,
-    path::PathBuf,
-    sync::Arc,
+    collections::{HashMap, HashSet}, fs, mem, ops::Range, path::PathBuf, rc::Rc
 };
 
 use common::{
@@ -34,7 +30,7 @@ impl Parser
 {
     pub fn create_signature_table(
         &mut self,
-        dep_fn_list: Arc<DashMap<Vec<String>, FunctionSignature>>,
+        dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>,
     ) -> Result<(
         IndexMap<String, UnparsedFunctionDefinition>,
         HashSet<Vec<String>>,
@@ -407,7 +403,7 @@ impl Parser
                 if let Some(Token::Identifier(struct_name)) = tokens.get(token_idx + 1)
                     && let Some(Token::OpenBraces) = tokens.get(token_idx + 2)
                 {
-                    // Search for the closing brace's index
+                    // SeRch for the closing brace's index
                     let braces_idx =
                         find_closing_braces(&tokens[token_idx + 3..], 0)? + token_idx + 3;
 
@@ -544,7 +540,7 @@ impl Parser
                 if let Some(Token::Identifier(enum_name)) = tokens.get(token_idx + 1)
                     && let Some(Token::OpenBraces) = tokens.get(token_idx + 2)
                 {
-                    // Search for the closing brace's index
+                    // SeRch for the closing brace's index
                     let braces_idx =
                         find_closing_braces(&tokens[token_idx + 3..], 0)? + token_idx + 3;
 
@@ -565,11 +561,11 @@ impl Parser
                                     0,
                                     &self.tokens_debug_info,
                                     token_idx,
-                                    Arc::new(function_list.clone()),
+                                    Rc::new(function_list.clone()),
                                     &mut IndexMap::new(),
                                     Some(variant_type.clone()),
                                     self.imported_functions.clone(),
-                                    Arc::new(custom_types.clone()),
+                                    Rc::new(custom_types.clone()),
                                 )?;
 
                                 body_idx += idx;
@@ -656,9 +652,9 @@ impl Parser
 
     pub fn parse_functions(
         &self,
-        unparsed_functions: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
-        function_imports: Arc<HashMap<String, FunctionSignature>>,
-        custom_items: Arc<IndexMap<String, CustomType>>,
+        unparsed_functions: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
+        function_imports: Rc<HashMap<String, FunctionSignature>>,
+        custom_items: Rc<IndexMap<String, CustomType>>,
     ) -> Result<IndexMap<String, FunctionDefinition>>
     {
         let config = self.config.clone();
@@ -699,10 +695,10 @@ impl Parser
         &self,
         tokens: Vec<Token>,
         tokens_offset: usize,
-        function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
+        function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
         this_function_signature: FunctionSignature,
-        function_imports: Arc<HashMap<String, FunctionSignature>>,
-        custom_items: Arc<IndexMap<String, CustomType>>,
+        function_imports: Rc<HashMap<String, FunctionSignature>>,
+        custom_items: Rc<IndexMap<String, CustomType>>,
         this_fn_args: FunctionArguments,
         additional_variables: OrdMap<String, Type>,
     ) -> Result<Vec<ParsedTokenInstance>>
@@ -1314,9 +1310,9 @@ pub fn parse_function_call_args(
     debug_infos: &[DebugInformation],
     variable_scope: &mut IndexMap<String, Type>,
     mut this_function_args: FunctionArguments,
-    function_signatures: Arc<IndexMap<String, UnparsedFunctionDefinition>>,
-    standard_function_table: Arc<HashMap<String, FunctionSignature>>,
-    custom_items: Arc<IndexMap<String, CustomType>>,
+    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
+    standard_function_table: Rc<HashMap<String, FunctionSignature>>,
+    custom_items: Rc<IndexMap<String, CustomType>>,
 ) -> Result<(
     OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, Type)>,
     usize,

@@ -2,7 +2,6 @@ use std::{
     fs::{self, create_dir_all},
     path::PathBuf,
     rc::Rc,
-    sync::Arc,
 };
 
 use codegen::llvm_codegen;
@@ -66,7 +65,7 @@ impl CompilerState
         cpu_features: Option<String>,
     ) -> Result<BuildManifest>
     {
-        let target_triple = Arc::new(
+        let target_triple = Rc::new(
             if let Some(target_triple_name) = target_triple_name {
                 TargetTriple::create(&target_triple_name)
             }

@@ -1,7 +1,5 @@
 use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-    sync::Arc,
+    collections::HashMap, ops::{Deref, DerefMut}, rc::Rc, sync::Arc
 };
 
 use crate::{
@@ -171,7 +169,7 @@ pub enum FunctionArgumentIdentifier<IDENT, IDX>
 pub fn struct_field_to_ty_list<'a>(
     ctx: &'a Context,
     struct_inner: &IndexMap<String, Type>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<Vec<BasicTypeEnum<'a>>>
 {
     // Allocate a new list for storing the types
@@ -193,7 +191,7 @@ pub fn struct_field_to_ty_list<'a>(
 pub fn ty_to_llvm_ty<'a>(
     ctx: &'a Context,
     ty: &Type,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<BasicTypeEnum<'a>>
 {
     let bool_type = ctx.bool_type();
@@ -317,7 +315,7 @@ impl<'ctx> LoopBodyBlocks<'ctx>
 pub fn create_fn_type_from_ty_disc(
     ctx: &Context,
     fn_sig: FunctionSignature,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<FunctionType<'_>>
 {
     // Make an exception if the return type is Void
@@ -342,7 +340,7 @@ pub fn create_fn_type_from_ty_disc(
 pub fn get_args_from_sig(
     ctx: &Context,
     fn_sig: FunctionSignature,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<Vec<BasicMetadataTypeEnum<'_>>>
 {
     // Create an iterator over the function's arguments

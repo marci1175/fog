@@ -1,14 +1,12 @@
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, io::Cursor, path::PathBuf};
 
 use common::{
     anyhow::Result,
     compiler::HostInformation,
     compression::{decompress_bytes, unzip_from_bytes, write_zip_to_fs},
-    dashmap::DashMap,
     dependency::DependencyInfo,
     distributed_compiler::{DependencyRequest, DistributedCompilerWorker, FinishedJob},
     error::dependency::DependencyError,
-    parser::FunctionSignature,
     rmp_serde,
     tokio::{
         self,
@@ -24,7 +22,6 @@ use common::{
 pub fn create_remote_list(
     remotes: Vec<DistributedCompilerWorker>,
     host_info: HostInformation,
-    _deps: Arc<DashMap<Vec<String>, FunctionSignature>>,
     root_path: PathBuf,
 ) -> (
     HashMap<String, (String, Sender<(String, DependencyInfo)>)>,

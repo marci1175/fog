@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc};
 
 use common::{
     anyhow::Result,
@@ -19,8 +19,8 @@ pub struct Parser
     pub tokens_debug_info: Vec<DebugInformation>,
     pub function_table: IndexMap<String, FunctionDefinition>,
     pub library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
-    pub custom_types: Arc<IndexMap<String, CustomType>>,
-    pub imported_functions: Arc<HashMap<String, FunctionSignature>>,
+    pub custom_types: Rc<IndexMap<String, CustomType>>,
+    pub imported_functions: Rc<HashMap<String, FunctionSignature>>,
     pub config: ProjectConfig,
     pub enabled_features: OrdSet<String>,
     pub module_path: Vec<String>,
@@ -28,7 +28,7 @@ pub struct Parser
 
 impl Parser
 {
-    pub fn parse(&mut self, dep_fn_list: Arc<DashMap<Vec<String>, FunctionSignature>>)
+    pub fn parse(&mut self, dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>)
     -> Result<()>
     {
         // Create user defined signature table
@@ -41,7 +41,7 @@ impl Parser
             file_imported_functions,
         ) = self.create_signature_table(dep_fn_list.clone())?;
 
-        let custom_types: Arc<IndexMap<String, CustomType>> = Arc::new(custom_types);
+        let custom_types: Rc<IndexMap<String, CustomType>> = Rc::new(custom_types);
 
         // Only import the functions which have been specifically imported by the user too
         for import in dep_imports.iter() {
@@ -70,7 +70,7 @@ impl Parser
             }
         }
 
-        let imports = Arc::new(external_imports);
+        let imports = Rc::new(external_imports);
 
         // Copy the the HashMap to this field
         self.imported_functions = imports.clone();
@@ -91,7 +91,7 @@ impl Parser
 
         // Set the function table field of this struct
         self.function_table.extend(self.parse_functions(
-            Arc::new(unparsed_functions),
+            Rc::new(unparsed_functions),
             imports.clone(),
             custom_types.clone(),
         )?);
@@ -113,10 +113,10 @@ impl Parser
             tokens,
             tokens_debug_info: token_ranges,
             function_table: IndexMap::new(),
-            imported_functions: Arc::new(HashMap::new()),
+            imported_functions: Rc::new(HashMap::new()),
             library_public_function_table: IndexMap::new(),
             enabled_features,
-            custom_types: Arc::new(IndexMap::new()),
+            custom_types: Rc::new(IndexMap::new()),
             config,
             module_path,
         }
@@ -132,7 +132,7 @@ impl Parser
         &self.imported_functions
     }
 
-    pub fn custom_types(&self) -> Arc<IndexMap<String, CustomType>>
+    pub fn custom_types(&self) -> Rc<IndexMap<String, CustomType>>
     {
         self.custom_types.clone()
     }

@@ -45,7 +45,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
     )>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: &Arc<IndexMap<String, CustomType>>,
+    custom_types: &Rc<IndexMap<String, CustomType>>,
     parsed_token_instance: ParsedTokenInstance,
 ) -> Result<((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>
 {
@@ -197,7 +197,7 @@ pub fn access_nested_struct_field_ptr<'a>(
     field_stack_iter: &mut Iter<String>,
     struct_definition: &IndexMap<String, Type>,
     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     this_struct_ty: StructType<'a>,
 ) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, Type)>
 {
@@ -247,7 +247,7 @@ pub fn access_nested_struct_field_ptr<'a>(
 //     field_stack_iter: &mut Iter<String>,
 //     struct_definition: &IndexMap<String, TypeDiscriminant>,
 //     last_field_ptr: (PointerValue<'a>, BasicMetadataTypeEnum<'a>),
-//     custom_types: Arc<IndexMap<String, CustomType>>,
+//     custom_types: Rc<IndexMap<String, CustomType>>,
 // ) -> Result<(PointerValue<'a>, BasicTypeEnum<'a>, TypeDiscriminant)>
 // {
 //     let field_name = field_stack_iter
@@ -303,7 +303,7 @@ pub fn set_value_of_ptr<'ctx>(
     module: &Module<'ctx>,
     value: Value,
     v_ptr: PointerValue<'_>,
-    custom_types: Arc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomType>>,
     variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
     fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
@@ -556,7 +556,7 @@ pub fn access_array_index<'main, 'ctx>(
     )>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: &Arc<IndexMap<String, CustomType>>,
+    custom_types: &Rc<IndexMap<String, CustomType>>,
     ((array_ptr, _ptr_ty), ty_disc): ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type),
     index: Box<ParsedTokenInstance>,
 ) -> Result<(PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, Type)>
