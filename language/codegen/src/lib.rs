@@ -10,6 +10,7 @@ pub mod irgen;
 pub mod pointer;
 
 use common::{
+    tracing::info,
     anyhow::Result,
     codegen::CustomType,
     error::{application::ApplicationError, codegen::CodeGenError},
@@ -99,7 +100,7 @@ pub fn llvm_codegen_main<'ctx>(
     if is_optimized {
         let passes = passes.as_str();
 
-        println!("Running optimization passes: {passes}...");
+        info!("Running optimization passes: {passes}...");
         module
             .run_passes(passes, &target_machine, PassBuilderOptions::create())
             .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;

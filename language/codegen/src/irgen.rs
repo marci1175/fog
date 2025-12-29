@@ -2823,7 +2823,6 @@ pub fn generate_ir<'ctx>(
             );
         }
 
-        // dbg!(&function_definition.inner);
         // for tkn in function_definition.inner.clone() {
         //     println!("Dbg info: {:?}", tkn.debug_information);
         // }

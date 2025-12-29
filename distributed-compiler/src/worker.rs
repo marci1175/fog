@@ -160,7 +160,7 @@ fn compile_job(
     ui_sender
         .send((
             format!(
-                "Received job `{}`({}).",
+                "Received job `{}({})`.",
                 compiler_state.config.name.clone(),
                 compiler_state.config.version.clone()
             ),
@@ -211,13 +211,13 @@ fn compile_job(
         job.cpu_name,
         job.cpu_features,
     )?;
-
+    
     fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
 
     ui_sender
         .send((
             format!(
-                "Compiled job `{}`({}).",
+                "Compiled job `{}({})`.",
                 compiler_state.config.name.clone(),
                 compiler_state.config.version.clone()
             ),

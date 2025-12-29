@@ -18,7 +18,6 @@ use common::{
 use crate::parser::function::{fetch_and_merge_debug_information, parse_function_call_args};
 
 /// This is a top level implementation for `parse_token_as_value`
-/// TODO: Check if the Arcs are necessary.
 pub fn parse_value(
     tokens: &[Token],
     tokens_offset: usize,
