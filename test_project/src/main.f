@@ -1,10 +1,22 @@
 external printf(inp: string, ...): int;
-import dependency-test::szia;
+# import dependency-test::szia;
 
 pub function main(): int {  
-    printf("Emma fityma\n");
+    printf("csula\n");
 
-    szia();
+    return 0;
+}
 
-    return "asd";
+pub function test(x: string): string {
+    printf(x);
+    printf(x);
+
+    return x;
+}
+
+pub function test2(x: string): string {
+    printf(x);
+    printf(x);
+
+    return x;
 }

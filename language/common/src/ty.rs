@@ -365,32 +365,32 @@ impl Type
     }
 }
 
-impl From<Type> for Value
+impl Type
 {
-    fn from(value: Type) -> Self
+    pub fn into_value_default(&self) -> Value
     {
-        match value {
-            Type::I64 => Self::I64(0),
-            Type::F64 => Self::F64(NotNan::new(0.0).unwrap()),
-            Type::U64 => Self::U64(0),
-            Type::I32 => Self::I32(0),
-            Type::F32 => Self::F32(NotNan::new(0.0).unwrap()),
-            Type::U32 => Self::U32(0),
-            Type::I16 => Self::I16(0),
-            Type::F16 => Self::F16(NotNan::new_f16(0.0).unwrap()),
-            Type::U16 => Self::U16(0),
-            Type::U8 => Self::U8(0),
-            Type::String => Self::String(String::new()),
-            Type::Boolean => Self::Boolean(false),
-            Type::Void => Self::Void,
-            Type::Struct(_) => {
+        match self {
+            Self::I64 => Value::I64(0),
+            Self::F64 => Value::F64(NotNan::new(0.0).unwrap()),
+            Self::U64 => Value::U64(0),
+            Self::I32 => Value::I32(0),
+            Self::F32 => Value::F32(NotNan::new(0.0).unwrap()),
+            Self::U32 => Value::U32(0),
+            Self::I16 => Value::I16(0),
+            Self::F16 => Value::F16(NotNan::new_f16(0.0).unwrap()),
+            Self::U16 => Value::U16(0),
+            Self::U8 => Value::U8(0),
+            Self::String => Value::String(String::new()),
+            Self::Boolean => Value::Boolean(false),
+            Self::Void => Value::Void,
+            Self::Struct(_) => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
-            Type::Enum(_) => {
+            Self::Enum(_) => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
-            Type::Array(array) => Self::Array(array),
-            Type::Pointer(_) => Self::Pointer((0, None)),
+            Self::Array(array) => Value::Array(array.to_owned()),
+            Self::Pointer(_) => Value::Pointer((0, None)),
         }
     }
 }
