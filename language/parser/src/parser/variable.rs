@@ -20,7 +20,7 @@ use crate::parser::function::{fetch_and_merge_debug_information, parse_function_
 /// This is a top level implementation for `parse_token_as_value`
 pub fn parse_value(
     tokens: &[Token],
-    tokens_offset: usize,
+    function_tokens_offset: usize,
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
@@ -79,7 +79,7 @@ pub fn parse_value(
                             Box::new(
                                 parse_token_as_value(
                                     tokens,
-                                    tokens_offset + token_idx,
+                                    function_tokens_offset,
                                     debug_infos,
                                     origin_token_idx,
                                     function_signatures.clone(),
@@ -95,8 +95,8 @@ pub fn parse_value(
                         ),
                         debug_information: fetch_and_merge_debug_information(
                             debug_infos,
-                            origin_token_idx + tokens_offset
-                                ..origin_token_idx + token_idx + tokens_offset,
+                            origin_token_idx + function_tokens_offset
+                                ..origin_token_idx + token_idx + function_tokens_offset,
                             true,
                         )
                         .unwrap(),
@@ -115,7 +115,7 @@ pub fn parse_value(
             Token::UnparsedLiteral(_) => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
-                    tokens_offset,
+                    function_tokens_offset,
                     debug_infos,
                     origin_token_idx,
                     function_signatures.clone(),
@@ -140,7 +140,7 @@ pub fn parse_value(
             Token::Identifier(_) | Token::OpenParentheses => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
-                    tokens_offset + token_idx,
+                    function_tokens_offset,
                     debug_infos,
                     origin_token_idx,
                     function_signatures.clone(),
@@ -162,7 +162,7 @@ pub fn parse_value(
             Token::Reference => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
-                    tokens_offset + token_idx,
+                    function_tokens_offset,
                     debug_infos,
                     origin_token_idx,
                     function_signatures.clone(),
@@ -185,7 +185,7 @@ pub fn parse_value(
             Token::Dereference => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
-                    tokens_offset + token_idx,
+                    function_tokens_offset,
                     debug_infos,
                     origin_token_idx,
                     function_signatures.clone(),
@@ -208,7 +208,7 @@ pub fn parse_value(
             Token::Literal(literal) => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
-                    tokens_offset + token_idx,
+                    function_tokens_offset,
                     debug_infos,
                     origin_token_idx,
                     function_signatures.clone(),
@@ -245,7 +245,7 @@ pub fn parse_value(
 
                     let (current_cmp_token, token_ty) = parse_token_as_value(
                         tokens,
-                        tokens_offset + token_idx,
+                        function_tokens_offset,
                         debug_infos,
                         origin_token_idx,
                         function_signatures.clone(),
@@ -266,8 +266,8 @@ pub fn parse_value(
                         ),
                         debug_information: fetch_and_merge_debug_information(
                             debug_infos,
-                            origin_token_idx + tokens_offset
-                                ..origin_token_idx + token_idx + tokens_offset,
+                            origin_token_idx + function_tokens_offset
+                                ..origin_token_idx + token_idx + function_tokens_offset,
                             true,
                         )
                         .unwrap(),
@@ -278,7 +278,7 @@ pub fn parse_value(
             Token::OpenBraces => {
                 let (parsed_value, ty) = parse_token_as_value(
                     tokens,
-                    tokens_offset + token_idx,
+                    function_tokens_offset,
                     debug_infos,
                     origin_token_idx,
                     function_signatures.clone(),
@@ -311,8 +311,8 @@ pub fn parse_value(
                             ),
                             debug_information: fetch_and_merge_debug_information(
                                 debug_infos,
-                                origin_token_idx + tokens_offset
-                                    ..origin_token_idx + token_idx + tokens_offset,
+                                origin_token_idx + function_tokens_offset
+                                    ..origin_token_idx + token_idx + function_tokens_offset,
                                 true,
                             )
                             .unwrap(),
@@ -351,7 +351,7 @@ pub fn parse_value(
 pub fn parse_token_as_value(
     // This is used to parse the function call's arguments
     tokens: &[Token],
-    token_offset: usize,
+    function_token_offset: usize,
     debug_infos: &[DebugInformation],
     origin_token_idx: usize,
     // Functions available
@@ -388,8 +388,8 @@ pub fn parse_token_as_value(
                                 inner: ParsedToken::Literal(literal.clone()),
                                 debug_information: fetch_and_merge_debug_information(
                                     debug_infos,
-                                    origin_token_idx + token_offset
-                                        ..origin_token_idx + *token_idx + token_offset,
+                                    origin_token_idx + function_token_offset
+                                        ..origin_token_idx + *token_idx + function_token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -438,8 +438,8 @@ pub fn parse_token_as_value(
                                 inner: parsed_token,
                                 debug_information: fetch_and_merge_debug_information(
                                     debug_infos,
-                                    origin_token_idx + token_offset
-                                        ..origin_token_idx + *token_idx + token_offset,
+                                    origin_token_idx + function_token_offset
+                                        ..origin_token_idx + *token_idx + function_token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -464,7 +464,7 @@ pub fn parse_token_as_value(
                 // Parse the call arguments and tokens parsed.
                 let (call_arguments, idx_jmp) = parse_function_call_args(
                     &tokens[*token_idx + 2..],
-                    token_offset,
+                    function_token_offset,
                     *token_idx + 2,
                     debug_infos,
                     variable_scope,
@@ -493,8 +493,8 @@ pub fn parse_token_as_value(
                                     inner: parsed_token,
                                     debug_information: fetch_and_merge_debug_information(
                                         debug_infos,
-                                        origin_token_idx + token_offset
-                                            ..origin_token_idx + *token_idx + token_offset,
+                                        origin_token_idx + function_token_offset
+                                            ..origin_token_idx + *token_idx + function_token_offset,
                                         true,
                                     )
                                     .unwrap(),
@@ -539,7 +539,7 @@ pub fn parse_token_as_value(
 
                 let (parsed_token, variable_type) = handle_variable(
                     tokens,
-                    token_offset,
+                    function_token_offset,
                     debug_infos,
                     origin_token_idx,
                     &function_signatures,
@@ -561,7 +561,7 @@ pub fn parse_token_as_value(
                 // Parse the call arguments and tokens parsed.
                 let (call_arguments, idx_jmp) = parse_function_call_args(
                     &tokens[*token_idx + 2..],
-                    token_offset,
+                    function_token_offset,
                     *token_idx + 2,
                     debug_infos,
                     variable_scope,
@@ -590,8 +590,8 @@ pub fn parse_token_as_value(
                                     inner: parsed_token,
                                     debug_information: fetch_and_merge_debug_information(
                                         debug_infos,
-                                        origin_token_idx + token_offset
-                                            ..origin_token_idx + *token_idx + token_offset,
+                                        origin_token_idx + function_token_offset
+                                            ..origin_token_idx + *token_idx + function_token_offset,
                                         true,
                                     )
                                     .unwrap(),
@@ -609,12 +609,6 @@ pub fn parse_token_as_value(
                 else {
                     // If there is a desired variable type then check if the two types match
                     if let Some(desired_variable_type) = desired_variable_type {
-                        // let function_ret_ty =
-                        //     fetch_nested_pointer_ty(&custom_types, function_sig.return_type.clone())?;
-
-                        // let desired_variable_type =
-                        //     fetch_nested_pointer_ty(&custom_types, desired_variable_type.clone())?;
-
                         // If the function's return type doesn't match the variable's return type return an error
                         if function_sig.return_type != desired_variable_type {
                             return Err(ParserError::TypeError(
@@ -643,9 +637,9 @@ pub fn parse_token_as_value(
 
                             let (_jump_idx, init_struct_token) = init_struct(
                                 struct_init_slice,
-                                token_offset + *token_idx,
+                                function_token_offset,
                                 debug_infos,
-                                origin_token_idx,
+                                origin_token_idx + *token_idx,
                                 struct_inner,
                                 struct_name.clone(),
                                 function_signatures.clone(),
@@ -654,6 +648,7 @@ pub fn parse_token_as_value(
                                 variable_scope,
                             )?;
 
+                            // Increment the index to the token after the struct init.
                             *token_idx = *token_idx + 2 + closing_idx + 1;
 
                             return Ok((
@@ -726,7 +721,7 @@ pub fn parse_token_as_value(
 
             let (parsed_token, _jmp_idx, _) = parse_value(
                 tokens_inside_block,
-                token_offset + *token_idx,
+                function_token_offset + *token_idx,
                 debug_infos,
                 origin_token_idx,
                 function_signatures.clone(),
@@ -765,7 +760,7 @@ pub fn parse_token_as_value(
                     // Parse the value of the array
                     let (parsed_token, jump_index, _) = parse_value(
                         &tokens_inside_block[array_item_idx..],
-                        token_offset + *token_idx,
+                        function_token_offset + *token_idx,
                         debug_infos,
                         origin_token_idx,
                         function_signatures.clone(),
@@ -791,8 +786,8 @@ pub fn parse_token_as_value(
                         inner: ParsedToken::ArrayInitialization(vec_values, inner_ty.clone()),
                         debug_information: fetch_and_merge_debug_information(
                             debug_infos,
-                            origin_token_idx + token_offset
-                                ..origin_token_idx + *token_idx + token_offset,
+                            origin_token_idx + function_token_offset
+                                ..origin_token_idx + *token_idx + function_token_offset,
                             true,
                         )
                         .unwrap(),
@@ -809,7 +804,7 @@ pub fn parse_token_as_value(
 
             let (parsed_token, jmp_idx, val_ty) = parse_value(
                 &tokens[1..],
-                token_offset + *token_idx,
+                function_token_offset + *token_idx,
                 debug_infos,
                 origin_token_idx,
                 function_signatures.clone(),
@@ -840,7 +835,7 @@ pub fn parse_token_as_value(
 
             let (parsed_token, jmp_idx, _) = parse_value(
                 &tokens[1..],
-                token_offset + *token_idx,
+                function_token_offset + *token_idx,
                 debug_infos,
                 origin_token_idx,
                 function_signatures.clone(),
@@ -869,7 +864,7 @@ pub fn parse_token_as_value(
                 debug_infos,
                 // Add the magic number and call it a day
                 // DO we need +1?
-                origin_token_idx + token_offset..origin_token_idx + *token_idx + token_offset + 1,
+                origin_token_idx + function_token_offset..origin_token_idx + *token_idx + function_token_offset + 1,
                 true,
             )
             .unwrap(),
@@ -878,9 +873,12 @@ pub fn parse_token_as_value(
     ))
 }
 
+/// This function parses the tokens after a variable. 
+/// This function parses actions related to variables. Such as: `var + 5` and `var =% 3`, etc. 
 pub fn parse_variable_expression(
     tokens: &[Token],
-    token_offset: usize,
+    // Token slice offset, this allows us to keep the correct slice indexing (without ruining token_idx)
+    function_token_offset: usize,
     debug_infos: &[DebugInformation],
     current_token: &Token,
     token_idx: &mut usize,
@@ -897,6 +895,7 @@ pub fn parse_variable_expression(
 
     match &current_token {
         Token::SetValue => {
+            // Find next line break aka `;`
             let line_break_idx = tokens
                 .iter()
                 .skip(*token_idx)
@@ -904,14 +903,16 @@ pub fn parse_variable_expression(
                 .ok_or(ParserError::SyntaxError(SyntaxError::MissingSemiColon))?
                 + *token_idx;
 
-            let selected_tokens_range = *token_idx + 1..line_break_idx;
-            let selected_tokens = &tokens[selected_tokens_range.clone()];
+            // Tokens that contain the value we set the variable to
+            let selected_tokens = &tokens[*token_idx + 1..line_break_idx];
 
+            // Increment the token_idx to the next expression `Token::LineBreak` + 1
             *token_idx += selected_tokens.len() + 1;
 
+            // Parse the value we would be setting the variable to
             let (parsed_token, _, _) = parse_value(
                 selected_tokens,
-                *token_idx,
+                function_token_offset,
                 debug_infos,
                 origin_token_idx,
                 function_signatures.clone(),
@@ -928,7 +929,7 @@ pub fn parse_variable_expression(
                 ),
                 debug_information: fetch_and_merge_debug_information(
                     debug_infos,
-                    origin_token_idx + token_offset..*token_idx + token_offset,
+                    function_token_offset + origin_token_idx..function_token_offset + *token_idx,
                     true,
                 )
                 .unwrap(),
@@ -937,7 +938,7 @@ pub fn parse_variable_expression(
         Token::SetValueAddition => {
             set_value_math_expr(
                 tokens,
-                token_offset,
+                function_token_offset,
                 debug_infos,
                 function_signatures,
                 token_idx,
@@ -953,7 +954,7 @@ pub fn parse_variable_expression(
         Token::SetValueSubtraction => {
             set_value_math_expr(
                 tokens,
-                token_offset,
+                function_token_offset,
                 debug_infos,
                 function_signatures,
                 token_idx,
@@ -969,7 +970,7 @@ pub fn parse_variable_expression(
         Token::SetValueDivision => {
             set_value_math_expr(
                 tokens,
-                token_offset,
+                function_token_offset,
                 debug_infos,
                 function_signatures,
                 token_idx,
@@ -985,7 +986,7 @@ pub fn parse_variable_expression(
         Token::SetValueMultiplication => {
             set_value_math_expr(
                 tokens,
-                token_offset,
+                function_token_offset,
                 debug_infos,
                 function_signatures,
                 token_idx,
@@ -1001,7 +1002,7 @@ pub fn parse_variable_expression(
         Token::SetValueModulo => {
             set_value_math_expr(
                 tokens,
-                token_offset,
+                function_token_offset,
                 debug_infos,
                 function_signatures,
                 token_idx,
@@ -1060,7 +1061,7 @@ pub fn parse_variable_expression(
 
                         parse_variable_expression(
                             tokens,
-                            token_offset,
+                            function_token_offset,
                             debug_infos,
                             &tokens[*token_idx],
                             token_idx,
@@ -1162,7 +1163,7 @@ pub fn parse_variable_expression(
                                 ),
                                 debug_information: fetch_and_merge_debug_information(
                                     debug_infos,
-                                    origin_token_idx + token_offset..*token_idx + token_offset,
+                                    origin_token_idx + function_token_offset..*token_idx + function_token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -1535,9 +1536,9 @@ pub fn init_struct(
 
             let (parsed_value, jump_idx, _) = parse_value(
                 selected_tokens,
-                token_offset + idx,
+                token_offset,
                 debug_infos,
-                origin_token_idx,
+                origin_token_idx + idx,
                 function_signatures.clone(),
                 variable_scope,
                 Some(

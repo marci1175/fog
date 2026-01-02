@@ -668,7 +668,7 @@ impl Parser
                 signature: unparsed_function.function_sig.clone(),
                 inner: self.parse_function_block(
                     unparsed_function.inner.clone(),
-                    dbg!(unparsed_function.token_offset),
+                    unparsed_function.token_offset,
                     unparsed_functions.clone(),
                     unparsed_function.function_sig.clone(),
                     function_imports.clone(),
@@ -781,6 +781,7 @@ impl Parser
 
                             token_idx += 2;
 
+                            // Checked
                             parsed_token_instances.push(ParsedTokenInstance {
                                 inner: ParsedToken::NewVariable(
                                     var_name.clone(),
@@ -829,12 +830,15 @@ impl Parser
                         // Increment the token index
                         token_idx += 1;
 
-                        // Parse the variable's expression
+                        // Put the variable name into a basic reference
                         let variable_ref =
                             VariableReference::BasicReference(ident_name.to_string());
-
-                        let token_idx_clone = token_idx;
-
+                        
+                        // Token idx copy for the slice indexing
+                        // Afaik we should be using token_idx + 1 (we increment above) to correctly index the slice (we would be using ..= otherwise )
+                        let token_idx_copy = token_idx;
+                        
+                        // Parse the expression involving the variable
                         parse_variable_expression(
                             &tokens,
                             function_token_offset,
@@ -851,7 +855,7 @@ impl Parser
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
                                     origin_token_idx + function_token_offset
-                                        ..token_idx_clone + function_token_offset,
+                                        ..token_idx_copy + function_token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -1306,7 +1310,7 @@ impl Parser
 /// First token should be the first argument
 pub fn parse_function_call_args(
     tokens: &[Token],
-    tokens_offset: usize,
+    function_tokens_offset: usize,
     mut origin_token_idx: usize,
     debug_infos: &[DebugInformation],
     variable_scope: &mut IndexMap<String, Type>,
@@ -1350,9 +1354,9 @@ pub fn parse_function_call_args(
 
                 let (parsed_argument, jump_idx, arg_ty) = parse_value(
                     &tokens[tokens_idx..closing_idx],
-                    tokens_idx + tokens_offset,
+                    function_tokens_offset,
                     debug_infos,
-                    origin_token_idx,
+                    origin_token_idx + tokens_idx,
                     function_signatures.clone(),
                     variable_scope,
                     Some(argument_type.clone()),
@@ -1410,7 +1414,7 @@ pub fn parse_function_call_args(
                 if let Some(fn_argument) = fn_argument {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
-                        tokens_offset,
+                        function_tokens_offset,
                         debug_infos,
                         tokens_idx,
                         function_signatures.clone(),
@@ -1435,7 +1439,7 @@ pub fn parse_function_call_args(
                 else {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
-                        tokens_offset + tokens_idx,
+                        function_tokens_offset + tokens_idx,
                         debug_infos,
                         origin_token_idx,
                         function_signatures.clone(),
@@ -1509,16 +1513,13 @@ pub fn parse_import_path(tokens: &[Token]) -> Result<(Vec<String>, usize)>
 }
 
 pub fn fetch_and_merge_debug_information(
-    _list: &[DebugInformation],
-    _range: Range<usize>,
-    _is_ordered: bool,
+    list: &[DebugInformation],
+    range: Range<usize>,
+    is_ordered: bool,
 ) -> Option<DebugInformation>
 {
-    // TODO: Please rework this this is ridiculous
-    // let fetched_items = list.get(range);
-    // fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered))
-
-    Some(DebugInformation::default())
+    let fetched_items = list.get(range);
+    fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered))
 }
 
 /// This function ignores whether the ranges are joint.

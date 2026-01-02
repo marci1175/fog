@@ -175,17 +175,13 @@ impl CompilerState
             info!("A `main` function has been found, but the library flag is set to `true`.");
         }
 
-        // info!("Recontructed token tree:");
-        // let lines = file_contents.lines().collect::<Vec<&str>>();
-        // for (fn_name, fn_def) in function_table.iter() {
-        //     for psd_tkn in &fn_def.inner {
-        //         for (idx, ln_idx) in psd_tkn.debug_information.lines.clone().into_iter().enumerate() {
-        //             dbg!(&lines[ln_idx]);
-        //             let line_fetch = lines[ln_idx].get(dbg!(psd_tkn.debug_information.char_range[idx].clone()));
-        //             info!("{}", line_fetch.unwrap());
-        //         }
-        //     }
-        // }
+        info!("Recontructed token tree:");
+        let lines = file_contents.lines().collect::<Vec<&str>>();
+        for (fn_name, fn_def) in function_table.iter() {
+            for psd_tkn in &fn_def.inner {
+                println!("{fn_name}: tkn: {}  str: {}", psd_tkn.inner, &lines[psd_tkn.debug_information.char_start.line][psd_tkn.debug_information.char_start.column..psd_tkn.debug_information.char_end.column])
+            }
+        }
 
         llvm_codegen(
             target_ir_path.clone(),

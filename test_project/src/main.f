@@ -1,6 +1,10 @@
 external printf(inp: string, ...): int;
 # import dependency-test::szia;
 
+struct szia {
+    nem: bool,
+}
+
 pub function main(): int {  
     printf("csula\n");
 
@@ -14,9 +18,10 @@ pub function test(x: string): string {
     return x;
 }
 
-pub function test2(x: string): string {
-    printf(x);
+pub function test2(x: string): szia {
+    int marci = 0;
+    szia hello = szia { nem: true };
     printf(x);
 
-    return x;
+    return hello;
 }
