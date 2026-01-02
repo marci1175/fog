@@ -2826,16 +2826,12 @@ pub fn generate_ir<'ctx>(
             );
         }
 
-        // for tkn in function_definition.inner.clone() {
-        //     println!("Dbg info: {:?}", tkn.debug_information);
-        // }
-
         // Iterate through all the `ParsedToken`-s and create the LLVM-IR from the tokens
         create_ir(
             module,
             builder,
             context,
-            dbg!(function_definition.inner.clone()),
+            function_definition.inner.clone(),
             arguments,
             function_definition.signature.return_type.clone(),
             basic_block,
@@ -2854,7 +2850,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     builder: &'ctx Builder<'ctx>,
     // Inkwell Context
     ctx: &'main Context,
-    // The list of ParsedToken-s
+    // The list of `ParsedToken`s
     parsed_tokens: Vec<ParsedTokenInstance>,
     // Type returned type of the Function
     fn_ret_ty: Type,
@@ -2878,19 +2874,6 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    #[cfg(debug_assertions)]
-    {
-        use std::{fs::OpenOptions, io::Write};
-
-        if let Ok(mut o_opt) = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")))
-        {
-            o_opt.write_all(format!("[COMPILER IR]\n{:#?}", parsed_tokens.clone()).as_bytes())?;
-        }
-    }
-
     for token in parsed_tokens {
         create_ir_from_parsed_token(
             ctx,

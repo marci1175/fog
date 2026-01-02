@@ -52,7 +52,19 @@ pub fn llvm_codegen_main<'ctx>(
 ) -> Result<TargetMachine>
 {
     #[cfg(debug_assertions)]
-    if fs::remove_file(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR"))).is_err() {};
+    {
+        use std::{fs::OpenOptions, io::Write};
+
+        if let Ok(mut o_opt) = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")))
+        {
+            for (_, def) in parsed_functions.iter() {
+                o_opt.write_all(format!("------------------- FUNCTION DEFINITION START-------------------\n{:#?}\n------------------- FUNCTION DEFINITION END-------------------\n{:#?}\n", def.signature, def.inner.clone()).as_bytes())?;
+            }
+        }
+    }
 
     // Import functions defined by the user via llvm
     import_user_lib_functions(
