@@ -226,11 +226,14 @@ where
                         struct_field_stack,
                         (struct_name, struct_fields),
                     ) => {
+                        dbg!(&struct_field_stack.field_stack);
+                        dbg!(&struct_name);
+
                         let mut field_stack_iter = struct_field_stack.field_stack.iter();
 
-                        if let Some(main_struct_var_name) = field_stack_iter.next() {
+                        if let Some(struct_field_name) = field_stack_iter.next() {
                             if let Some(((ptr, ty), ty_disc)) =
-                                variable_map.get(main_struct_var_name)
+                                dbg!(variable_map.get(dbg!(struct_field_name)))
                             {
                                 let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
                                     ctx,
@@ -1908,7 +1911,7 @@ where
                     module,
                     builder,
                     ctx,
-                    if_definition.complete_body,
+                    if_definition.true_branch,
                     Type::Void,
                     branch_compl,
                     variable_map,
@@ -1928,7 +1931,7 @@ where
                     module,
                     builder,
                     ctx,
-                    if_definition.incomplete_body,
+                    if_definition.false_branch,
                     Type::Void,
                     branch_incompl,
                     variable_map,
@@ -2714,7 +2717,7 @@ pub fn generate_ir<'ctx>(
 
     let mut unique_id_source = 0;
 
-    for (function_name, function_definition) in parsed_functions.iter() {
+    for (function_name, function_definition) in parsed_functions.iter() {        
         let function_type = create_fn_type_from_ty_disc(
             context,
             function_definition.signature.clone(),
@@ -2832,7 +2835,7 @@ pub fn generate_ir<'ctx>(
             module,
             builder,
             context,
-            function_definition.inner.clone(),
+            dbg!(function_definition.inner.clone()),
             arguments,
             function_definition.signature.return_type.clone(),
             basic_block,

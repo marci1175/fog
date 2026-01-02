@@ -5,7 +5,7 @@ use strum_macros::Display;
 
 use crate::{
     codegen::{CustomType, FunctionArgumentIdentifier, If, Order},
-    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     tokenizer::Token,
     ty::{OrdMap, OrdSet, Type, Value, ty_from_token},
 };
@@ -45,7 +45,7 @@ impl TryInto<MathematicalSymbol> for Token
 pub struct ParsedTokenInstance
 {
     pub inner: ParsedToken,
-    pub debug_information: DebugInformation,
+    pub debug_information: DbgInfo,
 }
 
 impl PartialEq for ParsedTokenInstance

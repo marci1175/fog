@@ -1232,7 +1232,7 @@ where
 
             pre_allocation_list.extend(condition_allocations);
 
-            for parsed_token in inner.complete_body {
+            for parsed_token in inner.true_branch {
                 let body_pre_allocs = fetch_alloca_ptr(
                     ctx,
                     module,
@@ -1249,7 +1249,7 @@ where
                 pre_allocation_list.extend(body_pre_allocs);
             }
 
-            for parsed_token in inner.incomplete_body {
+            for parsed_token in inner.false_branch {
                 let body_pre_allocs = fetch_alloca_ptr(
                     ctx,
                     module,

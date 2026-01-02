@@ -5,7 +5,7 @@ use common::{
     codegen::CustomType,
     compiler::ProjectConfig,
     dashmap::DashMap,
-    error::{DebugInformation, parser::ParserError},
+    error::{DbgInfo, parser::ParserError},
     indexmap::IndexMap,
     parser::{FunctionDefinition, FunctionSignature, FunctionVisibility},
     tokenizer::Token,
@@ -16,7 +16,7 @@ use common::{
 pub struct Parser
 {
     pub tokens: Vec<Token>,
-    pub tokens_debug_info: Vec<DebugInformation>,
+    pub tokens_debug_info: Vec<DbgInfo>,
     pub function_table: IndexMap<String, FunctionDefinition>,
     pub library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
     pub custom_types: Rc<IndexMap<String, CustomType>>,
@@ -103,7 +103,7 @@ impl Parser
 
     pub fn new(
         tokens: Vec<Token>,
-        token_ranges: Vec<DebugInformation>,
+        token_ranges: Vec<DbgInfo>,
         config: ProjectConfig,
         module_path: Vec<String>,
         enabled_features: OrdSet<String>,

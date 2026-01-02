@@ -76,8 +76,8 @@ pub struct If
 {
     pub condition: Box<ParsedTokenInstance>,
 
-    pub complete_body: Vec<ParsedTokenInstance>,
-    pub incomplete_body: Vec<ParsedTokenInstance>,
+    pub true_branch: Vec<ParsedTokenInstance>,
+    pub false_branch: Vec<ParsedTokenInstance>,
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]

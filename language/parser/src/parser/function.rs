@@ -7,7 +7,7 @@ use common::{
     codegen::{CustomType, FunctionArgumentIdentifier, If},
     compiler::ProjectConfig,
     dashmap::DashMap,
-    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
@@ -1199,8 +1199,8 @@ impl Parser
                             parsed_token_instances.push(ParsedTokenInstance {
                                 inner: ParsedToken::If(If {
                                     condition: Box::new(condition),
-                                    complete_body: true_condition_block,
-                                    incomplete_body: else_condition_branch,
+                                    true_branch: true_condition_block,
+                                    false_branch: else_condition_branch,
                                 }),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
@@ -1312,7 +1312,7 @@ pub fn parse_function_call_args(
     tokens: &[Token],
     function_tokens_offset: usize,
     mut origin_token_idx: usize,
-    debug_infos: &[DebugInformation],
+    debug_infos: &[DbgInfo],
     variable_scope: &mut IndexMap<String, Type>,
     mut this_function_args: FunctionArguments,
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
@@ -1512,20 +1512,23 @@ pub fn parse_import_path(tokens: &[Token]) -> Result<(Vec<String>, usize)>
     Ok((import_path, idx))
 }
 
+/// This function `should` not return a None.
+/// This function will return Some(DbgInfo::Default) if the combined ranges return a none (indicates an issue with indexing) until this function is stabilized.
 pub fn fetch_and_merge_debug_information(
-    list: &[DebugInformation],
+    list: &[DbgInfo],
     range: Range<usize>,
     is_ordered: bool,
-) -> Option<DebugInformation>
+) -> Option<DbgInfo>
 {
     let fetched_items = list.get(range);
-    fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered))
+    // fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered))
+    Some(fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered)).unwrap_or_else(|| { DbgInfo::default() }))
 }
 
 /// This function ignores whether the ranges are joint.
 /// If this function with is_ordered, it will create a range based on the first and the last item of the range
 /// This function will panic if an empty list is passed in
-pub fn combine_ranges(debug_infos: &[DebugInformation], is_ordered: bool) -> DebugInformation
+pub fn combine_ranges(debug_infos: &[DbgInfo], is_ordered: bool) -> DbgInfo
 {
     if debug_infos.len() == 1 {
         return debug_infos[0];
@@ -1535,7 +1538,7 @@ pub fn combine_ranges(debug_infos: &[DebugInformation], is_ordered: bool) -> Deb
         let start = debug_infos[0];
         let end = debug_infos[debug_infos.len() - 1];
 
-        DebugInformation {
+        DbgInfo {
             char_start: start.char_start,
             char_end: end.char_end,
         }
@@ -1553,7 +1556,7 @@ pub fn combine_ranges(debug_infos: &[DebugInformation], is_ordered: bool) -> Deb
 
 /// Compares two ranges and combines them. (Assumes theyre overlapping)
 #[inline(always)]
-pub fn merge_ranges(lhs: &mut DebugInformation, rhs: &DebugInformation)
+pub fn merge_ranges(lhs: &mut DbgInfo, rhs: &DbgInfo)
 {
     if lhs.char_start > rhs.char_start {
         lhs.char_start = rhs.char_start;

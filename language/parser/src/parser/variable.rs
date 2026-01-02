@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use common::{
     anyhow::Result,
     codegen::{CustomType, Order},
-    error::{DebugInformation, parser::ParserError, syntax::SyntaxError},
+    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         FunctionSignature, MathematicalSymbol, ParsedToken, ParsedTokenInstance,
@@ -21,7 +21,7 @@ use crate::parser::function::{fetch_and_merge_debug_information, parse_function_
 pub fn parse_value(
     tokens: &[Token],
     function_tokens_offset: usize,
-    debug_infos: &[DebugInformation],
+    debug_infos: &[DbgInfo],
     origin_token_idx: usize,
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &mut IndexMap<String, Type>,
@@ -352,7 +352,7 @@ pub fn parse_token_as_value(
     // This is used to parse the function call's arguments
     tokens: &[Token],
     function_token_offset: usize,
-    debug_infos: &[DebugInformation],
+    debug_infos: &[DbgInfo],
     origin_token_idx: usize,
     // Functions available
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
@@ -879,7 +879,7 @@ pub fn parse_variable_expression(
     tokens: &[Token],
     // Token slice offset, this allows us to keep the correct slice indexing (without ruining token_idx)
     function_token_offset: usize,
-    debug_infos: &[DebugInformation],
+    debug_infos: &[DbgInfo],
     current_token: &Token,
     token_idx: &mut usize,
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
@@ -1053,7 +1053,7 @@ pub fn parse_variable_expression(
 
                             variable_ref = ParsedTokenInstance {
                                 inner: ParsedToken::VariableReference(new_reference),
-                                debug_information: DebugInformation::default(),
+                                debug_information: DbgInfo::default(),
                             };
                         }
 
@@ -1201,7 +1201,7 @@ pub fn parse_variable_expression(
 fn handle_variable(
     tokens: &[Token],
     token_offset: usize,
-    debug_infos: &[DebugInformation],
+    debug_infos: &[DbgInfo],
     origin_token_idx: usize,
     function_signatures: &Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     variable_scope: &mut IndexMap<String, Type>,
@@ -1397,7 +1397,7 @@ fn handle_variable(
 fn set_value_math_expr(
     tokens: &[Token],
     token_offset: usize,
-    debug_infos: &[DebugInformation],
+    debug_infos: &[DbgInfo],
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
@@ -1512,7 +1512,7 @@ fn get_struct_field_stack(
 pub fn init_struct(
     struct_slice: &[Token],
     token_offset: usize,
-    debug_infos: &[DebugInformation],
+    debug_infos: &[DbgInfo],
     origin_token_idx: usize,
     this_struct_field: &IndexMap<String, Type>,
     this_struct_name: String,

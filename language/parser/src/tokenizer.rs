@@ -2,7 +2,7 @@ use std::{ops::Range, u8};
 
 use common::{
     anyhow,
-    error::{CharPosition, DebugInformation, parser::ParserError, syntax::SyntaxError},
+    error::{CharPosition, DbgInfo, parser::ParserError, syntax::SyntaxError},
     tokenizer::{Token, find_closing_angled_bracket_char},
     ty::{Type, Value},
 };
@@ -16,17 +16,18 @@ const DOUBLE_BACKSLASH_U8: u8 = b'\\';
 const NEWLINE_CHAR_U8: u8 = b'\n';
 const ENDLINE_CHAR_U8: u8 = b'\r';
 
+// TODO: Recode this function as its too crowded, i should also move parsing stuff out of this functions (such as ptr, enum, array etc, its doing smth that is not its job)
 pub fn tokenize(
     raw_input: &str,
     stop_at_token: Option<Token>,
-) -> anyhow::Result<(Vec<Token>, Vec<DebugInformation>, usize)>
+) -> anyhow::Result<(Vec<Token>, Vec<DbgInfo>, usize)>
 {
     let _dest_num_type: Option<Type> = None;
     let mut char_idx: usize = 0;
 
     let char_list = raw_input.as_bytes();
     let mut token_list: Vec<Token> = Vec::with_capacity(char_list.len() / 4);
-    let mut token_debug_info: Vec<DebugInformation> = Vec::with_capacity(char_list.len() / 4);
+    let mut token_debug_info: Vec<DbgInfo> = Vec::with_capacity(char_list.len() / 4);
 
     let mut string_buffer = Vec::new();
 
@@ -68,7 +69,7 @@ pub fn tokenize(
                 let token = match_multi_character_expression(&string_buffer)?;
 
                 token_list.push(token);
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition {
                         line: line_counter,
                         column: current_char_idx_in_line - string_buffer.len(),
@@ -81,7 +82,7 @@ pub fn tokenize(
             }
 
             token_list.push(single_char_token);
-            token_debug_info.push(DebugInformation {
+            token_debug_info.push(DbgInfo {
                 char_start: CharPosition {
                     line: line_counter,
                     column: current_char_idx_in_line,
@@ -133,7 +134,7 @@ pub fn tokenize(
                     ))
                 })?,
             ))));
-            token_debug_info.push(DebugInformation {
+            token_debug_info.push(DbgInfo {
                 char_start: CharPosition::new(line_counter, current_char_idx_in_line),
                 char_end: CharPosition::new(line_counter, current_char_idx_in_line + closing_idx),
             });
@@ -148,7 +149,7 @@ pub fn tokenize(
             let token = match_multi_character_expression(&string_buffer)?;
 
             token_list.push(token);
-            token_debug_info.push(DebugInformation {
+            token_debug_info.push(DbgInfo {
                 char_start: CharPosition {
                     line: line_counter,
                     column: current_char_idx_in_line - string_buffer.len(),
@@ -167,7 +168,7 @@ pub fn tokenize(
             let token = match_multi_character_expression(&string_buffer)?;
 
             token_list.push(token);
-            token_debug_info.push(DebugInformation {
+            token_debug_info.push(DbgInfo {
                 char_start: CharPosition {
                     line: line_counter,
                     column: current_char_idx_in_line - (string_buffer.len() - 1),
@@ -189,7 +190,7 @@ pub fn tokenize(
                 let dot = b'.';
                 if Some(&dot) == next_char_2 && Some(&dot) == next_char {
                     token_list.push(Token::Ellipsis);
-                    token_debug_info.push(DebugInformation {
+                    token_debug_info.push(DbgInfo {
                         char_start: CharPosition {
                             line: line_counter,
                             column: current_char_idx_in_line,
@@ -215,7 +216,7 @@ pub fn tokenize(
                         let token = match_multi_character_expression(&string_buffer)?;
 
                         token_list.push(token);
-                        token_debug_info.push(DebugInformation {
+                        token_debug_info.push(DbgInfo {
                             char_start: CharPosition {
                                 line: line_counter,
                                 column: current_char_idx_in_line - string_buffer.len(),
@@ -230,7 +231,7 @@ pub fn tokenize(
                     }
 
                     token_list.push(Token::Dot);
-                    token_debug_info.push(DebugInformation {
+                    token_debug_info.push(DbgInfo {
                         char_start: CharPosition {
                             line: line_counter,
                             column: current_char_idx_in_line,
@@ -252,7 +253,7 @@ pub fn tokenize(
                     || matches!(last_token, Token::CloseParentheses))
                 {
                     token_list.push(Token::Subtraction);
-                    token_debug_info.push(DebugInformation {
+                    token_debug_info.push(DbgInfo {
                         char_start: CharPosition {
                             line: line_counter,
                             column: current_char_idx_in_line,
@@ -313,7 +314,7 @@ pub fn tokenize(
                                         .to_string(),
                                     ));
 
-                                    token_debug_info.push(DebugInformation {
+                                    token_debug_info.push(DbgInfo {
                                         char_start: CharPosition {
                                             line: original_char_idx,
                                             column: original_char_idx,
@@ -422,7 +423,7 @@ pub fn tokenize(
                                     String::from_utf8(quotes_buffer)
                                         .map_err(|_| ParserError::InvalidUtf8Literal)?,
                                 )));
-                                token_debug_info.push(DebugInformation {
+                                token_debug_info.push(DbgInfo {
                                     char_start: CharPosition {
                                         line: line_counter,
                                         column: char_idx - line_char_idx,
@@ -456,7 +457,7 @@ pub fn tokenize(
                     match *next_char {
                         b'=' => {
                             token_list.push(Token::Equal);
-                            token_debug_info.push(DebugInformation {
+                            token_debug_info.push(DbgInfo {
                                 char_start: CharPosition {
                                     line: line_counter,
                                     column: current_char_idx_in_line,
@@ -471,7 +472,7 @@ pub fn tokenize(
                         },
                         b'+' => {
                             token_list.push(Token::SetValueAddition);
-                            token_debug_info.push(DebugInformation {
+                            token_debug_info.push(DbgInfo {
                                 char_start: CharPosition {
                                     line: line_counter,
                                     column: current_char_idx_in_line,
@@ -486,7 +487,7 @@ pub fn tokenize(
                         },
                         b'-' => {
                             token_list.push(Token::SetValueSubtraction);
-                            token_debug_info.push(DebugInformation {
+                            token_debug_info.push(DbgInfo {
                                 char_start: CharPosition {
                                     line: line_counter,
                                     column: current_char_idx_in_line,
@@ -501,7 +502,7 @@ pub fn tokenize(
                         },
                         b'*' => {
                             token_list.push(Token::SetValueMultiplication);
-                            token_debug_info.push(DebugInformation {
+                            token_debug_info.push(DbgInfo {
                                 char_start: CharPosition {
                                     line: line_counter,
                                     column: current_char_idx_in_line,
@@ -516,7 +517,7 @@ pub fn tokenize(
                         },
                         b'/' => {
                             token_list.push(Token::SetValueDivision);
-                            token_debug_info.push(DebugInformation {
+                            token_debug_info.push(DbgInfo {
                                 char_start: CharPosition {
                                     line: line_counter,
                                     column: current_char_idx_in_line,
@@ -531,7 +532,7 @@ pub fn tokenize(
                         },
                         b'%' => {
                             token_list.push(Token::SetValueModulo);
-                            token_debug_info.push(DebugInformation {
+                            token_debug_info.push(DbgInfo {
                                 char_start: CharPosition {
                                     line: line_counter,
                                     column: current_char_idx_in_line,
@@ -547,7 +548,7 @@ pub fn tokenize(
 
                         _ => {
                             token_list.push(Token::SetValue);
-                            token_debug_info.push(DebugInformation {
+                            token_debug_info.push(DbgInfo {
                                 char_start: CharPosition {
                                     line: line_counter,
                                     column: current_char_idx_in_line,
@@ -570,7 +571,7 @@ pub fn tokenize(
                     let token = match_multi_character_expression(&string_buffer)?;
 
                     token_list.push(token);
-                    token_debug_info.push(DebugInformation {
+                    token_debug_info.push(DbgInfo {
                         char_start: CharPosition {
                             line: line_counter,
                             column: current_char_idx_in_line - string_buffer.len(),
@@ -588,7 +589,7 @@ pub fn tokenize(
                     && *next_char == b':'
                 {
                     token_list.push(Token::DoubleColon);
-                    token_debug_info.push(DebugInformation {
+                    token_debug_info.push(DbgInfo {
                         char_start: CharPosition {
                             line: line_counter,
                             column: current_char_idx_in_line,
@@ -604,7 +605,7 @@ pub fn tokenize(
                 }
 
                 token_list.push(Token::Colon);
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition {
                         line: line_counter,
                         column: current_char_idx_in_line,
@@ -620,7 +621,7 @@ pub fn tokenize(
                     && *next_char == b'&'
                 {
                     token_list.push(Token::And);
-                    token_debug_info.push(DebugInformation {
+                    token_debug_info.push(DbgInfo {
                         char_start: CharPosition {
                             line: line_counter,
                             column: current_char_idx_in_line,
@@ -636,7 +637,7 @@ pub fn tokenize(
                 }
 
                 token_list.push(Token::BitAnd);
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition {
                         line: line_counter,
                         column: current_char_idx_in_line,
@@ -652,7 +653,7 @@ pub fn tokenize(
                     && *next_char == b'='
                 {
                     token_list.push(Token::NotEqual);
-                    token_debug_info.push(DebugInformation {
+                    token_debug_info.push(DbgInfo {
                         char_start: CharPosition {
                             line: line_counter,
                             column: current_char_idx_in_line,
@@ -668,7 +669,7 @@ pub fn tokenize(
                 }
 
                 token_list.push(Token::Not);
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition {
                         line: line_counter,
                         column: current_char_idx_in_line,
@@ -683,7 +684,7 @@ pub fn tokenize(
                 if let Some(next_char) = char_list.get(char_idx + 1) {
                     if *next_char == b'>' {
                         token_list.push(Token::BitRight);
-                        token_debug_info.push(DebugInformation {
+                        token_debug_info.push(DbgInfo {
                             char_start: CharPosition {
                                 line: line_counter,
                                 column: current_char_idx_in_line,
@@ -699,7 +700,7 @@ pub fn tokenize(
                     }
                     else if *next_char == b'=' {
                         token_list.push(Token::EqBigger);
-                        token_debug_info.push(DebugInformation {
+                        token_debug_info.push(DbgInfo {
                             char_start: CharPosition {
                                 line: line_counter,
                                 column: current_char_idx_in_line,
@@ -717,7 +718,7 @@ pub fn tokenize(
                 }
 
                 token_list.push(Token::Bigger);
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition {
                         line: line_counter,
                         column: current_char_idx_in_line,
@@ -732,7 +733,7 @@ pub fn tokenize(
                 if let Some(next_char) = char_list.get(char_idx + 1) {
                     if *next_char == b'<' {
                         token_list.push(Token::BitLeft);
-                        token_debug_info.push(DebugInformation {
+                        token_debug_info.push(DbgInfo {
                             char_start: CharPosition {
                                 line: line_counter,
                                 column: current_char_idx_in_line,
@@ -749,7 +750,7 @@ pub fn tokenize(
                     }
                     else if *next_char == b'=' {
                         token_list.push(Token::EqSmaller);
-                        token_debug_info.push(DebugInformation {
+                        token_debug_info.push(DbgInfo {
                             char_start: CharPosition {
                                 line: line_counter,
                                 column: current_char_idx_in_line,
@@ -767,7 +768,7 @@ pub fn tokenize(
                 }
 
                 token_list.push(Token::Smaller);
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition {
                         line: line_counter,
                         column: current_char_idx_in_line,
@@ -783,7 +784,7 @@ pub fn tokenize(
                     && *next_char == b'|'
                 {
                     token_list.push(Token::Or);
-                    token_debug_info.push(DebugInformation {
+                    token_debug_info.push(DbgInfo {
                         char_start: CharPosition {
                             line: line_counter,
                             column: current_char_idx_in_line,
@@ -799,7 +800,7 @@ pub fn tokenize(
                 }
 
                 token_list.push(Token::BitOr);
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition {
                         line: line_counter,
                         column: current_char_idx_in_line,
@@ -843,7 +844,7 @@ pub fn tokenize(
                 token_list.push(Token::TypeDefinition(Type::Pointer(Some(Box::new(
                     inner_token[0].clone(),
                 )))));
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition::new(line_counter, current_char_idx_in_line),
                     char_end: CharPosition::new(
                         line_counter,
@@ -885,7 +886,7 @@ pub fn tokenize(
 
                 token_list.push(Token::Enum(Some(Box::new(inner_token[0].clone()))));
 
-                token_debug_info.push(DebugInformation {
+                token_debug_info.push(DbgInfo {
                     char_start: CharPosition::new(line_counter, current_char_idx_in_line),
                     char_end: CharPosition::new(
                         line_counter,
