@@ -234,7 +234,7 @@ where
         ParsedToken::Literal(literal) => {
             let var_type = literal.discriminant();
 
-            let (ptr, ty) = create_new_variable(ctx, builder, "", &var_type, custom_types.clone())?;
+            let (ptr, ty) = create_new_variable(ctx, builder, "temp_literal_value", &var_type, custom_types.clone())?;
 
             pre_allocation_list.push((parsed_token_instance.clone(), ptr, ty, var_type));
         },
@@ -262,7 +262,7 @@ where
                             Type::I64 => Some((var_ptr, var_ty, Type::I64)),
                             Type::F64 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_val")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_signed_int_to_float(
@@ -284,7 +284,7 @@ where
                             },
                             Type::U64 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res =
@@ -303,7 +303,7 @@ where
                             },
                             Type::I32 | Type::U32 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_int_truncate(
@@ -325,7 +325,7 @@ where
                             },
                             Type::F32 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_signed_int_to_float(
@@ -347,7 +347,7 @@ where
                             },
                             Type::I16 | Type::U16 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_int_truncate(
@@ -369,7 +369,7 @@ where
                             },
                             Type::F16 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_signed_int_to_float(
@@ -391,7 +391,7 @@ where
                             },
                             Type::U8 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_int_truncate(
@@ -413,7 +413,7 @@ where
                             },
                             Type::String => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let raw_val = value.get_sign_extended_constant().unwrap();
@@ -431,7 +431,7 @@ where
                             },
                             Type::Boolean => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let bool_ty = ctx.bool_type();
@@ -483,10 +483,10 @@ where
                             Type::I64 => {
                                 let cast_res = builder.build_float_to_signed_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                         .into_float_value(),
                                     ctx.i64_type(),
-                                    "",
+                                    "temp_cast_value",
                                 )?;
 
                                 let allocation =
@@ -504,10 +504,10 @@ where
                             Type::U64 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                         .into_float_value(),
                                     ctx.i64_type(),
-                                    "",
+                                    "temp_cast_value",
                                 )?;
 
                                 let allocation =
@@ -524,10 +524,10 @@ where
                             Type::I32 => {
                                 let cast_res = builder.build_float_to_signed_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                         .into_float_value(),
                                     ctx.i32_type(),
-                                    "",
+                                    "temp_cast_value",
                                 )?;
                                 let allocation =
                                     builder.build_alloca(cast_res.get_type(), "cast_result")?;
@@ -542,7 +542,7 @@ where
                             },
                             Type::F32 => {
                                 let value = builder
-                                    .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                     .into_float_value();
 
                                 let cast_res =
@@ -562,10 +562,10 @@ where
                             Type::U32 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                         .into_float_value(),
                                     ctx.i32_type(),
-                                    "",
+                                    "temp_cast_value",
                                 )?;
                                 let allocation =
                                     builder.build_alloca(cast_res.get_type(), "cast_result")?;
@@ -581,10 +581,10 @@ where
                             Type::I16 => {
                                 let cast_res = builder.build_float_to_signed_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                         .into_float_value(),
                                     ctx.i16_type(),
-                                    "",
+                                    "temp_cast_value",
                                 )?;
                                 let allocation =
                                     builder.build_alloca(cast_res.get_type(), "cast_result")?;
@@ -599,7 +599,7 @@ where
                             },
                             Type::F16 => {
                                 let value = builder
-                                    .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                     .into_float_value();
 
                                 let cast_res =
@@ -619,10 +619,10 @@ where
                             Type::U16 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                         .into_float_value(),
                                     ctx.i16_type(),
-                                    "",
+                                    "temp_cast_value",
                                 )?;
                                 let allocation =
                                     builder.build_alloca(cast_res.get_type(), "cast_result")?;
@@ -638,10 +638,10 @@ where
                             Type::U8 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                         .into_float_value(),
                                     ctx.i8_type(),
-                                    "",
+                                    "temp_cast_value",
                                 )?;
                                 let allocation =
                                     builder.build_alloca(cast_res.get_type(), "cast_result")?;
@@ -656,7 +656,7 @@ where
                             },
                             Type::String => {
                                 let value = builder
-                                    .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                     .into_float_value();
 
                                 let raw_val = value.get_constant().unwrap().0;
@@ -674,7 +674,7 @@ where
                             },
                             Type::Boolean => {
                                 let value = builder
-                                    .build_load(var_ty.into_float_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
                                     .into_float_value();
 
                                 let bool_ty = ctx.bool_type();
@@ -724,7 +724,7 @@ where
                         match desired_type {
                             Type::I64 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = ctx.i64_type().const_int(
@@ -745,7 +745,7 @@ where
                             },
                             Type::F64 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_unsigned_int_to_float(
@@ -768,7 +768,7 @@ where
                             Type::U64 => Some((var_ptr, var_ty, Type::U64)),
                             Type::I32 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = ctx.i32_type().const_int(
@@ -789,7 +789,7 @@ where
                             },
                             Type::F32 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_unsigned_int_to_float(
@@ -811,7 +811,7 @@ where
                             },
                             Type::U32 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = ctx.i32_type().const_int(
@@ -832,7 +832,7 @@ where
                             },
                             Type::I16 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = ctx.i16_type().const_int(
@@ -853,7 +853,7 @@ where
                             },
                             Type::F16 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = builder.build_unsigned_int_to_float(
@@ -875,7 +875,7 @@ where
                             },
                             Type::U16 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = ctx.i16_type().const_int(
@@ -896,7 +896,7 @@ where
                             },
                             Type::U8 => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let cast_res = ctx.i8_type().const_int(
@@ -917,7 +917,7 @@ where
                             },
                             Type::String => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let raw_val = value.get_sign_extended_constant().unwrap();
@@ -935,7 +935,7 @@ where
                             },
                             Type::Boolean => {
                                 let value = builder
-                                    .build_load(var_ty.into_int_type(), var_ptr, "")?
+                                    .build_load(var_ty.into_int_type(), var_ptr, "temp_cast_value")?
                                     .into_int_value();
 
                                 let bool_ty = ctx.bool_type();
@@ -1146,7 +1146,7 @@ where
                 let (ptr, ty) = create_new_variable(
                     ctx,
                     builder,
-                    "",
+                    "function_return_val",
                     &fn_sig.return_type,
                     custom_types.clone(),
                 )?;
