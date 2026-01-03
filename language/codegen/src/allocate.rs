@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
     rc::Rc,
-    sync::Arc,
 };
 
 use common::{
@@ -17,7 +16,11 @@ use common::{
         types::{ArrayType, BasicMetadataTypeEnum},
         values::{FunctionValue, IntValue, PointerValue},
     },
-    parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
+    parser::{
+        common::{ParsedToken, ParsedTokenInstance},
+        function::FunctionDefinition,
+        variable::VariableReference,
+    },
     ty::Type,
 };
 
@@ -177,7 +180,7 @@ where
         },
         ParsedToken::VariableReference(var_ref) => {
             match var_ref {
-                common::parser::VariableReference::StructFieldReference(
+                VariableReference::StructFieldReference(
                     struct_field_stack,
                     (struct_name, struct_def),
                 ) => {
@@ -213,7 +216,7 @@ where
                         return Err(CodeGenError::InternalInvalidStructReference.into());
                     }
                 },
-                common::parser::VariableReference::BasicReference(name) => {
+                VariableReference::BasicReference(name) => {
                     if let Some(((ptr, ty), disc)) = variable_map.get(&name) {
                         pre_allocation_list.push((
                             parsed_token_instance.clone(),
@@ -223,7 +226,7 @@ where
                         ));
                     }
                 },
-                common::parser::VariableReference::ArrayReference(_, parsed_tokens) => {
+                VariableReference::ArrayReference(_, parsed_tokens) => {
                     todo!()
                 },
             }

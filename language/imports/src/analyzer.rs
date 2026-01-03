@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use common::{
-    anyhow, compiler::ProjectConfig, dashmap::DashMap, parser::FunctionSignature, ty::OrdSet,
+    anyhow, compiler::ProjectConfig, dashmap::DashMap, parser::function::FunctionSignature,
+    ty::OrdSet,
 };
 use parser::{parser_instance::Parser, tokenizer::tokenize};
 

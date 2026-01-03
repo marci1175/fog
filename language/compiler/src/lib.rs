@@ -77,13 +77,6 @@ impl CompilerState
         info!("Tokenizing...");
         let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
 
-        // for (idx, token) in tokens.iter().enumerate() {
-        //     info!(
-        //         "{idx} Token: {} | Range: {:?} | Lines: {:?}",
-        //         token, token_ranges[idx].char_range, token_ranges[idx].lines
-        //     );
-        // }
-
         info!("Creating LLVM context...");
         let context = Context::create();
         let builder = context.create_builder();
@@ -177,13 +170,20 @@ impl CompilerState
 
         // This does NOT work with structs and comments
         // check function token offset and custom types offsetting tokens
-        // debug!("Recontructed token tree:");
-        // let lines = file_contents.lines().collect::<Vec<&str>>();
-        // for (fn_name, fn_def) in function_table.iter() {
-        //     for psd_tkn in &fn_def.inner {
-        //         println!("{fn_name}: tkn: {}  str: {}", psd_tkn.inner, &lines[dbg!(psd_tkn.debug_information.char_start.line)][dbg!(psd_tkn.debug_information.char_start.column)..dbg!(psd_tkn.debug_information.char_end.column - 1)])
-        //     }
-        // }
+        debug!("Recontructed token tree:");
+        let lines = file_contents.lines().collect::<Vec<&str>>();
+        for (fn_name, fn_def) in function_table.iter() {
+            for psd_tkn in &fn_def.inner {
+                println!(
+                    "{fn_name}: tkn: {}  str: {}",
+                    psd_tkn.inner,
+                    &lines[dbg!(psd_tkn.debug_information.char_start.line)][dbg!(
+                        psd_tkn.debug_information.char_start.column
+                    )
+                        ..dbg!(psd_tkn.debug_information.char_end.column)]
+                )
+            }
+        }
 
         llvm_codegen(
             target_ir_path.clone(),

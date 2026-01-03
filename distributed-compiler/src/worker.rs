@@ -211,7 +211,7 @@ fn compile_job(
         job.cpu_name,
         job.cpu_features,
     )?;
-    
+
     fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
 
     ui_sender

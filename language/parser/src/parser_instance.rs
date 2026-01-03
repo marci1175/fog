@@ -7,7 +7,7 @@ use common::{
     dashmap::DashMap,
     error::{DbgInfo, parser::ParserError},
     indexmap::IndexMap,
-    parser::{FunctionDefinition, FunctionSignature, FunctionVisibility},
+    parser::function::{FunctionDefinition, FunctionSignature, FunctionVisibility},
     tokenizer::Token,
     ty::OrdSet,
 };

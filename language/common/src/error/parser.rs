@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::{
     error::syntax::SyntaxError,
-    parser::{ParsedToken, VariableReference},
+    parser::{common::ParsedToken, variable::VariableReference},
     tokenizer::Token,
     ty::Type,
 };

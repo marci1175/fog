@@ -72,7 +72,7 @@ pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>
 
     args.push("-o".to_string());
     args.push(build_manifest.output_path.display().to_string());
-    
+
     info!("Linking...");
 
     let clang_out = Command::new("clang")

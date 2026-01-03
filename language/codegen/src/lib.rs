@@ -10,7 +10,6 @@ pub mod irgen;
 pub mod pointer;
 
 use common::{
-    tracing::info,
     anyhow::Result,
     codegen::CustomType,
     error::{application::ApplicationError, codegen::CodeGenError},
@@ -22,7 +21,8 @@ use common::{
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
     },
-    parser::{FunctionDefinition, FunctionSignature},
+    parser::function::{FunctionDefinition, FunctionSignature},
+    tracing::info,
 };
 use parser::parser_instance::Parser;
 use std::{collections::HashMap, fs, io::ErrorKind, path::PathBuf, rc::Rc, sync::Arc};
@@ -163,8 +163,8 @@ pub fn llvm_codegen<'ctx>(
     target_o_path: PathBuf,
     optimization: bool,
     parser_state: Parser,
-    function_table: &common::indexmap::IndexMap<String, common::parser::FunctionDefinition>,
-    imported_functions: Rc<std::collections::HashMap<String, common::parser::FunctionSignature>>,
+    function_table: &common::indexmap::IndexMap<String, FunctionDefinition>,
+    imported_functions: Rc<std::collections::HashMap<String, FunctionSignature>>,
     context: &'ctx Context,
     builder: &'ctx common::inkwell::builder::Builder<'ctx>,
     module: common::inkwell::module::Module<'ctx>,

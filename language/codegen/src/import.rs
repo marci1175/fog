@@ -4,7 +4,7 @@ use common::{
     codegen::{CustomType, struct_field_to_ty_list, ty_enum_to_metadata_ty_enum},
     indexmap::IndexMap,
     inkwell::{AddressSpace, context::Context, module::Module, types::BasicType},
-    parser::{FunctionDefinition, FunctionSignature},
+    parser::function::{FunctionDefinition, FunctionSignature},
     ty::{Type, ty_from_token},
 };
 use std::{collections::HashMap, rc::Rc, sync::Arc};

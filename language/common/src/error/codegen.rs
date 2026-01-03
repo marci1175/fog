@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    parser::{CompilerHint, ParsedToken},
+    parser::{common::ParsedToken, function::CompilerHint},
     ty::Type,
 };
 

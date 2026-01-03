@@ -236,8 +236,7 @@ impl ServerState
                                                     // Check if we already have the dependency downloaded
                                                     // Implement hash checking so that it enusres that dependencies are always correctly fetched from remotes
                                                     // Preferrably with an api call
-                                                    if let Err(_) =
-                                                        tokio::fs::metadata(&dep_path).await
+                                                    if tokio::fs::metadata(&dep_path).await.is_err()
                                                     {
                                                         // Send request to server
                                                         let response = net::request_dependency(

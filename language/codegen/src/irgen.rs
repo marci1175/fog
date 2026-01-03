@@ -17,14 +17,18 @@ use common::{
         types::BasicMetadataTypeEnum,
         values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     },
-    parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
+    parser::{
+        common::{ParsedToken, ParsedTokenInstance},
+        function::{CompilerHint, FunctionDefinition},
+        value::MathematicalSymbol,
+        variable::{ControlFlowType, VariableReference},
+    },
     tokenizer::Token,
     ty::{OrdMap, Type, ty_from_token},
 };
 use std::{
     collections::{HashMap, VecDeque},
     rc::Rc,
-    sync::Arc,
 };
 
 use crate::{
@@ -222,7 +226,7 @@ where
                 variable_reference
             {
                 match var_ref_variant {
-                    common::parser::VariableReference::StructFieldReference(
+                    VariableReference::StructFieldReference(
                         struct_field_stack,
                         (struct_name, struct_fields),
                     ) => {
@@ -268,7 +272,7 @@ where
                             return Err(CodeGenError::InternalInvalidStructReference.into());
                         }
                     },
-                    common::parser::VariableReference::BasicReference(var_name) => {
+                    VariableReference::BasicReference(var_name) => {
                         // The referenced variable
                         let ref_variable_query = variable_map.get(&var_name);
 
@@ -340,10 +344,7 @@ where
                             };
                         }
                     },
-                    common::parser::VariableReference::ArrayReference(
-                        variable_reference,
-                        index,
-                    ) => {
+                    VariableReference::ArrayReference(variable_reference, index) => {
                         let variable_ptr = variable_map
                             .get(&variable_reference)
                             .ok_or(CodeGenError::InternalVariableNotFound(
@@ -383,7 +384,7 @@ where
             }
             else {
                 match var_ref_variant {
-                    common::parser::VariableReference::StructFieldReference(
+                    VariableReference::StructFieldReference(
                         struct_field_stack,
                         (struct_name, struct_def),
                     ) => {
@@ -416,17 +417,14 @@ where
                             return Err(CodeGenError::InternalInvalidStructReference.into());
                         }
                     },
-                    common::parser::VariableReference::BasicReference(basic_ref) => {
+                    VariableReference::BasicReference(basic_ref) => {
                         let ((ptr, ty), ty_disc) = variable_map
                             .get(&basic_ref)
                             .ok_or(CodeGenError::InternalVariableNotFound(basic_ref.clone()))?;
 
                         Some((*ptr, *ty, ty_disc.clone()))
                     },
-                    common::parser::VariableReference::ArrayReference(
-                        variable_reference,
-                        index,
-                    ) => {
+                    VariableReference::ArrayReference(variable_reference, index) => {
                         let variable_ptr = variable_map
                             .get(&variable_reference)
                             .ok_or(CodeGenError::InternalVariableNotFound(
@@ -1402,7 +1400,7 @@ where
             {
                 if l_ty_disc.is_float() && r_ty_disc.is_float() {
                     let math_res = match mathematical_symbol {
-                        common::parser::MathematicalSymbol::Addition => {
+                        MathematicalSymbol::Addition => {
                             builder.build_float_add(
                                 builder
                                     .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
@@ -1413,7 +1411,7 @@ where
                                 "float_add_float",
                             )?
                         },
-                        common::parser::MathematicalSymbol::Subtraction => {
+                        MathematicalSymbol::Subtraction => {
                             builder.build_float_sub(
                                 builder
                                     .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
@@ -1424,7 +1422,7 @@ where
                                 "float_sub_float",
                             )?
                         },
-                        common::parser::MathematicalSymbol::Division => {
+                        MathematicalSymbol::Division => {
                             builder.build_float_div(
                                 builder
                                     .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
@@ -1435,7 +1433,7 @@ where
                                 "float_add_float",
                             )?
                         },
-                        common::parser::MathematicalSymbol::Multiplication => {
+                        MathematicalSymbol::Multiplication => {
                             builder.build_float_mul(
                                 builder
                                     .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
@@ -1446,7 +1444,7 @@ where
                                 "float_add_float",
                             )?
                         },
-                        common::parser::MathematicalSymbol::Modulo => {
+                        MathematicalSymbol::Modulo => {
                             builder.build_float_rem(
                                 builder
                                     .build_load(lhs_ty.into_float_type(), lhs_ptr, "lhs")?
@@ -1478,7 +1476,7 @@ where
                 }
                 else if l_ty_disc.is_int() && r_ty_disc.is_int() {
                     let math_res = match mathematical_symbol {
-                        common::parser::MathematicalSymbol::Addition => {
+                        MathematicalSymbol::Addition => {
                             builder.build_int_add(
                                 builder
                                     .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
@@ -1489,7 +1487,7 @@ where
                                 "int_add_int",
                             )?
                         },
-                        common::parser::MathematicalSymbol::Subtraction => {
+                        MathematicalSymbol::Subtraction => {
                             builder.build_int_sub(
                                 builder
                                     .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
@@ -1500,7 +1498,7 @@ where
                                 "int_sub_int",
                             )?
                         },
-                        common::parser::MathematicalSymbol::Division => {
+                        MathematicalSymbol::Division => {
                             builder.build_int_signed_div(
                                 builder
                                     .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
@@ -1511,7 +1509,7 @@ where
                                 "int_div_int",
                             )?
                         },
-                        common::parser::MathematicalSymbol::Multiplication => {
+                        MathematicalSymbol::Multiplication => {
                             builder.build_int_mul(
                                 builder
                                     .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
@@ -1522,7 +1520,7 @@ where
                                 "int_mul_int",
                             )?
                         },
-                        common::parser::MathematicalSymbol::Modulo => {
+                        MathematicalSymbol::Modulo => {
                             builder.build_int_signed_rem(
                                 builder
                                     .build_load(lhs_ty.into_int_type(), lhs_ptr, "lhs")?
@@ -2295,10 +2293,10 @@ where
         ParsedToken::ControlFlow(control_flow_variant) => {
             if let Some(loop_body_blocks) = is_loop_body {
                 match control_flow_variant {
-                    common::parser::ControlFlowType::Break => {
+                    ControlFlowType::Break => {
                         builder.build_unconditional_branch(loop_body_blocks.loop_body_exit)?;
                     },
-                    common::parser::ControlFlowType::Continue => {
+                    ControlFlowType::Continue => {
                         builder.build_unconditional_branch(loop_body_blocks.loop_body)?;
                     },
                 }
@@ -2717,7 +2715,7 @@ pub fn generate_ir<'ctx>(
 
     let mut unique_id_source = 0;
 
-    for (function_name, function_definition) in parsed_functions.iter() {        
+    for (function_name, function_definition) in parsed_functions.iter() {
         let function_type = create_fn_type_from_ty_disc(
             context,
             function_definition.signature.clone(),
@@ -2729,35 +2727,35 @@ pub fn generate_ir<'ctx>(
 
         for hint in function_definition.signature.compiler_hints.iter() {
             match hint {
-                common::parser::CompilerHint::Cold => {
+                CompilerHint::Cold => {
                     let attr =
                         context.create_enum_attribute(Attribute::get_named_enum_kind_id("cold"), 0);
 
                     function
                         .add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
                 },
-                common::parser::CompilerHint::NoFree => {
+                CompilerHint::NoFree => {
                     let attr = context
                         .create_enum_attribute(Attribute::get_named_enum_kind_id("nofree"), 0);
 
                     function
                         .add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
                 },
-                common::parser::CompilerHint::Inline => {
+                CompilerHint::Inline => {
                     let attr = context
                         .create_enum_attribute(Attribute::get_named_enum_kind_id("inlinehint"), 0);
 
                     function
                         .add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
                 },
-                common::parser::CompilerHint::NoUnWind => {
+                CompilerHint::NoUnWind => {
                     let attr = context
                         .create_enum_attribute(Attribute::get_named_enum_kind_id("nounwind"), 0);
 
                     function
                         .add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
                 },
-                common::parser::CompilerHint::Feature => {
+                CompilerHint::Feature => {
                     return Err(CodeGenError::InternalFunctionCompilerHintParsingError(
                         hint.clone(),
                     )

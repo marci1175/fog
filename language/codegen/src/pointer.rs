@@ -13,7 +13,11 @@ use common::{
         types::{BasicMetadataTypeEnum, BasicTypeEnum, PointerType, StructType},
         values::{FunctionValue, PointerValue},
     },
-    parser::{FunctionDefinition, ParsedToken, ParsedTokenInstance},
+    parser::{
+        common::{ParsedToken, ParsedTokenInstance},
+        function::FunctionDefinition,
+        variable::VariableReference,
+    },
     ty::{Type, Value, ty_from_token},
 };
 use std::{
@@ -91,7 +95,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
         },
         ParsedToken::VariableReference(variable_reference) => {
             match variable_reference {
-                common::parser::VariableReference::StructFieldReference(
+                VariableReference::StructFieldReference(
                     struct_field_reference,
                     (_struct_name, struct_definition),
                 ) => {
@@ -116,7 +120,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
                         Err(CodeGenError::InternalInvalidStructReference.into())
                     }
                 },
-                common::parser::VariableReference::BasicReference(basic_reference) => {
+                VariableReference::BasicReference(basic_reference) => {
                     let variable_ref = variable_map.get(&basic_reference).ok_or_else(|| {
                         common::anyhow::Error::from(CodeGenError::InternalVariableNotFound(
                             basic_reference.clone(),
@@ -125,7 +129,7 @@ pub fn access_variable_ptr<'main, 'ctx>(
 
                     Ok(variable_ref.clone())
                 },
-                common::parser::VariableReference::ArrayReference(array_name, indexing) => {
+                VariableReference::ArrayReference(array_name, indexing) => {
                     let ((ptr, ptr_ty), ty_disc) = variable_map.get(&array_name).unwrap().clone();
 
                     let index_val = create_ir_from_parsed_token(

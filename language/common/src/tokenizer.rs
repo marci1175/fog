@@ -1,6 +1,6 @@
 use crate::{
     error::{parser::ParserError, syntax::SyntaxError},
-    parser::CompilerHint,
+    parser::function::CompilerHint,
     ty::{Type, Value},
 };
 

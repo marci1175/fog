@@ -20,11 +20,13 @@ use common::{
         module::Module,
         types::AsTypeRef,
     },
-    parser::FunctionDefinition,
+    parser::function::FunctionDefinition,
     ty::{Type, ty_from_token},
 };
 use std::{
-    ffi::{CStr, CString}, ptr, rc::Rc, sync::Arc
+    ffi::{CStr, CString},
+    ptr,
+    rc::Rc,
 };
 
 use crate::get_unique_id;

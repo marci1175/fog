@@ -16,7 +16,7 @@ use common::{
     futures,
     indexmap::IndexSet,
     inkwell::{builder::Builder, context::Context, module::Module, targets::TargetTriple},
-    parser::FunctionSignature,
+    parser::function::FunctionSignature,
     tokio, toml,
     tracing::info,
     ty::OrdSet,

@@ -1,11 +1,17 @@
 use std::{
-    collections::HashMap, ops::{Deref, DerefMut}, rc::Rc, sync::Arc
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+    rc::Rc,
+    sync::Arc,
 };
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
-    parser::{FunctionSignature, ParsedToken, ParsedTokenInstance},
+    parser::{
+        common::{ParsedToken, ParsedTokenInstance},
+        function::FunctionSignature,
+    },
     tokenizer::Token,
     ty::{OrdMap, Type, ty_from_token},
 };

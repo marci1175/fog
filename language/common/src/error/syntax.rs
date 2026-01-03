@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use crate::{
-    parser::FunctionSignature,
+    parser::function::FunctionSignature,
     tokenizer::Token,
     ty::{OrdMap, Type},
 };

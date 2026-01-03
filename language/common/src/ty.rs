@@ -1,5 +1,8 @@
 use std::{
-    fmt::{Debug, Display}, hash::Hash, ops::{Deref, DerefMut}, rc::Rc
+    fmt::{Debug, Display},
+    hash::Hash,
+    ops::{Deref, DerefMut},
+    rc::Rc,
 };
 
 use indexmap::{IndexMap, IndexSet};
@@ -16,7 +19,7 @@ use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     codegen::{CustomType, struct_field_to_ty_list},
     error::parser::ParserError,
-    parser::ParsedTokenInstance,
+    parser::common::ParsedTokenInstance,
     tokenizer::Token,
 };
 

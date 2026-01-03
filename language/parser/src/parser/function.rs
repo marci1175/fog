@@ -1,19 +1,28 @@
 use std::{
-    collections::{HashMap, HashSet}, fs, mem, ops::Range, path::PathBuf, rc::Rc
+    collections::{HashMap, HashSet},
+    fs, mem,
+    path::PathBuf,
+    rc::Rc,
 };
 
 use common::{
     anyhow::Result,
-    codegen::{CustomType, FunctionArgumentIdentifier, If},
+    codegen::{CustomType, If},
     compiler::ProjectConfig,
     dashmap::DashMap,
-    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
+    error::{parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        CompilerHint, ControlFlowType, FunctionArguments, FunctionDefinition, FunctionSignature,
-        FunctionVisibility, ParsedToken, ParsedTokenInstance, UnparsedFunctionDefinition,
-        VariableReference, find_closing_braces, find_closing_comma, find_closing_paren,
-        parse_signature_argument_tokens,
+        common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
+        dbg::fetch_and_merge_debug_information,
+        function::{
+            self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionSignature,
+            FunctionVisibility, UnparsedFunctionDefinition, parse_function_call_args,
+            parse_signature_argument_tokens,
+        },
+        import::parse_import_path,
+        value::parse_value,
+        variable::{ControlFlowType, VariableReference},
     },
     tokenizer::Token,
     tracing::info,
@@ -21,9 +30,7 @@ use common::{
 };
 
 use crate::{
-    parser::variable::{parse_value, parse_variable_expression},
-    parser_instance::Parser,
-    tokenizer::tokenize,
+    parser::variable::parse_variable_expression, parser_instance::Parser, tokenizer::tokenize,
 };
 
 impl Parser
@@ -158,7 +165,7 @@ impl Parser
                                     let braces_contains_len = braces_contains.len();
 
                                     // Extract the compiler hints for the function
-                                    let compiler_hints =
+                                    let compiler_hints: OrdSet<function::CompilerHint> =
                                         mem::take(&mut function_compiler_hint_buffer);
 
                                     let function_enabling_features =
@@ -262,7 +269,7 @@ impl Parser
                                     module_path: mod_path,
                                     // Imported functions can only be accessed at the source file they were imported at
                                     // I might change this later to smth like pub import similar to pub mod in rust
-                                    visibility: common::parser::FunctionVisibility::Private,
+                                    visibility: FunctionVisibility::Private,
                                     compiler_hints: OrdSet::new(),
                                     enabling_features: OrdSet::new(),
                                 },
@@ -286,8 +293,7 @@ impl Parser
                                                 module_path: mod_path,
                                                 // Imported functions can only be accessed at the source file they were imported at
                                                 // I might change this later to smth like pub import similar to pub use in rust
-                                                visibility:
-                                                    common::parser::FunctionVisibility::Private,
+                                                visibility: FunctionVisibility::Private,
                                                 compiler_hints: OrdSet::new(),
                                                 enabling_features: OrdSet::new(),
                                             },
@@ -308,8 +314,7 @@ impl Parser
                                                 module_path: mod_path,
                                                 // Imported functions can only be accessed at the source file they were imported at
                                                 // I might change this later to smth like pub import similar to pub use in rust
-                                                visibility:
-                                                    common::parser::FunctionVisibility::Private,
+                                                visibility: FunctionVisibility::Private,
                                                 compiler_hints: OrdSet::new(),
                                                 enabling_features: OrdSet::new(),
                                             },
@@ -768,7 +773,8 @@ impl Parser
                                 // Checked
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    function_token_offset + origin_token_idx..function_token_offset + token_idx + 1,
+                                    function_token_offset + origin_token_idx
+                                        ..function_token_offset + token_idx + 1,
                                     true,
                                 )
                                 .unwrap(),
@@ -799,7 +805,8 @@ impl Parser
                                 ),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    origin_token_idx + function_token_offset..token_idx + function_token_offset,
+                                    origin_token_idx + function_token_offset
+                                        ..token_idx + function_token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -833,11 +840,11 @@ impl Parser
                         // Put the variable name into a basic reference
                         let variable_ref =
                             VariableReference::BasicReference(ident_name.to_string());
-                        
+
                         // Token idx copy for the slice indexing
                         // Afaik we should be using token_idx + 1 (we increment above) to correctly index the slice (we would be using ..= otherwise )
                         let token_idx_copy = token_idx;
-                        
+
                         // Parse the expression involving the variable
                         parse_variable_expression(
                             &tokens,
@@ -938,7 +945,8 @@ impl Parser
                             ),
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
-                                origin_token_idx + function_token_offset..function_token_offset + token_idx + 2,
+                                origin_token_idx + function_token_offset
+                                    ..function_token_offset + token_idx + 2,
                                 true,
                             )
                             .unwrap(),
@@ -1000,7 +1008,9 @@ impl Parser
                                 }
                                 else {
                                     // Assume that the user tried to access the struct name as a variable
-                                    return Err(ParserError::VariableNotFound(ident_name.clone()).into());
+                                    return Err(
+                                        ParserError::VariableNotFound(ident_name.clone()).into()
+                                    );
                                 }
                             },
                             CustomType::Enum(inner) => {
@@ -1098,7 +1108,8 @@ impl Parser
                             inner: ParsedToken::ReturnValue(Box::new(returned_value)),
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
-                                origin_token_idx + function_token_offset..token_idx + function_token_offset + 1,
+                                origin_token_idx + function_token_offset
+                                    ..token_idx + function_token_offset + 1,
                                 true,
                             )
                             .unwrap(),
@@ -1147,7 +1158,7 @@ impl Parser
                                     args: FunctionArguments::new(),
                                     return_type: Type::Void,
                                     module_path: module_path.clone(),
-                                    visibility: common::parser::FunctionVisibility::Branch,
+                                    visibility: FunctionVisibility::Branch,
                                     compiler_hints: OrdSet::new(),
                                     enabling_features: OrdSet::new(),
                                 },
@@ -1181,7 +1192,7 @@ impl Parser
                                             name: String::new(),
                                             args: FunctionArguments::new(),
                                             return_type: Type::Void,
-                                            visibility: common::parser::FunctionVisibility::Branch,
+                                            visibility: FunctionVisibility::Branch,
                                             module_path: module_path.clone(),
                                             compiler_hints: OrdSet::new(),
                                             enabling_features: OrdSet::new(),
@@ -1204,7 +1215,8 @@ impl Parser
                                 }),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
-                                    origin_token_idx + function_token_offset..token_idx + function_token_offset,
+                                    origin_token_idx + function_token_offset
+                                        ..token_idx + function_token_offset,
                                     true,
                                 )
                                 .unwrap(),
@@ -1239,7 +1251,7 @@ impl Parser
                                 name: String::new(),
                                 args: FunctionArguments::new(),
                                 return_type: Type::Void,
-                                visibility: common::parser::FunctionVisibility::Branch,
+                                visibility: FunctionVisibility::Branch,
                                 module_path: module_path.clone(),
                                 compiler_hints: OrdSet::new(),
                                 enabling_features: OrdSet::new(),
@@ -1256,7 +1268,8 @@ impl Parser
                             inner: ParsedToken::Loop(loop_body),
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
-                                origin_token_idx + function_token_offset..token_idx + function_token_offset,
+                                origin_token_idx + function_token_offset
+                                    ..token_idx + function_token_offset,
                                 true,
                             )
                             .unwrap(),
@@ -1274,7 +1287,8 @@ impl Parser
                         inner: ParsedToken::ControlFlow(ControlFlowType::Continue),
                         debug_information: fetch_and_merge_debug_information(
                             &self.tokens_debug_info,
-                            origin_token_idx + function_token_offset..token_idx + function_token_offset,
+                            origin_token_idx + function_token_offset
+                                ..token_idx + function_token_offset,
                             true,
                         )
                         .unwrap(),
@@ -1287,7 +1301,8 @@ impl Parser
                         inner: ParsedToken::ControlFlow(ControlFlowType::Break),
                         debug_information: fetch_and_merge_debug_information(
                             &self.tokens_debug_info,
-                            origin_token_idx + function_token_offset..token_idx + function_token_offset,
+                            origin_token_idx + function_token_offset
+                                ..token_idx + function_token_offset,
                             true,
                         )
                         .unwrap(),
@@ -1304,265 +1319,5 @@ impl Parser
         }
 
         Ok(parsed_token_instances)
-    }
-}
-
-/// First token should be the first argument
-pub fn parse_function_call_args(
-    tokens: &[Token],
-    function_tokens_offset: usize,
-    mut origin_token_idx: usize,
-    debug_infos: &[DbgInfo],
-    variable_scope: &mut IndexMap<String, Type>,
-    mut this_function_args: FunctionArguments,
-    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
-    standard_function_table: Rc<HashMap<String, FunctionSignature>>,
-    custom_items: Rc<IndexMap<String, CustomType>>,
-) -> Result<(
-    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, Type)>,
-    usize,
-)>
-{
-    let mut tokens_idx = 0;
-
-    let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
-
-    // Arguments which will passed in to the function
-    let mut arguments: OrdMap<
-        FunctionArgumentIdentifier<String, usize>,
-        (ParsedTokenInstance, Type),
-    > = OrdMap::new();
-
-    // If there are no arguments just return everything as is
-    if tokens.is_empty() {
-        return Ok((arguments, tokens_idx));
-    }
-
-    while tokens_idx < tokens.len() {
-        let current_token = tokens[tokens_idx].clone();
-
-        if let Token::Identifier(arg_name) = current_token.clone() {
-            if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
-                let argument_type = this_function_args
-                    .arguments
-                    .get(&arg_name)
-                    .ok_or(ParserError::ArgumentError(arg_name.clone()))?;
-
-                tokens_idx += 2;
-
-                let closing_idx = find_closing_comma(&tokens[tokens_idx..])? + tokens_idx;
-
-                let (parsed_argument, jump_idx, arg_ty) = parse_value(
-                    &tokens[tokens_idx..closing_idx],
-                    function_tokens_offset,
-                    debug_infos,
-                    origin_token_idx + tokens_idx,
-                    function_signatures.clone(),
-                    variable_scope,
-                    Some(argument_type.clone()),
-                    standard_function_table.clone(),
-                    custom_items.clone(),
-                )?;
-
-                tokens_idx += jump_idx;
-
-                // Remove tha argument from the argument list so we can parse unnamed arguments easier
-                this_function_args.arguments.shift_remove(&arg_name);
-
-                arguments.insert(
-                    FunctionArgumentIdentifier::Identifier(arg_name.clone()),
-                    (parsed_argument, arg_ty),
-                );
-
-                continue;
-            }
-        }
-        else if Token::CloseParentheses == current_token {
-            break;
-        }
-        else if Token::Comma == current_token {
-            tokens_idx += 1;
-
-            continue;
-        }
-
-        let mut token_buf = Vec::new();
-        let mut bracket_counter: i32 = 0;
-
-        // Update the value of the origin_token_idx
-        origin_token_idx += tokens_idx;
-
-        // We should start by finding the comma and parsing the tokens in between the current idx and the comma
-        while tokens_idx < args_list_len {
-            let token = &tokens[tokens_idx];
-
-            if *token == Token::OpenParentheses {
-                bracket_counter += 1;
-            }
-            else if *token == Token::CloseParentheses {
-                bracket_counter -= 1;
-            }
-
-            // If a comma is found parse the tokens from the slice
-            if (*token == Token::Comma && bracket_counter == 0) || tokens_idx == args_list_len - 1 {
-                if tokens_idx == args_list_len - 1 {
-                    token_buf.push(token.clone());
-                }
-
-                let fn_argument = this_function_args.arguments.first_entry();
-
-                if let Some(fn_argument) = fn_argument {
-                    let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                        &token_buf,
-                        function_tokens_offset,
-                        debug_infos,
-                        tokens_idx,
-                        function_signatures.clone(),
-                        variable_scope,
-                        Some(fn_argument.get().clone()),
-                        standard_function_table.clone(),
-                        custom_items.clone(),
-                    )?;
-
-                    tokens_idx += 1;
-
-                    token_buf.clear();
-
-                    arguments.insert(
-                        FunctionArgumentIdentifier::Identifier(fn_argument.key().clone()),
-                        (parsed_argument, arg_ty),
-                    );
-
-                    // Remove the argument from the argument list
-                    fn_argument.shift_remove();
-                }
-                else {
-                    let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                        &token_buf,
-                        function_tokens_offset + tokens_idx,
-                        debug_infos,
-                        origin_token_idx,
-                        function_signatures.clone(),
-                        variable_scope,
-                        None,
-                        standard_function_table.clone(),
-                        custom_items.clone(),
-                    )?;
-
-                    tokens_idx += 1;
-
-                    token_buf.clear();
-
-                    let nth_argument = arguments.len();
-                    arguments.insert(
-                        FunctionArgumentIdentifier::Index(nth_argument),
-                        (parsed_argument, arg_ty),
-                    );
-                }
-
-                continue;
-            }
-            else {
-                token_buf.push(token.clone());
-            }
-
-            tokens_idx += 1;
-        }
-    }
-
-    if !this_function_args.arguments.is_empty() {
-        return Err(ParserError::InvalidFunctionArgumentCount.into());
-    }
-
-    Ok((arguments, tokens_idx))
-}
-
-/// Make sure to pass in a slice of the tokens in which the first token is an `Token::Identifier`.
-pub fn parse_import_path(tokens: &[Token]) -> Result<(Vec<String>, usize)>
-{
-    let mut import_path = vec![];
-    let mut idx = 0;
-
-    while idx < tokens.len() {
-        // Check if the module definition path contains the correct tokens
-        if let Some(Token::Identifier(module_name)) = tokens.get(idx) {
-            import_path.push(module_name.clone());
-        }
-        else {
-            return Err(
-                ParserError::InvalidModulePathDefinition(tokens.get(idx).unwrap().clone()).into(),
-            );
-        }
-
-        // Check if there is another double colon, that means that the module path is not fully definied yet.
-        if let Some(Token::DoubleColon) = tokens.get(idx + 1) {
-            idx += 2;
-        }
-        // If there are no more double colons after the identifier, that is the last item in the path list.
-        // That will be the item's name at the specified module path.
-        else if let Some(Token::SemiColon) = tokens.get(idx + 1) {
-            break;
-        }
-        // Return a missing semi colon error
-        else {
-            return Err(SyntaxError::MissingSemiColon.into());
-        }
-    }
-
-    Ok((import_path, idx))
-}
-
-/// This function `should` not return a None.
-/// This function will return Some(DbgInfo::Default) if the combined ranges return a none (indicates an issue with indexing) until this function is stabilized.
-pub fn fetch_and_merge_debug_information(
-    list: &[DbgInfo],
-    range: Range<usize>,
-    is_ordered: bool,
-) -> Option<DbgInfo>
-{
-    let fetched_items = list.get(range);
-    // fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered))
-    Some(fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered)).unwrap_or_else(|| { DbgInfo::default() }))
-}
-
-/// This function ignores whether the ranges are joint.
-/// If this function with is_ordered, it will create a range based on the first and the last item of the range
-/// This function will panic if an empty list is passed in
-pub fn combine_ranges(debug_infos: &[DbgInfo], is_ordered: bool) -> DbgInfo
-{
-    if debug_infos.len() == 1 {
-        return debug_infos[0];
-    }
-
-    if is_ordered {
-        let start = debug_infos[0];
-        let end = debug_infos[debug_infos.len() - 1];
-
-        DbgInfo {
-            char_start: start.char_start,
-            char_end: end.char_end,
-        }
-    }
-    else {
-        let mut range = debug_infos[0];
-
-        for rhs in &debug_infos[1..] {
-            merge_ranges(&mut range, rhs);
-        }
-
-        range
-    }
-}
-
-/// Compares two ranges and combines them. (Assumes theyre overlapping)
-#[inline(always)]
-pub fn merge_ranges(lhs: &mut DbgInfo, rhs: &DbgInfo)
-{
-    if lhs.char_start > rhs.char_start {
-        lhs.char_start = rhs.char_start;
-    }
-
-    if lhs.char_end < rhs.char_end {
-        lhs.char_end = rhs.char_end;
     }
 }
