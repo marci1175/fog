@@ -164,11 +164,11 @@ pub fn parse_variable_expression(
 
             if let Type::Struct((struct_name, struct_def)) = variable_type {
                 if let Some(Token::Identifier(field_name)) = field_name {
-                    if let Some(struct_field_ty) = struct_def.get(field_name) {
+                    if let Some(struct_field_ty) = struct_def.get(dbg!(field_name)) {
                         if let ParsedTokenInstance {
                             inner: ParsedToken::VariableReference(var_ref),
                             ..
-                        } = variable_ref
+                        } = dbg!(variable_ref)
                         {
                             let new_reference = match var_ref {
                                 VariableReference::StructFieldReference(
@@ -188,7 +188,6 @@ pub fn parse_variable_expression(
                                         (struct_name, struct_def.clone()),
                                     )
                                 },
-
                                 VariableReference::ArrayReference(_, _) => {
                                     todo!()
                                 },
@@ -197,6 +196,9 @@ pub fn parse_variable_expression(
                                 inner: ParsedToken::VariableReference(new_reference),
                                 debug_information: DbgInfo::default(),
                             };
+                        }
+                        else {
+                            panic!();
                         }
 
                         *token_idx += 2;
@@ -250,10 +252,12 @@ pub fn parse_variable_expression(
         },
         Token::OpenSquareBrackets => {
             if let Type::Array((inner_token, _len)) = variable_type {
+                // Inner type of square brackets
                 let inner_type = ty_from_token(&inner_token, &custom_types)?;
 
                 *token_idx += 1;
 
+                // Get expression inside of square brackets
                 let square_brackets_break_idx = tokens
                     .iter()
                     .skip(*token_idx)
@@ -262,9 +266,11 @@ pub fn parse_variable_expression(
                         SyntaxError::LeftOpenSquareBrackets,
                     ))?
                     + *token_idx;
-
+                
+                // Extract selected tokens
                 let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
-
+                
+                // Get the idx to the array
                 let (value, idx_jmp, _) = parse_value(
                     selected_tokens,
                     *token_idx,
@@ -277,16 +283,20 @@ pub fn parse_variable_expression(
                     custom_types.clone(),
                 )?;
 
+                // Jump to the end of the epxression
                 *token_idx += idx_jmp;
-
+                
+                // Check syntax
                 if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
                     *token_idx += 1;
 
+                    // Check if this was the last expr after the variable.
                     if tokens.get(*token_idx) != Some(&Token::SemiColon) {
                         let next_token = tokens.get(*token_idx).ok_or(ParserError::SyntaxError(
                             SyntaxError::InvalidStatementDefinition,
                         ))?;
 
+                        // Parse next var expr
                         parse_variable_expression(
                             tokens,
                             *token_idx,

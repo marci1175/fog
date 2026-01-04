@@ -61,7 +61,7 @@ pub fn llvm_codegen_main<'ctx>(
             .open(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")))
         {
             for (_, def) in parsed_functions.iter() {
-                o_opt.write_all(format!("------------------- FUNCTION DEFINITION START-------------------\n{:#?}\n------------------- FUNCTION DEFINITION END-------------------\n{:#?}\n", def.signature, def.inner.clone()).as_bytes())?;
+                o_opt.write_all(format!("------------------- FUNCTION DEFINITION START-------------------\n{:#?}\n------------------- FUNCTION DEFINITION END-------------------\n------------------- FUNCTION BODY START-------------------{:#?}------------------- FUNCTION BODY END-------------------\n", def.signature, def.inner.clone()).as_bytes())?;
             }
         }
     }
@@ -100,7 +100,7 @@ pub fn llvm_codegen_main<'ctx>(
             &cpu_name.unwrap_or_else(|| TargetMachine::get_host_cpu_name().to_string()),
             &cpu_features.unwrap_or_else(|| TargetMachine::get_host_cpu_features().to_string()),
             common::inkwell::OptimizationLevel::Aggressive,
-            RelocMode::PIC,
+            RelocMode::Default,
             common::inkwell::targets::CodeModel::Default,
         )
         .unwrap();
@@ -131,7 +131,8 @@ pub fn llvm_codegen_main<'ctx>(
             err.to_string(),
         ))
     })?;
-
+    
+    // This returns a panic when we want to display a `break` statement
     // target_machine
     //     .write_to_file(
     //         module,
@@ -175,6 +176,8 @@ pub fn llvm_codegen<'ctx>(
     cpu_features: Option<String>,
 ) -> Result<(), common::anyhow::Error>
 {
+    panic!();
+    
     let _target = llvm_codegen_main(
         context,
         builder,
