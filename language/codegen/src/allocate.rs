@@ -19,7 +19,7 @@ use common::{
     parser::{
         common::{ParsedToken, ParsedTokenInstance},
         function::FunctionDefinition,
-        variable::VariableReference,
+        variable::{ArrayReference, VariableReference},
     },
     ty::Type,
 };
@@ -226,7 +226,7 @@ where
                         ));
                     }
                 },
-                VariableReference::ArrayReference(_, parsed_tokens) => {
+                VariableReference::ArrayReference(ArrayReference(_, parsed_tokens)) => {
                     todo!()
                 },
             }
@@ -234,7 +234,13 @@ where
         ParsedToken::Literal(literal) => {
             let var_type = literal.discriminant();
 
-            let (ptr, ty) = create_new_variable(ctx, builder, "temp_literal_value", &var_type, custom_types.clone())?;
+            let (ptr, ty) = create_new_variable(
+                ctx,
+                builder,
+                "temp_literal_value",
+                &var_type,
+                custom_types.clone(),
+            )?;
 
             pre_allocation_list.push((parsed_token_instance.clone(), ptr, ty, var_type));
         },
@@ -483,7 +489,11 @@ where
                             Type::I64 => {
                                 let cast_res = builder.build_float_to_signed_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                        .build_load(
+                                            var_ty.into_float_type(),
+                                            var_ptr,
+                                            "temp_cast_value",
+                                        )?
                                         .into_float_value(),
                                     ctx.i64_type(),
                                     "temp_cast_value",
@@ -504,7 +514,11 @@ where
                             Type::U64 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                        .build_load(
+                                            var_ty.into_float_type(),
+                                            var_ptr,
+                                            "temp_cast_value",
+                                        )?
                                         .into_float_value(),
                                     ctx.i64_type(),
                                     "temp_cast_value",
@@ -524,7 +538,11 @@ where
                             Type::I32 => {
                                 let cast_res = builder.build_float_to_signed_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                        .build_load(
+                                            var_ty.into_float_type(),
+                                            var_ptr,
+                                            "temp_cast_value",
+                                        )?
                                         .into_float_value(),
                                     ctx.i32_type(),
                                     "temp_cast_value",
@@ -542,7 +560,11 @@ where
                             },
                             Type::F32 => {
                                 let value = builder
-                                    .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                    .build_load(
+                                        var_ty.into_float_type(),
+                                        var_ptr,
+                                        "temp_cast_value",
+                                    )?
                                     .into_float_value();
 
                                 let cast_res =
@@ -562,7 +584,11 @@ where
                             Type::U32 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                        .build_load(
+                                            var_ty.into_float_type(),
+                                            var_ptr,
+                                            "temp_cast_value",
+                                        )?
                                         .into_float_value(),
                                     ctx.i32_type(),
                                     "temp_cast_value",
@@ -581,7 +607,11 @@ where
                             Type::I16 => {
                                 let cast_res = builder.build_float_to_signed_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                        .build_load(
+                                            var_ty.into_float_type(),
+                                            var_ptr,
+                                            "temp_cast_value",
+                                        )?
                                         .into_float_value(),
                                     ctx.i16_type(),
                                     "temp_cast_value",
@@ -599,7 +629,11 @@ where
                             },
                             Type::F16 => {
                                 let value = builder
-                                    .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                    .build_load(
+                                        var_ty.into_float_type(),
+                                        var_ptr,
+                                        "temp_cast_value",
+                                    )?
                                     .into_float_value();
 
                                 let cast_res =
@@ -619,7 +653,11 @@ where
                             Type::U16 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                        .build_load(
+                                            var_ty.into_float_type(),
+                                            var_ptr,
+                                            "temp_cast_value",
+                                        )?
                                         .into_float_value(),
                                     ctx.i16_type(),
                                     "temp_cast_value",
@@ -638,7 +676,11 @@ where
                             Type::U8 => {
                                 let cast_res = builder.build_float_to_unsigned_int(
                                     builder
-                                        .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                        .build_load(
+                                            var_ty.into_float_type(),
+                                            var_ptr,
+                                            "temp_cast_value",
+                                        )?
                                         .into_float_value(),
                                     ctx.i8_type(),
                                     "temp_cast_value",
@@ -656,7 +698,11 @@ where
                             },
                             Type::String => {
                                 let value = builder
-                                    .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                    .build_load(
+                                        var_ty.into_float_type(),
+                                        var_ptr,
+                                        "temp_cast_value",
+                                    )?
                                     .into_float_value();
 
                                 let raw_val = value.get_constant().unwrap().0;
@@ -674,7 +720,11 @@ where
                             },
                             Type::Boolean => {
                                 let value = builder
-                                    .build_load(var_ty.into_float_type(), var_ptr, "temp_cast_value")?
+                                    .build_load(
+                                        var_ty.into_float_type(),
+                                        var_ptr,
+                                        "temp_cast_value",
+                                    )?
                                     .into_float_value();
 
                                 let bool_ty = ctx.bool_type();

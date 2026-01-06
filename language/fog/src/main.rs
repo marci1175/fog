@@ -17,8 +17,8 @@ use common::{
 };
 use compiler::CompilerState;
 use linker::link;
-use tracing::Level;
 use std::{env, fs, path::PathBuf};
+use tracing::Level;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about)]
@@ -31,7 +31,9 @@ pub struct CompilerArgs
 #[tokio::main]
 async fn main() -> common::anyhow::Result<()>
 {
-    tracing_subscriber::fmt().with_max_level(Level::DEBUG).init();
+    tracing_subscriber::fmt()
+        .with_max_level(Level::DEBUG)
+        .init();
 
     let current_working_dir = env::current_dir()?;
 

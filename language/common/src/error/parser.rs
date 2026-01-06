@@ -26,7 +26,7 @@ pub enum ParserError
     )]
     DeterminiateArgumentsFunction,
     #[error("Type `{0}` mismatches type `{1}`.")]
-    TypeError(Type, Type),
+    TypeMismatch(Type, Type),
     #[error("Source code contains a Syntax Error: {0}")]
     SyntaxError(SyntaxError),
     #[error("Variable `{0}` with type `{1}` mismatches `{2}`.")]
@@ -75,7 +75,6 @@ pub enum ParserError
         "Function is only enabled when feature `{0:?}` is enabled, which is an invalid feature."
     )]
     InvalidFunctionFeature(Option<Token>),
-
     #[error(
         "Function requires feature `{0}` to be enabled but project only has features `{1:?}` enabled."
     )]
@@ -92,4 +91,8 @@ pub enum ParserError
     InvalidValue(Option<Type>, ParsedToken),
     #[error("Enum variant `{0}` was not found in specified enum.")]
     EnumVariantNotFound(String),
+    #[error(
+        "Type `{0}` does not contain any fields and may not be accessed via any field. (Only structs have fields)"
+    )]
+    TypeWithoutFields(Type),
 }

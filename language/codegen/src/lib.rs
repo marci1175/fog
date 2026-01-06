@@ -131,7 +131,7 @@ pub fn llvm_codegen_main<'ctx>(
             err.to_string(),
         ))
     })?;
-    
+
     // This returns a panic when we want to display a `break` statement
     // target_machine
     //     .write_to_file(
@@ -177,7 +177,7 @@ pub fn llvm_codegen<'ctx>(
 ) -> Result<(), common::anyhow::Error>
 {
     panic!();
-    
+
     let _target = llvm_codegen_main(
         context,
         builder,

@@ -21,7 +21,7 @@ use common::{
         common::{ParsedToken, ParsedTokenInstance},
         function::{CompilerHint, FunctionDefinition},
         value::MathematicalSymbol,
-        variable::{ControlFlowType, VariableReference},
+        variable::{ArrayReference, ControlFlowType, VariableReference},
     },
     tokenizer::Token,
     ty::{OrdMap, Type, ty_from_token},
@@ -226,10 +226,7 @@ where
                 variable_reference
             {
                 match var_ref_variant {
-                    VariableReference::StructFieldReference(
-                        struct_field_stack,
-                        (struct_name, struct_fields),
-                    ) => {
+                    VariableReference::StructFieldReference(struct_field_stack) => {
                         dbg!(&struct_field_stack.field_stack);
                         dbg!(&struct_name);
 
@@ -344,7 +341,10 @@ where
                             };
                         }
                     },
-                    VariableReference::ArrayReference(variable_reference, index) => {
+                    VariableReference::ArrayReference(ArrayReference(
+                        variable_reference,
+                        index,
+                    )) => {
                         let variable_ptr = variable_map
                             .get(&variable_reference)
                             .ok_or(CodeGenError::InternalVariableNotFound(
@@ -424,7 +424,10 @@ where
 
                         Some((*ptr, *ty, ty_disc.clone()))
                     },
-                    VariableReference::ArrayReference(variable_reference, index) => {
+                    VariableReference::ArrayReference(ArrayReference(
+                        variable_reference,
+                        index,
+                    )) => {
                         let variable_ptr = variable_map
                             .get(&variable_reference)
                             .ok_or(CodeGenError::InternalVariableNotFound(

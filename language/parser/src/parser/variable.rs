@@ -10,7 +10,7 @@ use common::{
         dbg::fetch_and_merge_debug_information,
         function::{FunctionSignature, UnparsedFunctionDefinition},
         value::{MathematicalSymbol, parse_token_as_value, parse_value},
-        variable::{StructFieldReference, VariableReference},
+        variable::{StructFieldReference, VariableReference, handle_variable},
     },
     tokenizer::Token,
     tracing::info,
@@ -33,7 +33,8 @@ pub fn parse_variable_expression(
     custom_types: Rc<IndexMap<String, CustomType>>,
     mut variable_ref: ParsedTokenInstance,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
-) -> Result<()>
+    variable_name: &str,
+) -> Result<ParsedTokenInstance>
 {
     let origin_token_idx = *token_idx;
 
@@ -86,10 +87,9 @@ pub fn parse_variable_expression(
                 debug_infos,
                 function_signatures,
                 token_idx,
-                parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_ref.clone(),
+                &mut variable_ref,
                 MathematicalSymbol::Addition,
                 function_imports.clone(),
                 custom_types.clone(),
@@ -102,10 +102,9 @@ pub fn parse_variable_expression(
                 debug_infos,
                 function_signatures,
                 token_idx,
-                parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_ref.clone(),
+                &mut variable_ref,
                 MathematicalSymbol::Subtraction,
                 function_imports.clone(),
                 custom_types.clone(),
@@ -118,10 +117,9 @@ pub fn parse_variable_expression(
                 debug_infos,
                 function_signatures,
                 token_idx,
-                parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_ref.clone(),
+                &mut variable_ref,
                 MathematicalSymbol::Division,
                 function_imports.clone(),
                 custom_types.clone(),
@@ -134,10 +132,9 @@ pub fn parse_variable_expression(
                 debug_infos,
                 function_signatures,
                 token_idx,
-                parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_ref.clone(),
+                &mut variable_ref,
                 MathematicalSymbol::Multiplication,
                 function_imports.clone(),
                 custom_types.clone(),
@@ -150,94 +147,30 @@ pub fn parse_variable_expression(
                 debug_infos,
                 function_signatures,
                 token_idx,
-                parsed_tokens,
                 variable_scope,
                 variable_type,
-                variable_ref.clone(),
+                &mut variable_ref,
                 MathematicalSymbol::Modulo,
                 function_imports.clone(),
                 custom_types.clone(),
             )?;
         },
         Token::Dot => {
-            let field_name = &tokens.get(*token_idx + 1);
-
-            if let Type::Struct((struct_name, struct_def)) = variable_type {
-                if let Some(Token::Identifier(field_name)) = field_name {
-                    if let Some(struct_field_ty) = struct_def.get(dbg!(field_name)) {
-                        if let ParsedTokenInstance {
-                            inner: ParsedToken::VariableReference(var_ref),
-                            ..
-                        } = dbg!(variable_ref)
-                        {
-                            let new_reference = match var_ref {
-                                VariableReference::StructFieldReference(
-                                    mut struct_field_ref,
-                                    struct_ty,
-                                ) => {
-                                    struct_field_ref.field_stack.push(field_name.to_string());
-                                    VariableReference::StructFieldReference(
-                                        struct_field_ref,
-                                        struct_ty,
-                                    )
-                                },
-                                VariableReference::BasicReference(basic_ref) => {
-                                    let stack = vec![basic_ref.to_string(), field_name.to_string()];
-                                    VariableReference::StructFieldReference(
-                                        StructFieldReference::from_stack(stack),
-                                        (struct_name, struct_def.clone()),
-                                    )
-                                },
-                                VariableReference::ArrayReference(_, _) => {
-                                    todo!()
-                                },
-                            };
-                            variable_ref = ParsedTokenInstance {
-                                inner: ParsedToken::VariableReference(new_reference),
-                                debug_information: DbgInfo::default(),
-                            };
-                        }
-                        else {
-                            panic!();
-                        }
-
-                        *token_idx += 2;
-
-                        parse_variable_expression(
-                            tokens,
-                            function_token_offset,
-                            debug_infos,
-                            &tokens[*token_idx],
-                            token_idx,
-                            function_signatures,
-                            function_imports,
-                            variable_scope,
-                            struct_field_ty.clone(),
-                            custom_types,
-                            // This is not going to work we may need to rework struct references.
-                            variable_ref,
-                            parsed_tokens,
-                        )?;
-                    }
-                    else {
-                        return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
-                            field_name.to_string(),
-                            (struct_name, struct_def),
-                        ))
-                        .into());
-                    }
-                }
-                else {
-                    return Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
-                        format!("{field_name:?}"),
-                        (struct_name, struct_def),
-                    ))
-                    .into());
-                }
-            }
-            else {
-                return Err(ParserError::SyntaxError(SyntaxError::InvalidDotPlacement).into());
-            }
+            let var_type = handle_variable(
+                tokens,
+                function_token_offset,
+                debug_infos,
+                origin_token_idx,
+                &function_signatures,
+                variable_scope,
+                None,
+                token_idx,
+                &function_imports,
+                &custom_types,
+                variable_name,
+                variable_ref.inner.try_as_variable_reference_mut().unwrap(),
+                variable_type,
+            )?;
 
             if let Some(idx) = tokens
                 .iter()
@@ -251,104 +184,77 @@ pub fn parse_variable_expression(
             }
         },
         Token::OpenSquareBrackets => {
-            if let Type::Array((inner_token, _len)) = variable_type {
-                // Inner type of square brackets
-                let inner_type = ty_from_token(&inner_token, &custom_types)?;
-
-                *token_idx += 1;
-
-                // Get expression inside of square brackets
-                let square_brackets_break_idx = tokens
-                    .iter()
-                    .skip(*token_idx)
-                    .position(|token| *token == Token::CloseSquareBrackets)
-                    .ok_or(ParserError::SyntaxError(
-                        SyntaxError::LeftOpenSquareBrackets,
-                    ))?
-                    + *token_idx;
-                
-                // Extract selected tokens
-                let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
-                
-                // Get the idx to the array
-                let (value, idx_jmp, _) = parse_value(
-                    selected_tokens,
-                    *token_idx,
-                    debug_infos,
-                    origin_token_idx,
-                    function_signatures.clone(),
-                    variable_scope,
-                    Some(Type::U32),
-                    function_imports.clone(),
-                    custom_types.clone(),
-                )?;
-
-                // Jump to the end of the epxression
-                *token_idx += idx_jmp;
-                
-                // Check syntax
-                if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
-                    *token_idx += 1;
-
-                    // Check if this was the last expr after the variable.
-                    if tokens.get(*token_idx) != Some(&Token::SemiColon) {
-                        let next_token = tokens.get(*token_idx).ok_or(ParserError::SyntaxError(
-                            SyntaxError::InvalidStatementDefinition,
-                        ))?;
-
-                        // Parse next var expr
-                        parse_variable_expression(
-                            tokens,
-                            *token_idx,
-                            debug_infos,
-                            next_token,
-                            token_idx,
-                            function_signatures.clone(),
-                            function_imports,
-                            variable_scope,
-                            inner_type,
-                            custom_types,
-                            ParsedTokenInstance {
-                                inner: ParsedToken::ArrayIndexing(
-                                    Box::new(variable_ref.clone()),
-                                    Box::new(value.clone()),
-                                ),
-                                debug_information: fetch_and_merge_debug_information(
-                                    debug_infos,
-                                    origin_token_idx + function_token_offset
-                                        ..*token_idx + function_token_offset,
-                                    true,
-                                )
-                                .unwrap(),
-                            },
-                            parsed_tokens,
-                        )?;
-                    }
-                    else {
-                        // parsed_tokens.push(ParsedToken::ArrayIndexing(
-                        //     Box::new(ParsedToken::VariableReference(variable_ref.clone())),
-                        //     Box::new(value),
-                        // ));
-
-                        panic!("Check later if this is a syntax check.")
-                    }
-                }
-                else {
-                    return Err(
-                        ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into(),
-                    );
-                }
-            }
-            else {
-                return Err(ParserError::TypeMismatchNonIndexable(variable_type).into());
-            }
+            let var_type = handle_variable(
+                tokens,
+                function_token_offset,
+                debug_infos,
+                origin_token_idx,
+                &function_signatures,
+                variable_scope,
+                None,
+                token_idx,
+                &function_imports,
+                &custom_types,
+                variable_name,
+                variable_ref.inner.try_as_variable_reference_mut().unwrap(),
+                variable_type,
+            )?;
         },
+        // Token::As => {
+        //     if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
+        //         let desired_variable_type =
+        //             desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
+
+        //         if *target_type != desired_variable_type {
+        //             return Err(ParserError::TypeMismatch(
+        //                 target_type.clone(),
+        //                 desired_variable_type,
+        //             )
+        //             .into());
+        //         }
+
+        //         // Increment the token index after checking target type
+        //         *token_idx += 2;
+
+        //         let parsed_tkn = parse_variable_expression(
+        //             tokens,
+        //             function_token_offset,
+        //             debug_infos,
+        //             current_token,
+        //             token_idx,
+        //             function_signatures,
+        //             function_imports,
+        //             variable_scope,
+        //             variable_type,
+        //             custom_types,
+        //             ParsedTokenInstance {
+        //                 inner: ParsedToken::TypeCast(Box::new(variable_ref), target_type.clone()),
+        //                 debug_information: fetch_and_merge_debug_information(
+        //                     debug_infos,
+        //                     origin_token_idx + function_token_offset
+        //                         ..origin_token_idx + *token_idx + function_token_offset,
+        //                     true,
+        //                 )
+        //                 .unwrap(),
+        //             },
+        //             parsed_tokens,
+        //             variable_name,
+        //         )?;
+
+        //         // Return the type casted literal
+        //         return Ok(parsed_tkn);
+        //     }
+        //     else {
+        //         // Throw an error
+        //         return Err(ParserError::SyntaxError(SyntaxError::AsRequiresTypeDef).into());
+        //     }
+        // },
         _ => {
             info!("[ERROR] Unimplemented token: {}", tokens[*token_idx]);
         },
     }
 
-    Ok(())
+    Ok(variable_ref)
 }
 
 fn set_value_math_expr(
@@ -357,10 +263,9 @@ fn set_value_math_expr(
     debug_infos: &[DbgInfo],
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     token_idx: &mut usize,
-    parsed_tokens: &mut Vec<ParsedTokenInstance>,
     variable_scope: &mut IndexMap<String, Type>,
     variable_type: Type,
-    variable_reference: ParsedTokenInstance,
+    variable_reference: &mut ParsedTokenInstance,
     math_symbol: MathematicalSymbol,
     standard_function_table: Rc<HashMap<String, FunctionSignature>>,
     custom_items: Rc<IndexMap<String, CustomType>>,
@@ -388,12 +293,12 @@ fn set_value_math_expr(
         custom_items.clone(),
     )?;
 
-    parsed_tokens.push(ParsedTokenInstance {
+    *variable_reference = ParsedTokenInstance {
         inner: ParsedToken::SetValue(
             Box::new(variable_reference.clone()),
             Box::new(ParsedTokenInstance {
                 inner: ParsedToken::MathematicalExpression(
-                    Box::new(variable_reference),
+                    Box::new(variable_reference.clone()),
                     math_symbol,
                     Box::new(next_token),
                 ),
@@ -411,7 +316,7 @@ fn set_value_math_expr(
             true,
         )
         .unwrap(),
-    });
+    };
 
     Ok(())
 }

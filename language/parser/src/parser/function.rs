@@ -868,6 +868,7 @@ impl Parser
                                 .unwrap(),
                             },
                             &mut parsed_token_instances,
+                            &ident_name,
                         )?;
                     }
                     else if let Some(function_sig) = function_signatures.get(ident_name) {

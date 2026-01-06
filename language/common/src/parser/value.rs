@@ -9,7 +9,9 @@ use crate::{
         common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
         dbg::fetch_and_merge_debug_information,
         function::{FunctionSignature, UnparsedFunctionDefinition, parse_function_call_args},
-        variable::{StructFieldReference, VariableReference},
+        variable::{
+            ArrayIndexing, StructFieldRef, StructFieldReference, VariableReference, handle_variable,
+        },
     },
     tokenizer::Token,
     ty::{OrdMap, Type, Value, ty_from_token, unparsed_const_to_typed_literal_unsafe},
@@ -513,7 +515,7 @@ pub fn parse_token_as_value(
                     if let Some(desired_variable_type) = desired_variable_type {
                         // If the function's return type doesn't match the variable's return type return an error
                         if function.function_sig.return_type != desired_variable_type {
-                            return Err(ParserError::TypeError(
+                            return Err(ParserError::TypeMismatch(
                                 function.function_sig.return_type.clone(),
                                 desired_variable_type,
                             )
@@ -530,13 +532,11 @@ pub fn parse_token_as_value(
             }
             // If the identifier could not be found in the function list seRch in the variable scope
             else if let Some(variable_type) = variable_scope.get(identifier).cloned() {
-                let basic_reference = VariableReference::BasicReference(identifier.clone());
-
-                let parsed_token = ParsedToken::VariableReference(basic_reference.clone());
+                let mut basic_reference = VariableReference::BasicReference(identifier.clone());
 
                 *token_idx += 1;
 
-                let (parsed_token, variable_type) = handle_variable(
+                let variable_type = handle_variable(
                     tokens,
                     function_token_offset,
                     debug_infos,
@@ -548,10 +548,11 @@ pub fn parse_token_as_value(
                     &function_imports,
                     &custom_types,
                     identifier,
-                    basic_reference,
-                    parsed_token,
+                    &mut basic_reference,
                     variable_type.clone(),
                 )?;
+
+                let parsed_token = ParsedToken::VariableReference(basic_reference);
 
                 // Return the VariableReference
                 (parsed_token, variable_type.clone())
@@ -610,7 +611,7 @@ pub fn parse_token_as_value(
                     if let Some(desired_variable_type) = desired_variable_type {
                         // If the function's return type doesn't match the variable's return type return an error
                         if function_sig.return_type != desired_variable_type {
-                            return Err(ParserError::TypeError(
+                            return Err(ParserError::TypeMismatch(
                                 function_sig.return_type.clone(),
                                 desired_variable_type,
                             )
@@ -982,250 +983,4 @@ pub fn init_struct(
             .unwrap(),
         },
     ))
-}
-
-fn handle_variable(
-    tokens: &[Token],
-    token_offset: usize,
-    debug_infos: &[DbgInfo],
-    origin_token_idx: usize,
-    function_signatures: &Rc<IndexMap<String, UnparsedFunctionDefinition>>,
-    variable_scope: &mut IndexMap<String, Type>,
-    desired_variable_type: Option<Type>,
-    token_idx: &mut usize,
-    function_imports: &Rc<HashMap<String, FunctionSignature>>,
-    custom_types: &Rc<IndexMap<String, CustomType>>,
-    identifier: &String,
-    variable_reference: VariableReference,
-    // Last parsed token parsed
-    parsed_token: ParsedToken,
-    // Last parsed token's type
-    variable_type: Type,
-) -> Result<(ParsedToken, Type)>
-{
-    if let Some(Token::As) = tokens.get(*token_idx) {
-        if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
-            let desired_variable_type =
-                desired_variable_type.ok_or(ParserError::InternalDesiredTypeMissing)?;
-
-            if *target_type != desired_variable_type {
-                return Err(
-                    ParserError::TypeError(target_type.clone(), desired_variable_type).into(),
-                );
-            }
-
-            // Increment the token index after checking target type
-            *token_idx += 2;
-
-            let handling_continuation = handle_variable(
-                tokens,
-                token_offset,
-                debug_infos,
-                origin_token_idx,
-                function_signatures,
-                variable_scope,
-                Some(desired_variable_type),
-                token_idx,
-                function_imports,
-                custom_types,
-                identifier,
-                variable_reference,
-                ParsedToken::TypeCast(
-                    Box::new(ParsedTokenInstance {
-                        inner: parsed_token,
-                        debug_information: fetch_and_merge_debug_information(
-                            debug_infos,
-                            origin_token_idx + token_offset
-                                ..origin_token_idx + *token_idx + token_offset,
-                            true,
-                        )
-                        .unwrap(),
-                    }),
-                    target_type.clone(),
-                ),
-                target_type.clone(),
-            )?;
-
-            // Return the type casted literal
-            Ok(handling_continuation)
-        }
-        else {
-            // Throw an error
-            Err(ParserError::SyntaxError(SyntaxError::AsRequiresTypeDef).into())
-        }
-    }
-    else if let Some(Token::Dot) = tokens.get(*token_idx) {
-        if let Type::Struct(struct_def) = variable_type {
-            *token_idx += 1;
-
-            let mut struct_field_reference =
-                StructFieldReference::from_single_entry(identifier.clone());
-
-            let field_type = get_struct_field_stack(
-                tokens,
-                token_idx,
-                identifier,
-                &struct_def,
-                &mut struct_field_reference,
-            )?;
-
-            let handling_continuation = handle_variable(
-                tokens,
-                token_offset,
-                debug_infos,
-                origin_token_idx,
-                function_signatures,
-                variable_scope,
-                desired_variable_type,
-                token_idx,
-                function_imports,
-                custom_types,
-                identifier,
-                VariableReference::StructFieldReference(
-                    struct_field_reference.clone(),
-                    struct_def.clone(),
-                ),
-                ParsedToken::VariableReference(VariableReference::StructFieldReference(
-                    struct_field_reference,
-                    struct_def.clone(),
-                )),
-                field_type,
-            )?;
-
-            Ok(handling_continuation)
-        }
-        else {
-            Err(ParserError::SyntaxError(SyntaxError::InvalidStructName(identifier.clone())).into())
-        }
-    }
-    else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
-        if !matches!(variable_type, Type::Array(_)) {
-            return Err(ParserError::TypeMismatchNonIndexable(variable_type.clone()).into());
-        }
-
-        *token_idx += 1;
-
-        let square_brackets_break_idx = tokens
-            .iter()
-            .skip(*token_idx)
-            .position(|token| *token == Token::CloseSquareBrackets)
-            .ok_or(ParserError::SyntaxError(
-                SyntaxError::LeftOpenSquareBrackets,
-            ))?
-            + *token_idx;
-
-        let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
-
-        let (value, idx_jmp, _) = parse_value(
-            selected_tokens,
-            token_offset + *token_idx,
-            debug_infos,
-            origin_token_idx,
-            function_signatures.clone(),
-            variable_scope,
-            Some(Type::U32),
-            function_imports.clone(),
-            custom_types.clone(),
-        )?;
-
-        *token_idx += idx_jmp;
-
-        if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
-            *token_idx += 1;
-
-            if let Type::Array((inner_ty, _len)) = variable_type.clone() {
-                let handling_continuation = handle_variable(
-                    tokens,
-                    token_offset,
-                    debug_infos,
-                    origin_token_idx,
-                    function_signatures,
-                    variable_scope,
-                    desired_variable_type,
-                    token_idx,
-                    function_imports,
-                    custom_types,
-                    identifier,
-                    VariableReference::ArrayReference(identifier.clone(), Box::new(value.clone())),
-                    ParsedToken::ArrayIndexing(
-                        Box::new(ParsedTokenInstance {
-                            inner: ParsedToken::VariableReference(variable_reference.clone()),
-                            debug_information: fetch_and_merge_debug_information(
-                                debug_infos,
-                                origin_token_idx + token_offset
-                                    ..origin_token_idx + *token_idx + token_offset,
-                                true,
-                            )
-                            .unwrap(),
-                        }),
-                        Box::new(value),
-                    ),
-                    ty_from_token(&inner_ty, custom_types)?,
-                )?;
-
-                Ok(handling_continuation)
-            }
-            else {
-                unreachable!(
-                    "This is unreachable as there is a type check at the beginning of this code."
-                );
-            }
-        }
-        else {
-            Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into())
-        }
-    }
-    else {
-        Ok((parsed_token.clone(), variable_type.clone()))
-    }
-}
-
-fn get_struct_field_stack(
-    tokens: &[Token],
-    token_idx: &mut usize,
-    identifier: &String,
-    (struct_name, struct_fields): &(String, OrdMap<String, Type>),
-    struct_field_stack: &mut StructFieldReference,
-) -> Result<Type>
-{
-    if let Some(Token::Identifier(field_name)) = tokens.get(*token_idx) {
-        let struct_field_query = struct_fields.get(field_name);
-        if let Some(Type::Struct(struct_def)) = struct_field_query {
-            *token_idx += 1;
-
-            struct_field_stack.field_stack.push(field_name.clone());
-
-            if let Some(Token::Dot) = tokens.get(*token_idx) {
-                *token_idx += 1;
-
-                get_struct_field_stack(
-                    tokens,
-                    token_idx,
-                    identifier,
-                    struct_def,
-                    struct_field_stack,
-                )
-            }
-            else {
-                Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into())
-            }
-        }
-        else if let Some(field_type) = struct_field_query {
-            *token_idx += 1;
-
-            struct_field_stack.field_stack.push(field_name.clone());
-
-            Ok(field_type.clone())
-        }
-        else {
-            Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
-                field_name.clone(),
-                (struct_name.clone(), struct_fields.clone()),
-            ))
-            .into())
-        }
-    }
-    else {
-        Err(ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference).into())
-    }
 }
