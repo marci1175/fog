@@ -176,8 +176,6 @@ pub fn llvm_codegen<'ctx>(
     cpu_features: Option<String>,
 ) -> Result<(), common::anyhow::Error>
 {
-    panic!();
-
     let _target = llvm_codegen_main(
         context,
         builder,

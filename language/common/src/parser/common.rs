@@ -88,7 +88,8 @@ pub enum ParsedToken
 
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
     /// The second argument is the index we are referencing at.
-    ArrayIndexing(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
+    /// TODO: Improve this an re-enable this feature
+    // ArrayIndexing(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
 
     ArrayInitialization(Vec<ParsedTokenInstance>, Type),
 

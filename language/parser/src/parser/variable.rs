@@ -19,6 +19,7 @@ use common::{
 
 /// This function parses the tokens after a variable.
 /// This function parses actions related to variables. Such as: `var + 5` and `var =% 3`, etc.
+/// TODO: Make this fn have a side effect on `var_ref` and just wrap the value into a parsed token instance at the end
 pub fn parse_variable_expression(
     tokens: &[Token],
     // Token slice offset, this allows us to keep the correct slice indexing (without ruining token_idx)

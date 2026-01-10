@@ -831,6 +831,7 @@ impl Parser
                         .into());
                     }
                 }
+                // Handle operations to variables like `foo[0] = 5`
                 else if let Token::Identifier(ref ident_name) = current_token {
                     // If the variable exists in the current scope
                     if let Some(variable_type) = variable_scope.get(ident_name).cloned() {

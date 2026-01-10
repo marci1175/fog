@@ -22,7 +22,7 @@ pub enum ControlFlowType
     Continue,
 }
 
-#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Display, PartialEq, Eq, Hash, strum_macros::EnumTryAs)]
 /// VariableReferences are the lowest layer of referencing a variable. This is enum wrapped in a ParsedToken, consult the documentation of that enum variant for more information.ű
 /// VariableReferences should not contain themselves as they are only for referencing a variable, there is not much more to it.
 pub enum VariableReference
@@ -38,12 +38,15 @@ pub enum VariableReference
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructFieldRef
 {
+    /// Variable reference enum this shows the underlying variable its referring from
     pub variable_ref: Box<VariableReference>,
     /// This field is for verifying types (Even if the struct fields match it could still be two different structs)
     pub struct_name: String,
     /// The actual struct body, this contains the fields paired with their types. (In order of insertion)
     /// This field uses an [`OrdMap`] so that [`Hash`] can be implemented.
     pub struct_fields: OrdMap<String, Type>,
+    /// This is the fields name we are refering
+    pub field_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -247,6 +250,7 @@ fn get_struct_field_stack(
             variable_ref: Box::new(var_ref.clone()),
             struct_name: struct_name.clone(),
             struct_fields: struct_fields.clone(),
+            field_name: field_name.clone(),
         });
 
         // If it is not a struct but is a some store the struct field name and return

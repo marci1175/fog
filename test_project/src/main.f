@@ -1,3 +1,5 @@
+external printf(input: string, ...): int;
+
 struct Item {
     id: int,
     name: string,
@@ -45,7 +47,6 @@ pub function empty_inventory(): Inventory {
 pub function inv_count(inv: Inventory): int {
     int s = 0;
 
-    # TODO: CHECK THE STRUCT FIELD INDEXING BECAUSE THIS IS AN ISSUE IN THE PARSING
     if (inv.items[0].count > 0) { s = s + inv.items[0].count; }
     if (inv.items[1].count > 0) { s = s + inv.items[1].count; }
     if (inv.items[2].count > 0) { s = s + inv.items[2].count; }
@@ -88,6 +89,8 @@ pub function main(): int {
     Inventory inv = fill_inventory();
     
     int total_items = inv_count(inv);
+
+    printf("%i", inv.items[0].count);
 
     return 0;
 }
