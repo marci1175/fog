@@ -19,7 +19,7 @@ use common::{
     parser::{
         common::{ParsedToken, ParsedTokenInstance},
         function::FunctionDefinition,
-        variable::{VariableReference},
+        variable::VariableReference,
     },
     ty::Type,
 };

@@ -1,18 +1,9 @@
-use std::{collections::HashMap, rc::Rc};
-
 use crate::{
-    codegen::CustomType,
-    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
-    parser::{
-        common::{ParsedToken, ParsedTokenInstance},
-        dbg::fetch_and_merge_debug_information,
-        function::{FunctionSignature, UnparsedFunctionDefinition},
-        value::parse_value,
-    },
+    error::{parser::ParserError, syntax::SyntaxError},
+    parser::common::ParsedTokenInstance,
     tokenizer::Token,
-    ty::{OrdMap, Type, ty_from_token},
+    ty::{OrdMap, Type},
 };
-use indexmap::IndexMap;
 use strum_macros::Display;
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
@@ -99,140 +90,10 @@ impl StructFieldReference
     }
 }
 
-pub fn handle_variable(
-    tokens: &[Token],
-    function_token_offset: usize,
-    debug_infos: &[DbgInfo],
-    origin_token_idx: usize,
-    function_signatures: &Rc<IndexMap<String, UnparsedFunctionDefinition>>,
-    variable_scope: &mut IndexMap<String, Type>,
-    desired_variable_type: Option<Type>,
-    token_idx: &mut usize,
-    function_imports: &Rc<HashMap<String, FunctionSignature>>,
-    custom_types: &Rc<IndexMap<String, CustomType>>,
-    variable_name: &str,
-    variable_reference: &mut VariableReference,
-    // Last parsed token's type
-    variable_type: Type,
-) -> anyhow::Result<Type>
-{
-    if let Some(Token::Dot) = tokens.get(*token_idx) {
-        if let Type::Struct(struct_def) = variable_type {
-            *token_idx += 1;
-
-            // Stack the field names on top of the variable name
-            let field_type = get_struct_field_stack(
-                tokens,
-                token_idx,
-                variable_name,
-                &struct_def,
-                variable_reference,
-            )?;
-
-            // Continue parsing it
-            let handling_continuation = handle_variable(
-                tokens,
-                function_token_offset,
-                debug_infos,
-                origin_token_idx,
-                function_signatures,
-                variable_scope,
-                desired_variable_type,
-                token_idx,
-                function_imports,
-                custom_types,
-                variable_name,
-                variable_reference,
-                field_type,
-            )?;
-
-            Ok(handling_continuation)
-        }
-        else {
-            Err(
-                ParserError::SyntaxError(SyntaxError::InvalidStructName(variable_name.to_string()))
-                    .into(),
-            )
-        }
-    }
-    else if let Some(Token::OpenSquareBrackets) = tokens.get(*token_idx) {
-        if !matches!(variable_type, Type::Array(_)) {
-            return Err(ParserError::TypeMismatchNonIndexable(variable_type.clone()).into());
-        }
-
-        *token_idx += 1;
-
-        let square_brackets_break_idx = tokens
-            .iter()
-            .skip(*token_idx)
-            .position(|token| *token == Token::CloseSquareBrackets)
-            .ok_or(ParserError::SyntaxError(
-                SyntaxError::LeftOpenSquareBrackets,
-            ))?
-            + *token_idx;
-
-        let selected_tokens = &tokens[*token_idx..square_brackets_break_idx];
-
-        let (value, idx_jmp, _) = parse_value(
-            selected_tokens,
-            function_token_offset + *token_idx,
-            debug_infos,
-            origin_token_idx,
-            function_signatures.clone(),
-            variable_scope,
-            Some(Type::U32),
-            function_imports.clone(),
-            custom_types.clone(),
-        )?;
-
-        *token_idx += idx_jmp;
-
-        if let Some(Token::CloseSquareBrackets) = tokens.get(*token_idx) {
-            *token_idx += 1;
-
-            *variable_reference = VariableReference::ArrayReference(ArrayIndexing {
-                variable_reference: Box::new(variable_reference.clone()),
-                idx: Box::new(value.clone()),
-            });
-
-            if let Type::Array((inner_ty, _len)) = variable_type.clone() {
-                let handling_continuation = handle_variable(
-                    tokens,
-                    function_token_offset,
-                    debug_infos,
-                    origin_token_idx,
-                    function_signatures,
-                    variable_scope,
-                    desired_variable_type,
-                    token_idx,
-                    function_imports,
-                    custom_types,
-                    variable_name,
-                    variable_reference,
-                    ty_from_token(&inner_ty, custom_types)?,
-                )?;
-
-                Ok(handling_continuation)
-            }
-            else {
-                unreachable!(
-                    "This is unreachable as there is a type check at the beginning of this code."
-                );
-            }
-        }
-        else {
-            Err(ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets).into())
-        }
-    }
-    else {
-        Ok(variable_type)
-    }
-}
-
 /// Parses the tokens passed in and stores the field names into [`StructFieldReference`].
 /// This function returns the last field's type.
 /// TODO: When i want to implement traits and the ability to call functions on types. ( function foo(self, x: int) ) This needs modification.
-fn get_struct_field_stack(
+pub fn get_struct_field_stack(
     tokens: &[Token],
     token_idx: &mut usize,
     identifier: &str,

@@ -191,13 +191,13 @@ pub fn access_variable_ptr<'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     allocation_list: &mut VecDeque<(
-            ParsedTokenInstance,
-            PointerValue<'ctx>,
-            BasicMetadataTypeEnum<'ctx>,
-            Type,
-        )>,
-        is_loop_body: &Option<LoopBodyBlocks<'_>>,
-        parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
+        ParsedTokenInstance,
+        PointerValue<'ctx>,
+        BasicMetadataTypeEnum<'ctx>,
+        Type,
+    )>,
+    is_loop_body: &Option<LoopBodyBlocks<'_>>,
+    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     builder: &'ctx Builder,
     variable_reference: Box<VariableReference>,
     variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
@@ -206,14 +206,42 @@ pub fn access_variable_ptr<'ctx>(
 {
     match &*variable_reference {
         VariableReference::StructFieldReference(struct_field_ref) => {
-            if let Some((idx, _, field_ty)) = struct_field_ref.struct_fields.get_full(&struct_field_ref.field_name) {
+            if let Some((idx, _, field_ty)) = struct_field_ref
+                .struct_fields
+                .get_full(&struct_field_ref.field_name)
+            {
                 // Get the ptr to the struct
-                let (ptr, ptr_ty, _ty) = access_variable_ptr(ctx, module, fn_ret_ty, this_fn_block, this_fn, allocation_list, is_loop_body, parsed_functions, builder, struct_field_ref.variable_ref.clone(), variable_map, custom_types.clone())?;
+                let (ptr, ptr_ty, _ty) = access_variable_ptr(
+                    ctx,
+                    module,
+                    fn_ret_ty,
+                    this_fn_block,
+                    this_fn,
+                    allocation_list,
+                    is_loop_body,
+                    parsed_functions,
+                    builder,
+                    struct_field_ref.variable_ref.clone(),
+                    variable_map,
+                    custom_types.clone(),
+                )?;
 
                 // Get the ptr to the field of the struct
-                let field_ptr = builder.build_struct_gep(ptr_ty, ptr, idx as u32, &format!("get_{}_from_{}", struct_field_ref.field_name, struct_field_ref.struct_name))?;
-                
-                return Ok((field_ptr, ty_to_llvm_ty(ctx, field_ty, custom_types)?, field_ty.clone()))
+                let field_ptr = builder.build_struct_gep(
+                    ptr_ty,
+                    ptr,
+                    idx as u32,
+                    &format!(
+                        "get_{}_from_{}",
+                        struct_field_ref.field_name, struct_field_ref.struct_name
+                    ),
+                )?;
+
+                return Ok((
+                    field_ptr,
+                    ty_to_llvm_ty(ctx, field_ty, custom_types)?,
+                    field_ty.clone(),
+                ));
             }
             else {
                 // if the struct doesnt have this field return an error
@@ -221,16 +249,52 @@ pub fn access_variable_ptr<'ctx>(
             }
         },
         VariableReference::BasicReference(variable_name) => {
-            let ((ptr, _ptr_ty), variable_type) = variable_map.get(variable_name).ok_or(CodeGenError::InternalVariableNotFound(variable_name.to_string()))?;
-            
-            return Ok((ptr.clone(), ty_to_llvm_ty(ctx, &variable_type, custom_types)?, variable_type.clone()));
+            let ((ptr, _ptr_ty), variable_type) =
+                variable_map
+                    .get(variable_name)
+                    .ok_or(CodeGenError::InternalVariableNotFound(
+                        variable_name.to_string(),
+                    ))?;
+
+            return Ok((
+                ptr.clone(),
+                ty_to_llvm_ty(ctx, &variable_type, custom_types)?,
+                variable_type.clone(),
+            ));
         },
         VariableReference::ArrayReference(array_indexing) => {
             // Get the underlying variable we are trying to index into
-            let (ptr, ptr_ty, ty) = access_variable_ptr(ctx, module, fn_ret_ty, this_fn_block, this_fn, allocation_list, is_loop_body, parsed_functions.clone(), builder, array_indexing.variable_reference.clone(), variable_map, custom_types.clone())?;
+            let (ptr, ptr_ty, ty) = access_variable_ptr(
+                ctx,
+                module,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body,
+                parsed_functions.clone(),
+                builder,
+                array_indexing.variable_reference.clone(),
+                variable_map,
+                custom_types.clone(),
+            )?;
 
-            let (elem_ptr, _elem_ty, ty) = access_array_index(ctx, module, builder, variable_map, fn_ret_ty, this_fn_block, this_fn, allocation_list, is_loop_body, &parsed_functions, &custom_types, ((ptr, ptr_ty.into()), ty), array_indexing.idx.clone())?;
-            
+            let (elem_ptr, _elem_ty, ty) = access_array_index(
+                ctx,
+                module,
+                builder,
+                variable_map,
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body,
+                &parsed_functions,
+                &custom_types,
+                ((ptr, ptr_ty.into()), ty),
+                array_indexing.idx.clone(),
+            )?;
+
             return Ok((elem_ptr, ty_to_llvm_ty(ctx, &ty, custom_types)?, ty));
         },
     }

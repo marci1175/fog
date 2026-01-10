@@ -32,11 +32,9 @@ use std::{
 };
 
 use crate::{
-    allocate::{allocate_string, /* create_alloca_table, */create_new_variable},
+    allocate::{allocate_string, /* create_alloca_table, */ create_new_variable},
     debug::create_subprogram_debug_information,
-    pointer::{
-        access_array_index, access_variable_ptr, set_value_of_ptr,
-    },
+    pointer::{access_array_index, access_variable_ptr, set_value_of_ptr},
 };
 
 pub fn create_ir<'main, 'ctx>(
@@ -225,8 +223,21 @@ where
             if let Some((var_ref_name, (var_ref_ptr, var_ref_ty), var_ref_ty_disc)) =
                 variable_reference
             {
-                let (ptr, ptr_ty, ty) = access_variable_ptr(ctx, module, &fn_ret_ty, this_fn_block, this_fn, allocation_list, &is_loop_body, parsed_functions, builder, Box::new(var_ref_variant), variable_map, custom_types)?;
-                
+                let (ptr, ptr_ty, ty) = access_variable_ptr(
+                    ctx,
+                    module,
+                    &fn_ret_ty,
+                    this_fn_block,
+                    this_fn,
+                    allocation_list,
+                    &is_loop_body,
+                    parsed_functions,
+                    builder,
+                    Box::new(var_ref_variant),
+                    variable_map,
+                    custom_types,
+                )?;
+
                 let value = builder.build_load(ptr_ty, ptr, &format!("{var_ref_name}_deref"))?;
 
                 builder.build_store(var_ref_ptr, value)?;
@@ -234,9 +245,22 @@ where
                 None
             }
             else {
-                let (ptr, ptr_ty, ty) = access_variable_ptr(ctx, module, &fn_ret_ty, this_fn_block, this_fn, allocation_list, &is_loop_body, parsed_functions, builder, Box::new(var_ref_variant), variable_map, custom_types)?;
-               
-               Some((ptr, ty_enum_to_metadata_ty_enum(ptr_ty), ty))
+                let (ptr, ptr_ty, ty) = access_variable_ptr(
+                    ctx,
+                    module,
+                    &fn_ret_ty,
+                    this_fn_block,
+                    this_fn,
+                    allocation_list,
+                    &is_loop_body,
+                    parsed_functions,
+                    builder,
+                    Box::new(var_ref_variant),
+                    variable_map,
+                    custom_types,
+                )?;
+
+                Some((ptr, ty_enum_to_metadata_ty_enum(ptr_ty), ty))
             }
         },
         ParsedToken::Literal(literal) => {
@@ -1570,7 +1594,13 @@ where
                 &is_loop_body,
                 parsed_functions.clone(),
                 builder,
-                Box::new(var_ref_ty.inner.clone().try_as_variable_reference().ok_or(CodeGenError::InvalidVariableReference(var_ref_ty.inner))?),
+                Box::new(
+                    var_ref_ty
+                        .inner
+                        .clone()
+                        .try_as_variable_reference()
+                        .ok_or(CodeGenError::InvalidVariableReference(var_ref_ty.inner))?,
+                ),
                 variable_map,
                 custom_types.clone(),
             )?;

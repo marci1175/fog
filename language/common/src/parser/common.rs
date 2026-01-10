@@ -90,7 +90,6 @@ pub enum ParsedToken
     /// The second argument is the index we are referencing at.
     /// TODO: Improve this an re-enable this feature
     // ArrayIndexing(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
-
     ArrayInitialization(Vec<ParsedTokenInstance>, Type),
 
     GetPointerTo(Box<ParsedTokenInstance>),

@@ -15,7 +15,7 @@ pub fn fetch_and_merge_debug_information(
     Some(
         fetched_items
             .map(|debug_infos| combine_ranges(debug_infos, is_ordered))
-            .unwrap_or_else(DbgInfo::default),
+            .unwrap_or_default(),
     )
 }
 
