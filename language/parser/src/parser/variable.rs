@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use common::{
     anyhow::Result,
     codegen::CustomType,
-    error::{DbgInfo, codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
+    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         common::{ParsedToken, ParsedTokenInstance},

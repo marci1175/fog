@@ -1010,7 +1010,6 @@ impl Parser
                                     variable_scope.insert(var_name.clone(), variable_type);
                                 }
                                 else {
-                                    // ez faszsag
                                     // Assume that the user tried to access the struct name as a variable
                                     return Err(
                                         ParserError::VariableNotFound(ident_name.clone()).into()
