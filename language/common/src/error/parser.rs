@@ -95,4 +95,6 @@ pub enum ParserError
         "Type `{0}` does not contain any fields and may not be accessed via any field. (Only structs have fields)"
     )]
     TypeWithoutFields(Type),
+    #[error("Parser has encountered invalid END OF FILE.")]
+    EOF,
 }
