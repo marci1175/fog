@@ -170,7 +170,7 @@ impl CompilerState
 
         // This does NOT work with structs and comments
         // check function token offset and custom types offsetting tokens
-        debug!("Recontructed token tree");
+        // debug!("Recontructed token tree");
         // let lines = file_contents.lines().collect::<Vec<&str>>();
         // for (fn_name, fn_def) in function_table.iter() {
         //     for psd_tkn in &fn_def.inner {

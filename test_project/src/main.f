@@ -454,7 +454,7 @@ pub function main(): int {
     printf("Fog big file start\n");
 
     # People ---------------------------------------------------
-    Person p0 = make_person(18, "Alice", 170, "Neutral", "Monday");
+    Person p0 = make_person(18.32 as int, "Alice", 170, "Neutral", "Monday");
     Person p1 = make_person(25, "Bob", 182, "Happy", "Friday");
     Person p2 = make_person(31, "Charlie", 165, "Sad", "Wednesday");
 

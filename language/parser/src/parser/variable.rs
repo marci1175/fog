@@ -1,13 +1,20 @@
 use std::{collections::HashMap, rc::Rc};
 
 use common::{
-    anyhow::Result, codegen::CustomType, error::{DbgInfo, parser::ParserError, syntax::SyntaxError}, indexmap::IndexMap, parser::{
+    anyhow::Result,
+    codegen::CustomType,
+    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
+    indexmap::IndexMap,
+    parser::{
         common::{ParsedToken, ParsedTokenInstance},
         dbg::fetch_and_merge_debug_information,
         function::{FunctionSignature, UnparsedFunctionDefinition},
         value::MathematicalSymbol,
         variable::{ArrayIndexing, VariableReference, get_struct_field_stack},
-    }, tokenizer::Token, tracing, ty::{Type, ty_from_token}
+    },
+    tokenizer::Token,
+    tracing,
+    ty::{Type, ty_from_token},
 };
 
 use crate::parser::value::{parse_token_as_value, parse_value};
@@ -267,10 +274,6 @@ pub fn resolve_variable_expression(
                 tracing::trace!("Invalid variable expr token: {}", tokens[*token_idx]);
             },
         }
-    }
-    else {
-        // Return this if nothing came as a current token
-        return Err(ParserError::EOF.into());
     }
 
     // If we didnt return anything before this we can return variable type.

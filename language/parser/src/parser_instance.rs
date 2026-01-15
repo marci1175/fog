@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::{HashMap, HashSet}, rc::Rc};
 
 use common::{
     anyhow::Result,
@@ -7,10 +7,19 @@ use common::{
     dashmap::DashMap,
     error::{DbgInfo, parser::ParserError},
     indexmap::IndexMap,
-    parser::function::{FunctionDefinition, FunctionSignature, FunctionVisibility},
+    parser::function::{FunctionDefinition, FunctionSignature, FunctionVisibility, UnparsedFunctionDefinition},
     tokenizer::Token,
     ty::OrdSet,
 };
+
+#[derive(Debug, Clone)]
+pub struct SigTable {
+    pub function_list: IndexMap<String, UnparsedFunctionDefinition>,
+    pub dependency_imports: HashSet<Vec<String>>,
+    pub external_imports: HashMap<String, FunctionSignature>,
+    pub custom_types: IndexMap<String, CustomType>,
+    pub imported_file_list: HashMap<Vec<String>, FunctionDefinition>,
+}
 
 #[derive(Debug, Clone)]
 pub struct Parser
@@ -28,6 +37,7 @@ pub struct Parser
 
 impl Parser
 {
+    // TODO: recode importing stuff
     pub fn parse(&mut self, dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>)
     -> Result<()>
     {

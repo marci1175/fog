@@ -38,8 +38,10 @@ use crate::{
 
 impl Parser
 {
+    /// Creates signature table
+    /// Returns all of the custom types, etc
     pub fn create_signature_table(
-        &mut self,
+        &self,
         dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>,
     ) -> Result<(
         IndexMap<String, UnparsedFunctionDefinition>,

@@ -340,13 +340,11 @@ where
             )?;
 
             if let Some((var_ptr, var_ty, ty_disc)) = created_var {
-                let (ref_ptr, ty_disc) = if let Some((var_name, (ref_ptr, ref_ty), ty_disc)) =
-                    variable_reference.clone()
-                {
-                    (ref_ptr, ty_disc)
+                let ref_ptr = if let Some((_, (ref_ptr, _), _)) = variable_reference.clone() {
+                    ref_ptr
                 }
                 else {
-                    let (ptr, ptr_ty) = create_new_variable(
+                    let (ptr, _) = create_new_variable(
                         ctx,
                         builder,
                         "ty_cast_temp_val",
@@ -354,7 +352,7 @@ where
                         custom_types.clone(),
                     )?;
 
-                    (ptr, ty_disc)
+                    ptr
                 };
 
                 // Try to get the literal of the original value which hasnt been converted yet.
@@ -849,29 +847,7 @@ where
                         }
                     },
                     Type::String => {
-                        match desired_type {
-                            Type::I64 => todo!(),
-                            Type::F64 => todo!(),
-                            Type::U64 => todo!(),
-                            Type::I32 => todo!(),
-                            Type::F32 => todo!(),
-                            Type::U32 => todo!(),
-                            Type::I16 => todo!(),
-                            Type::F16 => todo!(),
-                            Type::U16 => todo!(),
-                            Type::U8 => todo!(),
-                            Type::String => todo!(),
-                            Type::Boolean => todo!(),
-                            Type::Void => todo!(),
-                            Type::Struct(_) => todo!(),
-                            Type::Array(_) => {
-                                return Err(
-                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
-                                );
-                            },
-                            Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => unreachable!(),
-                        }
+                        return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
                     Type::Boolean => {
                         match desired_type {
@@ -1056,83 +1032,17 @@ where
                         }
                     },
                     Type::Void => {
-                        match desired_type {
-                            Type::I64 => todo!(),
-                            Type::F64 => todo!(),
-                            Type::U64 => todo!(),
-                            Type::I32 => todo!(),
-                            Type::F32 => todo!(),
-                            Type::U32 => todo!(),
-                            Type::I16 => todo!(),
-                            Type::F16 => todo!(),
-                            Type::U16 => todo!(),
-                            Type::U8 => todo!(),
-                            Type::String => todo!(),
-                            Type::Boolean => todo!(),
-                            Type::Void => todo!(),
-                            Type::Struct(_) => todo!(),
-                            Type::Array(_) => {
-                                return Err(
-                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
-                                );
-                            },
-                            Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => unreachable!(),
-                        }
+                        return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
                     Type::Struct(_) => {
-                        match desired_type {
-                            Type::I64 => todo!(),
-                            Type::F64 => todo!(),
-                            Type::U64 => todo!(),
-                            Type::I32 => todo!(),
-                            Type::F32 => todo!(),
-                            Type::U32 => todo!(),
-                            Type::I16 => todo!(),
-                            Type::F16 => todo!(),
-                            Type::U16 => todo!(),
-                            Type::U8 => todo!(),
-                            Type::String => todo!(),
-                            Type::Boolean => todo!(),
-                            Type::Void => todo!(),
-                            Type::Struct(_) => todo!(),
-                            Type::Array(_) => {
-                                return Err(
-                                    CodeGenError::InvalidTypeCast(ty_disc, desired_type).into()
-                                );
-                            },
-                            Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => unreachable!(),
-                        }
+                        return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
-                    Type::Array(ref type_discriminant) => {
-                        match desired_type {
-                            Type::I64 => todo!(),
-                            Type::F64 => todo!(),
-                            Type::U64 => todo!(),
-                            Type::I32 => todo!(),
-                            Type::F32 => todo!(),
-                            Type::U32 => todo!(),
-                            Type::I16 => todo!(),
-                            Type::F16 => todo!(),
-                            Type::U16 => todo!(),
-                            Type::U8 => todo!(),
-                            Type::String => todo!(),
-                            Type::Boolean => todo!(),
-                            Type::Void => todo!(),
-                            Type::Struct(_) => todo!(),
-                            Type::Array(_) => {
-                                return Err(CodeGenError::InvalidTypeCast(
-                                    ty_disc.clone(),
-                                    desired_type,
-                                )
-                                .into());
-                            },
-                            Type::Pointer(_) => todo!(),
-                            Type::Enum(_) => unreachable!(),
-                        }
+                    Type::Array(_) => {
+                        return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
-                    Type::Pointer(_) => todo!(),
+                    Type::Pointer(_) => {
+                        return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                    },
                     Type::Enum(_) => unreachable!(),
                 }
 

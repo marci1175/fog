@@ -419,14 +419,19 @@ pub fn parse_token_as_value(
 
             // Push the ParsedToken to the list
             let parsed_value = unparsed_const_to_typed_literal_unsafe(
-                unparsed_literal.clone(),
-                desired_variable_type.clone(),
+                unparsed_literal,
+                if Some(&Token::As) == tokens.get(*token_idx) {
+                    None
+                }
+                else {
+                    desired_variable_type
+                },
             )?;
 
             let parsed_token = ParsedToken::Literal(parsed_value.clone());
 
             // Check if there is an `As` keyword after the variable
-            if let Some(Token::As) = tokens.get(*token_idx) {
+            if let Some(&Token::As) = tokens.get(*token_idx) {
                 // If there isnt a TypeDefinition after the `As` keyword raise an error
                 if let Some(Token::TypeDefinition(target_type)) = tokens.get(*token_idx + 1) {
                     // Increment the token index after checking target type

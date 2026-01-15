@@ -5,6 +5,13 @@ use std::{
     rc::Rc,
 };
 
+use crate::{
+    DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
+    codegen::{CustomType, struct_field_to_ty_list},
+    error::parser::ParserError,
+    parser::common::ParsedTokenInstance,
+    tokenizer::Token,
+};
 use indexmap::{IndexMap, IndexSet};
 use inkwell::{
     AddressSpace,
@@ -14,14 +21,6 @@ use inkwell::{
 use num::Float;
 use strum::EnumTryAs;
 use strum_macros::Display;
-
-use crate::{
-    DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    codegen::{CustomType, struct_field_to_ty_list},
-    error::parser::ParserError,
-    parser::common::ParsedTokenInstance,
-    tokenizer::Token,
-};
 
 #[derive(Debug, Clone, Display, Default, PartialEq, Eq, Hash)]
 pub enum Value
@@ -428,156 +427,121 @@ impl Display for Type
 
 // TODO: Rework this
 pub fn unparsed_const_to_typed_literal_unsafe(
-    raw_string: String,
+    raw_string: &str,
     dest_type: Option<Type>,
 ) -> Result<Value, ParserError>
 {
-    let parsed_val = if let Some(dest_type) = dest_type {
-        let parsed_num = raw_string
-            .parse::<f64>()
-            .map_err(|_| ParserError::InvalidTypeCast(raw_string.clone(), dest_type.clone()))?;
+    let val = match dest_type.clone() {
+        Some(Type::I64) => {
+            Value::I64(raw_string.parse::<i64>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?)
+        },
+        Some(Type::F64) => {
+            Value::F64(NotNan(raw_string.parse::<f64>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?))
+        },
+        Some(Type::U64) => {
+            Value::U64(raw_string.parse::<u64>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?)
+        },
+        Some(Type::I16) => {
+            Value::I16(raw_string.parse::<i16>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?)
+        },
+        Some(Type::F16) => {
+            Value::F16(NotNan(raw_string.parse::<f16>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?))
+        },
+        Some(Type::U16) => {
+            Value::U16(raw_string.parse::<u16>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?)
+        },
+        Some(Type::I32) => {
+            Value::I32(raw_string.parse::<i32>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?)
+        },
+        Some(Type::F32) => {
+            Value::F32(NotNan(raw_string.parse::<f32>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?))
+        },
+        Some(Type::U32) => {
+            Value::U32(raw_string.parse::<u32>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?)
+        },
+        Some(Type::U8) => {
+            Value::U8(raw_string.parse::<u8>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?)
+        },
+        Some(Type::String) => {
+            return Err(ParserError::InvalidTypeCast(
+                raw_string.to_string(),
+                Type::String,
+            ));
+        },
+        Some(Type::Boolean) => {
+            Value::Boolean(raw_string.parse::<bool>().map_err(|_| {
+                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+            })?)
+        },
+        Some(Type::Void) => Value::Void,
+        Some(Type::Struct(inner)) => {
+            return Err(ParserError::InvalidTypeCast(
+                raw_string.to_string(),
+                Type::Struct(inner),
+            ));
+        },
+        Some(Type::Array(inner)) => {
+            return Err(ParserError::InvalidTypeCast(
+                raw_string.to_string(),
+                Type::Array(inner),
+            ));
+        },
+        Some(Type::Pointer(ref ptr_ty)) => {
+            Value::Pointer((
+                raw_string.parse::<usize>().map_err(|_| {
+                    ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                })?,
+                ptr_ty.clone(),
+            ))
+        },
+        Some(Type::Enum(inner)) => {
+            return Err(ParserError::InvalidTypeCast(
+                raw_string.to_string(),
+                Type::Enum(inner),
+            ));
+        },
+        None => {
+            let negative_flag = raw_string.get(0..1) == Some("-");
+            let float_flag = raw_string.as_bytes().contains(&b'.');
 
-        match dest_type {
-            Type::I64 => {
-                if parsed_num.floor() != parsed_num {
-                    return Err(ParserError::InvalidTypeCast(
-                        parsed_num.to_string(),
-                        Type::I64,
-                    ));
-                }
-                else {
-                    Value::I64(parsed_num as i64)
-                }
-            },
-            Type::F64 => Value::F64(parsed_num.into()),
-            Type::U64 => {
-                if parsed_num.floor() != parsed_num {
-                    return Err(ParserError::InvalidTypeCast(
-                        parsed_num.to_string(),
-                        Type::U64,
-                    ));
-                }
-                else {
-                    Value::U64(parsed_num as u64)
-                }
-            },
-            Type::I16 => {
-                if parsed_num.floor() != parsed_num {
-                    return Err(ParserError::InvalidTypeCast(
-                        parsed_num.to_string(),
-                        Type::I16,
-                    ));
-                }
-                else {
-                    Value::I16(parsed_num as i16)
-                }
-            },
-            Type::F16 => Value::F16(NotNan::new_f16(parsed_num as f16)?),
-            Type::U16 => {
-                if parsed_num.floor() != parsed_num {
-                    return Err(ParserError::InvalidTypeCast(
-                        parsed_num.to_string(),
-                        Type::U16,
-                    ));
-                }
-                else {
-                    Value::U16(parsed_num as u16)
-                }
-            },
-            Type::I32 => {
-                if parsed_num.floor() != parsed_num {
-                    return Err(ParserError::InvalidTypeCast(
-                        parsed_num.to_string(),
-                        Type::I32,
-                    ));
-                }
-                else {
-                    Value::I32(parsed_num as i32)
-                }
-            },
-            Type::F32 => Value::F32(NotNan::new(parsed_num as f32)?),
-            Type::U32 => {
-                if parsed_num.floor() != parsed_num {
-                    return Err(ParserError::InvalidTypeCast(
-                        parsed_num.to_string(),
-                        Type::U32,
-                    ));
-                }
-                else {
-                    Value::U32(parsed_num as u32)
-                }
-            },
-            Type::U8 => {
-                if parsed_num.floor() != parsed_num {
-                    return Err(ParserError::InvalidTypeCast(
-                        parsed_num.to_string(),
-                        Type::U32,
-                    ));
-                }
-                else {
-                    Value::U8(parsed_num as u8)
-                }
-            },
-            Type::String => {
-                return Err(ParserError::InvalidTypeCast(
-                    parsed_num.to_string(),
-                    Type::String,
-                ));
-            },
-            Type::Boolean => {
-                if parsed_num == 1.0 {
-                    Value::Boolean(true)
-                }
-                else if parsed_num == 0.0 {
-                    Value::Boolean(false)
-                }
-                else {
-                    return Err(ParserError::InvalidTypeCast(
-                        raw_string.clone(),
-                        Type::Boolean,
-                    ));
-                }
-            },
-            Type::Void => Value::Void,
-            Type::Struct(inner) => {
-                return Err(ParserError::InvalidTypeCast(
-                    raw_string,
-                    Type::Struct(inner),
-                ));
-            },
-            Type::Array(inner) => {
-                return Err(ParserError::InvalidTypeCast(raw_string, Type::Array(inner)));
-            },
-            Type::Pointer(_) => {
-                if parsed_num.floor() != parsed_num {
-                    return Err(ParserError::InvalidTypeCast(
-                        parsed_num.to_string(),
-                        Type::I16,
-                    ));
-                }
-                else {
-                    Value::Pointer((parsed_num as usize, None))
-                }
-            },
-            Type::Enum(inner) => {
-                return Err(ParserError::InvalidTypeCast(raw_string, Type::Enum(inner)));
-            },
-        }
-    }
-    else {
-        let parsed_num = raw_string
-            .parse::<f64>()
-            .map_err(|_| ParserError::ValueTypeUnknown(raw_string.clone()))?;
-
-        if raw_string.contains('.') {
-            Value::F64(parsed_num.into())
-        }
-        else {
-            Value::I64(parsed_num as i64)
-        }
+            if float_flag {
+                Value::F64(NotNan(raw_string.parse::<f64>().map_err(|_| {
+                    ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                })?))
+            }
+            else if negative_flag {
+                Value::I64(raw_string.parse::<i64>().map_err(|_| {
+                    ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                })?)
+            }
+            else {
+                Value::U64(raw_string.parse::<u64>().map_err(|_| {
+                    ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                })?)
+            }
+        },
     };
-
-    Ok(parsed_val)
+    Ok(val)
 }
 
 /// This custom wrapper type is for implementing [`Hash`] for [`IndexMap`].
