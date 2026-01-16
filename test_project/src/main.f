@@ -3,8 +3,6 @@ pub function main(): int {
     loop {
         int a = 0;
         string b = "%i";
-
-        printf(b, a);
     }
 
     return 0;

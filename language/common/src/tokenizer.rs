@@ -9,6 +9,9 @@ use crate::{
 pub enum Token
 {
     Literal(Value),
+
+    UnparsedLiteral(String),
+
     /// ref
     /// Example: ```ptr foo = ref bar;```
     Reference,
@@ -16,15 +19,14 @@ pub enum Token
     /// Example: ```int foo = deref bar;```
     Dereference,
 
-    UnparsedLiteral(String),
-
-    TypeDefinition(Type),
-    As,
-
     Identifier(String),
     DocComment(String),
 
+    As,
+
+    Const, // Used to flag variables as non-mutable (vars a mutable by default): `const int marci = 0;`
     Struct,
+    TypeDefinition(Type),
 
     /// Kinda like C enums but with any type
     Enum(Option<Box<Token>>),
@@ -91,20 +93,15 @@ pub enum Token
     Continue,
     Break,
 
-    Private,
-    Public,
-    PublicLibrary,
+    Private, // priv
+    Public, // pub
+    PublicLibrary, // publib
 
     CompilerHintSymbol, // @
     CompilerHint(CompilerHint),
 
     /// Used to expose functions from a module into another one.
     Export,
-
-    /// UNUSED
-    /// This is only used to track which line a function is located at, for the llvm debug information.
-    /// It could also be used for debug purposes
-    NewLine,
 }
 
 // impl Token {
