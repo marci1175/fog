@@ -1,7 +1,9 @@
 use std::{collections::HashMap, rc::Rc};
 
+use common::get_unique_id;
 use common::indexmap::IndexMap;
 
+use common::parser::variable::{UniqueId, VARIABLE_ID_SOURCE};
 use common::{
     anyhow::Result,
     codegen::{CustomType, Order},
@@ -25,7 +27,7 @@ pub fn parse_value(
     debug_infos: &[DbgInfo],
     origin_token_idx: usize,
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
-    variable_scope: &mut IndexMap<String, Type>,
+    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
     mut desired_variable_type: Option<Type>,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
@@ -358,7 +360,7 @@ pub fn parse_token_as_value(
     // Functions available
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     // Variables available
-    variable_scope: &mut IndexMap<String, Type>,
+    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     // The variable's type which we are parsing for
     desired_variable_type: Option<Type>,
     // Universal token_idx, this sets which token we are currently parsing
@@ -367,6 +369,7 @@ pub fn parse_token_as_value(
     eval_token: &Token,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Rc<IndexMap<String, CustomType>>,
+    // variable_id_source: &mut usize,
 ) -> Result<(ParsedTokenInstance, Type)>
 {
     // Match the token
@@ -536,10 +539,11 @@ pub fn parse_token_as_value(
                 }
             }
             // If the identifier could not be found in the function list search in the variable scope
-            else if let Some(variable_type) = variable_scope.get(identifier).cloned() {
+            else if let Some((variable_type, variable_id)) = variable_scope.get(identifier).cloned() {
                 let mut basic_reference = ParsedTokenInstance {
                     inner: ParsedToken::VariableReference(VariableReference::BasicReference(
                         identifier.clone(),
+                        variable_id,
                     )),
                     debug_information: fetch_and_merge_debug_information(
                         debug_infos,
@@ -559,7 +563,7 @@ pub fn parse_token_as_value(
                     function_signatures,
                     function_imports,
                     variable_scope,
-                    variable_type.clone(),
+                    (variable_type, variable_id),
                     custom_types,
                     &mut basic_reference,
                     &mut Vec::new(),
@@ -896,7 +900,7 @@ pub fn init_struct(
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Rc<IndexMap<String, CustomType>>,
-    variable_scope: &mut IndexMap<String, Type>,
+    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
 ) -> Result<(usize, ParsedTokenInstance)>
 {
     let mut struct_field_init_map: IndexMap<String, Box<ParsedTokenInstance>> = IndexMap::new();

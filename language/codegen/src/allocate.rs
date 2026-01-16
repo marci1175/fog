@@ -84,3 +84,7 @@ pub fn create_new_variable<'a, 'b>(
     // Return the pointer of the allocation and the type
     Ok((v_ptr, var_type.into()))
 }
+
+pub fn allocation_table() {
+    
+}

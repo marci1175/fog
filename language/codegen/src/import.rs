@@ -28,7 +28,7 @@ pub fn import_user_lib_functions<'a>(
 
         for (_, arg_ty) in import_sig.args.arguments.iter() {
             let argument_sig = ty_enum_to_metadata_ty_enum(
-                arg_ty
+                arg_ty.0
                     .clone()
                     .to_basic_type_enum(ctx, custom_types.clone())?,
             );

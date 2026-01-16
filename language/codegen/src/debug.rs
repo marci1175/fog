@@ -1,8 +1,5 @@
 use common::{
-    anyhow::{self, Result},
-    codegen::CustomType,
-    indexmap::IndexMap,
-    inkwell::{
+    anyhow::{self, Result}, codegen::CustomType, get_unique_id, indexmap::IndexMap, inkwell::{
         context::Context,
         debug_info::{
             DIFile, DIFlagsConstants, DIScope, DIType, DWARFSourceLanguage, DebugInfoBuilder,
@@ -19,17 +16,13 @@ use common::{
         },
         module::Module,
         types::AsTypeRef,
-    },
-    parser::function::FunctionDefinition,
-    ty::{Type, ty_from_token},
+    }, parser::function::FunctionDefinition, ty::{Type, ty_from_token}
 };
 use std::{
     ffi::{CStr, CString},
     ptr,
     rc::Rc,
 };
-
-use crate::get_unique_id;
 
 /// Stores the DebugInformation type equivalents of the passed in [`Type`]s.
 pub fn generate_debug_inforamtion_types<'ctx>(
@@ -41,7 +34,7 @@ pub fn generate_debug_inforamtion_types<'ctx>(
     custom_types: Rc<IndexMap<String, CustomType>>,
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
-    unique_id_source: &mut u32,
+    unique_id_source: &mut usize,
 ) -> Result<()>
 {
     for type_disc in type_discriminants {
@@ -72,7 +65,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
     type_disc: Type,
     scope: DIScope<'ctx>,
     file: DIFile<'ctx>,
-    unique_id_source: &mut u32,
+    unique_id_source: &mut usize,
 ) -> Result<DIType<'ctx>>
 {
     let debug_type = match type_disc.clone() {
@@ -226,7 +219,7 @@ pub fn create_subprogram_debug_information<'ctx>(
     debug_info_builder: &DebugInfoBuilder<'ctx>,
     debug_info_file: DIFile<'ctx>,
     debug_scope: DIScope<'ctx>,
-    unique_id_source: &mut u32,
+    unique_id_source: &mut usize,
     function_name: &String,
     function_definition: &FunctionDefinition,
     return_type: Type,
@@ -260,7 +253,7 @@ pub fn create_subprogram_debug_information<'ctx>(
             .args
             .arguments
             .iter()
-            .map(|(_key, value)| value.clone())
+            .map(|(_key, value)| value.0.clone())
             .collect::<Vec<Type>>(),
         custom_types.clone(),
         debug_scope,

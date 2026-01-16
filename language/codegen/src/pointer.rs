@@ -16,7 +16,7 @@ use common::{
     parser::{
         common::{ParsedToken, ParsedTokenInstance},
         function::FunctionDefinition,
-        variable::{StructFieldRef, VariableReference},
+        variable::{StructFieldRef, UniqueId, VariableReference},
     },
     ty::{Type, Value, ty_from_token},
 };
@@ -200,7 +200,7 @@ pub fn access_variable_ptr<'ctx>(
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     builder: &'ctx Builder,
     variable_reference: Box<VariableReference>,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
     custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<(PointerValue<'ctx>, BasicTypeEnum<'ctx>, Type)>
 {
@@ -248,8 +248,8 @@ pub fn access_variable_ptr<'ctx>(
                 return Err(CodeGenError::InternalStructFieldNotFound.into());
             }
         },
-        VariableReference::BasicReference(variable_name) => {
-            let ((ptr, _ptr_ty), variable_type) =
+        VariableReference::BasicReference(variable_name, variable_id) => {
+            let ((ptr, _ptr_ty), (variable_type, _)) =
                 variable_map
                     .get(variable_name)
                     .ok_or(CodeGenError::InternalVariableNotFound(
@@ -309,7 +309,7 @@ pub fn set_value_of_ptr<'ctx>(
     value: Value,
     v_ptr: PointerValue<'_>,
     custom_types: Rc<IndexMap<String, CustomType>>,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
     fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
@@ -549,7 +549,7 @@ pub fn access_array_index<'main, 'ctx>(
     ctx: &'main Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
     fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,

@@ -356,7 +356,7 @@ pub fn get_args_from_sig(
     let mut arg_list: Vec<BasicMetadataTypeEnum> = vec![];
 
     // Iter over all the arguments and store the converted variants of the argument types
-    for (_arg_name, arg_ty) in fn_args {
+    for (_arg_name, (arg_ty, _)) in fn_args {
         // Create an llvm ty
         let argument_sig = ty_to_llvm_ty(ctx, arg_ty, custom_types.clone())?;
 

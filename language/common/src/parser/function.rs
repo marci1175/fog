@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     error::parser::ParserError,
-    parser::common::ParsedTokenInstance,
+    parser::{common::ParsedTokenInstance, variable::UniqueId},
     tokenizer::Token,
     ty::{OrdMap, OrdSet, Type},
 };
@@ -75,7 +75,8 @@ impl Display for FunctionSignature
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionArguments
 {
-    pub arguments: OrdMap<String, Type>,
+    /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are quniue in this context.
+    pub arguments: OrdMap<String, (Type, UniqueId)>,
     pub ellipsis_present: bool,
 }
 

@@ -149,15 +149,6 @@ pub fn llvm_codegen_main<'ctx>(
     Ok(target_machine)
 }
 
-/// This function takes in a mutable reference to a number and increments it while returning the current number.
-/// This can be used to create incrementing identification numbers.
-pub fn get_unique_id(source: &mut u32) -> u32
-{
-    *source += 1;
-
-    *source
-}
-
 /// Wrapper function for the LLVM codegen init function.
 pub fn llvm_codegen<'ctx>(
     target_ir_path: PathBuf,

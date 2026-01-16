@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicUsize;
+
 use crate::{
     error::{parser::ParserError, syntax::SyntaxError},
     parser::common::ParsedTokenInstance,
@@ -13,6 +15,39 @@ pub enum ControlFlowType
     Continue,
 }
 
+pub type UniqueId = usize;
+
+/// Wrapper (around [`AtomicUsize`]) [`IdSource`] type.
+/// [`AtomicUsize`] with a simplified function interface.
+#[derive(Debug)]
+pub struct IdSource {
+    inner: AtomicUsize,
+}
+
+impl IdSource {
+    /// Creates a new [`IdSource`] with a starting id.
+    pub const fn new(starting_id: usize) -> Self {
+        Self { inner: AtomicUsize::new(starting_id) }
+    }
+    
+    /// Fetches current [`AtomicUsize`] state and increments it by one.
+    pub fn get_unique_id(&self) -> UniqueId {
+        self.inner.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Sets the current internal state of the [`IDSource`].
+    pub fn set_current_unique_id(&self, id: UniqueId) {
+        self.inner.store(id, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Fetches the current state of the internal [`AtomicUsize`].
+    pub fn get_current_id(&self) -> usize {
+        self.inner.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+pub static VARIABLE_ID_SOURCE: IdSource = IdSource::new(0);
+
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash, strum_macros::EnumTryAs)]
 /// VariableReferences are the lowest layer of referencing a variable. This is enum wrapped in a ParsedToken, consult the documentation of that enum variant for more information.ű
 /// VariableReferences should not contain themselves as they are only for referencing a variable, there is not much more to it.
@@ -20,8 +55,8 @@ pub enum VariableReference
 {
     /// Struct field reference
     StructFieldReference(StructFieldRef),
-    /// Variable name
-    BasicReference(String),
+    /// Variable name and custom identifier number (in current scope)
+    BasicReference(String, usize),
     /// Variable name, array index
     ArrayReference(ArrayIndexing),
 }

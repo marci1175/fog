@@ -23,7 +23,7 @@ use common::{
             FunctionVisibility, UnparsedFunctionDefinition,
         },
         import::parse_import_path,
-        variable::{ControlFlowType, VariableReference},
+        variable::{ControlFlowType, UniqueId, VARIABLE_ID_SOURCE, VariableReference},
     },
     tokenizer::Token,
     tracing::info,
@@ -710,7 +710,7 @@ impl Parser
         function_imports: Rc<HashMap<String, FunctionSignature>>,
         custom_items: Rc<IndexMap<String, CustomType>>,
         this_fn_args: FunctionArguments,
-        additional_variables: OrdMap<String, Type>,
+        additional_variables: OrdMap<String, (Type, UniqueId)>,
     ) -> Result<Vec<ParsedTokenInstance>>
     {
         let module_path = self.module_path.clone();
@@ -785,10 +785,10 @@ impl Parser
                                 .unwrap(),
                             });
 
-                            variable_scope.insert(var_name, var_type.clone());
+                            variable_scope.insert(var_name, (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()));
                         }
                         else {
-                            variable_scope.insert(var_name.clone(), var_type.clone());
+                            variable_scope.insert(var_name.clone(), (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()));
 
                             token_idx += 2;
 
@@ -844,7 +844,7 @@ impl Parser
                         token_idx += 1;
                         // Put the variable name into a basic reference
                         let variable_ref =
-                            VariableReference::BasicReference(ident_name.to_string());
+                            VariableReference::BasicReference(ident_name.to_string(), 0);
 
                         // Token idx copy for the slice indexing
                         // Afaik we should be using token_idx + 1 (we increment above) to correctly index the slice (we would be using ..= otherwise )
@@ -1009,7 +1009,7 @@ impl Parser
                                         .unwrap(),
                                     });
 
-                                    variable_scope.insert(var_name.clone(), variable_type);
+                                    variable_scope.insert(var_name.clone(), (variable_type, VARIABLE_ID_SOURCE.get_unique_id()));
                                 }
                                 else {
                                     // Assume that the user tried to access the struct name as a variable
@@ -1068,7 +1068,7 @@ impl Parser
                                         .unwrap(),
                                     });
 
-                                    variable_scope.insert(var_name.clone(), variable_type);
+                                    variable_scope.insert(var_name.clone(), (variable_type, VARIABLE_ID_SOURCE.get_unique_id()));
                                 }
                             },
                         };
@@ -1334,7 +1334,7 @@ pub fn parse_function_call_args(
     function_tokens_offset: usize,
     mut origin_token_idx: usize,
     debug_infos: &[DbgInfo],
-    variable_scope: &mut IndexMap<String, Type>,
+    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     mut this_function_args: FunctionArguments,
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Rc<HashMap<String, FunctionSignature>>,
@@ -1364,7 +1364,7 @@ pub fn parse_function_call_args(
 
         if let Token::Identifier(arg_name) = current_token.clone() {
             if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
-                let argument_type = this_function_args
+                let (argument_type, argument_variable_id) = this_function_args
                     .arguments
                     .get(&arg_name)
                     .ok_or(ParserError::ArgumentError(arg_name.clone()))?;
@@ -1440,7 +1440,7 @@ pub fn parse_function_call_args(
                         tokens_idx,
                         function_signatures.clone(),
                         variable_scope,
-                        Some(fn_argument.get().clone()),
+                        Some(fn_argument.get().0.clone()),
                         standard_function_table.clone(),
                         custom_items.clone(),
                     )?;
@@ -1523,7 +1523,7 @@ pub fn parse_signature_args(
                 // Get the type of the argument
                 if let Token::TypeDefinition(var_type) = &token_list[args_idx + 2] {
                     // Store the argument in the HashMap
-                    args.arguments.insert(var_name, var_type.clone());
+                    args.arguments.insert(var_name, (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()));
 
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {
@@ -1540,7 +1540,7 @@ pub fn parse_signature_args(
                     let custom_ty = ty_from_token(&token_list[args_idx + 2], custom_types)?;
 
                     // Store the argument in the HashMap
-                    args.arguments.insert(var_name, custom_ty.clone());
+                    args.arguments.insert(var_name, (custom_ty.clone(), VARIABLE_ID_SOURCE.get_unique_id()));
 
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {

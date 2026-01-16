@@ -21,7 +21,7 @@ use common::{
         common::{ParsedToken, ParsedTokenInstance},
         function::{CompilerHint, FunctionDefinition},
         value::MathematicalSymbol,
-        variable::{ControlFlowType, VariableReference},
+        variable::{ControlFlowType, UniqueId, VARIABLE_ID_SOURCE, VariableReference},
     },
     tokenizer::Token,
     ty::{OrdMap, Type, ty_from_token},
@@ -46,7 +46,7 @@ pub fn create_ir<'main, 'ctx>(
     // The list of ParsedToken-s
     parsed_tokens: Vec<ParsedTokenInstance>,
     // This argument is initialized with the HashMap of the arguments
-    available_arguments: HashMap<String, (BasicValueEnum<'ctx>, Type)>,
+    available_arguments: HashMap<String, (BasicValueEnum<'ctx>, (Type, UniqueId))>,
     // Type returned type of the Function
     fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
@@ -57,7 +57,7 @@ pub fn create_ir<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    let mut variable_map: HashMap<String, ((PointerValue, BasicMetadataTypeEnum), Type)> =
+    let mut variable_map: HashMap<String, ((PointerValue, BasicMetadataTypeEnum), (Type, UniqueId))> =
         HashMap::new();
 
     for (arg_name, (arg_val, arg_ty)) in available_arguments {
@@ -122,7 +122,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
     parsed_token_instance: ParsedTokenInstance,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
     variable_reference: Option<(
         String,
         (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
@@ -162,59 +162,27 @@ where
 
     let created_var = match parsed_token.clone() {
         ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
-            let mut was_preallocated = false;
-
-            // Check if the function has been called with an allocation table
-            let (ptr, ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
-                if let Some((current_token, ptr, ptr_ty, ty)) = allocation_list.front().cloned()
-                    && current_token == parsed_token.clone()
-                {
-                    if ty == var_type {
-                        was_preallocated = true;
-
-                        allocation_list.pop_front();
-
-                        return Ok((ptr, ptr_ty));
-                    }
-                    else {
-                        return Err(CodeGenError::InvalidPreAllocation.into());
-                    }
-                }
-
-                let (ptr, ptr_ty) =
+            let (ptr, ty) =
                     create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
 
-                variable_map.insert(var_name.clone(), ((ptr, ptr_ty), var_type.clone()));
+            variable_map.insert(var_name.clone(), ((ptr, ty), (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id())));
 
-                Ok((ptr, ptr_ty))
-            })()?;
-
-            // Check if the value was preallocated and is a literal, if yes we dont need to set the value of the variable as it was done beforehand.
-            if !(matches!(
-                &*var_set_val,
-                ParsedTokenInstance {
-                    inner: ParsedToken::Literal(_),
-                    debug_information: _
-                }
-            ) && was_preallocated)
-            {
-                // Set the value of the newly created variable
-                create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    *var_set_val.clone(),
-                    variable_map,
-                    Some((var_name.clone(), (ptr, ty), var_type.clone())),
-                    fn_ret_ty,
-                    this_fn_block,
-                    this_fn,
-                    allocation_list,
-                    is_loop_body,
-                    parsed_functions.clone(),
-                    custom_types.clone(),
-                )?;
-            }
+             // Set the value of the newly created variable
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *var_set_val.clone(),
+                variable_map,
+                Some((var_name.clone(), (ptr, ty), var_type.clone())),
+                fn_ret_ty,
+                this_fn_block,
+                this_fn,
+                allocation_list,
+                is_loop_body,
+                parsed_functions.clone(),
+                custom_types.clone(),
+            )?;
 
             // We do not have to return anything here since a variable handle cannot really be casted to anything, its also top level
             None
@@ -1969,22 +1937,9 @@ where
             // Create a the body of the code which would get executed after the loop body
             let loop_body_exit = ctx.append_basic_block(this_fn, "loop_body_exit");
 
-            // Create an alloca_table
+            // Create a table of pre allocated variables so that they can be reused on every iteration
             // This contains all the pre allocated variables for the loop body. This makes it so that we dont allocate anything inside the loop body, thus avoiding stack overflows.
-            // let mut alloca_table = create_alloca_table(
-            //     module,
-            //     builder,
-            //     ctx,
-            //     parsed_tokens.clone(),
-            //     fn_ret_ty,
-            //     this_fn_block,
-            //     variable_map,
-            //     this_fn,
-            //     parsed_functions.clone(),
-            //     custom_types.clone(),
-            // )?;
-
-            // dbg!(&alloca_table);
+            let allocation_table =  
 
             // Make the jump to the loop body
             builder.build_unconditional_branch(loop_body)?;
@@ -2529,7 +2484,7 @@ pub fn generate_ir<'ctx>(
         }
 
         // Create a HashMap of the arguments the function takes
-        let mut arguments: HashMap<String, (BasicValueEnum, Type)> = HashMap::new();
+        let mut arguments: HashMap<String, (BasicValueEnum, (Type, UniqueId))> = HashMap::new();
 
         // Get the arguments and store them in the HashMap
         for (idx, argument) in function.get_param_iter().enumerate() {
@@ -2580,7 +2535,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // Type returned type of the Function
     fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
+    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
     this_fn: FunctionValue<'ctx>,
     // Allocation tables are used when the ParsedTokens run in a loop
     // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow

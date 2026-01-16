@@ -123,3 +123,12 @@ macro_rules! assert_same_fields {
         };
     };
 }
+
+/// This function takes in a mutable reference to a number and increments it while returning the current number.
+/// This can be used to create incrementing identification numbers.
+pub fn get_unique_id(source: &mut usize) -> usize
+{
+    *source += 1;
+
+    *source
+}
