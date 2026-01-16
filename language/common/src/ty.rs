@@ -425,7 +425,9 @@ impl Display for Type
     }
 }
 
-// TODO: Rework this
+/// If None is passed in as a destination type try to guess the value of the literal.
+/// That means that we want to cast the value produced by the function to a pre-determined Type.
+/// TODO: Think about automaticly casting primitive values.
 pub fn unparsed_const_to_typed_literal_unsafe(
     raw_string: &str,
     dest_type: Option<Type>,
@@ -523,8 +525,14 @@ pub fn unparsed_const_to_typed_literal_unsafe(
         None => {
             let negative_flag = raw_string.get(0..1) == Some("-");
             let float_flag = raw_string.as_bytes().contains(&b'.');
-
-            if float_flag {
+            
+            if raw_string == "true" {
+                Value::Boolean(true)
+            }
+            else if raw_string == "false" {
+                Value::Boolean(false)
+            }
+            else if float_flag {
                 Value::F64(NotNan(raw_string.parse::<f64>().map_err(|_| {
                     ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
                 })?))
