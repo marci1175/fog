@@ -7,7 +7,7 @@ use crate::{
     parser::{
         function::FunctionSignature,
         value::MathematicalSymbol,
-        variable::{ControlFlowType, VariableReference},
+        variable::{ControlFlowType, UniqueId, VariableReference},
     },
     tokenizer::Token,
     ty::{OrdMap, Type, Value},
@@ -40,7 +40,7 @@ impl PartialEq<ParsedToken> for ParsedTokenInstance
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum ParsedToken
 {
-    NewVariable(String, Type, Box<ParsedTokenInstance>),
+    NewVariable(String, Type, Box<ParsedTokenInstance>, UniqueId),
 
     /// This is the token for referencing a variable. This is the lowest layer of referencing a variable.
     /// Other tokens might wrap it like an `ArrayIndexing`. This is the last token which points to the variable.
@@ -60,7 +60,7 @@ pub enum ParsedToken
 
     FunctionCall(
         (FunctionSignature, String),
-        OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, Type)>,
+        OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, (Type, UniqueId))>,
     ),
 
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.

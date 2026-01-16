@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, HashSet}, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
 use common::{
     anyhow::Result,
@@ -7,13 +10,16 @@ use common::{
     dashmap::DashMap,
     error::{DbgInfo, parser::ParserError},
     indexmap::IndexMap,
-    parser::function::{FunctionDefinition, FunctionSignature, FunctionVisibility, UnparsedFunctionDefinition},
+    parser::function::{
+        FunctionDefinition, FunctionSignature, FunctionVisibility, UnparsedFunctionDefinition,
+    },
     tokenizer::Token,
     ty::OrdSet,
 };
 
 #[derive(Debug, Clone)]
-pub struct SigTable {
+pub struct SigTable
+{
     pub function_list: IndexMap<String, UnparsedFunctionDefinition>,
     pub dependency_imports: HashSet<Vec<String>>,
     pub external_imports: HashMap<String, FunctionSignature>,

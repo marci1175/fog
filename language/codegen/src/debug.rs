@@ -1,5 +1,9 @@
 use common::{
-    anyhow::{self, Result}, codegen::CustomType, get_unique_id, indexmap::IndexMap, inkwell::{
+    anyhow::{self, Result},
+    codegen::CustomType,
+    get_unique_id,
+    indexmap::IndexMap,
+    inkwell::{
         context::Context,
         debug_info::{
             DIFile, DIFlagsConstants, DIScope, DIType, DWARFSourceLanguage, DebugInfoBuilder,
@@ -16,7 +20,9 @@ use common::{
         },
         module::Module,
         types::AsTypeRef,
-    }, parser::function::FunctionDefinition, ty::{Type, ty_from_token}
+    },
+    parser::function::FunctionDefinition,
+    ty::{Type, ty_from_token},
 };
 use std::{
     ffi::{CStr, CString},

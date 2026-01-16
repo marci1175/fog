@@ -525,7 +525,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
         None => {
             let negative_flag = raw_string.get(0..1) == Some("-");
             let float_flag = raw_string.as_bytes().contains(&b'.');
-            
+
             if raw_string == "true" {
                 Value::Boolean(true)
             }

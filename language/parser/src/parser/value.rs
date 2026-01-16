@@ -1,9 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
-use common::get_unique_id;
 use common::indexmap::IndexMap;
 
-use common::parser::variable::{UniqueId, VARIABLE_ID_SOURCE};
 use common::{
     anyhow::Result,
     codegen::{CustomType, Order},
@@ -12,7 +10,7 @@ use common::{
         common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
         dbg::fetch_and_merge_debug_information,
         function::{FunctionSignature, UnparsedFunctionDefinition},
-        variable::VariableReference,
+        variable::{UniqueId, VariableReference},
     },
     tokenizer::Token,
     ty::{Type, Value, ty_from_token, unparsed_const_to_typed_literal_unsafe},
@@ -539,7 +537,9 @@ pub fn parse_token_as_value(
                 }
             }
             // If the identifier could not be found in the function list search in the variable scope
-            else if let Some((variable_type, variable_id)) = variable_scope.get(identifier).cloned() {
+            else if let Some((variable_type, variable_id)) =
+                variable_scope.get(identifier).cloned()
+            {
                 let mut basic_reference = ParsedTokenInstance {
                     inner: ParsedToken::VariableReference(VariableReference::BasicReference(
                         identifier.clone(),

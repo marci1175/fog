@@ -742,6 +742,8 @@ impl Parser
 
                 if let Token::TypeDefinition(var_type) = current_token {
                     if let Token::Identifier(var_name) = tokens[token_idx + 1].clone() {
+                        let unique_variable_id = VARIABLE_ID_SOURCE.get_unique_id();
+
                         if tokens[token_idx + 2] == Token::SetValue {
                             let line_break_idx = tokens
                                 .iter()
@@ -774,6 +776,7 @@ impl Parser
                                     var_name.clone(),
                                     var_type.clone(),
                                     Box::new(parsed_value),
+                                    unique_variable_id,
                                 ),
                                 // Checked
                                 debug_information: fetch_and_merge_debug_information(
@@ -785,10 +788,11 @@ impl Parser
                                 .unwrap(),
                             });
 
-                            variable_scope.insert(var_name, (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()));
+                            variable_scope.insert(var_name, (var_type.clone(), unique_variable_id));
                         }
                         else {
-                            variable_scope.insert(var_name.clone(), (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()));
+                            variable_scope
+                                .insert(var_name.clone(), (var_type.clone(), unique_variable_id));
 
                             token_idx += 2;
 
@@ -807,6 +811,7 @@ impl Parser
                                         )
                                         .unwrap(),
                                     }),
+                                    unique_variable_id,
                                 ),
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
@@ -958,6 +963,8 @@ impl Parser
                         });
                     }
                     else if let Some(custom_type) = custom_items.get(ident_name) {
+                        let unique_variable_id = VARIABLE_ID_SOURCE.get_unique_id();
+
                         match custom_type {
                             CustomType::Struct(struct_instance) => {
                                 let variable_type = Type::Struct(struct_instance.clone());
@@ -999,6 +1006,7 @@ impl Parser
                                             var_name.clone(),
                                             variable_type.clone(),
                                             Box::new(parsed_token),
+                                            unique_variable_id,
                                         ),
                                         debug_information: fetch_and_merge_debug_information(
                                             &self.tokens_debug_info,
@@ -1009,7 +1017,10 @@ impl Parser
                                         .unwrap(),
                                     });
 
-                                    variable_scope.insert(var_name.clone(), (variable_type, VARIABLE_ID_SOURCE.get_unique_id()));
+                                    variable_scope.insert(
+                                        var_name.clone(),
+                                        (variable_type, unique_variable_id),
+                                    );
                                 }
                                 else {
                                     // Assume that the user tried to access the struct name as a variable
@@ -1058,6 +1069,7 @@ impl Parser
                                             var_name.clone(),
                                             variable_type.clone(),
                                             Box::new(parsed_token),
+                                            unique_variable_id,
                                         ),
                                         debug_information: fetch_and_merge_debug_information(
                                             &self.tokens_debug_info,
@@ -1068,7 +1080,10 @@ impl Parser
                                         .unwrap(),
                                     });
 
-                                    variable_scope.insert(var_name.clone(), (variable_type, VARIABLE_ID_SOURCE.get_unique_id()));
+                                    variable_scope.insert(
+                                        var_name.clone(),
+                                        (variable_type, unique_variable_id),
+                                    );
                                 }
                             },
                         };
@@ -1340,7 +1355,7 @@ pub fn parse_function_call_args(
     standard_function_table: Rc<HashMap<String, FunctionSignature>>,
     custom_items: Rc<IndexMap<String, CustomType>>,
 ) -> anyhow::Result<(
-    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, Type)>,
+    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, (Type, UniqueId))>,
     usize,
 )>
 {
@@ -1351,7 +1366,7 @@ pub fn parse_function_call_args(
     // Arguments which will passed in to the function
     let mut arguments: OrdMap<
         FunctionArgumentIdentifier<String, usize>,
-        (ParsedTokenInstance, Type),
+        (ParsedTokenInstance, (Type, UniqueId)),
     > = OrdMap::new();
 
     // If there are no arguments just return everything as is
@@ -1387,12 +1402,14 @@ pub fn parse_function_call_args(
 
                 tokens_idx += jump_idx;
 
+                let argmuent_id = *argument_variable_id;
+
                 // Remove tha argument from the argument list so we can parse unnamed arguments easier
                 this_function_args.arguments.shift_remove(&arg_name);
 
                 arguments.insert(
                     FunctionArgumentIdentifier::Identifier(arg_name.clone()),
-                    (parsed_argument, arg_ty),
+                    (parsed_argument, (arg_ty, argmuent_id)),
                 );
 
                 continue;
@@ -1433,6 +1450,7 @@ pub fn parse_function_call_args(
                 let fn_argument = this_function_args.arguments.first_entry();
 
                 if let Some(fn_argument) = fn_argument {
+                    let (arg_ty, arg_id) = fn_argument.get();
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
                         function_tokens_offset,
@@ -1440,7 +1458,7 @@ pub fn parse_function_call_args(
                         tokens_idx,
                         function_signatures.clone(),
                         variable_scope,
-                        Some(fn_argument.get().0.clone()),
+                        Some(arg_ty.clone()),
                         standard_function_table.clone(),
                         custom_items.clone(),
                     )?;
@@ -1451,12 +1469,14 @@ pub fn parse_function_call_args(
 
                     arguments.insert(
                         FunctionArgumentIdentifier::Identifier(fn_argument.key().clone()),
-                        (parsed_argument, arg_ty),
+                        (parsed_argument, (arg_ty, *arg_id)),
                     );
 
                     // Remove the argument from the argument list
                     fn_argument.shift_remove();
                 }
+                // If an argument is apssed into a function which takes a variable amount of arguments, it wont be found in the fn argument list
+                // We can allocate a new variable id to the argument passed in this way
                 else {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
                         &token_buf,
@@ -1475,9 +1495,13 @@ pub fn parse_function_call_args(
                     token_buf.clear();
 
                     let nth_argument = arguments.len();
+
                     arguments.insert(
                         FunctionArgumentIdentifier::Index(nth_argument),
-                        (parsed_argument, arg_ty),
+                        (
+                            parsed_argument,
+                            (arg_ty, VARIABLE_ID_SOURCE.get_unique_id()),
+                        ),
                     );
                 }
 
@@ -1523,7 +1547,10 @@ pub fn parse_signature_args(
                 // Get the type of the argument
                 if let Token::TypeDefinition(var_type) = &token_list[args_idx + 2] {
                     // Store the argument in the HashMap
-                    args.arguments.insert(var_name, (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()));
+                    args.arguments.insert(
+                        var_name,
+                        (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()),
+                    );
 
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {
@@ -1540,7 +1567,10 @@ pub fn parse_signature_args(
                     let custom_ty = ty_from_token(&token_list[args_idx + 2], custom_types)?;
 
                     // Store the argument in the HashMap
-                    args.arguments.insert(var_name, (custom_ty.clone(), VARIABLE_ID_SOURCE.get_unique_id()));
+                    args.arguments.insert(
+                        var_name,
+                        (custom_ty.clone(), VARIABLE_ID_SOURCE.get_unique_id()),
+                    );
 
                     // Increment the idx based on the next token
                     if let Some(Token::Comma) = token_list.get(args_idx + 3) {

@@ -190,17 +190,18 @@ pub fn access_variable_ptr<'ctx>(
     fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-    allocation_list: &mut VecDeque<(
-        ParsedTokenInstance,
-        PointerValue<'ctx>,
-        BasicMetadataTypeEnum<'ctx>,
-        Type,
-    )>,
+    allocation_list: &HashMap<UniqueId, PointerValue<'ctx>>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     builder: &'ctx Builder,
     variable_reference: Box<VariableReference>,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            (Type, UniqueId),
+        ),
+    >,
     custom_types: Rc<IndexMap<String, CustomType>>,
 ) -> Result<(PointerValue<'ctx>, BasicTypeEnum<'ctx>, Type)>
 {
@@ -309,16 +310,17 @@ pub fn set_value_of_ptr<'ctx>(
     value: Value,
     v_ptr: PointerValue<'_>,
     custom_types: Rc<IndexMap<String, CustomType>>,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            (Type, UniqueId),
+        ),
+    >,
     fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-    allocation_list: &mut VecDeque<(
-        ParsedTokenInstance,
-        PointerValue<'ctx>,
-        BasicMetadataTypeEnum<'ctx>,
-        Type,
-    )>,
+    allocation_table: &HashMap<UniqueId, PointerValue<'ctx>>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
 ) -> Result<()>
@@ -468,8 +470,15 @@ pub fn set_value_of_ptr<'ctx>(
                 let llvm_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
 
                 // Create a new temp variable according to the struct's field type
-                let (ptr, ty) =
-                    create_new_variable(ctx, builder, field_name, field_ty, custom_types.clone())?;
+                let (ptr, ty) = create_new_variable(
+                    ctx,
+                    builder,
+                    field_name,
+                    field_ty,
+                    None,
+                    allocation_table,
+                    custom_types.clone(),
+                )?;
 
                 // Parse the value for the temp var
                 create_ir_from_parsed_token(
@@ -482,7 +491,7 @@ pub fn set_value_of_ptr<'ctx>(
                     fn_ret_ty.clone(),
                     this_fn_block,
                     this_fn,
-                    allocation_list,
+                    allocation_table,
                     is_loop_body.clone(),
                     parsed_functions.clone(),
                     custom_types.clone(),
@@ -535,7 +544,7 @@ pub fn set_value_of_ptr<'ctx>(
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 is_loop_body,
                 parsed_functions,
             )?;
@@ -549,16 +558,17 @@ pub fn access_array_index<'main, 'ctx>(
     ctx: &'main Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            (Type, UniqueId),
+        ),
+    >,
     fn_ret_ty: &Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-    allocation_list: &mut VecDeque<(
-        ParsedTokenInstance,
-        PointerValue<'ctx>,
-        BasicMetadataTypeEnum<'ctx>,
-        Type,
-    )>,
+    allocation_list: &HashMap<UniqueId, PointerValue<'ctx>>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: &Rc<IndexMap<String, CustomType>>,

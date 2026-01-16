@@ -19,7 +19,7 @@ use common::{
     },
     linker::BuildManifest,
     toml,
-    tracing::{debug, info},
+    tracing::info,
     ty::{OrdSet, Type},
 };
 use imports::list_manager::create_dependency_functions_list;

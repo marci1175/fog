@@ -32,7 +32,7 @@ use std::{
 };
 
 use crate::{
-    allocate::{allocate_string, /* create_alloca_table, */ create_new_variable},
+    allocate::{allocate_string, create_allocation_table, create_new_variable},
     debug::create_subprogram_debug_information,
     pointer::{access_array_index, access_variable_ptr, set_value_of_ptr},
 };
@@ -57,8 +57,10 @@ pub fn create_ir<'main, 'ctx>(
 where
     'main: 'ctx,
 {
-    let mut variable_map: HashMap<String, ((PointerValue, BasicMetadataTypeEnum), (Type, UniqueId))> =
-        HashMap::new();
+    let mut variable_map: HashMap<
+        String,
+        ((PointerValue, BasicMetadataTypeEnum), (Type, UniqueId)),
+    > = HashMap::new();
 
     for (arg_name, (arg_val, arg_ty)) in available_arguments {
         let (v_ptr, ty) = match arg_val {
@@ -108,7 +110,7 @@ where
         this_fn_block,
         &mut variable_map,
         this_fn,
-        &mut VecDeque::new(),
+        &HashMap::new(),
         None,
         parsed_functions.clone(),
         custom_items.clone(),
@@ -122,23 +124,23 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
     parsed_token_instance: ParsedTokenInstance,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            (Type, UniqueId),
+        ),
+    >,
     variable_reference: Option<(
         String,
         (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
         Type,
     )>,
-
     // Type returned type of the Function
     fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
-    allocation_list: &mut VecDeque<(
-        ParsedTokenInstance,
-        PointerValue<'ctx>,
-        BasicMetadataTypeEnum<'ctx>,
-        Type,
-    )>,
+    allocation_table: &HashMap<UniqueId, PointerValue<'ctx>>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     custom_types: Rc<IndexMap<String, CustomType>>,
@@ -158,16 +160,24 @@ where
     'main: 'ctx,
 {
     let parsed_token = parsed_token_instance.inner;
+    // Debug info for returning error spans
     let parsed_token_debug_info = parsed_token_instance.debug_information;
 
     let created_var = match parsed_token.clone() {
-        ParsedToken::NewVariable(var_name, var_type, var_set_val) => {
-            let (ptr, ty) =
-                    create_new_variable(ctx, builder, &var_name, &var_type, custom_types.clone())?;
+        ParsedToken::NewVariable(var_name, var_type, var_set_val, var_id) => {
+            let (ptr, ty) = create_new_variable(
+                ctx,
+                builder,
+                &var_name,
+                &var_type,
+                Some(var_id),
+                allocation_table,
+                custom_types.clone(),
+            )?;
 
-            variable_map.insert(var_name.clone(), ((ptr, ty), (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id())));
+            variable_map.insert(var_name.clone(), ((ptr, ty), (var_type.clone(), var_id)));
 
-             // Set the value of the newly created variable
+            // Set the value of the newly created variable
             create_ir_from_parsed_token(
                 ctx,
                 module,
@@ -178,7 +188,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 is_loop_body,
                 parsed_functions.clone(),
                 custom_types.clone(),
@@ -197,7 +207,7 @@ where
                     &fn_ret_ty,
                     this_fn_block,
                     this_fn,
-                    allocation_list,
+                    allocation_table,
                     &is_loop_body,
                     parsed_functions,
                     builder,
@@ -219,7 +229,7 @@ where
                     &fn_ret_ty,
                     this_fn_block,
                     this_fn,
-                    allocation_list,
+                    allocation_table,
                     &is_loop_body,
                     parsed_functions,
                     builder,
@@ -258,7 +268,7 @@ where
                     &fn_ret_ty,
                     this_fn_block,
                     this_fn,
-                    allocation_list,
+                    allocation_table,
                     &is_loop_body,
                     parsed_functions,
                 )?;
@@ -268,8 +278,15 @@ where
             else {
                 let ty_disc = literal.discriminant();
 
-                let (v_ptr, v_ty) =
-                    create_new_variable(ctx, builder, "", &ty_disc, custom_types.clone())?;
+                let (v_ptr, v_ty) = create_new_variable(
+                    ctx,
+                    builder,
+                    "",
+                    &ty_disc,
+                    None,
+                    allocation_table,
+                    custom_types.clone(),
+                )?;
 
                 set_value_of_ptr(
                     ctx,
@@ -282,7 +299,7 @@ where
                     &fn_ret_ty,
                     this_fn_block,
                     this_fn,
-                    allocation_list,
+                    allocation_table,
                     &is_loop_body,
                     parsed_functions,
                 )?;
@@ -301,7 +318,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
                 custom_types.clone(),
@@ -317,6 +334,8 @@ where
                         builder,
                         "ty_cast_temp_val",
                         &ty_disc,
+                        None,
+                        allocation_table,
                         custom_types.clone(),
                     )?;
 
@@ -1027,60 +1046,38 @@ where
         },
         ParsedToken::MathematicalExpression(lhs, mathematical_symbol, rhs) => {
             // Allocate memory on the stack for the value stored in the lhs
-            let parsed_lhs =
-                (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, Type)>> {
-                    if let Some((current_token, ptr, ptr_ty, disc)) =
-                        allocation_list.front().cloned()
-                        && *lhs == current_token
-                    {
-                        allocation_list.pop_front();
-                        return Ok(Some((ptr, ptr_ty, disc)));
-                    }
-
-                    create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        *lhs.clone(),
-                        variable_map,
-                        None,
-                        fn_ret_ty.clone(),
-                        this_fn_block,
-                        this_fn,
-                        allocation_list,
-                        is_loop_body.clone(),
-                        parsed_functions.clone(),
-                        custom_types.clone(),
-                    )
-                })()?;
+            let parsed_lhs = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *lhs.clone(),
+                variable_map,
+                None,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+                allocation_table,
+                is_loop_body.clone(),
+                parsed_functions.clone(),
+                custom_types.clone(),
+            )?;
 
             // Allocate memory on the stack for the value stored in the rhs
-            let parsed_rhs =
-                (|| -> Result<Option<(PointerValue, BasicMetadataTypeEnum, Type)>> {
-                    if let Some((current_token, ptr, ptr_ty, disc)) =
-                        allocation_list.front().cloned()
-                        && *rhs == current_token
-                    {
-                        allocation_list.pop_front();
-                        return Ok(Some((ptr, ptr_ty, disc)));
-                    }
-
-                    create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        *rhs.clone(),
-                        variable_map,
-                        None,
-                        fn_ret_ty.clone(),
-                        this_fn_block,
-                        this_fn,
-                        allocation_list,
-                        is_loop_body.clone(),
-                        parsed_functions.clone(),
-                        custom_types.clone(),
-                    )
-                })()?;
+            let parsed_rhs = create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *rhs.clone(),
+                variable_map,
+                None,
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+                allocation_table,
+                is_loop_body.clone(),
+                parsed_functions.clone(),
+                custom_types.clone(),
+            )?;
 
             // Check if both sides return a valid variable reference
             if let (Some((lhs_ptr, lhs_ty, l_ty_disc)), Some((rhs_ptr, rhs_ty, r_ty_disc))) =
@@ -1154,6 +1151,8 @@ where
                             builder,
                             "math_expr_res",
                             &r_ty_disc,
+                            None,
+                            allocation_table,
                             custom_types.clone(),
                         )?;
 
@@ -1229,6 +1228,8 @@ where
                             builder,
                             "math_expr_res",
                             &r_ty_disc,
+                            None,
+                            allocation_table,
                             custom_types.clone(),
                         )?;
 
@@ -1277,33 +1278,24 @@ where
             // The arguments are in order, if theyre parsed in this order they can be passed to a function as an argument
             let fn_argument_list: OrdMap<
                 FunctionArgumentIdentifier<String, usize>,
-                (ParsedTokenInstance, Type),
+                (ParsedTokenInstance, (Type, UniqueId)),
             > = IndexMap::from_iter(arg_iter).into();
 
             // Keep the list of the arguments passed in
             let mut arguments_passed_in: Vec<BasicMetadataValueEnum> = Vec::new();
 
-            for (arg_ident, (arg_token, arg_type)) in fn_argument_list.iter() {
+            for (arg_ident, (arg_token, (arg_type, arg_id))) in fn_argument_list.iter() {
                 let fn_name_clone = fn_name.clone();
-                let (ptr, ptr_ty) = (|| -> Result<(PointerValue, BasicMetadataTypeEnum)> {
-                    if let Some((current_token, ptr, ptr_ty, disc)) =
-                        allocation_list.front().cloned()
-                    {
-                        allocation_list.pop_front();
-                        return Ok((ptr, ptr_ty));
-                    }
 
-                    // Create a temporary variable for the argument thats passed in, if the argument name is None that means that the argument has been passed to a function which has an indenfinite amount of arguments.
-                    let (ptr, ptr_ty) = create_new_variable(
-                        ctx,
-                        builder,
-                        &fn_arg_to_string(&fn_name_clone, arg_ident),
-                        arg_type,
-                        custom_types.clone(),
-                    )?;
-
-                    Ok((ptr, ptr_ty))
-                })()?;
+                let (ptr, ptr_ty) = create_new_variable(
+                    ctx,
+                    builder,
+                    &fn_arg_to_string(&fn_name_clone, arg_ident),
+                    arg_type,
+                    Some(*arg_id),
+                    allocation_table,
+                    custom_types.clone(),
+                )?;
 
                 // Set the value of the temp variable to the value the argument has
                 create_ir_from_parsed_token(
@@ -1320,7 +1312,7 @@ where
                     fn_ret_ty.clone(),
                     this_fn_block,
                     this_fn,
-                    allocation_list,
+                    allocation_table,
                     is_loop_body.clone(),
                     parsed_functions.clone(),
                     custom_types.clone(),
@@ -1400,23 +1392,15 @@ where
                     (v_ptr, var_ty)
                 }
                 else {
-                    let (v_ptr, v_ty) = if let Some((current_token, ptr, ty, _disc)) =
-                        allocation_list.front().cloned()
-                    {
-                        allocation_list.pop_front();
-                        (ptr, ty)
-                    }
-                    else {
-                        create_new_variable(
-                            ctx,
-                            builder,
-                            "",
-                            &fn_sig.return_type,
-                            custom_types.clone(),
-                        )?
-                    };
-
-                    (v_ptr, v_ty)
+                    create_new_variable(
+                        ctx,
+                        builder,
+                        "",
+                        &fn_sig.return_type,
+                        None,
+                        allocation_table,
+                        custom_types.clone(),
+                    )?
                 };
 
                 // Store the returned value
@@ -1468,7 +1452,7 @@ where
                 &fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 &is_loop_body,
                 parsed_functions.clone(),
                 builder,
@@ -1497,7 +1481,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
                 custom_types.clone(),
@@ -1511,8 +1495,15 @@ where
             // This temporary variable is used to return the value
             let var_name = String::from("ret_tmp_var");
 
-            let (ptr, ptr_ty) =
-                create_new_variable(ctx, builder, &var_name, &fn_ret_ty, custom_types.clone())?;
+            let (ptr, ptr_ty) = create_new_variable(
+                ctx,
+                builder,
+                &var_name,
+                &fn_ret_ty,
+                None,
+                allocation_table,
+                custom_types.clone(),
+            )?;
 
             // Set the value of the newly created variable
             create_ir_from_parsed_token(
@@ -1525,7 +1516,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
                 custom_types.clone(),
@@ -1578,7 +1569,7 @@ where
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
                 custom_types.clone(),
@@ -1608,7 +1599,7 @@ where
                     branch_compl,
                     variable_map,
                     this_fn,
-                    allocation_list,
+                    allocation_table,
                     is_loop_body.clone(),
                     parsed_functions.clone(),
                     custom_types.clone(),
@@ -1628,7 +1619,7 @@ where
                     branch_incompl,
                     variable_map,
                     this_fn,
-                    allocation_list,
+                    allocation_table,
                     is_loop_body.clone(),
                     parsed_functions.clone(),
                     custom_types.clone(),
@@ -1714,141 +1705,64 @@ where
         ParsedToken::Comparison(lhs, order, rhs, comparison_hand_side_ty) => {
             let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty, custom_types.clone())?;
 
-            let ((lhs_ptr, lhs_ty), (rhs_ptr, rhs_ty)) =
-                if let Some((lhs_token, lhs_ptr, lhs_ty, lhs_disc)) =
-                    allocation_list.front().cloned()
-                {
-                    if dbg!(lhs_token) == dbg!((*lhs).clone()) {
-                        create_ir_from_parsed_token(
-                            ctx,
-                            module,
-                            builder,
-                            *lhs,
-                            variable_map,
-                            Some((
-                                "lhs_tmp".to_string(),
-                                ((lhs_ptr, lhs_ty)),
-                                comparison_hand_side_ty.clone(),
-                            )),
-                            fn_ret_ty.clone(),
-                            this_fn_block,
-                            this_fn,
-                            allocation_list,
-                            is_loop_body.clone(),
-                            parsed_functions.clone(),
-                            custom_types.clone(),
-                        )?;
+            let (lhs_ptr, lhs_ptr_ty) = create_new_variable(
+                ctx,
+                builder,
+                "lhs_tmp",
+                &comparison_hand_side_ty,
+                None,
+                allocation_table,
+                custom_types.clone(),
+            )?;
+            let (rhs_ptr, rhs_ptr_ty) = create_new_variable(
+                ctx,
+                builder,
+                "rhs_tmp",
+                &comparison_hand_side_ty,
+                None,
+                allocation_table,
+                custom_types.clone(),
+            )?;
 
-                        allocation_list.pop_front();
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *rhs,
+                variable_map,
+                Some((
+                    "rhs_tmp".to_string(),
+                    (rhs_ptr, rhs_ptr_ty),
+                    comparison_hand_side_ty.clone(),
+                )),
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+                allocation_table,
+                is_loop_body.clone(),
+                parsed_functions.clone(),
+                custom_types.clone(),
+            )?;
 
-                        (lhs_ptr, lhs_ty)
-                    }
-                    else {
-                        panic!()
-                    };
-
-                    let rhs_ptrs = if let Some((rhs_token, rhs_ptr, rhs_ty, rhs_disc)) =
-                        allocation_list.front().cloned()
-                    {
-                        if dbg!(rhs_token) == dbg!((*rhs).clone()) {
-                            create_ir_from_parsed_token(
-                                ctx,
-                                module,
-                                builder,
-                                *rhs,
-                                variable_map,
-                                Some((
-                                    "rhs_tmp".to_string(),
-                                    ((rhs_ptr, rhs_ty)),
-                                    comparison_hand_side_ty.clone(),
-                                )),
-                                fn_ret_ty.clone(),
-                                this_fn_block,
-                                this_fn,
-                                allocation_list,
-                                is_loop_body.clone(),
-                                parsed_functions.clone(),
-                                custom_types.clone(),
-                            )?;
-
-                            allocation_list.pop_front();
-
-                            (rhs_ptr, rhs_ty)
-                        }
-                        else {
-                            panic!()
-                        }
-                    }
-                    else {
-                        create_new_variable(
-                            ctx,
-                            builder,
-                            "rhs_tmp",
-                            &comparison_hand_side_ty,
-                            custom_types.clone(),
-                        )?
-                    };
-
-                    ((lhs_ptr, lhs_ty), rhs_ptrs)
-                }
-                else {
-                    let temp_lhs = create_new_variable(
-                        ctx,
-                        builder,
-                        "lhs_tmp",
-                        &comparison_hand_side_ty,
-                        custom_types.clone(),
-                    )?;
-                    let temp_rhs = create_new_variable(
-                        ctx,
-                        builder,
-                        "rhs_tmp",
-                        &comparison_hand_side_ty,
-                        custom_types.clone(),
-                    )?;
-
-                    create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        *rhs,
-                        variable_map,
-                        Some((
-                            "rhs_tmp".to_string(),
-                            (temp_rhs),
-                            comparison_hand_side_ty.clone(),
-                        )),
-                        fn_ret_ty.clone(),
-                        this_fn_block,
-                        this_fn,
-                        allocation_list,
-                        is_loop_body.clone(),
-                        parsed_functions.clone(),
-                        custom_types.clone(),
-                    )?;
-
-                    create_ir_from_parsed_token(
-                        ctx,
-                        module,
-                        builder,
-                        *lhs,
-                        variable_map,
-                        Some((
-                            "lhs_tmp".to_string(),
-                            (temp_lhs),
-                            comparison_hand_side_ty.clone(),
-                        )),
-                        fn_ret_ty.clone(),
-                        this_fn_block,
-                        this_fn,
-                        allocation_list,
-                        is_loop_body.clone(),
-                        parsed_functions.clone(),
-                        custom_types.clone(),
-                    )?;
-
-                    (temp_lhs, temp_rhs)
-                };
+            create_ir_from_parsed_token(
+                ctx,
+                module,
+                builder,
+                *lhs,
+                variable_map,
+                Some((
+                    "lhs_tmp".to_string(),
+                    (lhs_ptr, lhs_ptr_ty),
+                    comparison_hand_side_ty.clone(),
+                )),
+                fn_ret_ty.clone(),
+                this_fn_block,
+                this_fn,
+                allocation_table,
+                is_loop_body.clone(),
+                parsed_functions.clone(),
+                custom_types.clone(),
+            )?;
 
             let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
             let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
@@ -1902,25 +1816,14 @@ where
 
                 None
             }
-            else if let Some((cmp_token, cmp_ptr, cmp_ty, ty_disc)) =
-                allocation_list.front().cloned()
-            {
-                if cmp_token != parsed_token.clone() {
-                    return Err(CodeGenError::InvalidPreAllocation.into());
-                }
-
-                builder.build_store(cmp_ptr, cmp_result)?;
-
-                allocation_list.pop_front();
-
-                Some((cmp_ptr, cmp_ty, Type::Boolean))
-            }
             else {
                 let (v_ptr, v_ty) = create_new_variable(
                     ctx,
                     builder,
                     "cmp_result",
                     &Type::Boolean,
+                    None,
+                    allocation_table,
                     custom_types.clone(),
                 )?;
 
@@ -1939,7 +1842,8 @@ where
 
             // Create a table of pre allocated variables so that they can be reused on every iteration
             // This contains all the pre allocated variables for the loop body. This makes it so that we dont allocate anything inside the loop body, thus avoiding stack overflows.
-            let allocation_table =  
+            let allocation_table =
+                create_allocation_table(ctx, builder, &parsed_tokens, custom_types.clone())?;
 
             // Make the jump to the loop body
             builder.build_unconditional_branch(loop_body)?;
@@ -1957,8 +1861,7 @@ where
                 loop_body,
                 variable_map,
                 this_fn,
-                // &mut alloca_table,
-                &mut VecDeque::new(),
+                &allocation_table,
                 Some(LoopBodyBlocks::new(loop_body, loop_body_exit)),
                 parsed_functions.clone(),
                 custom_types.clone(),
@@ -1989,126 +1892,6 @@ where
 
             None
         },
-        // ParsedToken::ArrayIndexing(variable_ref, indexing) => {
-        //     let var_ref = create_ir_from_parsed_token(
-        //         ctx,
-        //         module,
-        //         builder,
-        //         *variable_ref.clone(),
-        //         variable_map,
-        //         None,
-        //         fn_ret_ty.clone(),
-        //         this_fn_block,
-        //         this_fn,
-        //         allocation_list,
-        //         is_loop_body.clone(),
-        //         parsed_functions.clone(),
-        //         custom_types.clone(),
-        //     )?;
-
-        //     let index_val = create_ir_from_parsed_token(
-        //         ctx,
-        //         module,
-        //         builder,
-        //         *indexing,
-        //         variable_map,
-        //         None,
-        //         fn_ret_ty,
-        //         this_fn_block,
-        //         this_fn,
-        //         allocation_list,
-        //         is_loop_body,
-        //         parsed_functions,
-        //         custom_types.clone(),
-        //     )?;
-
-        //     if let Some((ptr, ptr_ty, type_disc)) = var_ref {
-        //         if let Type::Array((inner_ty, len)) = type_disc.clone() {
-        //             let inner_ty = ty_from_token(&*inner_ty, &custom_types)?;
-
-        //             let pointee_ty = ty_to_llvm_ty(ctx, &type_disc, custom_types.clone())?;
-
-        //             if let Some((idx_ptr, idx_ptr_val, idx_ty_disc)) = index_val {
-        //                 let idx = builder.build_load(
-        //                     ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
-        //                     idx_ptr,
-        //                     "array_idx_val",
-        //                 )?;
-
-        //                 if !idx_ty_disc.is_int() {
-        //                     return Err(CodeGenError::NonIndexType(idx_ty_disc).into());
-        //                 }
-
-        //                 let gep_ptr = unsafe {
-        //                     builder.build_gep(
-        //                         pointee_ty,
-        //                         ptr,
-        //                         &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
-        //                         "array_idx_elem_ptr",
-        //                     )?
-        //                 };
-
-        //                 // Decide what we want to do with the extracted value
-        //                 match variable_reference {
-        //                     // If there is a variable ref passed in
-        //                     Some((_, (ptr, _ptr_ty), var_ty_disc)) => {
-        //                         if inner_ty != var_ty_disc {
-        //                             return Err(CodeGenError::CodegenTypeMismatch(
-        //                                 dbg!(inner_ty),
-        //                                 dbg!(var_ty_disc),
-        //                             )
-        //                             .into());
-        //                         }
-
-        //                         builder.build_store(
-        //                             ptr,
-        //                             builder.build_load(
-        //                                 ty_to_llvm_ty(ctx, &inner_ty, custom_types.clone())?,
-        //                                 gep_ptr,
-        //                                 "idx_array_val_deref",
-        //                             )?,
-        //                         )?;
-
-        //                         return Ok(None);
-        //                     },
-        //                     // If there isnt one, we should return the ptr to this value
-        //                     None => {
-        //                         let array_val = builder.build_load(
-        //                             ty_to_llvm_ty(ctx, &inner_ty, custom_types.clone())?,
-        //                             gep_ptr,
-        //                             "idx_array_val_deref",
-        //                         )?;
-
-        //                         let array_val_ty =
-        //                             ty_to_llvm_ty(ctx, &inner_ty, custom_types.clone())?;
-
-        //                         let ptr = builder
-        //                             .build_alloca(array_val_ty, "temp_deref_var")
-        //                             .unwrap();
-
-        //                         builder.build_store(ptr, array_val)?;
-
-        //                         return Ok(Some((ptr, array_val_ty.into(), inner_ty)));
-        //                     },
-        //                 }
-        //             }
-        //             else {
-        //                 return Err(CodeGenError::InternalVariableNotFound(
-        //                     "(INTERNAL_TEMPORARY_VARIABLE) array_idx_val".to_string(),
-        //                 )
-        //                 .into());
-        //             }
-        //         }
-        //         else {
-        //             return Err(CodeGenError::NonIndexType(type_disc.clone()).into());
-        //         }
-        //     }
-        //     else {
-        //         return Err(
-        //             CodeGenError::InternalVariableNotFound(variable_ref.inner.to_string()).into(),
-        //         );
-        //     }
-        // },
         ParsedToken::ArrayInitialization(values, inner_ty) => {
             if let Some((_, (ptr, _ptr_ty), ty_disc)) = variable_reference
                 && let Type::Array((_, len)) = ty_disc
@@ -2121,6 +1904,8 @@ where
                         builder,
                         "array_temp_val_var",
                         &inner_ty,
+                        None,
+                        allocation_table,
                         custom_types.clone(),
                     )?;
 
@@ -2138,7 +1923,7 @@ where
                         fn_ret_ty.clone(),
                         this_fn_block,
                         this_fn,
-                        allocation_list,
+                        allocation_table,
                         is_loop_body.clone(),
                         parsed_functions.clone(),
                         custom_types.clone(),
@@ -2189,7 +1974,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
                 custom_types.clone(),
@@ -2259,7 +2044,7 @@ where
                 fn_ret_ty.clone(),
                 this_fn_block,
                 this_fn,
-                allocation_list,
+                allocation_table,
                 is_loop_body.clone(),
                 parsed_functions.clone(),
                 custom_types.clone(),
@@ -2535,18 +2320,18 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     // Type returned type of the Function
     fn_ret_ty: Type,
     this_fn_block: BasicBlock<'ctx>,
-    variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), (Type, UniqueId))>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            (Type, UniqueId),
+        ),
+    >,
     this_fn: FunctionValue<'ctx>,
     // Allocation tables are used when the ParsedTokens run in a loop
-    // We store the addresses and names of the variables which have been allocated previously to entering the loop, to avoid a stack overflow
+    // We store the addresses and ids of the variables which have been allocated previously to entering the loop, to avoid a stack overflow
     // Loops should not create new variables on the stack instead they should be using `alloca_table` to look up pointers.
-    // If the code we are running is not in a loop we can pass in `None`.
-    alloca_table: &mut VecDeque<(
-        ParsedTokenInstance,
-        PointerValue<'ctx>,
-        BasicMetadataTypeEnum<'ctx>,
-        Type,
-    )>,
+    alloca_table: &HashMap<UniqueId, PointerValue<'ctx>>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     custom_items: Rc<IndexMap<String, CustomType>>,

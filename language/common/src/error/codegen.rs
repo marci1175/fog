@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    parser::{common::ParsedToken, function::CompilerHint},
+    parser::{common::ParsedToken, function::CompilerHint, variable::UniqueId},
     ty::Type,
 };
 
@@ -49,8 +49,10 @@ pub enum CodeGenError
     InvalidIfCondition,
     #[error("Codegen has encountered a parsing error.")]
     InternalParsingError,
-    #[error("The codegen encountered a missing or an invalid PreAllocation in `allocation_map`.")]
-    InvalidPreAllocation,
+    #[error(
+        "[INTERNAL ERROR] The codegen encountered a missing variable preallocation on UniqueId(`{0}`)."
+    )]
+    InternalMissingPreAllocation(UniqueId),
     #[error("A `null` value is used in the mathematical expression.")]
     InvalidMathematicalValue,
     #[error(
