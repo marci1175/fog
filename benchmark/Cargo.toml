@@ -8,7 +8,7 @@ description = "Benchmarking utilities for the Fog programming language"
 # Fog language components
 parser = {path = "../language/parser"}
 common = {path = "../language/common"}
-
+codegen = {path = "../language/codegen"}
 # Benchmarking library
 criterion = {version = "0.7.0", features = ["html_reports"]}
 
