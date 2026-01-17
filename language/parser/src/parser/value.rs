@@ -338,11 +338,11 @@ pub fn parse_value(
 
     Ok((
         parsed_token.ok_or(ParserError::SyntaxError(
-            SyntaxError::InvalidStatementDefinition,
+            SyntaxError::InvalidVariableDefinition,
         ))?,
         token_idx,
         comparison_other_side_ty.ok_or(ParserError::SyntaxError(
-            SyntaxError::InvalidStatementDefinition,
+            SyntaxError::InvalidVariableDefinition,
         ))?,
     ))
 }

@@ -21,8 +21,8 @@ pub enum SyntaxError
     OpenQuotes,
     #[error("The code contains a missing `;`.")]
     MissingSemiColon,
-    #[error("The code contains generic syntax error, like an invalid signature of a statement.")]
-    InvalidStatementDefinition,
+    #[error("Variables must be defined like so: `(const) <ty> <name> = <value>;`")]
+    InvalidVariableDefinition,
     #[error("The code contains an invalid function definition.")]
     InvalidFunctionDefinition,
     #[error("An invalid mathematical expression is present in the code.")]

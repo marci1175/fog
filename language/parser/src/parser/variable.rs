@@ -300,7 +300,7 @@ pub fn set_value_math_expr(
     *token_idx += 1;
 
     let eval_token = tokens.get(*token_idx).ok_or(ParserError::SyntaxError(
-        SyntaxError::InvalidStatementDefinition,
+        SyntaxError::InvalidVariableDefinition,
     ))?;
 
     let (next_token, _ty) = parse_token_as_value(

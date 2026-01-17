@@ -24,8 +24,6 @@ use common::{
     ty::Type,
 };
 
-use crate::{irgen::create_ir_from_parsed_token, pointer::access_variable_ptr};
-
 pub fn allocate_string<'a>(
     builder: &'a Builder<'_>,
     i8_type: common::inkwell::types::IntType<'a>,
@@ -112,8 +110,13 @@ pub fn create_allocation_table<'ctx>(
 
         // If a NewVariable was created in the loop pre-allocate it
         // We dont need to preallocate variabled for functions called by this since they get deallocated automaticly.
-        if let ParsedToken::NewVariable(variable_name, variable_type, _initial_value, variable_id) =
-            tkn
+        if let ParsedToken::NewVariable {
+            variable_name,
+            variable_type,
+            variable_value: _,
+            variable_id,
+            is_mutable: _,
+        } = tkn
         {
             // Allocate the variable here
             // We can ignore the initial value of the variable since NewVariables will be interpreted as setvalue for the variables preallocated.

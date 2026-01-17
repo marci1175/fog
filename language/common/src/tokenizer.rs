@@ -93,8 +93,8 @@ pub enum Token
     Continue,
     Break,
 
-    Private, // priv
-    Public, // pub
+    Private,       // priv
+    Public,        // pub
     PublicLibrary, // publib
 
     CompilerHintSymbol, // @

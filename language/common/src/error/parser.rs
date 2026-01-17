@@ -97,4 +97,6 @@ pub enum ParserError
     TypeWithoutFields(Type),
     #[error("Parser has encountered invalid END OF FILE.")]
     EOF,
+    #[error("Variable `{0}` must have a default value of type `{1}`.")]
+    MissingVariableValue(String, Type),
 }

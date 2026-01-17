@@ -164,27 +164,36 @@ where
     let parsed_token_debug_info = parsed_token_instance.debug_information;
 
     let created_var = match parsed_token.clone() {
-        ParsedToken::NewVariable(var_name, var_type, var_set_val, var_id) => {
+        ParsedToken::NewVariable {
+            variable_name,
+            variable_type,
+            variable_value,
+            variable_id,
+            is_mutable: _,
+        } => {
             let (ptr, ty) = create_new_variable(
                 ctx,
                 builder,
-                &var_name,
-                &var_type,
-                Some(var_id),
+                &variable_name,
+                &variable_type,
+                Some(variable_id),
                 allocation_table,
                 custom_types.clone(),
             )?;
 
-            variable_map.insert(var_name.clone(), ((ptr, ty), (var_type.clone(), var_id)));
+            variable_map.insert(
+                variable_name.clone(),
+                ((ptr, ty), (variable_type.clone(), variable_id)),
+            );
 
             // Set the value of the newly created variable
             create_ir_from_parsed_token(
                 ctx,
                 module,
                 builder,
-                *var_set_val.clone(),
+                *variable_value.clone(),
                 variable_map,
-                Some((var_name.clone(), (ptr, ty), var_type.clone())),
+                Some((variable_name.clone(), (ptr, ty), variable_type.clone())),
                 fn_ret_ty,
                 this_fn_block,
                 this_fn,
@@ -2253,7 +2262,7 @@ pub fn generate_ir<'ctx>(
         }
 
         // Create a BasicBlock to store the IR in
-        let basic_block = context.append_basic_block(function, "main_fn_entry");
+        let basic_block = context.append_basic_block(function, "main");
 
         // Insert the BasicBlock at the end
         builder.position_at_end(basic_block);

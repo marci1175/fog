@@ -40,7 +40,14 @@ impl PartialEq<ParsedToken> for ParsedTokenInstance
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum ParsedToken
 {
-    NewVariable(String, Type, Box<ParsedTokenInstance>, UniqueId),
+    NewVariable
+    {
+        variable_name: String,
+        variable_type: Type,
+        variable_value: Box<ParsedTokenInstance>,
+        variable_id: UniqueId,
+        is_mutable: bool,
+    },
 
     /// This is the token for referencing a variable. This is the lowest layer of referencing a variable.
     /// Other tokens might wrap it like an `ArrayIndexing`. This is the last token which points to the variable.

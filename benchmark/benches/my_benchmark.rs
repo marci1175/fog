@@ -1,7 +1,17 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use codegen::{import::import_user_lib_functions, irgen::generate_ir, llvm_codegen};
-use common::{compiler::ProjectConfig, inkwell::{context::Context, llvm_sys::target::{LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters, LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets}}, ty::OrdSet};
+use common::{
+    compiler::ProjectConfig,
+    inkwell::{
+        context::Context,
+        llvm_sys::target::{
+            LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters,
+            LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets,
+        },
+    },
+    ty::OrdSet,
+};
 use criterion::{Criterion, criterion_group, criterion_main};
 use parser::{parser_instance::Parser, tokenizer::tokenize};
 
@@ -29,7 +39,7 @@ fn criterion_benchmark(c: &mut Criterion)
     let ctx = Context::create();
     let builder = ctx.create_builder();
     let module = ctx.create_module("main");
-    
+
     c.bench_function("Parse source file", |b| {
         b.iter(|| {
             parser
@@ -42,7 +52,8 @@ fn criterion_benchmark(c: &mut Criterion)
                 Rc::new(parser.imported_functions().clone()),
                 Rc::new(parser.function_table().clone()),
                 parser.custom_types(),
-            ).unwrap();
+            )
+            .unwrap();
 
             generate_ir(
                 Rc::new(parser.function_table().clone()),
@@ -53,7 +64,8 @@ fn criterion_benchmark(c: &mut Criterion)
                 true,
                 "",
                 "benchmark_codegen_no_path",
-            ).unwrap();
+            )
+            .unwrap();
         })
     });
 }

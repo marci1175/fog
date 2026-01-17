@@ -772,12 +772,13 @@ impl Parser
                             token_idx = line_break_idx;
 
                             parsed_token_instances.push(ParsedTokenInstance {
-                                inner: ParsedToken::NewVariable(
-                                    var_name.clone(),
-                                    var_type.clone(),
-                                    Box::new(parsed_value),
-                                    unique_variable_id,
-                                ),
+                                inner: ParsedToken::NewVariable {
+                                    variable_name: var_name.clone(),
+                                    variable_type: var_type.clone(),
+                                    variable_value: Box::new(parsed_value),
+                                    variable_id: unique_variable_id,
+                                    is_mutable: true,
+                                },
                                 // Checked
                                 debug_information: fetch_and_merge_debug_information(
                                     &self.tokens_debug_info,
@@ -791,36 +792,8 @@ impl Parser
                             variable_scope.insert(var_name, (var_type.clone(), unique_variable_id));
                         }
                         else {
-                            variable_scope
-                                .insert(var_name.clone(), (var_type.clone(), unique_variable_id));
-
-                            token_idx += 2;
-
-                            // Checked
-                            parsed_token_instances.push(ParsedTokenInstance {
-                                inner: ParsedToken::NewVariable(
-                                    var_name.clone(),
-                                    var_type.clone(),
-                                    Box::new(ParsedTokenInstance {
-                                        inner: ParsedToken::Literal(var_type.into_value_default()),
-                                        debug_information: fetch_and_merge_debug_information(
-                                            &self.tokens_debug_info,
-                                            origin_token_idx + function_token_offset
-                                                ..token_idx + function_token_offset,
-                                            true,
-                                        )
-                                        .unwrap(),
-                                    }),
-                                    unique_variable_id,
-                                ),
-                                debug_information: fetch_and_merge_debug_information(
-                                    &self.tokens_debug_info,
-                                    origin_token_idx + function_token_offset
-                                        ..token_idx + function_token_offset,
-                                    true,
-                                )
-                                .unwrap(),
-                            });
+                            // All variables must have a default value
+                            return Err(ParserError::MissingVariableValue(var_name, var_type).into());
                         }
 
                         if tokens[token_idx] == Token::SemiColon {
@@ -836,7 +809,7 @@ impl Parser
                     }
                     else {
                         return Err(ParserError::SyntaxError(
-                            SyntaxError::InvalidStatementDefinition,
+                            SyntaxError::InvalidVariableDefinition,
                         )
                         .into());
                     }
@@ -1002,12 +975,13 @@ impl Parser
                                     )?;
 
                                     parsed_token_instances.push(ParsedTokenInstance {
-                                        inner: ParsedToken::NewVariable(
-                                            var_name.clone(),
-                                            variable_type.clone(),
-                                            Box::new(parsed_token),
-                                            unique_variable_id,
-                                        ),
+                                        inner: ParsedToken::NewVariable {
+                                            variable_name: var_name.clone(),
+                                            variable_type: variable_type.clone(),
+                                            variable_value: Box::new(parsed_token),
+                                            variable_id: unique_variable_id,
+                                            is_mutable: true,
+                                        },
                                         debug_information: fetch_and_merge_debug_information(
                                             &self.tokens_debug_info,
                                             origin_token_idx + function_token_offset
@@ -1065,12 +1039,13 @@ impl Parser
                                     )?;
 
                                     parsed_token_instances.push(ParsedTokenInstance {
-                                        inner: ParsedToken::NewVariable(
-                                            var_name.clone(),
-                                            variable_type.clone(),
-                                            Box::new(parsed_token),
-                                            unique_variable_id,
-                                        ),
+                                        inner: ParsedToken::NewVariable {
+                                            variable_name: var_name.clone(),
+                                            variable_type: variable_type.clone(),
+                                            variable_value: Box::new(parsed_token),
+                                            variable_id: unique_variable_id,
+                                            is_mutable: true,
+                                        },
                                         debug_information: fetch_and_merge_debug_information(
                                             &self.tokens_debug_info,
                                             origin_token_idx + function_token_offset
@@ -1104,7 +1079,7 @@ impl Parser
                             && this_function_signature.visibility != FunctionVisibility::Branch
                         {
                             return Err(ParserError::SyntaxError(
-                                SyntaxError::InvalidStatementDefinition,
+                                SyntaxError::InvalidVariableDefinition,
                             )
                             .into());
                         }

@@ -20,12 +20,7 @@ use common::{
     },
     ty::{Type, Value, ty_from_token},
 };
-use std::{
-    collections::{HashMap, VecDeque},
-    rc::Rc,
-    slice::Iter,
-    sync::Arc,
-};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{allocate::create_new_variable, create_ir_from_parsed_token};
 
@@ -368,7 +363,11 @@ pub fn set_value_of_ptr<'ctx>(
         Value::Array(inner_ty) => unimplemented!(),
         Value::Pointer((inner, _)) => {
             // Cast the integer to be a pointer since we cannot inherently create a pointer with a pre-determined destination
-            let ptr = builder.build_int_to_ptr(i64_type.const_int(inner as u64, false), ptr_type, "raw_address_pointer")?;
+            let ptr = builder.build_int_to_ptr(
+                i64_type.const_int(inner as u64, false),
+                ptr_type,
+                "raw_address_pointer",
+            )?;
 
             // LLVM does let us initalize a pointer type with a pre-determined address
             let store = builder.build_store(v_ptr, ptr)?;
