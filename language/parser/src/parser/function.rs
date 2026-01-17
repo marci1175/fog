@@ -793,7 +793,9 @@ impl Parser
                         }
                         else {
                             // All variables must have a default value
-                            return Err(ParserError::MissingVariableValue(var_name, var_type).into());
+                            return Err(
+                                ParserError::MissingVariableValue(var_name, var_type).into()
+                            );
                         }
 
                         if tokens[token_idx] == Token::SemiColon {

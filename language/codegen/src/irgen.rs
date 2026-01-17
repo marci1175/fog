@@ -1645,136 +1645,26 @@ where
 
             None
         },
-        // ParsedToken::InitializeStruct(struct_tys, struct_fields) => {
-        //     if let Some((var_name, (var_ptr, var_ty), var_ty_disc)) = variable_reference {
-        //         // Get the struct pointer's ty
-        //         let pointee_struct_ty = var_ty.into_struct_type();
-
-        //         // Pre-Allocate a struct so that it can be accessed later
-        //         let allocate_struct = builder.build_alloca(pointee_struct_ty, "strct_init")?;
-
-        //         // Iterate over the struct's fields
-        //         for (field_idx, (field_name, field_ty)) in struct_tys.iter().enumerate() {
-        //             // Convert to llvm type
-        //             let llvm_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
-
-        //             // Create a new temp variable according to the struct's field type
-        //             let (ptr, ty) = create_new_variable(
-        //                 ctx,
-        //                 builder,
-        //                 field_name,
-        //                 field_ty,
-        //                 custom_types.clone(),
-        //             )?;
-
-        //             // Parse the value for the temp var
-        //             create_ir_from_parsed_token(
-        //                 ctx,
-        //                 module,
-        //                 builder,
-        //                 *(struct_fields.get_index(field_idx).unwrap().1.clone()),
-        //                 variable_map,
-        //                 Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
-        //                 fn_ret_ty.clone(),
-        //                 this_fn_block,
-        //                 this_fn,
-        //                 allocation_list,
-        //                 is_loop_body.clone(),
-        //                 parsed_functions.clone(),
-        //                 custom_types.clone(),
-        //             )?;
-
-        //             // Load the temp value to memory and store it
-        //             let temp_val = builder.build_load(llvm_ty, ptr, field_name)?;
-
-        //             // Get the struct's field gep
-        //             let struct_field_ptr = builder.build_struct_gep(
-        //                 pointee_struct_ty,
-        //                 allocate_struct,
-        //                 field_idx as u32,
-        //                 "field_gep",
-        //             )?;
-
-        //             // Store the temp value in the struct through the struct's field gep
-        //             builder.build_store(struct_field_ptr, temp_val)?;
-        //         }
-
-        //         // Load the allocated struct into memory
-        //         let constructed_struct = builder
-        //             .build_load(pointee_struct_ty, allocate_struct, "constructed_struct")?
-        //             .into_struct_value();
-
-        //         // Store the struct in the main variable
-        //         builder.build_store(var_ptr, constructed_struct)?;
-        //     }
-
-        //     // A struct will not be allocated without a variable storing it.
-        //     None
-        // },
         ParsedToken::Comparison(lhs, order, rhs, comparison_hand_side_ty) => {
             let pointee_ty = ty_to_llvm_ty(ctx, &comparison_hand_side_ty, custom_types.clone())?;
 
-            let (lhs_ptr, lhs_ptr_ty) = create_new_variable(
-                ctx,
-                builder,
-                "lhs_tmp",
-                &comparison_hand_side_ty,
-                None,
-                allocation_table,
-                custom_types.clone(),
-            )?;
-            let (rhs_ptr, rhs_ptr_ty) = create_new_variable(
-                ctx,
-                builder,
-                "rhs_tmp",
-                &comparison_hand_side_ty,
-                None,
-                allocation_table,
-                custom_types.clone(),
-            )?;
-
-            create_ir_from_parsed_token(
+            let (lhs_val, rhs_val) = set_cmp_mem(
                 ctx,
                 module,
                 builder,
-                *rhs,
                 variable_map,
-                Some((
-                    "rhs_tmp".to_string(),
-                    (rhs_ptr, rhs_ptr_ty),
-                    comparison_hand_side_ty.clone(),
-                )),
-                fn_ret_ty.clone(),
+                &fn_ret_ty,
                 this_fn_block,
                 this_fn,
                 allocation_table,
-                is_loop_body.clone(),
-                parsed_functions.clone(),
-                custom_types.clone(),
+                &is_loop_body,
+                &parsed_functions,
+                &custom_types,
+                lhs,
+                rhs,
+                &comparison_hand_side_ty,
+                pointee_ty,
             )?;
-
-            create_ir_from_parsed_token(
-                ctx,
-                module,
-                builder,
-                *lhs,
-                variable_map,
-                Some((
-                    "lhs_tmp".to_string(),
-                    (lhs_ptr, lhs_ptr_ty),
-                    comparison_hand_side_ty.clone(),
-                )),
-                fn_ret_ty.clone(),
-                this_fn_block,
-                this_fn,
-                allocation_table,
-                is_loop_body.clone(),
-                parsed_functions.clone(),
-                custom_types.clone(),
-            )?;
-
-            let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
-            let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
 
             let cmp_result = match comparison_hand_side_ty {
                 Type::I16 | Type::I32 | Type::I64 => {
@@ -2136,6 +2026,91 @@ where
     };
 
     Ok(created_var)
+}
+
+pub fn set_cmp_mem<'ctx>(
+    ctx: &'ctx Context,
+    module: &Module<'ctx>,
+    builder: &'ctx Builder<'ctx>,
+    variable_map: &mut HashMap<
+        String,
+        (
+            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+            (Type, usize),
+        ),
+    >,
+    fn_ret_ty: &Type,
+    this_fn_block: BasicBlock<'ctx>,
+    this_fn: FunctionValue<'ctx>,
+    allocation_table: &HashMap<usize, PointerValue<'ctx>>,
+    is_loop_body: &Option<LoopBodyBlocks<'_>>,
+    parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
+    custom_types: &Rc<IndexMap<String, CustomType>>,
+    lhs: Box<ParsedTokenInstance>,
+    rhs: Box<ParsedTokenInstance>,
+    comparison_hand_side_ty: &Type,
+    pointee_ty: common::inkwell::types::BasicTypeEnum<'ctx>,
+) -> Result<(BasicValueEnum<'ctx>, BasicValueEnum<'ctx>), common::anyhow::Error>
+{
+    let (lhs_ptr, lhs_ptr_ty) = create_new_variable(
+        ctx,
+        builder,
+        "lhs_tmp",
+        comparison_hand_side_ty,
+        None,
+        allocation_table,
+        custom_types.clone(),
+    )?;
+    let (rhs_ptr, rhs_ptr_ty) = create_new_variable(
+        ctx,
+        builder,
+        "rhs_tmp",
+        comparison_hand_side_ty,
+        None,
+        allocation_table,
+        custom_types.clone(),
+    )?;
+    create_ir_from_parsed_token(
+        ctx,
+        module,
+        builder,
+        *rhs,
+        variable_map,
+        Some((
+            "rhs_tmp".to_string(),
+            (rhs_ptr, rhs_ptr_ty),
+            comparison_hand_side_ty.clone(),
+        )),
+        fn_ret_ty.clone(),
+        this_fn_block,
+        this_fn,
+        allocation_table,
+        is_loop_body.clone(),
+        parsed_functions.clone(),
+        custom_types.clone(),
+    )?;
+    create_ir_from_parsed_token(
+        ctx,
+        module,
+        builder,
+        *lhs,
+        variable_map,
+        Some((
+            "lhs_tmp".to_string(),
+            (lhs_ptr, lhs_ptr_ty),
+            comparison_hand_side_ty.clone(),
+        )),
+        fn_ret_ty.clone(),
+        this_fn_block,
+        this_fn,
+        allocation_table,
+        is_loop_body.clone(),
+        parsed_functions.clone(),
+        custom_types.clone(),
+    )?;
+    let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
+    let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
+    Ok((lhs_val, rhs_val))
 }
 
 /// This function is solely for generating the LLVM-IR from the main sourec file.
