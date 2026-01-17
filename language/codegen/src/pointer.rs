@@ -29,161 +29,6 @@ use std::{
 
 use crate::{allocate::create_new_variable, create_ir_from_parsed_token};
 
-/// This function accesses any kind of variable.
-/// This is a recursive function so that nested variables i.e nested variables inside arrays and structs can be fetched.
-/// The parsed token is the token containing the entire reference to the variable.
-/// The variable_ptr passed in is supposed to be the ptr equal to the `ParsedToken`'s "nestedness".
-// pub fn access_variable_ptr<'main, 'ctx>(
-//     ctx: &'ctx Context,
-//     module: &Module<'ctx>,
-//     builder: &'ctx Builder<'ctx>,
-//     variable_map: &mut HashMap<String, ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>,
-//     fn_ret_ty: &Type,
-//     this_fn_block: BasicBlock<'ctx>,
-//     this_fn: FunctionValue<'ctx>,
-//     allocation_list: &mut VecDeque<(
-//         ParsedTokenInstance,
-//         PointerValue<'ctx>,
-//         BasicMetadataTypeEnum<'ctx>,
-//         Type,
-//     )>,
-//     is_loop_body: &Option<LoopBodyBlocks<'_>>,
-//     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
-//     custom_types: &Rc<IndexMap<String, CustomType>>,
-//     parsed_token_instance: ParsedTokenInstance,
-// ) -> Result<((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type)>
-// {
-//     let parsed_token = parsed_token_instance.inner;
-
-//     match parsed_token {
-//         ParsedToken::ArrayIndexing(var_ref, index) => {
-//             // This variable is supposed to fetch the inner value of this array indexing, this is how this function is recursive.
-//             // When you are trying to understand the code, just imagine as if this were inside the function as an argument.
-//             let inner_variable = access_variable_ptr(
-//                 ctx,
-//                 module,
-//                 builder,
-//                 variable_map,
-//                 fn_ret_ty,
-//                 this_fn_block,
-//                 this_fn,
-//                 allocation_list,
-//                 is_loop_body,
-//                 parsed_functions,
-//                 custom_types,
-//                 *var_ref,
-//             )?;
-
-//             // Access the value available the index value provided
-//             let array_val_ptr = access_array_index(
-//                 ctx,
-//                 module,
-//                 builder,
-//                 variable_map,
-//                 fn_ret_ty,
-//                 this_fn_block,
-//                 this_fn,
-//                 allocation_list,
-//                 is_loop_body,
-//                 parsed_functions,
-//                 custom_types,
-//                 inner_variable,
-//                 index,
-//             )?;
-
-//             Ok(((array_val_ptr.0, array_val_ptr.1), array_val_ptr.2))
-//         },
-//         ParsedToken::VariableReference(variable_reference) => {
-//             match variable_reference {
-//                 VariableReference::StructFieldReference(
-//                     struct_field_reference,
-//                 ) => {
-//                     let (f_ptr, f_ty, ty_disc) = access_nested_struct_field_ptr(
-//                         ctx,
-//                         builder,
-//                         &mut field_stack_iter,
-//                         &struct_definition,
-//                         (*ptr, *ty),
-//                         custom_types.clone(),
-//                         ty.into_struct_type(),
-//                     )?;
-
-//                     Ok(((f_ptr, f_ty.into()), ty_disc))
-//                 },
-//                 VariableReference::BasicReference(basic_reference) => {
-//                     let variable_ref = variable_map.get(&basic_reference).ok_or_else(|| {
-//                         common::anyhow::Error::from(CodeGenError::InternalVariableNotFound(
-//                             basic_reference.clone(),
-//                         ))
-//                     })?;
-
-//                     Ok(variable_ref.clone())
-//                 },
-//                 VariableReference::ArrayReference(array_name, indexing) => {
-//                     let ((ptr, ptr_ty), ty_disc) = variable_map.get(&array_name).unwrap().clone();
-
-//                     let index_val = create_ir_from_parsed_token(
-//                         ctx,
-//                         module,
-//                         builder,
-//                         (*indexing).clone(),
-//                         variable_map,
-//                         None,
-//                         fn_ret_ty.clone(),
-//                         this_fn_block,
-//                         this_fn,
-//                         allocation_list,
-//                         is_loop_body.clone(),
-//                         parsed_functions.clone(),
-//                         custom_types.clone(),
-//                     )?;
-
-//                     if let Some((idx_ptr, _idx_ptr_val, idx_ty_disc)) = index_val {
-//                         let idx = builder.build_load(
-//                             ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
-//                             idx_ptr,
-//                             "array_idx_val",
-//                         )?;
-
-//                         let gep_ptr = unsafe {
-//                             builder.build_gep(
-//                                 ty_disc
-//                                     .clone()
-//                                     .to_basic_type_enum(ctx, custom_types.clone())?,
-//                                 ptr,
-//                                 &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
-//                                 "array_idx_elem_ptr",
-//                             )?
-//                         };
-
-//                         if let Type::Array((inner_ty, _len)) = &ty_disc {
-//                             let array_inner_type = ty_from_token(&(**inner_ty), custom_types)?;
-
-//                             return Ok((
-//                                 (
-//                                     gep_ptr,
-//                                     array_inner_type
-//                                         .clone()
-//                                         .to_basic_type_enum(ctx, custom_types.clone())?
-//                                         .into(),
-//                                 ),
-//                                 array_inner_type.clone(),
-//                             ));
-//                         }
-//                         else {
-//                             unreachable!("This must be an `Array`.");
-//                         }
-//                     }
-//                     else {
-//                         Err(CodeGenError::InvalidIndexValue((indexing.inner).clone()).into())
-//                     }
-//                 },
-//             }
-//         },
-//         _ => Err(CodeGenError::InvalidVariableReference(parsed_token.clone()).into()),
-//     }
-// }
-
 pub fn access_variable_ptr<'ctx>(
     ctx: &'ctx Context,
     module: &Module<'ctx>,
@@ -525,8 +370,11 @@ pub fn set_value_of_ptr<'ctx>(
             // Cast the integer to be a pointer since we cannot inherently create a pointer with a pre-determined destination
             let ptr = builder.build_int_to_ptr(i64_type.const_int(inner as u64, false), ptr_type, "raw_address_pointer")?;
 
-            // // LLVM does let us initalize a pointer type with a pre-determined address
-            builder.build_store(v_ptr, ptr)?;
+            // LLVM does let us initalize a pointer type with a pre-determined address
+            let store = builder.build_store(v_ptr, ptr)?;
+
+            // Do not let llvm optimize it, cuz it can optimize out writes / reads
+            // store.set_volatile(true)?;
         },
         Value::Enum((_ty, body, val)) => {
             set_value_of_ptr(
