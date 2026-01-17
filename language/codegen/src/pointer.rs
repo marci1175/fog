@@ -522,9 +522,11 @@ pub fn set_value_of_ptr<'ctx>(
         },
         Value::Array(inner_ty) => unimplemented!(),
         Value::Pointer((inner, _)) => {
+            // Cast the integer to be a pointer since we cannot inherently create a pointer with a pre-determined destination
+            let ptr = builder.build_int_to_ptr(i64_type.const_int(inner as u64, false), ptr_type, "raw_address_pointer")?;
+
             // // LLVM does let us initalize a pointer type with a pre-determined address
-            // builder.build_store(v_ptr, ptr_type.const_null())?;
-            unimplemented!()
+            builder.build_store(v_ptr, ptr)?;
         },
         Value::Enum((_ty, body, val)) => {
             set_value_of_ptr(
