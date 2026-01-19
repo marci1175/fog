@@ -90,8 +90,13 @@ pub enum Token
     Loop,
     While,
     For,
+
     Continue,
     Break,
+    
+    Impls,
+    Trait,
+    This,
 
     Private,       // priv
     Public,        // pub

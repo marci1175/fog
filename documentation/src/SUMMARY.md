@@ -17,6 +17,7 @@
   - [Functions](./concepts/3_functions.md)
   - [Logic Gates and Comparisons](./concepts/4_logic_gates_and_cmp.md)
   - [Control Flow Statements](./concepts/5_control_flow_statements.md)
+  - [Traits and Implementations](./concepts/6_traits_impls.md)
   - [Hello World](./concepts/8_hello_world.md)
 
 ## Project Management

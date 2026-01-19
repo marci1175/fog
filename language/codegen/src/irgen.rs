@@ -2070,6 +2070,7 @@ pub fn set_cmp_mem<'ctx>(
         allocation_table,
         custom_types.clone(),
     )?;
+
     create_ir_from_parsed_token(
         ctx,
         module,
@@ -2089,6 +2090,7 @@ pub fn set_cmp_mem<'ctx>(
         parsed_functions.clone(),
         custom_types.clone(),
     )?;
+    
     create_ir_from_parsed_token(
         ctx,
         module,
@@ -2108,8 +2110,10 @@ pub fn set_cmp_mem<'ctx>(
         parsed_functions.clone(),
         custom_types.clone(),
     )?;
+
     let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
     let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
+    
     Ok((lhs_val, rhs_val))
 }
 
