@@ -93,7 +93,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
                 )
                 .as_type()
         },
-        Type::Struct((struct_name, struct_def)) => {
+        Type::Struct((struct_name, struct_def, _)) => {
             let mut struct_field_types: Vec<DIType> = Vec::new();
 
             let type_discs = struct_def

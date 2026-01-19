@@ -31,7 +31,6 @@ pub enum Token
     /// Kinda like C enums but with any type
     Enum(Option<Box<Token>>),
 
-    Extend,
     Function,
     Ellipsis,
     Return,

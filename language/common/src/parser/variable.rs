@@ -1,10 +1,7 @@
 use std::sync::atomic::AtomicUsize;
 
 use crate::{
-    error::{parser::ParserError, syntax::SyntaxError},
-    parser::common::ParsedTokenInstance,
-    tokenizer::Token,
-    ty::{OrdMap, Type},
+    codegen::StructAttributes, error::{parser::ParserError, syntax::SyntaxError}, parser::common::ParsedTokenInstance, tokenizer::Token, ty::{OrdMap, Type}
 };
 use strum_macros::Display;
 
@@ -143,7 +140,7 @@ pub fn get_struct_field_stack(
     tokens: &[Token],
     token_idx: &mut usize,
     identifier: &str,
-    (struct_name, struct_fields): &(String, OrdMap<String, Type>),
+    (struct_name, struct_fields, _): &(String, OrdMap<String, Type>, StructAttributes),
     var_ref: &mut VariableReference,
 ) -> anyhow::Result<Type>
 {

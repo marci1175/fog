@@ -74,7 +74,7 @@ pub fn import_user_lib_functions<'a>(
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            Type::Struct((_struct_name, struct_inner)) => {
+            Type::Struct((_struct_name, struct_inner, _)) => {
                 let return_type = ctx.struct_type(
                     &struct_field_to_ty_list(ctx, struct_inner, custom_types.clone())?,
                     import_sig.args.ellipsis_present,

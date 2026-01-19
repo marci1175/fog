@@ -26,6 +26,11 @@ use inkwell::{
 };
 use strum::Display;
 
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StructAttributes {
+
+}
+
 /// All of the custom types implemented by the User are defined here
 #[derive(Debug, Clone, PartialEq, Display)]
 pub enum CustomType
@@ -39,6 +44,7 @@ pub enum CustomType
                 // Field type
                 Type,
             >,
+            StructAttributes
         ),
     ),
     Enum(
@@ -221,7 +227,7 @@ pub fn ty_to_llvm_ty<'a>(
         Type::Void => {
             return Err(CodeGenError::InvalidVoidValue.into());
         },
-        Type::Struct((struct_name, struct_inner)) => {
+        Type::Struct((struct_name, struct_inner, _struct_attributes)) => {
             // If we are creating a new struct based on the TypeDiscriminant, we should first check if there is a struct created with the name
             let struct_type = if let Some(struct_type) = ctx.get_struct_type(struct_name) {
                 // If we have already created a struct with this name, return the struct type

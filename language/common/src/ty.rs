@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    codegen::{CustomType, struct_field_to_ty_list},
+    codegen::{CustomType, StructAttributes, struct_field_to_ty_list},
     error::parser::ParserError,
     parser::common::ParsedTokenInstance,
     tokenizer::Token,
@@ -201,7 +201,7 @@ impl Value
                     struct_field_ty_list.insert(name.clone(), ty.clone());
                 }
 
-                Type::Struct((struct_name.clone(), struct_field_ty_list))
+                Type::Struct((struct_name.clone(), struct_field_ty_list, StructAttributes::default()))
             },
             Value::Array(inner) => Type::Array(inner.clone()),
             Value::Enum((ty, body, _)) => Type::Enum((Box::new(ty.clone()), body.clone())),
@@ -236,7 +236,7 @@ pub enum Type
     /// Automatic type casting is not implemented for enum variants due to it being ineffecient and difficult with the current codebase. (aka im too lazy)
     Enum((Box<Type>, OrdMap<String, ParsedTokenInstance>)),
 
-    Struct((String, OrdMap<String, Type>)),
+    Struct((String, OrdMap<String, Type>, StructAttributes)),
     Array((Box<Token>, usize)),
     Pointer(Option<Box<Token>>),
 }
@@ -290,7 +290,7 @@ impl Type
             Self::String => std::mem::size_of::<String>(),
             Self::Boolean => std::mem::size_of::<bool>(),
             Self::Void => 0,
-            Self::Struct((_, fields)) => {
+            Self::Struct((_, fields, _)) => {
                 fields
                     .iter()
                     .map(|(_, ty)| ty.sizeof(custom_types.clone()))
@@ -330,7 +330,7 @@ impl Type
             },
             Type::Boolean => BasicTypeEnum::IntType(ctx.bool_type()),
             Type::Void => unimplemented!("A BasicTypeEnum cannot be a `Void` type."),
-            Type::Struct((_struct_name, fields)) => {
+            Type::Struct((_struct_name, fields, _)) => {
                 BasicTypeEnum::StructType(ctx.struct_type(
                     &struct_field_to_ty_list(ctx, fields, custom_types.clone())?,
                     false,
@@ -415,7 +415,7 @@ impl Display for Type
             Type::String => "String".to_string(),
             Type::Boolean => "Boolean".to_string(),
             Type::Void => "Void".to_string(),
-            Type::Struct((struct_name, _)) => format!("Struct({struct_name})"),
+            Type::Struct((struct_name, _, _)) => format!("Struct({struct_name})"),
             Type::Array((inner_ty, len)) => {
                 format!("Array(ty: {inner_ty}, len:{len})")
             },

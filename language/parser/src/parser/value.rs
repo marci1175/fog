@@ -644,7 +644,7 @@ pub fn parse_token_as_value(
             }
             else if let Some(custom_type) = custom_types.get(identifier) {
                 match custom_type {
-                    CustomType::Struct((struct_name, struct_inner)) => {
+                    CustomType::Struct((struct_name, struct_inner, attr)) => {
                         if let Some(Token::OpenBraces) = tokens.get(*token_idx + 1) {
                             let closing_idx = find_closing_braces(&tokens[*token_idx + 2..], 0)?;
 
@@ -669,7 +669,7 @@ pub fn parse_token_as_value(
 
                             return Ok((
                                 init_struct_token,
-                                Type::Struct((struct_name.clone(), struct_inner.clone())),
+                                Type::Struct((struct_name.clone(), struct_inner.clone(), attr.clone())),
                             ));
                         }
 

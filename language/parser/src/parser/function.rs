@@ -7,7 +7,7 @@ use std::{
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomType, FunctionArgumentIdentifier, If},
+    codegen::{CustomType, FunctionArgumentIdentifier, If, StructAttributes},
     compiler::ProjectConfig,
     dashmap::DashMap,
     error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
@@ -493,7 +493,7 @@ impl Parser
                     // Save the custom item
                     custom_types.insert(
                         struct_name.to_string(),
-                        CustomType::Struct((struct_name.clone(), struct_fields.into())),
+                        CustomType::Struct((struct_name.clone(), struct_fields.into(), StructAttributes::default())),
                     );
 
                     token_idx = braces_idx + 1;

@@ -296,7 +296,7 @@ pub fn set_value_of_ptr<'ctx>(
             // Get the struct pointer's ty
             let pointee_struct_ty = ty_to_llvm_ty(
                 &ctx,
-                &Type::Struct((struct_name, struct_fields.clone())),
+                &Type::Struct((struct_name, struct_fields.clone(), todo!())),
                 custom_types.clone(),
             )?
             .into_struct_type();
