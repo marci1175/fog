@@ -472,6 +472,10 @@ impl Parser
                                                 )),
                                             );
                                         },
+                                        // TODO: Make it so that we can handle traits as objects in the future
+                                        CustomType::Trait { name, implemented_functions } => {
+                                            return Err(ParserError::TraitNotObject(name.clone()).into());
+                                        },
                                     }
 
                                     // Increment the token index
@@ -646,6 +650,64 @@ impl Parser
                     ParserError::SyntaxError(SyntaxError::CustomTypeRequiresName(current_token))
                         .into(),
                 );
+            }
+            else if let Token::Identifier(ident) = current_token.clone() {
+                // Check if this identifier is a struct.
+                // Syntax should be like this
+                // <struct-name> implements (trait name) { <functions> }
+                if let Some(CustomType::Struct((struct_name, definition, attributes))) = custom_types.get_mut(&ident) {
+                    token_idx += 1;
+
+                    // Raise error if the next token isnt `Token::Implements` because of syntax
+                    if tokens.get(token_idx) != Some(&Token::Implements) {
+                        return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionImplDef).into());
+                    }
+
+                    // Fetch the next token
+                    let next_token = tokens.get(token_idx + 1);
+
+                    // Increment idx, to the `{` character
+                    token_idx += 2;
+
+                    // Fetch the implementation body
+                    let implementation_body = if let Some(Token::Identifier(trait_name)) = next_token {
+                        if let Some(CustomType::Trait{ name, implemented_functions }) = custom_types.get(trait_name) {
+                            // We will remove each function as we parse them, so that we can check that every function is implemented
+                            let mut implemented_functions = implemented_functions.clone();
+
+                            // Fetch closing idx
+                            let closing_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+
+                            // The token slice of the tokens that contain all the function implementations for this trait
+                            let impl_body = &tokens[token_idx..closing_idx];
+
+                            impl_body
+                        }
+                        else {
+                            return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionImplDef).into());
+                        }
+                    }
+                    // Parse the functions we have implmemented for the struct
+                    else if let Some(Token::OpenBraces) = next_token {
+                        // Fetch closing idx
+                        let closing_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+
+                        // The token slice of the tokens that contain all the function implementations
+                        let impl_body = &tokens[token_idx..closing_idx];
+
+                        impl_body
+                    }
+                    // If the other cases dont match return an error
+                    else {
+                        return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionImplDef).into());
+                    };
+
+                    // Parse the functions we have implmemented with the Trait
+
+                }
+                else {
+                    unimplemented!()
+                }
             }
 
             token_idx += 1;
@@ -1063,6 +1125,9 @@ impl Parser
                                     );
                                 }
                             },
+                            CustomType::Trait { name, implemented_functions } => {
+                                
+                            }
                         };
                     }
                     else {

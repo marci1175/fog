@@ -953,7 +953,7 @@ fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<To
         b"return" => Token::Return,
         b"as" => Token::As,
 
-        b"implements" => Token::Impls,
+        b"implements" => Token::Implements,
         b"this" => Token::This,
         b"trait" => Token::Trait,
 

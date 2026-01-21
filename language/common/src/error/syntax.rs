@@ -79,4 +79,6 @@ pub enum SyntaxError
     InvalidEnumBodyDefinition,
     #[error("Custom type `{0}` requires a name.")]
     CustomTypeRequiresName(Token),
+    #[error("Function implementations should look like this: `<struct> implements <trait>(optional) {{ <functions> }}`")]
+    InvalidFunctionImplDef,
 }

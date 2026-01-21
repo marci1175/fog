@@ -239,6 +239,9 @@ pub enum Type
     Struct((String, OrdMap<String, Type>, StructAttributes)),
     Array((Box<Token>, usize)),
     Pointer(Option<Box<Token>>),
+    TraitObject {
+        inner_type: Box<Type>, trait_name: String,
+    }
 }
 
 impl Type
@@ -723,6 +726,10 @@ pub fn ty_from_token(
                     CustomType::Enum((ty, body)) => {
                         Ok(Type::Enum((Box::new(ty.clone()), body.clone())))
                     },
+                    CustomType::Trait { name, implemented_functions } => {
+                        // TODO: Make it so that Trait types exist. It will basically mean that any struct can be passed in to this arg which implements this trait
+                        todo!()
+                    }
                 }
             }
             else {

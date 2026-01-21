@@ -122,7 +122,8 @@ pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) 
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
-/// Pass in 0 for the `open_braces_count` if you're searching for the very next closing token on the same level.
+/// Pass in 0 for the `open_braces_count` if you're searching for the very next closing token on the same nestedness.
+/// The index this will return will point to the closing `}`.
 pub fn find_closing_braces(braces_start_slice: &[Token], open_braces_count: usize)
 -> Result<usize>
 {

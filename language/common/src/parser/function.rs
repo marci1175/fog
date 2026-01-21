@@ -18,7 +18,7 @@ pub struct UnparsedFunctionDefinition
     pub token_offset: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Hash, Default)]
 pub struct FunctionDefinition
 {
     pub signature: FunctionSignature,

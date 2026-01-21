@@ -11,6 +11,8 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum ParserError
 {
+    #[error("Trait `{0}` cannot be converted into a value.")]
+    TraitNotObject(String),
     #[error("A function or import signature is invalid.")]
     InvalidSignatureDefinition,
     #[error("The function is called with the wrong types of arguments.")]

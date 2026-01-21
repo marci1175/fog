@@ -93,7 +93,7 @@ pub enum Token
     Continue,
     Break,
     
-    Impls,
+    Implements,
     Trait,
     This,
 

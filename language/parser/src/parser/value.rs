@@ -717,6 +717,9 @@ pub fn parse_token_as_value(
                         )
                         .into());
                     },
+                    CustomType::Trait { .. } => {
+                        return Err(ParserError::TraitNotObject(identifier.clone()).into());
+                    }
                 }
             }
             else {

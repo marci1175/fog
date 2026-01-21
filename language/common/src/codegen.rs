@@ -10,7 +10,7 @@ use crate::{
     error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{ParsedToken, ParsedTokenInstance},
-        function::FunctionSignature,
+        function::{FunctionDefinition, FunctionSignature},
     },
     tokenizer::Token,
     ty::{OrdMap, Type, ty_from_token},
@@ -28,7 +28,7 @@ use strum::Display;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructAttributes {
-
+    pub traits: OrdMap<String, FunctionDefinition>,
 }
 
 /// All of the custom types implemented by the User are defined here
@@ -55,9 +55,10 @@ pub enum CustomType
             OrdMap<String, ParsedTokenInstance>,
         ),
     ),
-    // First argument is the struct's name which the Extend extends
-    // The second argument is the list of functions the stuct is being extended with
-    // Extend(String, IndexMap<String, FunctionDefinition>),
+    Trait {
+        name: String,
+        implemented_functions: OrdMap<String, FunctionDefinition>,
+    }
 }
 
 /// These are used to define Imports.
