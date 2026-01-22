@@ -1,7 +1,7 @@
 use common::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     anyhow::Result,
-    codegen::{CustomType, LoopBodyBlocks, ty_to_llvm_ty},
+    codegen::{CustomItem, LoopBodyBlocks, StructAttributes, ty_to_llvm_ty},
     error::{codegen::CodeGenError, parser::ParserError},
     indexmap::IndexMap,
     inkwell::{
@@ -42,7 +42,7 @@ pub fn access_variable_ptr<'ctx>(
             (Type, UniqueId),
         ),
     >,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<(PointerValue<'ctx>, BasicTypeEnum<'ctx>, Type)>
 {
     match &*variable_reference {
@@ -149,7 +149,7 @@ pub fn set_value_of_ptr<'ctx>(
     module: &Module<'ctx>,
     value: Value,
     v_ptr: PointerValue<'_>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
     variable_map: &mut HashMap<
         String,
         (
@@ -292,11 +292,11 @@ pub fn set_value_of_ptr<'ctx>(
         Value::Void => {
             unreachable!()
         },
-        Value::Struct((struct_name, struct_fields, struct_values)) => {
+        Value::Struct((struct_name, struct_fields, struct_values, attr)) => {
             // Get the struct pointer's ty
             let pointee_struct_ty = ty_to_llvm_ty(
                 &ctx,
-                &Type::Struct((struct_name, struct_fields.clone(), todo!())),
+                &Type::Struct((struct_name, struct_fields.clone(), attr)),
                 custom_types.clone(),
             )?
             .into_struct_type();
@@ -420,7 +420,7 @@ pub fn access_array_index<'main, 'ctx>(
     allocation_list: &HashMap<UniqueId, PointerValue<'ctx>>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: &Rc<IndexMap<String, CustomType>>,
+    custom_types: &Rc<IndexMap<String, CustomItem>>,
     ((array_ptr, _ptr_ty), ty_disc): ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type),
     index: Box<ParsedTokenInstance>,
 ) -> Result<(PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, Type)>

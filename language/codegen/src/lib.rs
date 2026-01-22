@@ -11,7 +11,7 @@ pub mod pointer;
 
 use common::{
     anyhow::Result,
-    codegen::CustomType,
+    codegen::CustomItem,
     error::{application::ApplicationError, codegen::CodeGenError},
     indexmap::IndexMap,
     inkwell::{
@@ -43,7 +43,7 @@ pub fn llvm_codegen_main<'ctx>(
     path_to_o_output: PathBuf,
     is_optimized: bool,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
     flags_passed_in: &str,
     path_to_src: &str,
     target_triple: Rc<TargetTriple>,

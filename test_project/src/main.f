@@ -5,6 +5,22 @@ struct marci {
     a: int,    
 }
 
+trait nber {
+    alszik(dur: int): void;
+}
+
+marci implements {
+    pub function get_num(): int {
+        return 0;
+    }
+}
+
+marci implements nber {
+    pub function alszik(dur: int): void {
+        print("Alszik %i", dur);
+    }
+}
+
 pub function main(): int {
     int a = 324;
     int b = 93;
@@ -17,6 +33,6 @@ pub function main(): int {
     else {
         printf("Szamitas eredmenye: %i", b - q.a);
     }
-
+ 
     return 0;
 }

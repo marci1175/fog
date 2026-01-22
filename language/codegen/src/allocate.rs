@@ -5,7 +5,7 @@ use std::{
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomType, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty},
+    codegen::{CustomItem, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty},
     error::codegen::CodeGenError,
     indexmap::IndexMap,
     inkwell::{
@@ -72,7 +72,7 @@ pub fn create_new_variable<'a, 'b>(
     var_type: &Type,
     var_id: Option<UniqueId>,
     allocation_table: &HashMap<UniqueId, PointerValue<'a>>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>)>
 {
     // Turn a `TypeDiscriminant` into an LLVM type
@@ -98,7 +98,7 @@ pub fn create_allocation_table<'ctx>(
     ctx: &'ctx Context,
     builder: &'ctx Builder<'_>,
     parsed_tokens: &[ParsedTokenInstance],
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> anyhow::Result<HashMap<UniqueId, PointerValue<'ctx>>>
 {
     // Create allocation table to store the allocation in later

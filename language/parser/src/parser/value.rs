@@ -1,10 +1,10 @@
 use std::{collections::HashMap, rc::Rc};
 
-use common::indexmap::IndexMap;
+use common::{codegen::StructAttributes, indexmap::IndexMap};
 
 use common::{
     anyhow::Result,
-    codegen::{CustomType, Order},
+    codegen::{CustomItem, Order},
     error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
@@ -29,7 +29,7 @@ pub fn parse_value(
     // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
     mut desired_variable_type: Option<Type>,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<(ParsedTokenInstance, usize, Type)>
 {
     let mut token_idx = 0;
@@ -366,7 +366,7 @@ pub fn parse_token_as_value(
     // The token we want to evaluate, this is the first token of the slice most of the time
     eval_token: &Token,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
     // variable_id_source: &mut usize,
 ) -> Result<(ParsedTokenInstance, Type)>
 {
@@ -644,7 +644,7 @@ pub fn parse_token_as_value(
             }
             else if let Some(custom_type) = custom_types.get(identifier) {
                 match custom_type {
-                    CustomType::Struct((struct_name, struct_inner, attr)) => {
+                    CustomItem::Struct((struct_name, struct_inner, attr)) => {
                         if let Some(Token::OpenBraces) = tokens.get(*token_idx + 1) {
                             let closing_idx = find_closing_braces(&tokens[*token_idx + 2..], 0)?;
 
@@ -662,6 +662,7 @@ pub fn parse_token_as_value(
                                 function_imports,
                                 custom_types.clone(),
                                 variable_scope,
+                                attr.clone(),
                             )?;
 
                             // Increment the index to the token after the struct init.
@@ -669,7 +670,11 @@ pub fn parse_token_as_value(
 
                             return Ok((
                                 init_struct_token,
-                                Type::Struct((struct_name.clone(), struct_inner.clone(), attr.clone())),
+                                Type::Struct((
+                                    struct_name.clone(),
+                                    struct_inner.clone(),
+                                    attr.clone(),
+                                )),
                             ));
                         }
 
@@ -678,7 +683,7 @@ pub fn parse_token_as_value(
                         )
                         .into());
                     },
-                    CustomType::Enum((ty, variants)) => {
+                    CustomItem::Enum((ty, variants)) => {
                         if let Some(Token::DoubleColon) = tokens.get(*token_idx + 1)
                             && let Some(Token::Identifier(variant_name)) =
                                 tokens.get(*token_idx + 2)
@@ -717,9 +722,9 @@ pub fn parse_token_as_value(
                         )
                         .into());
                     },
-                    CustomType::Trait { .. } => {
+                    CustomItem::Trait { .. } => {
                         return Err(ParserError::TraitNotObject(identifier.clone()).into());
-                    }
+                    },
                 }
             }
             else {
@@ -902,8 +907,9 @@ pub fn init_struct(
     this_struct_name: String,
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
+    struct_attributes: StructAttributes,
 ) -> Result<(usize, ParsedTokenInstance)>
 {
     let mut struct_field_init_map: IndexMap<String, Box<ParsedTokenInstance>> = IndexMap::new();
@@ -963,6 +969,7 @@ pub fn init_struct(
                 this_struct_name,
                 this_struct_field.clone().into(),
                 struct_field_init_map.into(),
+                struct_attributes,
             ))),
             debug_information: fetch_and_merge_debug_information(
                 debug_infos,

@@ -10,7 +10,7 @@ use crate::{
     error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{ParsedToken, ParsedTokenInstance},
-        function::{FunctionDefinition, FunctionSignature},
+        function::{FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition},
     },
     tokenizer::Token,
     ty::{OrdMap, Type, ty_from_token},
@@ -27,13 +27,15 @@ use inkwell::{
 use strum::Display;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StructAttributes {
-    pub traits: OrdMap<String, FunctionDefinition>,
+pub struct StructAttributes
+{
+    pub traits: OrdMap<String, OrdMap<String, UnparsedFunctionDefinition>>,
+    pub implemented_functions: OrdMap<String, UnparsedFunctionDefinition>,
 }
 
 /// All of the custom types implemented by the User are defined here
 #[derive(Debug, Clone, PartialEq, Display)]
-pub enum CustomType
+pub enum CustomItem
 {
     Struct(
         (
@@ -44,7 +46,7 @@ pub enum CustomType
                 // Field type
                 Type,
             >,
-            StructAttributes
+            StructAttributes,
         ),
     ),
     Enum(
@@ -55,10 +57,11 @@ pub enum CustomType
             OrdMap<String, ParsedTokenInstance>,
         ),
     ),
-    Trait {
+    Trait
+    {
         name: String,
-        implemented_functions: OrdMap<String, FunctionDefinition>,
-    }
+        functions: OrdMap<String, FunctionSignature>,
+    },
 }
 
 /// These are used to define Imports.
@@ -182,7 +185,7 @@ pub enum FunctionArgumentIdentifier<IDENT, IDX>
 pub fn struct_field_to_ty_list<'a>(
     ctx: &'a Context,
     struct_inner: &IndexMap<String, Type>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<Vec<BasicTypeEnum<'a>>>
 {
     // Allocate a new list for storing the types
@@ -204,7 +207,7 @@ pub fn struct_field_to_ty_list<'a>(
 pub fn ty_to_llvm_ty<'a>(
     ctx: &'a Context,
     ty: &Type,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<BasicTypeEnum<'a>>
 {
     let bool_type = ctx.bool_type();
@@ -270,6 +273,9 @@ pub fn ty_to_llvm_ty<'a>(
             inkwell::types::BasicTypeEnum::ArrayType(array_ty)
         },
         Type::Pointer(_) => BasicTypeEnum::PointerType(ptr_type),
+        Type::TraitGeneric { .. } => {
+            return Err(CodeGenError::TraitGenericIsNotType.into());
+        },
     };
 
     Ok(field_ty)
@@ -328,7 +334,7 @@ impl<'ctx> LoopBodyBlocks<'ctx>
 pub fn create_fn_type_from_ty_disc(
     ctx: &Context,
     fn_sig: FunctionSignature,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<FunctionType<'_>>
 {
     // Make an exception if the return type is Void
@@ -353,7 +359,7 @@ pub fn create_fn_type_from_ty_disc(
 pub fn get_args_from_sig(
     ctx: &Context,
     fn_sig: FunctionSignature,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<Vec<BasicMetadataTypeEnum<'_>>>
 {
     // Create an iterator over the function's arguments
@@ -376,7 +382,7 @@ pub fn get_args_from_sig(
 }
 
 pub fn fetch_nested_pointer_ty(
-    custom_types: &Arc<IndexMap<String, CustomType>>,
+    custom_types: &Arc<IndexMap<String, CustomItem>>,
     pointer_ty: Type,
 ) -> Result<Type>
 {

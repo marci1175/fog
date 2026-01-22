@@ -5,7 +5,7 @@ use std::{
 
 use common::{
     anyhow::Result,
-    codegen::CustomType,
+    codegen::CustomItem,
     compiler::ProjectConfig,
     dashmap::DashMap,
     error::{DbgInfo, parser::ParserError},
@@ -23,7 +23,7 @@ pub struct SigTable
     pub function_list: IndexMap<String, UnparsedFunctionDefinition>,
     pub dependency_imports: HashSet<Vec<String>>,
     pub external_imports: HashMap<String, FunctionSignature>,
-    pub custom_types: IndexMap<String, CustomType>,
+    pub custom_types: IndexMap<String, CustomItem>,
     pub imported_file_list: HashMap<Vec<String>, FunctionDefinition>,
 }
 
@@ -34,7 +34,7 @@ pub struct Parser
     pub tokens_debug_info: Vec<DbgInfo>,
     pub function_table: IndexMap<String, FunctionDefinition>,
     pub library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
-    pub custom_types: Rc<IndexMap<String, CustomType>>,
+    pub custom_types: Rc<IndexMap<String, CustomItem>>,
     pub imported_functions: Rc<HashMap<String, FunctionSignature>>,
     pub config: ProjectConfig,
     pub enabled_features: OrdSet<String>,
@@ -57,7 +57,7 @@ impl Parser
             file_imported_functions,
         ) = self.create_signature_table(dep_fn_list.clone())?;
 
-        let custom_types: Rc<IndexMap<String, CustomType>> = Rc::new(custom_types);
+        let custom_types: Rc<IndexMap<String, CustomItem>> = Rc::new(custom_types);
 
         // Only import the functions which have been specifically imported by the user too
         for import in dep_imports.iter() {
@@ -148,7 +148,7 @@ impl Parser
         &self.imported_functions
     }
 
-    pub fn custom_types(&self) -> Rc<IndexMap<String, CustomType>>
+    pub fn custom_types(&self) -> Rc<IndexMap<String, CustomItem>>
     {
         self.custom_types.clone()
     }

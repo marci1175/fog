@@ -9,6 +9,10 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum SyntaxError
 {
+    #[error(
+        "An invalid trait definition has been found. Trait definitions should look like this: `trait <name> {{ <function signatures> }}`"
+    )]
+    InvalidTraitDefinition,
     #[error(r#"An open '{{' has been left in the code."#)]
     LeftOpenBraces,
     #[error("An open '(' has been left in the code.")]
@@ -65,8 +69,8 @@ pub enum SyntaxError
     InvalidIfConditionDefinition,
     #[error("Loop bodies are defined via brackets surrounding the code we would like to repeat.")]
     InvalidLoopBody,
-    #[error("Imported function must have their return type defined.")]
-    ImportUnspecifiedReturnType,
+    #[error("A function signature must have their return type defined.")]
+    FunctionSignatureReturnTypeRequired,
     #[error("A comma has been left out when defining an array.")]
     MissingCommaAtArrayDef,
     #[error("The type `{0}` cannot be indexed with.")]
@@ -79,6 +83,8 @@ pub enum SyntaxError
     InvalidEnumBodyDefinition,
     #[error("Custom type `{0}` requires a name.")]
     CustomTypeRequiresName(Token),
-    #[error("Function implementations should look like this: `<struct> implements <trait>(optional) {{ <functions> }}`")]
+    #[error(
+        "Function implementations should look like this: `<struct> implements <trait>(optional) {{ <functions> }}`"
+    )]
     InvalidFunctionImplDef,
 }

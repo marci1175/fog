@@ -7,9 +7,12 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    codegen::{CustomType, StructAttributes, struct_field_to_ty_list},
-    error::parser::ParserError,
-    parser::common::ParsedTokenInstance,
+    codegen::{CustomItem, StructAttributes, struct_field_to_ty_list},
+    error::{codegen::CodeGenError, parser::ParserError},
+    parser::{
+        common::ParsedTokenInstance,
+        function::{FunctionDefinition, FunctionSignature},
+    },
     tokenizer::Token,
 };
 use indexmap::{IndexMap, IndexSet};
@@ -50,6 +53,7 @@ pub enum Value
             String,
             OrdMap<String, Type>,
             OrdMap<String, Box<ParsedTokenInstance>>,
+            StructAttributes,
         ),
     ),
 
@@ -194,14 +198,14 @@ impl Value
             Value::String(_) => Type::String,
             Value::Boolean(_) => Type::Boolean,
             Value::Void => Type::Void,
-            Value::Struct((struct_name, struct_fields, _struct_values)) => {
+            Value::Struct((struct_name, struct_fields, _struct_values, attr)) => {
                 let mut struct_field_ty_list = OrdMap::new();
 
                 for (name, ty) in struct_fields.iter() {
                     struct_field_ty_list.insert(name.clone(), ty.clone());
                 }
 
-                Type::Struct((struct_name.clone(), struct_field_ty_list, StructAttributes::default()))
+                Type::Struct((struct_name.clone(), struct_field_ty_list, attr.clone()))
             },
             Value::Array(inner) => Type::Array(inner.clone()),
             Value::Enum((ty, body, _)) => Type::Enum((Box::new(ty.clone()), body.clone())),
@@ -210,7 +214,7 @@ impl Value
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Eq, Hash, EnumTryAs)]
+#[derive(Debug, Clone, Default, Eq, Hash, EnumTryAs)]
 pub enum Type
 {
     I64,
@@ -239,8 +243,46 @@ pub enum Type
     Struct((String, OrdMap<String, Type>, StructAttributes)),
     Array((Box<Token>, usize)),
     Pointer(Option<Box<Token>>),
-    TraitObject {
-        inner_type: Box<Type>, trait_name: String,
+    TraitGeneric
+    {
+        name: String,
+        functions: OrdMap<String, FunctionSignature>,
+    },
+}
+
+impl PartialEq for Type
+{
+    fn eq(&self, other: &Self) -> bool
+    {
+        match (self, other) {
+            (Self::Enum(l0), Self::Enum(r0)) => l0 == r0,
+            (Self::Struct(l0), Self::Struct(r0)) => l0 == r0,
+            (Self::Array(l0), Self::Array(r0)) => l0 == r0,
+            (Self::Pointer(l0), Self::Pointer(r0)) => l0 == r0,
+            (
+                Self::TraitGeneric {
+                    name: l_name,
+                    functions: l_functions,
+                },
+                Self::TraitGeneric {
+                    name: r_name,
+                    functions: r_functions,
+                },
+            ) => l_name == r_name && l_functions == r_functions,
+            // Implement specific logic cmp for Traits
+            (
+                Self::TraitGeneric {
+                    name: trait_name, ..
+                },
+                Self::Struct((_, _, attr)),
+            ) => attr.traits.contains_key(trait_name),
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+
+    fn ne(&self, other: &Self) -> bool
+    {
+        !self.eq(other)
     }
 }
 
@@ -277,7 +319,7 @@ impl Type
         }
     }
 
-    pub fn sizeof(&self, custom_types: Rc<IndexMap<String, CustomType>>) -> usize
+    pub fn sizeof(&self, custom_types: Rc<IndexMap<String, CustomItem>>) -> usize
     {
         match self {
             Self::I64 => std::mem::size_of::<i64>(),
@@ -306,13 +348,17 @@ impl Type
                     .sizeof(custom_types.clone())
             },
             Self::Pointer(_) => std::mem::size_of::<usize>(),
+            Self::TraitGeneric {
+                functions: inner_type,
+                ..
+            } => 0,
         }
     }
 
     pub fn to_basic_type_enum<'a>(
         &self,
         ctx: &'a Context,
-        custom_types: Rc<IndexMap<String, CustomType>>,
+        custom_types: Rc<IndexMap<String, CustomItem>>,
     ) -> anyhow::Result<BasicTypeEnum<'a>>
     {
         let basic_ty = match self {
@@ -332,7 +378,7 @@ impl Type
                 )
             },
             Type::Boolean => BasicTypeEnum::IntType(ctx.bool_type()),
-            Type::Void => unimplemented!("A BasicTypeEnum cannot be a `Void` type."),
+            Type::Void => return Err(CodeGenError::InvalidVoidValue.into()),
             Type::Struct((_struct_name, fields, _)) => {
                 BasicTypeEnum::StructType(ctx.struct_type(
                     &struct_field_to_ty_list(ctx, fields, custom_types.clone())?,
@@ -352,6 +398,7 @@ impl Type
                     ctx.ptr_type(AddressSpace::from(size_of::<usize>() as u16)),
                 )
             },
+            Type::TraitGeneric { .. } => return Err(CodeGenError::TraitGenericIsNotType.into()),
         };
 
         Ok(basic_ty)
@@ -396,6 +443,9 @@ impl Type
             },
             Self::Array(array) => Value::Array(array.to_owned()),
             Self::Pointer(_) => Value::Pointer((0, None)),
+            Self::TraitGeneric { .. } => {
+                unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
+            },
         }
     }
 }
@@ -424,13 +474,16 @@ impl Display for Type
             },
             Type::Pointer(inner_ty) => format!("Ptr<{:?}>", inner_ty),
             Type::Enum((ty, _)) => format!("Enum<{ty}>"),
+            Type::TraitGeneric {
+                functions: inner_type,
+                name: trait_name,
+            } => format!("TraitGeneric({trait_name})<{inner_type:#?}>"),
         })
     }
 }
 
 /// If None is passed in as a destination type try to guess the value of the literal.
 /// That means that we want to cast the value produced by the function to a pre-determined Type.
-/// TODO: Think about automaticly casting primitive values.
 pub fn unparsed_const_to_typed_literal_unsafe(
     raw_string: &str,
     dest_type: Option<Type>,
@@ -523,6 +576,18 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
                 Type::Enum(inner),
+            ));
+        },
+        Some(Type::TraitGeneric {
+            functions: inner_type,
+            name: trait_name,
+        }) => {
+            return Err(ParserError::InvalidTypeCast(
+                raw_string.to_string(),
+                Type::TraitGeneric {
+                    functions: inner_type,
+                    name: trait_name,
+                },
             ));
         },
         None => {
@@ -715,21 +780,20 @@ impl<T: Hash + Eq + Clone> OrdSet<T>
 
 pub fn ty_from_token(
     token: &Token,
-    custom_types: &IndexMap<String, CustomType>,
+    custom_types: &IndexMap<String, CustomItem>,
 ) -> anyhow::Result<Type>
 {
     match &token {
         Token::Identifier(ident) => {
             if let Some(custom_type) = custom_types.get(ident) {
-                match custom_type {
-                    CustomType::Struct(struct_def) => Ok(Type::Struct(struct_def.clone())),
-                    CustomType::Enum((ty, body)) => {
-                        Ok(Type::Enum((Box::new(ty.clone()), body.clone())))
+                match custom_type.clone() {
+                    CustomItem::Struct(struct_def) => Ok(Type::Struct(struct_def)),
+                    CustomItem::Enum((ty, body)) => Ok(Type::Enum((Box::new(ty), body))),
+                    // TODO: Make it so that Trait types exist. It will basically mean that any struct can be passed in to this arg which implements this trait
+                    // This is a type interface, this isnt a concrete type
+                    CustomItem::Trait { name, functions } => {
+                        Ok(Type::TraitGeneric { name, functions })
                     },
-                    CustomType::Trait { name, implemented_functions } => {
-                        // TODO: Make it so that Trait types exist. It will basically mean that any struct can be passed in to this arg which implements this trait
-                        todo!()
-                    }
                 }
             }
             else {

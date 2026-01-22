@@ -1,7 +1,11 @@
 use std::sync::atomic::AtomicUsize;
 
 use crate::{
-    codegen::StructAttributes, error::{parser::ParserError, syntax::SyntaxError}, parser::common::ParsedTokenInstance, tokenizer::Token, ty::{OrdMap, Type}
+    codegen::StructAttributes,
+    error::{parser::ParserError, syntax::SyntaxError},
+    parser::common::ParsedTokenInstance,
+    tokenizer::Token,
+    ty::{OrdMap, Type},
 };
 use strum_macros::Display;
 

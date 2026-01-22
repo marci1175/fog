@@ -1,7 +1,7 @@
 use common::{
     anyhow::Result,
     codegen::{
-        CustomType, FunctionArgumentIdentifier, LoopBodyBlocks, create_fn_type_from_ty_disc,
+        CustomItem, FunctionArgumentIdentifier, LoopBodyBlocks, create_fn_type_from_ty_disc,
         fn_arg_to_string, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty,
     },
     error::codegen::CodeGenError,
@@ -52,7 +52,7 @@ pub fn create_ir<'main, 'ctx>(
     this_fn_block: BasicBlock<'ctx>,
     this_fn: FunctionValue<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_items: Rc<IndexMap<String, CustomType>>,
+    custom_items: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<()>
 where
     'main: 'ctx,
@@ -143,7 +143,7 @@ pub fn create_ir_from_parsed_token<'main, 'ctx>(
     allocation_table: &HashMap<UniqueId, PointerValue<'ctx>>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<
     // This optional return value is the reference to the value of a ParsedToken's result. ie: Comparsions return a Some(ptr) to the bool value of the comparison
     // The return value is None if the `variable_reference` of the function is `Some`, as the variable will have its value set to the value of the returned value.
@@ -524,6 +524,7 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
+                            Type::TraitGeneric { name, functions } => todo!(),
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -671,6 +672,7 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
+                            Type::TraitGeneric { name, functions } => todo!(),
                         }
                     },
                     Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
@@ -840,6 +842,7 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
+                            Type::TraitGeneric { name, functions } => todo!(),
                         }
                     },
                     Type::String => {
@@ -1025,6 +1028,7 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
+                            Type::TraitGeneric { .. } => todo!(),
                         }
                     },
                     Type::Void => {
@@ -1040,6 +1044,9 @@ where
                         return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
                     Type::Enum(_) => unreachable!(),
+                    Type::TraitGeneric { .. } => {
+                        return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
+                    },
                 }
 
                 if variable_reference.is_none() {
@@ -1701,6 +1708,7 @@ where
                 Type::Array(type_discriminant) => unimplemented!(),
                 Type::Pointer(_) => todo!(),
                 Type::Enum(_) => todo!(),
+                Type::TraitGeneric { name, functions } => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
@@ -1925,7 +1933,7 @@ where
                     }
                 },
                 None => {
-                    return Err(CodeGenError::GetPointerToFailed(value.inner.clone()).into());
+                    return Err(CodeGenError::GetReferenceToFailed(value.inner.clone()).into());
                 },
             }
         },
@@ -2045,7 +2053,7 @@ pub fn set_cmp_mem<'ctx>(
     allocation_table: &HashMap<usize, PointerValue<'ctx>>,
     is_loop_body: &Option<LoopBodyBlocks<'_>>,
     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: &Rc<IndexMap<String, CustomType>>,
+    custom_types: &Rc<IndexMap<String, CustomItem>>,
     lhs: Box<ParsedTokenInstance>,
     rhs: Box<ParsedTokenInstance>,
     comparison_hand_side_ty: &Type,
@@ -2090,7 +2098,7 @@ pub fn set_cmp_mem<'ctx>(
         parsed_functions.clone(),
         custom_types.clone(),
     )?;
-    
+
     create_ir_from_parsed_token(
         ctx,
         module,
@@ -2113,7 +2121,7 @@ pub fn set_cmp_mem<'ctx>(
 
     let lhs_val = builder.build_load(pointee_ty, lhs_ptr, "lhs_tmp_val")?;
     let rhs_val = builder.build_load(pointee_ty, rhs_ptr, "rhs_tmp_val")?;
-    
+
     Ok((lhs_val, rhs_val))
 }
 
@@ -2123,7 +2131,7 @@ pub fn generate_ir<'ctx>(
     context: &'ctx Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
     is_optimized: bool,
     flags_passed_in: &str,
     path_to_src_file: &str,
@@ -2322,7 +2330,7 @@ pub fn create_ir_from_parsed_token_list<'main, 'ctx>(
     alloca_table: &HashMap<UniqueId, PointerValue<'ctx>>,
     is_loop_body: Option<LoopBodyBlocks>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_items: Rc<IndexMap<String, CustomType>>,
+    custom_items: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<()>
 where
     'main: 'ctx,

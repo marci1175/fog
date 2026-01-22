@@ -1,11 +1,12 @@
 use common::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     anyhow::Result,
-    codegen::{CustomType, struct_field_to_ty_list, ty_enum_to_metadata_ty_enum},
+    codegen::{CustomItem, struct_field_to_ty_list, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty},
+    error::codegen::CodeGenError,
     indexmap::IndexMap,
     inkwell::{AddressSpace, context::Context, module::Module, types::BasicType},
     parser::function::{FunctionDefinition, FunctionSignature},
-    ty::Type,
+    ty::{Type, ty_from_token},
 };
 use std::{collections::HashMap, rc::Rc};
 
@@ -14,7 +15,7 @@ pub fn import_user_lib_functions<'a>(
     module: &Module<'a>,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<()>
 {
     for (import_name, import_sig) in imported_functions.iter() {
@@ -112,7 +113,17 @@ pub fn import_user_lib_functions<'a>(
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            Type::Array(_) => todo!(),
+            Type::Array((inner_ty, len)) => {
+                let array_ty = ty_to_llvm_ty(
+                    ctx,
+                    &ty_from_token(&*inner_ty, &custom_types)?,
+                    custom_types.clone(),
+                )?;
+
+                let return_type = array_ty.array_type(*len as u32);
+
+                return_type.fn_type(&args, false)
+            },
             Type::Pointer(_) => {
                 let return_type =
                     ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
@@ -124,6 +135,7 @@ pub fn import_user_lib_functions<'a>(
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
+            Type::TraitGeneric { .. } => return Err(CodeGenError::TraitGenericIsNotType.into()),
         };
 
         module.add_function(import_name, function_type, None);

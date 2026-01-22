@@ -83,12 +83,14 @@ pub enum CodeGenError
         "CompilerHint `{0}` should be handled elsewhere. (If this a feature, then it should've been handled at the `CompilerHint` list creation.)"
     )]
     InternalFunctionCompilerHintParsingError(CompilerHint),
-    #[error("Could not retrieve pointer to `{0}`. Pointers can only be returned from values.")]
-    GetPointerToFailed(ParsedToken),
-    #[error("Cannot dereference value `{0}`, only a pointer can be.")]
+    #[error("Could not retrieve reference to `{0}`. Pointers can only be returned from values.")]
+    GetReferenceToFailed(ParsedToken),
+    #[error("Cannot dereference value `{0}`, only a reference can be dereferenced.")]
     InvalidValueDereference(ParsedToken),
     #[error("A dereferencing must have a desired type to dereference to.")]
     VagueDereference,
     #[error("Cannot cast inner value of enum with inner type of `{0}` to `{1}`.")]
     EnumInnerTypeMismatch(Type, Type),
+    #[error("Traits cannot be turned into Trait Objects.")]
+    TraitGenericIsNotType,
 }

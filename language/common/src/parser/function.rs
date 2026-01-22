@@ -8,7 +8,7 @@ use crate::{
 };
 use anyhow::Result;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Hash)]
 pub struct UnparsedFunctionDefinition
 {
     pub function_sig: FunctionSignature,
@@ -78,6 +78,13 @@ pub struct FunctionArguments
     /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are quniue in this context.
     pub arguments: OrdMap<String, (Type, UniqueId)>,
     pub ellipsis_present: bool,
+}
+
+impl FunctionArguments {
+    /// We need to implement a Custom eq check on [`FunctionArguments`]s because the use of [`UniqueId`].
+    pub fn check_arg_eq(&self, rhs: &Self) -> bool {
+        self.arguments.iter().map(|(name, (ty, _))| { (name, ty) }).collect::<Vec<_>>() == rhs.arguments.iter().map(|(name, (ty, _))| { (name, ty) }).collect::<Vec<_>>()
+    }
 }
 
 impl FunctionArguments

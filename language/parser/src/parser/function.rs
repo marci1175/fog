@@ -7,7 +7,7 @@ use std::{
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomType, FunctionArgumentIdentifier, If, StructAttributes},
+    codegen::{CustomItem, FunctionArgumentIdentifier, If, StructAttributes},
     compiler::ProjectConfig,
     dashmap::DashMap,
     error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
@@ -36,6 +36,168 @@ use crate::{
     tokenizer::tokenize,
 };
 
+pub fn parse_functions(
+    tokens: &[Token],
+    enabled_features: &OrdSet<String>,
+    module_path: Vec<String>,
+    custom_types: &IndexMap<String, CustomItem>,
+) -> Result<IndexMap<String, UnparsedFunctionDefinition>, anyhow::Error>
+{
+    let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
+    let mut function_compiler_hint_buffer: OrdSet<CompilerHint> = OrdSet::new();
+    let mut function_enabling_feature: OrdSet<String> = OrdSet::new();
+    let mut token_idx = 0;
+
+    while token_idx < tokens.len() {
+        let current_token = tokens[token_idx].clone();
+
+        if current_token == Token::Private
+            || current_token == Token::Public
+            || current_token == Token::PublicLibrary
+        {
+            token_idx += 1;
+
+            if tokens[token_idx] == Token::Function {
+                if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
+                    if tokens[token_idx + 2] == Token::OpenParentheses {
+                        let (bracket_close_idx, args) = parse_signature_argument_tokens(
+                            &tokens[token_idx + 3..],
+                            &custom_types,
+                        )?;
+
+                        token_idx += bracket_close_idx + 3;
+
+                        // Fetch the returned type of the function
+                        if tokens[token_idx + 1] == Token::Colon {
+                            let return_type = ty_from_token(&tokens[token_idx + 2], &custom_types)?;
+
+                            if tokens[token_idx + 3] == Token::OpenBraces {
+                                // Create a variable which stores the level of braces we are in
+                                let mut brace_layer_counter = 1;
+
+                                // Get the slice of the list which may contain the braces' scope
+                                let tokens_slice = &tokens[token_idx + 4..];
+
+                                // Create an index which indexes the tokens slice
+                                let mut token_braces_idx = 0;
+
+                                // Create a list which contains all the tokens inside the two braces
+                                let mut braces_contains: Vec<Token> = vec![];
+
+                                // Find the scope of this function
+                                loop {
+                                    // We have itered through the whole function and its still not found, it may be an open brace.
+                                    if tokens_slice.len() == token_braces_idx {
+                                        return Err(ParserError::SyntaxError(
+                                            SyntaxError::LeftOpenParentheses,
+                                        )
+                                        .into());
+                                    }
+
+                                    // If a bracket is closed the layer counter should be incremented
+                                    if tokens_slice[token_braces_idx] == Token::OpenBraces {
+                                        brace_layer_counter += 1;
+                                    }
+                                    // If a bracket is closed the layer counter should be decreased
+                                    else if tokens_slice[token_braces_idx] == Token::CloseBraces {
+                                        brace_layer_counter -= 1;
+                                    }
+
+                                    // If we have arrived at the end of the braces this is when we know that this is the end of the function's scope
+                                    if brace_layer_counter == 0 {
+                                        break;
+                                    }
+
+                                    // Store the current item in the token buffer
+                                    braces_contains.push(tokens_slice[token_braces_idx].clone());
+
+                                    // Increment the index
+                                    token_braces_idx += 1;
+                                }
+
+                                let braces_contains_len = braces_contains.len();
+
+                                // Extract the compiler hints for the function
+                                let compiler_hints: OrdSet<function::CompilerHint> =
+                                    mem::take(&mut function_compiler_hint_buffer);
+
+                                let function_enabling_features =
+                                    mem::take(&mut function_enabling_feature);
+
+                                if !function_enabling_features.is_disjoint(&enabled_features)
+                                    || function_enabling_features.is_empty()
+                                {
+                                    // Create a clone of the module path so we can modifiy it locally
+                                    let mut mod_path = module_path.clone();
+
+                                    // Store the function name in the module path
+                                    mod_path.push(function_name.clone());
+
+                                    // Store the function
+                                    let insertion = function_list.insert(
+                                        function_name.clone(),
+                                        UnparsedFunctionDefinition {
+                                            inner: braces_contains.clone(),
+                                            token_offset: token_idx + 4,
+                                            function_sig: FunctionSignature {
+                                                name: function_name.clone(),
+                                                args: args.clone(),
+                                                return_type: return_type.clone(),
+                                                // To be honest I dont really think this matters what we set it, since im not planning to make a disctinction between public and private functions
+                                                // For now ;)
+                                                visibility: current_token.try_into()?,
+                                                module_path: mod_path.clone(),
+                                                compiler_hints: compiler_hints.clone(),
+                                                enabling_features: function_enabling_features
+                                                    .clone(),
+                                            },
+                                        },
+                                    );
+
+                                    // If a function with a similar name exists throw an error as there is no function overloading an excpetion is when they are covered under different features
+                                    if let Some(overwritten_function) = insertion {
+                                        return Err(ParserError::SyntaxError(
+                                            SyntaxError::DuplicateFunctions(
+                                                function_name,
+                                                overwritten_function.function_sig,
+                                            ),
+                                        )
+                                        .into());
+                                    }
+                                }
+
+                                // Set the iterator index
+                                token_idx += braces_contains_len + 5;
+
+                                // Countinue with the loop
+                                continue;
+                            }
+                        }
+
+                        return Err(ParserError::InvalidSignatureDefinition.into());
+                    }
+                    else {
+                        return Err(ParserError::InvalidSignatureDefinition.into());
+                    }
+                }
+                else {
+                    return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionName).into());
+                }
+            }
+        }
+        else if current_token == Token::Function {
+            return Err(ParserError::FunctionRequiresExplicitVisibility.into());
+        }
+        else {
+            return Err(ParserError::InvalidImplItem.into());
+        }
+
+        token_idx += 1;
+    }
+
+    Ok(function_list)
+}
+
 impl Parser
 {
     /// Creates signature table
@@ -47,7 +209,7 @@ impl Parser
         IndexMap<String, UnparsedFunctionDefinition>,
         HashSet<Vec<String>>,
         HashMap<String, FunctionSignature>,
-        IndexMap<String, CustomType>,
+        IndexMap<String, CustomItem>,
         HashMap<Vec<String>, FunctionDefinition>,
     )>
     {
@@ -72,7 +234,7 @@ impl Parser
         let mut function_compiler_hint_buffer: OrdSet<CompilerHint> = OrdSet::new();
         let mut function_enabling_feature: OrdSet<String> = OrdSet::new();
 
-        let mut custom_types: IndexMap<String, CustomType> = IndexMap::new();
+        let mut custom_types: IndexMap<String, CustomItem> = IndexMap::new();
 
         while token_idx < tokens.len() {
             let current_token = tokens[token_idx].clone();
@@ -94,31 +256,8 @@ impl Parser
 
                             // Fetch the returned type of the function
                             if tokens[token_idx + 1] == Token::Colon {
-                                let return_type = if let Token::TypeDefinition(return_type) =
-                                    tokens[token_idx + 2].clone()
-                                {
-                                    return_type
-                                }
-                                else if let Token::Identifier(identifier) =
-                                    tokens[token_idx + 2].clone()
-                                {
-                                    if let Some(custom_type) = custom_types.get(&identifier) {
-                                        match custom_type {
-                                            CustomType::Struct(struct_def) => {
-                                                Type::Struct(struct_def.clone())
-                                            },
-                                            CustomType::Enum((ty, enum_def)) => {
-                                                Type::Enum((Box::new(ty.clone()), enum_def.clone()))
-                                            },
-                                        }
-                                    }
-                                    else {
-                                        return Err(ParserError::InvalidSignatureDefinition.into());
-                                    }
-                                }
-                                else {
-                                    return Err(ParserError::InvalidSignatureDefinition.into());
-                                };
+                                let return_type =
+                                    ty_from_token(&tokens[token_idx + 2], &custom_types)?;
 
                                 if tokens[token_idx + 3] == Token::OpenBraces {
                                     // Create a variable which stores the level of braces we are in
@@ -244,106 +383,29 @@ impl Parser
                 if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned()
                     && tokens[token_idx + 2] == Token::OpenParentheses
                 {
-                    let (bracket_close_idx, args) =
-                        parse_signature_argument_tokens(&tokens[token_idx + 3..], &custom_types)?;
-
-                    token_idx += bracket_close_idx + 3;
-
                     if external_imports.get(&identifier).is_some()
                         || function_list.get(&identifier).is_some()
                     {
                         return Err(ParserError::DuplicateSignatureImports(identifier).into());
                     }
 
-                    // Create a clone of the module path so we can modifiy it locally
                     let mut mod_path = module_path.clone();
-
-                    // Store the function name in the module path
                     mod_path.push(identifier.clone());
 
-                    if tokens[token_idx + 1] == Token::Colon {
-                        if let Token::TypeDefinition(return_type) = tokens[token_idx + 2].clone()
-                            && tokens[token_idx + 3] == Token::SemiColon
-                        {
-                            external_imports.insert(
-                                identifier.clone(),
-                                FunctionSignature {
-                                    name: identifier,
-                                    args,
-                                    return_type,
-                                    module_path: mod_path,
-                                    // Imported functions can only be accessed at the source file they were imported at
-                                    // I might change this later to smth like pub import similar to pub mod in rust
-                                    visibility: FunctionVisibility::Private,
-                                    compiler_hints: OrdSet::new(),
-                                    enabling_features: OrdSet::new(),
-                                },
-                            );
+                    // Set the index to the item after the `(` for the helper function
+                    token_idx += 3;
 
-                            continue;
-                        }
-                        else if let Token::Identifier(custom_item_name) =
-                            tokens[token_idx + 2].clone()
-                            && tokens[token_idx + 3] == Token::SemiColon
-                        {
-                            if let Some(custom_item) = custom_types.get(&custom_item_name) {
-                                match custom_item {
-                                    CustomType::Struct(struct_inner) => {
-                                        external_imports.insert(
-                                            identifier.clone(),
-                                            FunctionSignature {
-                                                name: identifier,
-                                                args,
-                                                return_type: Type::Struct(struct_inner.clone()),
-                                                module_path: mod_path,
-                                                // Imported functions can only be accessed at the source file they were imported at
-                                                // I might change this later to smth like pub import similar to pub use in rust
-                                                visibility: FunctionVisibility::Private,
-                                                compiler_hints: OrdSet::new(),
-                                                enabling_features: OrdSet::new(),
-                                            },
-                                        );
+                    let fn_sig = parse_function_signature(
+                        &tokens,
+                        &mut token_idx,
+                        &custom_types,
+                        mod_path,
+                        identifier,
+                    )?;
 
-                                        continue;
-                                    },
-                                    CustomType::Enum((ty, body)) => {
-                                        external_imports.insert(
-                                            identifier.clone(),
-                                            FunctionSignature {
-                                                name: identifier,
-                                                args,
-                                                return_type: Type::Enum((
-                                                    Box::new(ty.clone()),
-                                                    body.clone(),
-                                                )),
-                                                module_path: mod_path,
-                                                // Imported functions can only be accessed at the source file they were imported at
-                                                // I might change this later to smth like pub import similar to pub use in rust
-                                                visibility: FunctionVisibility::Private,
-                                                compiler_hints: OrdSet::new(),
-                                                enabling_features: OrdSet::new(),
-                                            },
-                                        );
+                    external_imports.insert(fn_sig.name.clone(), fn_sig);
 
-                                        continue;
-                                    },
-                                }
-                            }
-                            else {
-                                dbg!(&custom_types);
-
-                                panic!(
-                                    "Custom type not found, check custom types map...... Monkey see Monkey think"
-                                )
-                            }
-                        }
-                        else {
-                            panic!();
-                        }
-                    }
-                    else {
-                        return Err(SyntaxError::ImportUnspecifiedReturnType.into());
-                    }
+                    continue;
                 }
             }
             else if current_token == Token::Import {
@@ -413,7 +475,7 @@ impl Parser
                 if let Some(Token::Identifier(struct_name)) = tokens.get(token_idx + 1)
                     && let Some(Token::OpenBraces) = tokens.get(token_idx + 2)
                 {
-                    // SeRch for the closing brace's index
+                    // Search for the closing brace's index
                     let braces_idx =
                         find_closing_braces(&tokens[token_idx + 3..], 0)? + token_idx + 3;
 
@@ -457,13 +519,13 @@ impl Parser
                                     && let Some(custom_item) = custom_types.get(custom_type)
                                 {
                                     match custom_item {
-                                        CustomType::Struct(struct_def) => {
+                                        CustomItem::Struct(struct_def) => {
                                             struct_fields.insert(
                                                 field_name.to_string(),
                                                 Type::Struct(struct_def.clone()),
                                             );
                                         },
-                                        CustomType::Enum((ty, enum_body)) => {
+                                        CustomItem::Enum((ty, enum_body)) => {
                                             struct_fields.insert(
                                                 field_name.to_string(),
                                                 Type::Enum((
@@ -472,9 +534,10 @@ impl Parser
                                                 )),
                                             );
                                         },
-                                        // TODO: Make it so that we can handle traits as objects in the future
-                                        CustomType::Trait { name, implemented_functions } => {
-                                            return Err(ParserError::TraitNotObject(name.clone()).into());
+                                        CustomItem::Trait { name, .. } => {
+                                            return Err(
+                                                ParserError::TraitNotObject(name.clone()).into()
+                                            );
                                         },
                                     }
 
@@ -497,7 +560,12 @@ impl Parser
                     // Save the custom item
                     custom_types.insert(
                         struct_name.to_string(),
-                        CustomType::Struct((struct_name.clone(), struct_fields.into(), StructAttributes::default())),
+                        CustomItem::Struct((
+                            struct_name.clone(),
+                            struct_fields.into(),
+                            // Create a new attributes instance
+                            StructAttributes::default(),
+                        )),
                     );
 
                     token_idx = braces_idx + 1;
@@ -505,6 +573,82 @@ impl Parser
                 }
 
                 return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
+            }
+            else if current_token == Token::Trait {
+                if let Some(Token::Identifier(trait_name)) = tokens.get(token_idx + 1)
+                    && let Some(Token::OpenBraces) = tokens.get(token_idx + 2)
+                {
+                    // Set idx to the next token
+                    token_idx += 3;
+
+                    // Find closing braces
+                    let closing_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+
+                    // The trait body's token slice
+                    let trait_body = &tokens[token_idx..closing_idx];
+
+                    // Local slice indexing
+                    let mut idx = 0;
+
+                    // Store the trait's functions we have parsed
+                    let mut trait_functions: OrdMap<String, FunctionSignature> = OrdMap::new();
+
+                    // Parse the entire body
+                    while trait_body.len() > idx {
+                        if let Some(Token::Identifier(fn_name)) = trait_body.get(idx) {
+                            // Check that we are not redefining any functions
+                            if trait_functions.contains_key(fn_name) {
+                                return Err(
+                                    ParserError::FunctionRedefinition(fn_name.clone()).into()
+                                );
+                            }
+
+                            // Modify module path
+                            let mut module_path = module_path.clone();
+
+                            // Store trait name in mod path
+                            module_path.push(fn_name.clone());
+
+                            // Increment index
+                            idx += 2;
+
+                            // This function parses until the return type and offset the idx to the expr closing `;`
+                            let fn_sig = parse_function_signature(
+                                trait_body,
+                                &mut idx,
+                                &custom_types,
+                                module_path,
+                                fn_name.clone(),
+                            )?;
+
+                            // Store the function of the trait
+                            trait_functions.insert(fn_name.clone(), fn_sig);
+
+                            // Increment by one to go the next fn sig
+                            idx += 1;
+                        }
+                        else {
+                            return Err(ParserError::InvalidTraitItem.into());
+                        }
+                    }
+
+                    // Set the correct index position
+                    token_idx = closing_idx;
+
+                    // Store custom type
+                    custom_types.insert(
+                        trait_name.clone(),
+                        CustomItem::Trait {
+                            name: trait_name.clone(),
+                            functions: trait_functions,
+                        },
+                    );
+                }
+                else {
+                    return Err(
+                        ParserError::SyntaxError(SyntaxError::InvalidTraitDefinition).into(),
+                    );
+                }
             }
             else if current_token == Token::CompilerHintSymbol {
                 token_idx += 1;
@@ -638,7 +782,7 @@ impl Parser
                     // Store custom type
                     custom_types.insert(
                         enum_name.clone(),
-                        CustomType::Enum((variant_type, variant_fields)),
+                        CustomItem::Enum((variant_type, variant_fields)),
                     );
 
                     token_idx = braces_idx + 1;
@@ -651,67 +795,152 @@ impl Parser
                         .into(),
                 );
             }
-            else if let Token::Identifier(ident) = current_token.clone() {
+            else if let Token::Identifier(struct_name_ident) = current_token.clone() {
+                // Create a clone so that we can use this when looking up information, since it would create an immutable and a mutable borrow.
+                let custom_types_clone = custom_types.clone();
+
                 // Check if this identifier is a struct.
                 // Syntax should be like this
                 // <struct-name> implements (trait name) { <functions> }
-                if let Some(CustomType::Struct((struct_name, definition, attributes))) = custom_types.get_mut(&ident) {
+                if let Some(CustomItem::Struct((_, _, attributes))) =
+                    custom_types.get_mut(&struct_name_ident)
+                {
                     token_idx += 1;
 
                     // Raise error if the next token isnt `Token::Implements` because of syntax
                     if tokens.get(token_idx) != Some(&Token::Implements) {
-                        return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionImplDef).into());
+                        return Err(
+                            ParserError::SyntaxError(SyntaxError::InvalidFunctionImplDef).into(),
+                        );
                     }
+
+                    token_idx += 1;
 
                     // Fetch the next token
-                    let next_token = tokens.get(token_idx + 1);
-
-                    // Increment idx, to the `{` character
-                    token_idx += 2;
+                    let next_token = tokens.get(token_idx);
 
                     // Fetch the implementation body
-                    let implementation_body = if let Some(Token::Identifier(trait_name)) = next_token {
-                        if let Some(CustomType::Trait{ name, implemented_functions }) = custom_types.get(trait_name) {
-                            // We will remove each function as we parse them, so that we can check that every function is implemented
-                            let mut implemented_functions = implemented_functions.clone();
+                    let (implementation_body, trait_to_impl) =
+                        if let Some(Token::Identifier(trait_name)) = next_token {
+                            // Increment idx to the Token::OpenBraces
+                            token_idx += 1;
+
+                            if let Some(CustomItem::Trait { functions, .. }) =
+                                custom_types_clone.get(trait_name)
+                                && Some(&Token::OpenBraces) == tokens.get(token_idx)
+                            {
+                                // Move the idx into the impl body
+                                token_idx += 1;
+
+                                // We will remove each function as we parse them, so that we can check that every function is implemented
+                                let impl_fns = functions.clone();
+
+                                // Fetch closing idx
+                                let closing_idx =
+                                    find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+
+                                // The token slice of the tokens that contain all the function implementations for this trait
+                                let impl_body = &tokens[token_idx..closing_idx];
+
+                                // Closing idx is the `}` so increment one more
+                                token_idx = closing_idx;
+
+                                (impl_body, Some((impl_fns, trait_name.clone())))
+                            }
+                            else {
+                                return Err(ParserError::SyntaxError(
+                                    SyntaxError::InvalidFunctionImplDef,
+                                )
+                                .into());
+                            }
+                        }
+                        // Parse the functions we have implmemented for the struct
+                        else if let Some(Token::OpenBraces) = next_token {
+                            // Move the idx into the impl body
+                            token_idx += 1;
 
                             // Fetch closing idx
-                            let closing_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+                            let closing_idx =
+                                find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
 
-                            // The token slice of the tokens that contain all the function implementations for this trait
+                            // The token slice of the tokens that contain all the function implementations
                             let impl_body = &tokens[token_idx..closing_idx];
 
-                            impl_body
+                            // Closing idx is the `}` so increment one more
+                            token_idx = closing_idx;
+
+                            (impl_body, None)
                         }
+                        // If the other cases dont match return an error
                         else {
-                            return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionImplDef).into());
-                        }
-                    }
-                    // Parse the functions we have implmemented for the struct
-                    else if let Some(Token::OpenBraces) = next_token {
-                        // Fetch closing idx
-                        let closing_idx = find_closing_braces(&tokens[token_idx..], 0)? + token_idx;
+                            return Err(ParserError::SyntaxError(
+                                SyntaxError::InvalidFunctionImplDef,
+                            )
+                            .into());
+                        };
 
-                        // The token slice of the tokens that contain all the function implementations
-                        let impl_body = &tokens[token_idx..closing_idx];
+                    let mut module_path = module_path.clone();
 
-                        impl_body
-                    }
-                    // If the other cases dont match return an error
-                    else {
-                        return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionImplDef).into());
-                    };
+                    // Store the struct's name in the module path
+                    module_path.push(struct_name_ident.clone());
 
                     // Parse the functions we have implmemented with the Trait
+                    let functions = parse_functions(
+                        implementation_body,
+                        &enabled_features,
+                        module_path.clone(),
+                        &custom_types_clone,
+                    )?;
 
+                    if let Some((mut fns_to_impl, trait_name)) = trait_to_impl {
+                        // Check if all of the trait's functions have been implemented
+                        fns_to_impl.retain(|k, v| {
+                            // Remove those functions from this local list that match the trait fn's signature, meaning that they are correct
+                            // Only keep those that are invalid
+                            if let Some(impled_fn) = functions.get(k) {
+                                // Check sig eq
+                                !(impled_fn.function_sig.name == *v.name && impled_fn.function_sig.args.check_arg_eq(&v.args) && impled_fn.function_sig.return_type == v.return_type)
+                            }
+                            else {
+                                true
+                            }
+                        });
+
+                        // Check if there are any functions left in the list and return an error if there are
+                        // This means that functions werent or werent correctly implemented
+                        if !fns_to_impl.is_empty() {
+                            return Err(ParserError::InvalidTraitImplementation(
+                                fns_to_impl
+                                    .keys()
+                                    .map(|k| k.to_string())
+                                    .collect::<Vec<String>>(),
+                                trait_name,
+                            )
+                            .into());
+                        }
+
+                        // Store the implemented trait
+                        attributes
+                            .traits
+                            .insert(trait_name, OrdMap::from(functions));
+
+                        continue;
+                    }
+
+                    attributes
+                        .implemented_functions
+                        .extend(functions.iter().map(|(n, d)| (n.to_owned(), d.to_owned())));
                 }
                 else {
-                    unimplemented!()
+                    return Err(ParserError::CustomItemNotFound(struct_name_ident.clone()).into());
                 }
-            }
 
+            }
+            
             token_idx += 1;
         }
+        
+        dbg!(custom_types.get("marci"));
 
         Ok((
             function_list,
@@ -726,7 +955,7 @@ impl Parser
         &self,
         unparsed_functions: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
         function_imports: Rc<HashMap<String, FunctionSignature>>,
-        custom_items: Rc<IndexMap<String, CustomType>>,
+        custom_items: Rc<IndexMap<String, CustomItem>>,
     ) -> Result<IndexMap<String, FunctionDefinition>>
     {
         let config = self.config.clone();
@@ -770,7 +999,7 @@ impl Parser
         function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
         this_function_signature: FunctionSignature,
         function_imports: Rc<HashMap<String, FunctionSignature>>,
-        custom_items: Rc<IndexMap<String, CustomType>>,
+        custom_items: Rc<IndexMap<String, CustomItem>>,
         this_fn_args: FunctionArguments,
         additional_variables: OrdMap<String, (Type, UniqueId)>,
     ) -> Result<Vec<ParsedTokenInstance>>
@@ -1003,7 +1232,7 @@ impl Parser
                         let unique_variable_id = VARIABLE_ID_SOURCE.get_unique_id();
 
                         match custom_type {
-                            CustomType::Struct(struct_instance) => {
+                            CustomItem::Struct(struct_instance) => {
                                 let variable_type = Type::Struct(struct_instance.clone());
 
                                 token_idx += 1;
@@ -1067,7 +1296,7 @@ impl Parser
                                     );
                                 }
                             },
-                            CustomType::Enum(inner) => {
+                            CustomItem::Enum(inner) => {
                                 let variable_type =
                                     Type::Enum((Box::new(inner.0.clone()), inner.1.clone()));
 
@@ -1125,9 +1354,9 @@ impl Parser
                                     );
                                 }
                             },
-                            CustomType::Trait { name, implemented_functions } => {
-                                
-                            }
+                            CustomItem::Trait { name, .. } => {
+                                return Err(ParserError::TraitNotObject(name.clone()).into());
+                            },
                         };
                     }
                     else {
@@ -1384,6 +1613,88 @@ impl Parser
     }
 }
 
+pub fn parse_function_signature(
+    tokens: &[Token],
+    token_idx: &mut usize,
+    custom_types: &IndexMap<String, CustomItem>,
+    module_path: Vec<String>,
+    function_name: String,
+) -> anyhow::Result<FunctionSignature>
+{
+    let (bracket_close_idx, args) =
+        parse_signature_argument_tokens(&tokens[*token_idx..], custom_types)?;
+
+    *token_idx += bracket_close_idx;
+
+    if tokens[*token_idx + 1] == Token::Colon {
+        // Check for SemiColon for shits and giggles
+        if tokens[*token_idx + 3] != Token::SemiColon {
+            return Err(ParserError::SyntaxError(SyntaxError::MissingSemiColon).into());
+        }
+
+        if let Token::TypeDefinition(return_type) = tokens[*token_idx + 2].clone() {
+            *token_idx += 3;
+
+            Ok(FunctionSignature {
+                name: function_name,
+                args,
+                return_type,
+                module_path: module_path,
+                // Imported functions can only be accessed at the source file they were imported at
+                // I might change this later to smth like pub import similar to pub mod in rust
+                visibility: FunctionVisibility::Private,
+                compiler_hints: OrdSet::new(),
+                enabling_features: OrdSet::new(),
+            })
+        }
+        else if let Token::Identifier(custom_item_name) = tokens[*token_idx + 2].clone() {
+            *token_idx += 3;
+            if let Some(custom_item) = custom_types.get(&custom_item_name) {
+                match custom_item {
+                    CustomItem::Struct(struct_inner) => {
+                        Ok(FunctionSignature {
+                            name: function_name,
+                            args,
+                            return_type: Type::Struct(struct_inner.clone()),
+                            module_path: module_path,
+                            // Imported functions can only be accessed at the source file they were imported at
+                            // I might change this later to smth like pub import similar to pub use in rust
+                            visibility: FunctionVisibility::Private,
+                            compiler_hints: OrdSet::new(),
+                            enabling_features: OrdSet::new(),
+                        })
+                    },
+                    CustomItem::Enum((ty, body)) => {
+                        Ok(FunctionSignature {
+                            name: function_name,
+                            args,
+                            return_type: Type::Enum((Box::new(ty.clone()), body.clone())),
+                            module_path: module_path,
+                            // Imported functions can only be accessed at the source file they were imported at
+                            // I might change this later to smth like pub import similar to pub use in rust
+                            visibility: FunctionVisibility::Private,
+                            compiler_hints: OrdSet::new(),
+                            enabling_features: OrdSet::new(),
+                        })
+                    },
+                    CustomItem::Trait { .. } => {
+                        return Err(ParserError::ExternalFunctionsReturnConcreteTypes.into());
+                    },
+                }
+            }
+            else {
+                return Err(ParserError::CustomItemNotFound(custom_item_name.clone()).into());
+            }
+        }
+        else {
+            return Err(ParserError::InvalidType(vec![tokens[*token_idx + 2].clone()]).into());
+        }
+    }
+    else {
+        return Err(SyntaxError::FunctionSignatureReturnTypeRequired.into());
+    }
+}
+
 /// The slice should startwith the first token from inside the Parentheses.
 /// This function quits at the ")". (Excluding function calls)
 pub fn parse_function_call_args(
@@ -1395,7 +1706,7 @@ pub fn parse_function_call_args(
     mut this_function_args: FunctionArguments,
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     standard_function_table: Rc<HashMap<String, FunctionSignature>>,
-    custom_items: Rc<IndexMap<String, CustomType>>,
+    custom_items: Rc<IndexMap<String, CustomItem>>,
 ) -> anyhow::Result<(
     OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, (Type, UniqueId))>,
     usize,
@@ -1566,7 +1877,7 @@ pub fn parse_function_call_args(
 
 pub fn parse_signature_args(
     token_list: &[Token],
-    custom_types: &IndexMap<String, CustomType>,
+    custom_types: &IndexMap<String, CustomItem>,
 ) -> Result<FunctionArguments>
 {
     // Create a list of args which the function will take, we will return this later
@@ -1652,7 +1963,7 @@ pub fn parse_signature_args(
 
 pub fn parse_signature_argument_tokens(
     tokens: &[Token],
-    custom_types: &IndexMap<String, CustomType>,
+    custom_types: &IndexMap<String, CustomItem>,
 ) -> Result<(usize, FunctionArguments)>
 {
     let bracket_closing_idx =

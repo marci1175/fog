@@ -11,6 +11,22 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum ParserError
 {
+    #[error(
+        "Function `{0}` has been defined multiple times. Function overloading is not supported."
+    )]
+    FunctionRedefinition(String),
+    #[error("Implementation bodies can only contain function implementations.")]
+    InvalidImplItem,
+    #[error("Trait definition bodies can only contain function signatures.")]
+    InvalidTraitItem,
+    #[error("Functions [{0:?}] of trait `{1}` either wasn't defined or weren't correctly implemented.")]
+    InvalidTraitImplementation(Vec<String>, String),
+    #[error("Custom item `{0}` was not found in the current scope. (Check typos)")]
+    CustomItemNotFound(String),
+    #[error(
+        "External function cannot return type interfaces, only a concrete type. (ie. int or a struct)"
+    )]
+    ExternalFunctionsReturnConcreteTypes,
     #[error("Trait `{0}` cannot be converted into a value.")]
     TraitNotObject(String),
     #[error("A function or import signature is invalid.")]
@@ -27,7 +43,7 @@ pub enum ParserError
         "The function defined by fog must have a definate amount of arguments. The ellpisis can only be used when importing foreign functions."
     )]
     DeterminiateArgumentsFunction,
-    #[error("Type `{0}` mismatches type `{1}`.")]
+    #[error("Type `{0}` mismatches type `{1}` or does not implement appropriate  trait.")]
     TypeMismatch(Type, Type),
     #[error("Source code contains a Syntax Error: {0}")]
     SyntaxError(SyntaxError),

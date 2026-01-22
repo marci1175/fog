@@ -2,7 +2,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use common::{
     anyhow::Result,
-    codegen::CustomType,
+    codegen::CustomItem,
     error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
@@ -32,7 +32,7 @@ pub fn resolve_variable_expression(
     function_imports: Rc<HashMap<String, FunctionSignature>>,
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     (variable_type, variable_id): (Type, UniqueId),
-    custom_types: Rc<IndexMap<String, CustomType>>,
+    custom_types: Rc<IndexMap<String, CustomItem>>,
     variable_ref: &mut ParsedTokenInstance,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
     variable_name: &str,
@@ -292,7 +292,7 @@ pub fn set_value_math_expr(
     variable_reference: &mut ParsedTokenInstance,
     math_symbol: MathematicalSymbol,
     standard_function_table: Rc<HashMap<String, FunctionSignature>>,
-    custom_items: Rc<IndexMap<String, CustomType>>,
+    custom_items: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<()>
 {
     let origin_token_idx = *token_idx;

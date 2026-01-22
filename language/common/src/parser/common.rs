@@ -143,7 +143,7 @@ pub fn find_closing_braces(braces_start_slice: &[Token], open_braces_count: usiz
         }
     }
 
-    Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
+    Err(ParserError::SyntaxError(SyntaxError::LeftOpenBraces).into())
 }
 
 pub fn find_closing_comma(slice: &[Token]) -> Result<usize>
