@@ -247,7 +247,7 @@ pub fn parse_value(
                     origin_token_idx,
                     function_signatures.clone(),
                     variable_scope,
-                    Some(literal.discriminant()),
+                    Some(literal.get_type()),
                     &mut token_idx,
                     current_token,
                     function_imports.clone(),
@@ -443,7 +443,7 @@ pub fn parse_token_as_value(
                 // Push the ParsedToken to the list
                 (
                     ParsedToken::Literal(literal.clone()),
-                    literal.discriminant(),
+                    literal.get_type(),
                 )
             }
         },
@@ -495,7 +495,7 @@ pub fn parse_token_as_value(
                 }
             }
             else {
-                (parsed_token, parsed_value.discriminant())
+                (parsed_token, parsed_value.get_type())
             }
         },
         Token::Identifier(identifier) => {

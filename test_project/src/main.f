@@ -10,8 +10,8 @@ trait nber {
 }
 
 marci implements {
-    pub function get_num(this, mul: int): int {
-        return 420 * mul;
+    pub function get_num(this, mul: int): marci {
+        return marci { a: 924 };
     }
 }
 
@@ -24,7 +24,7 @@ marci implements nber {
 pub function main(): int {
     marci q = marci { a: 22 };
     # fn arg check!!!
-    printf("Get num: %i\n", q.get_num(10));
+    printf("Get num: %i\n", q.get_num(10).a);
 
     return 0;
 }

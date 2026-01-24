@@ -258,9 +258,9 @@ where
                 let var_ref_ty = var_ref.2;
 
                 // Check the type of the value, check for a type mismatch
-                if literal.discriminant() != var_ref_ty {
+                if literal.get_type().ne(&var_ref_ty) {
                     return Err(CodeGenError::VariableTypeMismatch(
-                        literal.discriminant(),
+                        literal.get_type(),
                         var_ref_ty,
                     )
                     .into());
@@ -285,7 +285,7 @@ where
                 None
             }
             else {
-                let ty_disc = literal.discriminant();
+                let ty_disc = literal.get_type();
 
                 let (v_ptr, v_ty) = create_new_variable(
                     ctx,
@@ -354,7 +354,7 @@ where
                 // Try to get the literal of the original value which hasnt been converted yet.
                 if let Some(literal) = parsed_token.inner.try_as_literal_ref() {
                     // Check if the type is an enum
-                    if let Type::Enum((ty, _body)) = literal.discriminant() {
+                    if let Type::Enum((ty, _body)) = literal.get_type() {
                         // Check if the enum's inner type matches with the desired type. If not raise an error
                         if &*ty == &desired_type {
                             builder.build_store(

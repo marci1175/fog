@@ -22,7 +22,7 @@ use num::Float;
 use strum::EnumTryAs;
 use strum_macros::Display;
 
-#[derive(Debug, Clone, Display, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Display, Default, Eq, Hash, PartialEq)]
 pub enum Value
 {
     I64(i64),
@@ -179,7 +179,7 @@ impl<T: PartialEq + Debug> Eq for NotNan<T> {}
 
 impl Value
 {
-    pub fn discriminant(&self) -> Type
+    pub fn get_type(&self) -> Type
     {
         match self {
             Value::I64(_) => Type::I64,
@@ -202,6 +202,7 @@ impl Value
                     struct_field_ty_list.insert(name.clone(), ty.clone());
                 }
 
+                
                 Type::Struct((struct_name.clone(), struct_field_ty_list, attr.clone()))
             },
             Value::Array(inner) => Type::Array(inner.clone()),
@@ -210,6 +211,7 @@ impl Value
         }
     }
 }
+
 
 #[derive(Debug, Clone, Default, Eq, Hash, EnumTryAs)]
 pub enum Type
@@ -253,7 +255,12 @@ impl PartialEq for Type
     {
         match (self, other) {
             (Self::Enum(l0), Self::Enum(r0)) => l0 == r0,
-            (Self::Struct(l0), Self::Struct(r0)) => l0 == r0,
+            /*
+                Ignore the attributes:
+                The reason is that when parsing different states of the same type gets stored therefor a mismatch occurs when in reality the two structs are the same.
+                TODO: Fix this, i could use smth like type ids and just check it from there.
+            */
+            (Self::Struct(l0), Self::Struct(r0)) => l0.0 == r0.0 && l0.1 == r0.1,
             (Self::Array(l0), Self::Array(r0)) => l0 == r0,
             (Self::Pointer(l0), Self::Pointer(r0)) => l0 == r0,
             (
