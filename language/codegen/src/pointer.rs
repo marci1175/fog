@@ -22,7 +22,9 @@ use common::{
 };
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{allocate::create_new_variable, create_ir_from_parsed_token};
+use crate::{
+    allocate::create_new_variable, create_ir_from_parsed_token, irgen::create_function_call_args,
+};
 
 pub fn access_variable_ptr<'ctx>(
     ctx: &'ctx Context,
@@ -47,46 +49,118 @@ pub fn access_variable_ptr<'ctx>(
 {
     match &*variable_reference {
         VariableReference::StructFieldReference(struct_field_ref) => {
-            if let Some((idx, _, field_ty)) = struct_field_ref
-                .struct_fields
-                .get_full(&struct_field_ref.field_name)
-            {
-                // Get the ptr to the struct
-                let (ptr, ptr_ty, _ty) = access_variable_ptr(
-                    ctx,
-                    module,
-                    fn_ret_ty,
-                    this_fn_block,
-                    this_fn,
-                    allocation_list,
-                    is_loop_body,
-                    parsed_functions,
-                    builder,
-                    struct_field_ref.variable_ref.clone(),
-                    variable_map,
-                    custom_types.clone(),
-                )?;
+            match &struct_field_ref.field {
+                common::parser::variable::StructFieldType::Field(field) => {
+                    if let Some((idx, _, field_ty)) = struct_field_ref.struct_fields.get_full(field)
+                    {
+                        // Get the ptr to the struct
+                        let (ptr, ptr_ty, _ty) = access_variable_ptr(
+                            ctx,
+                            module,
+                            fn_ret_ty,
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            is_loop_body,
+                            parsed_functions,
+                            builder,
+                            struct_field_ref.variable_ref.clone(),
+                            variable_map,
+                            custom_types.clone(),
+                        )?;
 
-                // Get the ptr to the field of the struct
-                let field_ptr = builder.build_struct_gep(
-                    ptr_ty,
-                    ptr,
-                    idx as u32,
-                    &format!(
-                        "get_{}_from_{}",
-                        struct_field_ref.field_name, struct_field_ref.struct_name
-                    ),
-                )?;
+                        // Get the ptr to the field of the struct
+                        let field_ptr = builder.build_struct_gep(
+                            ptr_ty,
+                            ptr,
+                            idx as u32,
+                            &format!("get_{}_from_{}", field, struct_field_ref.struct_name),
+                        )?;
 
-                return Ok((
-                    field_ptr,
-                    ty_to_llvm_ty(ctx, field_ty, custom_types)?,
-                    field_ty.clone(),
-                ));
-            }
-            else {
-                // if the struct doesnt have this field return an error
-                return Err(CodeGenError::InternalStructFieldNotFound.into());
+                        return Ok((
+                            field_ptr,
+                            ty_to_llvm_ty(ctx, field_ty, custom_types)?,
+                            field_ty.clone(),
+                        ));
+                    }
+                    else {
+                        // if the struct doesnt have this field return an error
+                        return Err(CodeGenError::InternalStructFieldNotFound.into());
+                    }
+                },
+                common::parser::variable::StructFieldType::Function((fn_sig, call_args)) => {
+                    // Call internal function previously generated
+                    let call = builder.build_call(
+                        module
+                            .get_function(&format!(
+                                "__internal_fn_{}_{}",
+                                struct_field_ref.struct_name,
+                                fn_sig.name.clone()
+                            ))
+                            .ok_or_else(|| {
+                                CodeGenError::InternalFunctionNotFound(format!(
+                                    "__internal_fn_{}_{}",
+                                    struct_field_ref.struct_name,
+                                    fn_sig.name.clone()
+                                ))
+                            })?,
+                        &create_function_call_args(
+                            ctx,
+                            module,
+                            builder,
+                            variable_map,
+                            fn_ret_ty,
+                            this_fn_block,
+                            this_fn,
+                            allocation_list,
+                            is_loop_body,
+                            &parsed_functions,
+                            &custom_types,
+                            fn_sig.name.clone(),
+                            call_args,
+                        )?,
+                        &format!(
+                            "__internal_fn_{}_{}_call",
+                            struct_field_ref.struct_name,
+                            fn_sig.name.clone()
+                        ),
+                    )?;
+
+                    let returned_value = call.try_as_basic_value().basic();
+
+                    let ptr_ty =
+                        ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
+
+                    match returned_value {
+                        Some(value) => {
+                            // Allocate a place for the value
+                            let alloca = builder.build_alloca(
+                                value.get_type(),
+                                &format!(
+                                    "__internal_fn_{}_{}_returned",
+                                    struct_field_ref.struct_name, fn_sig.name
+                                ),
+                            )?;
+
+                            // Store the returned value
+                            builder.build_store(alloca, value)?;
+
+                            return Ok((
+                                alloca,
+                                value.get_type(),
+                                fn_sig.return_type.clone(),
+                            ));
+                        },
+                        // TODO: Think of a way to fix this
+                        None => {
+                            return Ok((
+                                ptr_ty.const_null(),
+                                BasicTypeEnum::IntType(ctx.i32_type()),
+                                Type::Void,
+                            ));
+                        },
+                    }
+                },
             }
         },
         VariableReference::BasicReference(variable_name, variable_id) => {

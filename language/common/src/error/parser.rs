@@ -19,7 +19,9 @@ pub enum ParserError
     InvalidImplItem,
     #[error("Trait definition bodies can only contain function signatures.")]
     InvalidTraitItem,
-    #[error("Functions [{0:?}] of trait `{1}` either wasn't defined or weren't correctly implemented.")]
+    #[error(
+        "Functions [{0:?}] of trait `{1}` either wasn't defined or weren't correctly implemented."
+    )]
     InvalidTraitImplementation(Vec<String>, String),
     #[error("Custom item `{0}` was not found in the current scope. (Check typos)")]
     CustomItemNotFound(String),
@@ -31,12 +33,22 @@ pub enum ParserError
     TraitNotObject(String),
     #[error("A function or import signature is invalid.")]
     InvalidSignatureDefinition,
-    #[error("The function is called with the wrong types of arguments.")]
+    #[error(
+        "The function is called with the wrong type of arguments. Functions with no arguments still need to be called with `()`. ie.: `foo();`"
+    )]
     InvalidFunctionCallArguments,
     #[error(
         "When importing a function, the ellpisis can only be used at the last place of the arguments."
     )]
-    InvalidEllipsisLocation,
+    InvalidEllipsisPosition,
+    #[error(
+        "When using a receiver as an argument (The `this` keyword) it must only be used at the very first position of the arguments."
+    )]
+    InvalidReceiverPosition,
+    #[error(
+        "When using a receiver as an argument (The `this` keyword) it must only be used when implementing a function for a struct."
+    )]
+    InvalidReceiverUsage,
     #[error("Function has been called with the wrong amount of arguments.")]
     InvalidFunctionArgumentCount,
     #[error(

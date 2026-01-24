@@ -6,33 +6,25 @@ struct marci {
 }
 
 trait nber {
-    alszik(dur: int): void;
+    alszik(this, dur: int): void;
 }
 
 marci implements {
-    pub function get_num(): int {
-        return 0;
+    pub function get_num(this, mul: int): int {
+        return 420 * mul;
     }
 }
 
 marci implements nber {
-    pub function alszik(dur: int): void {
+    pub function alszik(this, dur: int): void {
         print("Alszik %i", dur);
     }
 }
 
 pub function main(): int {
-    int a = 324;
-    int b = 93;
-    int c = 24;
     marci q = marci { a: 22 };
- 
-    if (q.a > b) {
-        printf("Rip matek %i", b - a);
-    }
-    else {
-        printf("Szamitas eredmenye: %i", b - q.a);
-    }
- 
+    # fn arg check!!!
+    printf("Get num: %i\n", q.get_num(10));
+
     return 0;
 }

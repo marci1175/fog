@@ -51,7 +51,7 @@ fn criterion_benchmark(c: &mut Criterion)
                 &module,
                 Rc::new(parser.imported_functions().clone()),
                 Rc::new(parser.function_table().clone()),
-                parser.custom_types(),
+                parser.custom_types.clone(),
             )
             .unwrap();
 
@@ -60,7 +60,7 @@ fn criterion_benchmark(c: &mut Criterion)
                 &ctx,
                 &module,
                 &builder,
-                parser.custom_types(),
+                parser.custom_types.clone(),
                 true,
                 "",
                 "benchmark_codegen_no_path",

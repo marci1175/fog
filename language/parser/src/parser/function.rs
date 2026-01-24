@@ -7,40 +7,46 @@ use std::{
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomItem, FunctionArgumentIdentifier, If, StructAttributes},
+    codegen::{CustomItem, If, StructAttributes},
     compiler::ProjectConfig,
     dashmap::DashMap,
-    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
+    error::{parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        common::{
-            ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_comma,
-            find_closing_paren,
-        },
+        common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
         dbg::fetch_and_merge_debug_information,
         function::{
             self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionSignature,
-            FunctionVisibility, UnparsedFunctionDefinition,
+            FunctionVisibility, UnparsedFunctionDefinition, parse_function_call_args,
+            parse_signature_argument_tokens,
         },
         import::parse_import_path,
-        variable::{ControlFlowType, UniqueId, VARIABLE_ID_SOURCE, VariableReference},
+        value::parse_value,
+        variable::{
+            ControlFlowType, UniqueId, VARIABLE_ID_SOURCE, VariableReference,
+            resolve_variable_expression,
+        },
     },
     tokenizer::Token,
     tracing::info,
     ty::{OrdMap, OrdSet, Type, Value, ty_from_token},
 };
 
-use crate::{
-    parser::{value::parse_value, variable::resolve_variable_expression},
-    parser_instance::Parser,
-    tokenizer::tokenize,
-};
+use crate::{parser_instance::Parser, tokenizer::tokenize};
 
+/// This function parses all of the functions found in the Token slice.
+/// The returned functions still need to be parsed.
 pub fn parse_functions(
     tokens: &[Token],
+    // Enabled features for the current project
     enabled_features: &OrdSet<String>,
+    // Module path for the current struct we are implmenting the functions for
     module_path: Vec<String>,
+    // Custom types created by the user above this implementation body
     custom_types: &IndexMap<String, CustomItem>,
+    // This argument basically sets whether functions are allowed to use `this` in their arguments.
+    // Functions implemented for struct can use this to reference themselves.
+    is_struct_implementation: bool,
 ) -> Result<IndexMap<String, UnparsedFunctionDefinition>, anyhow::Error>
 {
     let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
@@ -62,14 +68,15 @@ pub fn parse_functions(
                     if tokens[token_idx + 2] == Token::OpenParentheses {
                         let (bracket_close_idx, args) = parse_signature_argument_tokens(
                             &tokens[token_idx + 3..],
-                            &custom_types,
+                            custom_types,
+                            is_struct_implementation,
                         )?;
 
                         token_idx += bracket_close_idx + 3;
 
                         // Fetch the returned type of the function
                         if tokens[token_idx + 1] == Token::Colon {
-                            let return_type = ty_from_token(&tokens[token_idx + 2], &custom_types)?;
+                            let return_type = ty_from_token(&tokens[token_idx + 2], custom_types)?;
 
                             if tokens[token_idx + 3] == Token::OpenBraces {
                                 // Create a variable which stores the level of braces we are in
@@ -124,7 +131,7 @@ pub fn parse_functions(
                                 let function_enabling_features =
                                     mem::take(&mut function_enabling_feature);
 
-                                if !function_enabling_features.is_disjoint(&enabled_features)
+                                if !function_enabling_features.is_disjoint(enabled_features)
                                     || function_enabling_features.is_empty()
                                 {
                                     // Create a clone of the module path so we can modifiy it locally
@@ -139,7 +146,7 @@ pub fn parse_functions(
                                         UnparsedFunctionDefinition {
                                             inner: braces_contains.clone(),
                                             token_offset: token_idx + 4,
-                                            function_sig: FunctionSignature {
+                                            signature: FunctionSignature {
                                                 name: function_name.clone(),
                                                 args: args.clone(),
                                                 return_type: return_type.clone(),
@@ -159,7 +166,7 @@ pub fn parse_functions(
                                         return Err(ParserError::SyntaxError(
                                             SyntaxError::DuplicateFunctions(
                                                 function_name,
-                                                overwritten_function.function_sig,
+                                                overwritten_function.signature,
                                             ),
                                         )
                                         .into());
@@ -250,6 +257,7 @@ impl Parser
                             let (bracket_close_idx, args) = parse_signature_argument_tokens(
                                 &tokens[token_idx + 3..],
                                 &custom_types,
+                                false,
                             )?;
 
                             token_idx += bracket_close_idx + 3;
@@ -330,7 +338,7 @@ impl Parser
                                             UnparsedFunctionDefinition {
                                                 inner: braces_contains.clone(),
                                                 token_offset: token_idx + 4,
-                                                function_sig: FunctionSignature {
+                                                signature: FunctionSignature {
                                                     name: function_name.clone(),
                                                     args: args.clone(),
                                                     return_type: return_type.clone(),
@@ -348,7 +356,7 @@ impl Parser
                                             return Err(ParserError::SyntaxError(
                                                 SyntaxError::DuplicateFunctions(
                                                     function_name,
-                                                    overwritten_function.function_sig,
+                                                    overwritten_function.signature,
                                                 ),
                                             )
                                             .into());
@@ -401,6 +409,7 @@ impl Parser
                         &custom_types,
                         mod_path,
                         identifier,
+                        false,
                     )?;
 
                     external_imports.insert(fn_sig.name.clone(), fn_sig);
@@ -619,6 +628,7 @@ impl Parser
                                 &custom_types,
                                 module_path,
                                 fn_name.clone(),
+                                true,
                             )?;
 
                             // Store the function of the trait
@@ -890,6 +900,8 @@ impl Parser
                         &enabled_features,
                         module_path.clone(),
                         &custom_types_clone,
+                        // Allow the usage of `this`
+                        true,
                     )?;
 
                     if let Some((mut fns_to_impl, trait_name)) = trait_to_impl {
@@ -899,7 +911,11 @@ impl Parser
                             // Only keep those that are invalid
                             if let Some(impled_fn) = functions.get(k) {
                                 // Check sig eq
-                                !(impled_fn.function_sig.name == *v.name && impled_fn.function_sig.args.check_arg_eq(&v.args) && impled_fn.function_sig.return_type == v.return_type)
+                                !(impled_fn.signature.name == *v.name
+                                    && impled_fn.signature.args.check_arg_eq(&v.args)
+                                    && impled_fn.signature.return_type == v.return_type
+                                    && impled_fn.signature.args.receiver_referenced
+                                        == v.args.receiver_referenced)
                             }
                             else {
                                 true
@@ -928,18 +944,17 @@ impl Parser
                     }
 
                     attributes
-                        .implemented_functions
+                        .implemented_unparsed_functions
                         .extend(functions.iter().map(|(n, d)| (n.to_owned(), d.to_owned())));
                 }
                 else {
                     return Err(ParserError::CustomItemNotFound(struct_name_ident.clone()).into());
                 }
-
             }
-            
+
             token_idx += 1;
         }
-        
+
         dbg!(custom_types.get("marci"));
 
         Ok((
@@ -955,28 +970,74 @@ impl Parser
         &self,
         unparsed_functions: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
         function_imports: Rc<HashMap<String, FunctionSignature>>,
-        custom_items: Rc<IndexMap<String, CustomItem>>,
+        custom_items: &mut IndexMap<String, CustomItem>,
     ) -> Result<IndexMap<String, FunctionDefinition>>
     {
         let config = self.config.clone();
         let module_path = self.module_path.clone();
 
+        let custom_items_clone = Rc::new(custom_items.clone());
+
+        // Parse the struct implementations
+        for (_, item) in custom_items.iter_mut() {
+            if let CustomItem::Struct((_, _, attr)) = item {
+                for (fn_name, def) in attr.implemented_unparsed_functions.iter() {
+                    let impl_definition = FunctionDefinition {
+                        signature: def.signature.clone(),
+                        inner: self.parse_function_block(
+                            def.inner.clone(),
+                            def.token_offset,
+                            // TODO: Improve this
+                            Rc::new(IndexMap::new()),
+                            def.signature.clone(),
+                            function_imports.clone(),
+                            // TODO: And this
+                            custom_items_clone.clone(),
+                            def.signature.args.clone(),
+                            OrdMap::new(),
+                        )?,
+                        token_offset: def.token_offset,
+                    };
+
+                    // Check where we should put this function.
+                    // If there is a receiver in the function we will store it in the struct attribute
+                    // If there isnt we will store this function just like an import but with the struct's name added to the path
+                    if impl_definition.signature.args.receiver_referenced {
+                        // Check for name collision in impls
+                        if attr
+                            .implemented_parsed_functions
+                            .insert(fn_name.clone(), impl_definition)
+                            .is_some()
+                        {
+                            return Err(ParserError::FunctionRedefinition(fn_name.clone()).into());
+                        }
+                    }
+                    else {
+                        // TODO: When recoding imports we should also make it so that people are able to import functions in the source code. THen well be able to use this part
+                        unimplemented!()
+                    }
+                }
+            }
+        }
+
         let mut parsed_functions: IndexMap<String, FunctionDefinition> = IndexMap::new();
 
+        // Parse the functions themselves
         for (fn_idx, (fn_name, unparsed_function)) in unparsed_functions.clone().iter().enumerate()
         {
             let function_definition = FunctionDefinition {
-                signature: unparsed_function.function_sig.clone(),
+                signature: unparsed_function.signature.clone(),
                 inner: self.parse_function_block(
                     unparsed_function.inner.clone(),
                     unparsed_function.token_offset,
                     unparsed_functions.clone(),
-                    unparsed_function.function_sig.clone(),
+                    unparsed_function.signature.clone(),
                     function_imports.clone(),
-                    custom_items.clone(),
-                    unparsed_function.function_sig.args.clone(),
+                    custom_items_clone.clone(),
+                    unparsed_function.signature.args.clone(),
                     OrdMap::new(),
                 )?,
+                token_offset: unparsed_function.token_offset,
             };
 
             info!(
@@ -1165,7 +1226,7 @@ impl Parser
                             origin_token_idx,
                             &self.tokens_debug_info,
                             &mut variable_scope,
-                            function_sig.function_sig.args.clone(),
+                            function_sig.signature.args.clone(),
                             function_signatures.clone(),
                             function_imports.clone(),
                             custom_items.clone(),
@@ -1175,7 +1236,7 @@ impl Parser
 
                         parsed_token_instances.push(ParsedTokenInstance {
                             inner: ParsedToken::FunctionCall(
-                                (function_sig.function_sig.clone(), ident_name.clone()),
+                                (function_sig.signature.clone(), ident_name.clone()),
                                 variables_passed,
                             ),
                             debug_information: fetch_and_merge_debug_information(
@@ -1619,10 +1680,14 @@ pub fn parse_function_signature(
     custom_types: &IndexMap<String, CustomItem>,
     module_path: Vec<String>,
     function_name: String,
+    is_struct_implementation: bool,
 ) -> anyhow::Result<FunctionSignature>
 {
-    let (bracket_close_idx, args) =
-        parse_signature_argument_tokens(&tokens[*token_idx..], custom_types)?;
+    let (bracket_close_idx, args) = parse_signature_argument_tokens(
+        &tokens[*token_idx..],
+        custom_types,
+        is_struct_implementation,
+    )?;
 
     *token_idx += bracket_close_idx;
 
@@ -1632,348 +1697,25 @@ pub fn parse_function_signature(
             return Err(ParserError::SyntaxError(SyntaxError::MissingSemiColon).into());
         }
 
-        if let Token::TypeDefinition(return_type) = tokens[*token_idx + 2].clone() {
-            *token_idx += 3;
+        // Get return type for function
+        let return_ty = ty_from_token(&tokens[*token_idx + 2], custom_types)?;
 
-            Ok(FunctionSignature {
-                name: function_name,
-                args,
-                return_type,
-                module_path: module_path,
-                // Imported functions can only be accessed at the source file they were imported at
-                // I might change this later to smth like pub import similar to pub mod in rust
-                visibility: FunctionVisibility::Private,
-                compiler_hints: OrdSet::new(),
-                enabling_features: OrdSet::new(),
-            })
-        }
-        else if let Token::Identifier(custom_item_name) = tokens[*token_idx + 2].clone() {
-            *token_idx += 3;
-            if let Some(custom_item) = custom_types.get(&custom_item_name) {
-                match custom_item {
-                    CustomItem::Struct(struct_inner) => {
-                        Ok(FunctionSignature {
-                            name: function_name,
-                            args,
-                            return_type: Type::Struct(struct_inner.clone()),
-                            module_path: module_path,
-                            // Imported functions can only be accessed at the source file they were imported at
-                            // I might change this later to smth like pub import similar to pub use in rust
-                            visibility: FunctionVisibility::Private,
-                            compiler_hints: OrdSet::new(),
-                            enabling_features: OrdSet::new(),
-                        })
-                    },
-                    CustomItem::Enum((ty, body)) => {
-                        Ok(FunctionSignature {
-                            name: function_name,
-                            args,
-                            return_type: Type::Enum((Box::new(ty.clone()), body.clone())),
-                            module_path: module_path,
-                            // Imported functions can only be accessed at the source file they were imported at
-                            // I might change this later to smth like pub import similar to pub use in rust
-                            visibility: FunctionVisibility::Private,
-                            compiler_hints: OrdSet::new(),
-                            enabling_features: OrdSet::new(),
-                        })
-                    },
-                    CustomItem::Trait { .. } => {
-                        return Err(ParserError::ExternalFunctionsReturnConcreteTypes.into());
-                    },
-                }
-            }
-            else {
-                return Err(ParserError::CustomItemNotFound(custom_item_name.clone()).into());
-            }
-        }
-        else {
-            return Err(ParserError::InvalidType(vec![tokens[*token_idx + 2].clone()]).into());
-        }
+        // Increment idx
+        *token_idx += 3;
+
+        Ok(FunctionSignature {
+            name: function_name,
+            args,
+            return_type: return_ty,
+            module_path,
+            // Imported functions can only be accessed at the source file they were imported at
+            // I might change this later to smth like pub import similar to pub mod in rust
+            visibility: FunctionVisibility::Private,
+            compiler_hints: OrdSet::new(),
+            enabling_features: OrdSet::new(),
+        })
     }
     else {
-        return Err(SyntaxError::FunctionSignatureReturnTypeRequired.into());
+        Err(SyntaxError::FunctionSignatureReturnTypeRequired.into())
     }
-}
-
-/// The slice should startwith the first token from inside the Parentheses.
-/// This function quits at the ")". (Excluding function calls)
-pub fn parse_function_call_args(
-    tokens: &[Token],
-    function_tokens_offset: usize,
-    mut origin_token_idx: usize,
-    debug_infos: &[DbgInfo],
-    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
-    mut this_function_args: FunctionArguments,
-    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
-    standard_function_table: Rc<HashMap<String, FunctionSignature>>,
-    custom_items: Rc<IndexMap<String, CustomItem>>,
-) -> anyhow::Result<(
-    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, (Type, UniqueId))>,
-    usize,
-)>
-{
-    let mut tokens_idx = 0;
-
-    let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
-
-    // Arguments which will passed in to the function
-    let mut arguments: OrdMap<
-        FunctionArgumentIdentifier<String, usize>,
-        (ParsedTokenInstance, (Type, UniqueId)),
-    > = OrdMap::new();
-
-    // If there are no arguments just return everything as is
-    if tokens.is_empty() {
-        return Ok((arguments, tokens_idx));
-    }
-
-    while tokens_idx < tokens.len() {
-        let current_token = tokens[tokens_idx].clone();
-
-        if let Token::Identifier(arg_name) = current_token.clone() {
-            if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
-                let (argument_type, argument_variable_id) = this_function_args
-                    .arguments
-                    .get(&arg_name)
-                    .ok_or(ParserError::ArgumentError(arg_name.clone()))?;
-
-                tokens_idx += 2;
-
-                let closing_idx = find_closing_comma(&tokens[tokens_idx..])? + tokens_idx;
-
-                let (parsed_argument, jump_idx, arg_ty) = parse_value(
-                    &tokens[tokens_idx..closing_idx],
-                    function_tokens_offset,
-                    debug_infos,
-                    origin_token_idx + tokens_idx,
-                    function_signatures.clone(),
-                    variable_scope,
-                    Some(argument_type.clone()),
-                    standard_function_table.clone(),
-                    custom_items.clone(),
-                )?;
-
-                tokens_idx += jump_idx;
-
-                let argmuent_id = *argument_variable_id;
-
-                // Remove tha argument from the argument list so we can parse unnamed arguments easier
-                this_function_args.arguments.shift_remove(&arg_name);
-
-                arguments.insert(
-                    FunctionArgumentIdentifier::Identifier(arg_name.clone()),
-                    (parsed_argument, (arg_ty, argmuent_id)),
-                );
-
-                continue;
-            }
-        }
-        else if Token::CloseParentheses == current_token {
-            break;
-        }
-        else if Token::Comma == current_token {
-            tokens_idx += 1;
-
-            continue;
-        }
-
-        let mut token_buf = Vec::new();
-        let mut bracket_counter: i32 = 0;
-
-        // Update the value of the origin_token_idx
-        origin_token_idx += tokens_idx;
-
-        // We should start by finding the comma and parsing the tokens in between the current idx and the comma
-        while tokens_idx < args_list_len {
-            let token = &tokens[tokens_idx];
-
-            if *token == Token::OpenParentheses {
-                bracket_counter += 1;
-            }
-            else if *token == Token::CloseParentheses {
-                bracket_counter -= 1;
-            }
-
-            // If a comma is found parse the tokens from the slice
-            if (*token == Token::Comma && bracket_counter == 0) || tokens_idx == args_list_len - 1 {
-                if tokens_idx == args_list_len - 1 {
-                    token_buf.push(token.clone());
-                }
-
-                let fn_argument = this_function_args.arguments.first_entry();
-
-                if let Some(fn_argument) = fn_argument {
-                    let (arg_ty, arg_id) = fn_argument.get();
-                    let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                        &token_buf,
-                        function_tokens_offset,
-                        debug_infos,
-                        tokens_idx,
-                        function_signatures.clone(),
-                        variable_scope,
-                        Some(arg_ty.clone()),
-                        standard_function_table.clone(),
-                        custom_items.clone(),
-                    )?;
-
-                    tokens_idx += 1;
-
-                    token_buf.clear();
-
-                    arguments.insert(
-                        FunctionArgumentIdentifier::Identifier(fn_argument.key().clone()),
-                        (parsed_argument, (arg_ty, *arg_id)),
-                    );
-
-                    // Remove the argument from the argument list
-                    fn_argument.shift_remove();
-                }
-                // If an argument is apssed into a function which takes a variable amount of arguments, it wont be found in the fn argument list
-                // We can allocate a new variable id to the argument passed in this way
-                else {
-                    let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                        &token_buf,
-                        function_tokens_offset + tokens_idx,
-                        debug_infos,
-                        origin_token_idx,
-                        function_signatures.clone(),
-                        variable_scope,
-                        None,
-                        standard_function_table.clone(),
-                        custom_items.clone(),
-                    )?;
-
-                    tokens_idx += 1;
-
-                    token_buf.clear();
-
-                    let nth_argument = arguments.len();
-
-                    arguments.insert(
-                        FunctionArgumentIdentifier::Index(nth_argument),
-                        (
-                            parsed_argument,
-                            (arg_ty, VARIABLE_ID_SOURCE.get_unique_id()),
-                        ),
-                    );
-                }
-
-                continue;
-            }
-            else {
-                token_buf.push(token.clone());
-            }
-
-            tokens_idx += 1;
-        }
-    }
-
-    if !this_function_args.arguments.is_empty() {
-        return Err(ParserError::InvalidFunctionArgumentCount.into());
-    }
-
-    Ok((arguments, tokens_idx))
-}
-
-pub fn parse_signature_args(
-    token_list: &[Token],
-    custom_types: &IndexMap<String, CustomItem>,
-) -> Result<FunctionArguments>
-{
-    // Create a list of args which the function will take, we will return this later
-    let mut args: FunctionArguments = FunctionArguments::new();
-
-    // Create an index which will iterate through the tokens
-    let mut args_idx = 0;
-
-    // Iter until we find a CloseBracket: ")"
-    // This will be the end of the function's arguments
-    while args_idx < token_list.len() {
-        // Match the signature of an argument
-        // Get the variable's name
-        // If the token is an identifier then we know that this is a variable name
-        // If the token is a colon then we know that this is a type definition
-        let current_token = token_list[args_idx].clone();
-        if let Token::Identifier(var_name) = current_token {
-            // Match the colon from the signature, to ensure correct signaure
-            if token_list[args_idx + 1] == Token::Colon {
-                // Get the type of the argument
-                if let Token::TypeDefinition(var_type) = &token_list[args_idx + 2] {
-                    // Store the argument in the HashMap
-                    args.arguments.insert(
-                        var_name,
-                        (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()),
-                    );
-
-                    // Increment the idx based on the next token
-                    if let Some(Token::Comma) = token_list.get(args_idx + 3) {
-                        args_idx += 4;
-                    }
-                    else {
-                        args_idx += 3;
-                    }
-
-                    // Countinue the loop
-                    continue;
-                }
-                else {
-                    let custom_ty = ty_from_token(&token_list[args_idx + 2], custom_types)?;
-
-                    // Store the argument in the HashMap
-                    args.arguments.insert(
-                        var_name,
-                        (custom_ty.clone(), VARIABLE_ID_SOURCE.get_unique_id()),
-                    );
-
-                    // Increment the idx based on the next token
-                    if let Some(Token::Comma) = token_list.get(args_idx + 3) {
-                        args_idx += 4;
-                    }
-                    else {
-                        args_idx += 3;
-                    }
-
-                    // Countinue the loop
-                    continue;
-                }
-            }
-        }
-        // If an ellipsis is found, that means that there can be an indefinite amount of arguments, this however can only be used at the end of the arguments when importing an external function
-        else if Token::Ellipsis == current_token {
-            // Check if this is the last argument, and return an error if it isn't
-            if args_idx != token_list.len() - 1 {
-                return Err(ParserError::InvalidEllipsisLocation.into());
-            }
-
-            // Store the ellipsis
-            args.ellipsis_present = true;
-
-            args_idx += 1;
-
-            // Countinue the loop
-            continue;
-        }
-
-        // If the pattern didnt match the tokens return an error
-        return Err(ParserError::InvalidSignatureDefinition.into());
-    }
-
-    Ok(args)
-}
-
-pub fn parse_signature_argument_tokens(
-    tokens: &[Token],
-    custom_types: &IndexMap<String, CustomItem>,
-) -> Result<(usize, FunctionArguments)>
-{
-    let bracket_closing_idx =
-        find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidSignatureDefinition)?;
-
-    let mut args = FunctionArguments::new();
-
-    if bracket_closing_idx != 0 {
-        args = parse_signature_args(&tokens[..bracket_closing_idx], custom_types)?;
-    }
-
-    Ok((bracket_closing_idx, args))
 }

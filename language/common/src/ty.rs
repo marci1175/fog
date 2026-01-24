@@ -9,10 +9,7 @@ use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     codegen::{CustomItem, StructAttributes, struct_field_to_ty_list},
     error::{codegen::CodeGenError, parser::ParserError},
-    parser::{
-        common::ParsedTokenInstance,
-        function::{FunctionDefinition, FunctionSignature},
-    },
+    parser::{common::ParsedTokenInstance, function::FunctionSignature},
     tokenizer::Token,
 };
 use indexmap::{IndexMap, IndexSet};
@@ -349,7 +346,7 @@ impl Type
             },
             Self::Pointer(_) => std::mem::size_of::<usize>(),
             Self::TraitGeneric {
-                functions: inner_type,
+                functions: _inner_type,
                 ..
             } => 0,
         }

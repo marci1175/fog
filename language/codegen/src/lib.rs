@@ -176,7 +176,7 @@ pub fn llvm_codegen<'ctx>(
         target_o_path.clone(),
         optimization,
         imported_functions,
-        parser_state.custom_types(),
+        parser_state.custom_types,
         flags_passed_in,
         path_to_src,
         target_triple,

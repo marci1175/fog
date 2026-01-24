@@ -297,7 +297,7 @@ fn scan_dependency<'ctx>(
                 )?;
 
                 // Store the public functions in the main dep list.
-                for (path, sig) in parser_state.library_public_function_table().to_owned() {
+                for (path, sig) in parser_state.library_public_function_table.to_owned() {
                     deps.insert(path, sig);
                 }
 

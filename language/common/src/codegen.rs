@@ -30,7 +30,8 @@ use strum::Display;
 pub struct StructAttributes
 {
     pub traits: OrdMap<String, OrdMap<String, UnparsedFunctionDefinition>>,
-    pub implemented_functions: OrdMap<String, UnparsedFunctionDefinition>,
+    pub implemented_unparsed_functions: OrdMap<String, UnparsedFunctionDefinition>,
+    pub implemented_parsed_functions: OrdMap<String, FunctionDefinition>,
 }
 
 /// All of the custom types implemented by the User are defined here

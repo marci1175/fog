@@ -53,11 +53,9 @@ impl Parser
             unparsed_functions,
             dep_imports,
             mut external_imports,
-            custom_types,
+            mut custom_types,
             file_imported_functions,
         ) = self.create_signature_table(dep_fn_list.clone())?;
-
-        let custom_types: Rc<IndexMap<String, CustomItem>> = Rc::new(custom_types);
 
         // Only import the functions which have been specifically imported by the user too
         for import in dep_imports.iter() {
@@ -95,12 +93,12 @@ impl Parser
             unparsed_functions
                 .iter()
                 .filter(|(_fn_name, unparsed_fn)| {
-                    unparsed_fn.function_sig.visibility == FunctionVisibility::PublicLibrary
+                    unparsed_fn.signature.visibility == FunctionVisibility::PublicLibrary
                 })
                 .map(|(_fn_name, unparsed_fn)| {
                     (
-                        unparsed_fn.function_sig.module_path.clone(),
-                        unparsed_fn.function_sig.clone(),
+                        unparsed_fn.signature.module_path.clone(),
+                        unparsed_fn.signature.clone(),
                     )
                 }),
         );
@@ -109,10 +107,10 @@ impl Parser
         self.function_table.extend(self.parse_functions(
             Rc::new(unparsed_functions),
             imports.clone(),
-            custom_types.clone(),
+            &mut custom_types,
         )?);
 
-        self.custom_types = custom_types.clone();
+        self.custom_types = Rc::new(custom_types);
 
         Ok(())
     }
@@ -146,25 +144,5 @@ impl Parser
     pub fn imported_functions(&self) -> &HashMap<String, FunctionSignature>
     {
         &self.imported_functions
-    }
-
-    pub fn custom_types(&self) -> Rc<IndexMap<String, CustomItem>>
-    {
-        self.custom_types.clone()
-    }
-
-    pub fn library_public_function_table(&self) -> &IndexMap<Vec<String>, FunctionSignature>
-    {
-        &self.library_public_function_table
-    }
-
-    pub fn config(&self) -> &ProjectConfig
-    {
-        &self.config
-    }
-
-    pub fn enabled_features(&self) -> &OrdSet<String>
-    {
-        &self.enabled_features
     }
 }
