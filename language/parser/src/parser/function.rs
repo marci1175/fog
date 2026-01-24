@@ -986,7 +986,7 @@ impl Parser
         // Parse the struct implementations
         for (_, item) in custom_items.iter_mut() {
             if let CustomItem::Struct((_, _, attr)) = item {
-                for (fn_name, def) in attr.implemented_unparsed_functions.iter() {
+                for (fn_name, def) in attr.implemented_unparsed_functions.drain(..) {
                     let impl_definition = FunctionDefinition {
                         signature: def.signature.clone(),
                         inner: self.parse_function_block(

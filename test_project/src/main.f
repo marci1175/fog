@@ -24,7 +24,7 @@ marci implements nber {
 pub function main(): int {
     marci q = marci { a: 22 };
 
-    printf("Get num: %i\n", q.get_num(10));
+    printf("Get num: %i\n", q.get_num(11));
     
     return 0;
 }

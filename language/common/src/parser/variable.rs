@@ -445,11 +445,13 @@ pub fn resolve_variable_expression(
                                 *token_idx,
                                 debug_infos,
                                 variable_scope,
-                                impl_fn.signature.args.clone(),
+                                dbg!(impl_fn.signature.args.clone()),
                                 function_signatures.clone(),
                                 function_imports.clone(),
                                 custom_items.clone(),
                             )?;
+
+                            dbg!(&call_args);
 
                             *var_ref = VariableReference::StructFieldReference(StructFieldRef {
                                 variable_ref: Box::new(var_ref.clone()),

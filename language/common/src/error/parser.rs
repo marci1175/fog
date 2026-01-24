@@ -53,7 +53,7 @@ pub enum ParserError
         "When using a receiver as an argument (The `this` keyword) it must only be used when implementing a function for a struct."
     )]
     InvalidReceiverUsage,
-    #[error("Function has been called with the wrong amount of arguments.")]
+    #[error("Function has been called with the wrong number of arguments.")]
     InvalidFunctionArgumentCount,
     #[error(
         "The function defined by fog must have a definate amount of arguments. The ellpisis can only be used when importing foreign functions."

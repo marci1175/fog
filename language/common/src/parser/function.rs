@@ -165,45 +165,12 @@ pub fn parse_function_call_args(
 
     // If there are no arguments just return everything as is
     if tokens.is_empty() {
+        if !this_function_args.arguments.is_empty() {
+            return Err(ParserError::InvalidFunctionArgumentCount.into());
+        }
+
         return Ok((arguments, tokens_idx));
     }
-
-    // Check if there has been a receiver provided, if yes we should remove the `this` argument automaticly added to the function's arguments at function generation.
-    // if let Some(var_ref) = receiver {
-    //     if let Some((name, (this_argument, id))) = this_function_args.arguments.swap_remove_index(0)
-    //     {
-    //         arguments.insert(
-    //             FunctionArgumentIdentifier::Index(0),
-    //             (
-    //                 ParsedTokenInstance {
-    //                     inner: ParsedToken::VariableReference(var_ref.clone()),
-    //                     debug_information: fetch_and_merge_debug_information(
-    //                         debug_infos,
-    //                         tokens_idx..tokens_idx + 2,
-    //                         true,
-    //                     )
-    //                     .unwrap(),
-    //                 },
-    //                 (this_argument.clone(), id),
-    //             ),
-    //         );
-
-    //         // Do syntax check and increment index accordingly
-    //         if tokens.get(tokens_idx + 1) == Some(&Token::Comma)
-    //             || this_function_args.arguments.len() == 0
-    //         {
-    //             tokens_idx += 2;
-    //         }
-    //         else {
-    //             return Err(ParserError::SyntaxError(SyntaxError::MissingCommaInFnCall).into());
-    //         }
-    //     }
-    //     // If this is a None then this is an internal error.
-    //     // If the user can provide a receiver then that means that the first argument (at idx 0) MUST be the receiver (`this`)
-    //     else {
-    //         return Err(ParserError::InternalFunctionReceiverArgMissing.into());
-    //     }
-    // }
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
@@ -279,7 +246,7 @@ pub fn parse_function_call_args(
                 }
 
                 let fn_argument = this_function_args.arguments.first_entry();
-
+                
                 if let Some(fn_argument) = fn_argument {
                     let (arg_ty, arg_id) = fn_argument.get();
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(
