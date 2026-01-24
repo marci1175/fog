@@ -65,6 +65,13 @@ pub enum CustomItem
     },
 }
 
+#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
+pub enum DerefMode
+{
+    Value,
+    Address,
+}
+
 /// These are used to define Imports.
 /// Function symbols are manually defined to be imported.
 #[derive(Debug, Clone, Default)]

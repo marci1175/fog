@@ -259,11 +259,9 @@ where
 
                 // Check the type of the value, check for a type mismatch
                 if literal.get_type().ne(&var_ref_ty) {
-                    return Err(CodeGenError::VariableTypeMismatch(
-                        literal.get_type(),
-                        var_ref_ty,
-                    )
-                    .into());
+                    return Err(
+                        CodeGenError::VariableTypeMismatch(literal.get_type(), var_ref_ty).into(),
+                    );
                 }
 
                 set_value_of_ptr(
@@ -1856,15 +1854,15 @@ where
                 },
             }
         },
-        ParsedToken::DerefPointer(inner_value) => {
-            // Try to get a pointer from this inner_value
+        ParsedToken::DerefPointer { inner_expr, mode } => {
+            // Try to get a pointer from this inner_expr
             // This is a shallow pointer (if not nested by user)
             // Pointer -> Value
             let val_reference = create_ir_from_parsed_token(
                 ctx,
                 module,
                 builder,
-                *inner_value.clone(),
+                *inner_expr.clone(),
                 variable_map,
                 None,
                 fn_ret_ty.clone(),
@@ -1910,22 +1908,38 @@ where
                                 .into());
                             }
 
-                            // Load the pointer
-                            let inner_ptr = builder.build_load(
-                                ctx.ptr_type(AddressSpace::default()),
-                                ptr,
-                                "ptr_load",
-                            )?;
+                            match mode {
+                                common::codegen::DerefMode::Value => {
+                                    // Load the pointer
+                                    let inner_ptr = builder.build_load(
+                                        ctx.ptr_type(AddressSpace::default()),
+                                        ptr,
+                                        "ptr_load",
+                                    )?;
 
-                            // Dereference the pointer
-                            let dereferenced_value = builder.build_load(
-                                deref_ty.to_basic_type_enum(ctx, custom_types)?,
-                                inner_ptr.into_pointer_value(),
-                                "ptr_deref",
-                            )?;
+                                    // Dereference the pointer
+                                    let dereferenced_value = builder.build_load(
+                                        deref_ty.to_basic_type_enum(ctx, custom_types)?,
+                                        inner_ptr.into_pointer_value(),
+                                        "ptr_deref",
+                                    )?;
 
-                            // Store the deref-ed value inside the variable.
-                            builder.build_store(var_ptr, dereferenced_value)?;
+                                    // Store the deref-ed value inside the variable.
+                                    builder.build_store(var_ptr, dereferenced_value)?;
+                                },
+                                common::codegen::DerefMode::Address => {
+                                    // Dereference the pointer
+                                    let inner_ptr = builder.build_load(
+                                        Type::Pointer(None)
+                                            .to_basic_type_enum(ctx, custom_types)?,
+                                        ptr,
+                                        "ptr_load",
+                                    )?;
+
+                                    // Store the deref-ed value inside the variable.
+                                    builder.build_store(var_ptr, inner_ptr)?;
+                                },
+                            }
 
                             None
                         },
@@ -1945,7 +1959,7 @@ where
                 },
                 None => {
                     return Err(
-                        CodeGenError::InvalidValueDereference(inner_value.inner.clone()).into(),
+                        CodeGenError::InvalidValueDereference(inner_expr.inner.clone()).into(),
                     );
                 },
             }

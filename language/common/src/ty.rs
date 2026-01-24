@@ -202,7 +202,6 @@ impl Value
                     struct_field_ty_list.insert(name.clone(), ty.clone());
                 }
 
-                
                 Type::Struct((struct_name.clone(), struct_field_ty_list, attr.clone()))
             },
             Value::Array(inner) => Type::Array(inner.clone()),
@@ -211,7 +210,6 @@ impl Value
         }
     }
 }
-
 
 #[derive(Debug, Clone, Default, Eq, Hash, EnumTryAs)]
 pub enum Type
@@ -398,9 +396,7 @@ impl Type
             },
             Type::Enum((ty, _)) => ty.to_basic_type_enum(ctx, custom_types.clone())?,
             Type::Pointer(_) => {
-                BasicTypeEnum::PointerType(
-                    ctx.ptr_type(AddressSpace::from(size_of::<usize>() as u16)),
-                )
+                BasicTypeEnum::PointerType(ctx.ptr_type(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE.into()))
             },
             Type::TraitGeneric { .. } => return Err(CodeGenError::TraitGenericIsNotType.into()),
         };

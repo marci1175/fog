@@ -253,6 +253,11 @@ impl Parser
 
                 if tokens[token_idx] == Token::Function {
                     if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
+                        // Check if the name of the function is correct
+                        if function_name.starts_with("__internal") {
+                            return Err(ParserError::FunctionNameReserved.into());
+                        }
+
                         if tokens[token_idx + 2] == Token::OpenParentheses {
                             let (bracket_close_idx, args) = parse_signature_argument_tokens(
                                 &tokens[token_idx + 3..],
@@ -980,20 +985,30 @@ impl Parser
 
         // Parse the struct implementations
         for (_, item) in custom_items.iter_mut() {
-            if let CustomItem::Struct((_, _, attr)) = item {
+            if let CustomItem::Struct((name, fields, attr)) = item {
                 for (fn_name, def) in attr.implemented_unparsed_functions.iter() {
+                    let mut sig = def.signature.clone();
+
+                    if sig.args.receiver_referenced {
+                        sig.args.arguments.shift_insert(
+                            0,
+                            String::from("this"),
+                            (Type::Pointer(None), VARIABLE_ID_SOURCE.get_unique_id()),
+                        );
+                    }
+
                     let impl_definition = FunctionDefinition {
-                        signature: def.signature.clone(),
+                        signature: sig.clone(),
                         inner: self.parse_function_block(
                             def.inner.clone(),
                             def.token_offset,
                             // TODO: Improve this
                             Rc::new(IndexMap::new()),
-                            def.signature.clone(),
+                            sig.clone(),
                             function_imports.clone(),
                             // TODO: And this
                             custom_items_clone.clone(),
-                            def.signature.args.clone(),
+                            sig.args.clone(),
                             OrdMap::new(),
                         )?,
                         token_offset: def.token_offset,
@@ -1442,6 +1457,8 @@ impl Parser
                         }
                     }
                     else {
+                        let receiver = dbg!(variable_scope.get("this").cloned());
+
                         let (returned_value, jmp_idx, _) = parse_value(
                             &tokens[token_idx..],
                             function_token_offset,

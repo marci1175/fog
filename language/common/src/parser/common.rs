@@ -2,7 +2,7 @@ use anyhow::Result;
 use strum_macros::Display;
 
 use crate::{
-    codegen::{FunctionArgumentIdentifier, If, Order},
+    codegen::{DerefMode, FunctionArgumentIdentifier, If, Order},
     error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     parser::{
         function::FunctionSignature,
@@ -97,7 +97,11 @@ pub enum ParsedToken
 
     GetPointerTo(Box<ParsedTokenInstance>),
 
-    DerefPointer(Box<ParsedTokenInstance>),
+    DerefPointer
+    {
+        inner_expr: Box<ParsedTokenInstance>,
+        mode: DerefMode,
+    },
 }
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.

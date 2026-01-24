@@ -12,6 +12,10 @@ use crate::{
 pub enum ParserError
 {
     #[error(
+        "[INTERNAL ERROR] Function with a receiver (`this`) argument was not added to the function signature."
+    )]
+    InternalFunctionReceiverArgMissing,
+    #[error(
         "Function `{0}` has been defined multiple times. Function overloading is not supported."
     )]
     FunctionRedefinition(String),
@@ -129,4 +133,8 @@ pub enum ParserError
     EOF,
     #[error("Variable `{0}` must have a default value of type `{1}`.")]
     MissingVariableValue(String, Type),
+    #[error(
+        "Function name cannot start with `__internal` as it is reserved for internal language functions."
+    )]
+    FunctionNameReserved,
 }

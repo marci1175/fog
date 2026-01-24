@@ -1,4 +1,5 @@
 use crate::{
+    codegen::DerefMode,
     error::parser::ParserError,
     parser::{function::parse_function_call_args, variable::resolve_variable_expression},
     tokenizer::Token,
@@ -360,6 +361,28 @@ pub fn parse_value(
                 }
             },
 
+            Token::This => {
+                let (parsed_value, ty) = parse_token_as_value(
+                    tokens,
+                    function_tokens_offset,
+                    debug_infos,
+                    origin_token_idx,
+                    function_signatures.clone(),
+                    variable_scope,
+                    desired_variable_type.clone(),
+                    &mut token_idx,
+                    &Token::This,
+                    function_imports.clone(),
+                    custom_types.clone(),
+                )?;
+
+                // Initialize parsed token with a value.
+                if parsed_token.is_none() {
+                    parsed_token = Some(parsed_value);
+                    comparison_other_side_ty = Some(ty);
+                }
+            },
+
             _ => {
                 // dbg!(parsed_token);
                 dbg!(current_token);
@@ -400,7 +423,6 @@ pub fn parse_token_as_value(
     eval_token: &Token,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Rc<IndexMap<String, CustomItem>>,
-    // variable_id_source: &mut usize,
 ) -> Result<(ParsedTokenInstance, Type)>
 {
     // Match the token
@@ -441,10 +463,7 @@ pub fn parse_token_as_value(
             }
             else {
                 // Push the ParsedToken to the list
-                (
-                    ParsedToken::Literal(literal.clone()),
-                    literal.get_type(),
-                )
+                (ParsedToken::Literal(literal.clone()), literal.get_type())
             }
         },
         Token::UnparsedLiteral(unparsed_literal) => {
@@ -904,8 +923,17 @@ pub fn parse_token_as_value(
 
             *token_idx += jmp_idx + 1;
 
-            (ParsedToken::DerefPointer(Box::new(parsed_token)), Type::I32)
+            (
+                ParsedToken::DerefPointer {
+                    inner_expr: Box::new(parsed_token),
+                    mode: DerefMode::Value,
+                },
+                Type::I32,
+            )
         },
+        Token::This => {
+            todo!()
+        }
         _ => {
             // If we are parsing something else than something that hold a value return an error.
             return Err(

@@ -145,11 +145,7 @@ pub fn access_variable_ptr<'ctx>(
                             // Store the returned value
                             builder.build_store(alloca, value)?;
 
-                            return Ok((
-                                alloca,
-                                value.get_type(),
-                                fn_sig.return_type.clone(),
-                            ));
+                            return Ok((alloca, value.get_type(), fn_sig.return_type.clone()));
                         },
                         // TODO: Think of a way to fix this
                         None => {

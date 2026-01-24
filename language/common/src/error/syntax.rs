@@ -9,6 +9,8 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum SyntaxError
 {
+    #[error("There is a missing comma in the function's call arguments.")]
+    MissingCommaInFnCall,
     #[error(
         "An invalid trait definition has been found. Trait definitions should look like this: `trait <name> {{ <function signatures> }}`"
     )]

@@ -203,7 +203,10 @@ pub fn get_struct_field(
         // This means that there is a receiver in the function def ie `this`
         else if let Some(impl_fn) = attributes.implemented_unparsed_functions.get(field_name) {
             // Return the function's name we will parse it later, not here (to avoid having to add 1000 arguments to this function too)
-            Ok(StructFieldType::Function((impl_fn.token_offset, impl_fn.clone())))
+            Ok(StructFieldType::Function((
+                impl_fn.token_offset,
+                impl_fn.clone(),
+            )))
         }
         else {
             Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
@@ -405,7 +408,6 @@ pub fn resolve_variable_expression(
                     let ty = match struct_field_variant {
                         StructFieldType::Field(field_type) => {
                             // Continue parsing it
-
                             resolve_variable_expression(
                                 tokens,
                                 function_token_offset,
@@ -432,7 +434,8 @@ pub fn resolve_variable_expression(
                             // Index should be at the first Token of the function call's args
                             *token_idx += 2;
 
-                            let closing_idx = find_closing_paren(dbg!(&tokens[*token_idx..]), 0)? + *token_idx;
+                            let closing_idx =
+                                find_closing_paren(&tokens[*token_idx..], 0)? + *token_idx;
 
                             let function_call_args_tkns = &tokens[*token_idx..closing_idx];
 
@@ -452,7 +455,10 @@ pub fn resolve_variable_expression(
                                 variable_ref: Box::new(var_ref.clone()),
                                 struct_name: struct_def.0.clone(),
                                 struct_fields: struct_def.1.clone(),
-                                field: StructFieldType::Function((impl_fn.signature.clone(), call_args)),
+                                field: StructFieldType::Function((
+                                    impl_fn.signature.clone(),
+                                    call_args,
+                                )),
                             });
 
                             // Continue parsing it
