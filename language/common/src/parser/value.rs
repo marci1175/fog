@@ -531,6 +531,7 @@ pub fn parse_token_as_value(
                     function_signatures.clone(),
                     function_imports.clone(),
                     custom_types.clone(),
+                    None,
                 )?;
 
                 // Return the function call
@@ -637,6 +638,7 @@ pub fn parse_token_as_value(
                     function_signatures.clone(),
                     function_imports.clone(),
                     custom_types.clone(),
+                    None,
                 )?;
 
                 // Return the function call
@@ -932,8 +934,39 @@ pub fn parse_token_as_value(
             )
         },
         Token::This => {
-            todo!()
-        }
+            *token_idx += 1;
+
+            let (variable_type, variable_id) = variable_scope
+                .get("this")
+                .ok_or(ParserError::VariableNotFound(String::from("this")))?
+                .clone();
+
+            let mut basic_reference = ParsedTokenInstance {
+                inner: ParsedToken::VariableReference(VariableReference::BasicReference(
+                    String::from("this"),
+                    variable_id,
+                )),
+                debug_information: DbgInfo::default(),
+            };
+
+            let var_ty = resolve_variable_expression(
+                tokens,
+                function_token_offset,
+                debug_infos,
+                token_idx,
+                function_signatures,
+                function_imports,
+                variable_scope,
+                (variable_type, variable_id),
+                custom_types,
+                &mut basic_reference,
+                &mut Vec::new(),
+                "this",
+            )?;
+
+            // Return the VariableReference
+            (basic_reference.inner, var_ty)
+        },
         _ => {
             // If we are parsing something else than something that hold a value return an error.
             return Err(

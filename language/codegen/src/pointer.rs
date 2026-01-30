@@ -51,7 +51,8 @@ pub fn access_variable_ptr<'ctx>(
         VariableReference::StructFieldReference(struct_field_ref) => {
             match &struct_field_ref.field {
                 common::parser::variable::StructFieldType::Field(field) => {
-                    if let Some((idx, _, field_ty)) = struct_field_ref.struct_fields.get_full(field)
+                    if let Some((idx, _, field_ty)) =
+                        struct_field_ref.struct_fields.get_full(field)
                     {
                         // Get the ptr to the struct
                         let (ptr, ptr_ty, _ty) = access_variable_ptr(

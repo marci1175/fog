@@ -158,7 +158,9 @@ impl StructFieldReference
 
 /// Parses the tokens passed in and stores the field names into [`StructFieldReference`].
 /// This function returns the last field's type.
-/// TODO: When i want to implement traits and the ability to call functions on types. ( function foo(self, x: int) ) This needs modification.
+/// When the function returns a [`StructFieldType::Function`] the var_ref will point to the last [`StructFieldType::Field`]. The reason is that we do not modify `var_ref` here, to avoid having to pass in a bunch of arguments. 
+/// If we really wanted to parse it and return the correct `var_ref` we would need to greatly clutter the arguments list.
+/// Please keep this little discrepancy in mind.
 pub fn get_struct_field(
     tokens: &[Token],
     token_idx: &mut usize,
@@ -169,17 +171,17 @@ pub fn get_struct_field(
 {
     // Match field name
     if let Some(Token::Identifier(field_name)) = tokens.get(*token_idx) {
-        // Store field name
-        *var_ref = VariableReference::StructFieldReference(StructFieldRef {
-            variable_ref: Box::new(var_ref.clone()),
-            struct_name: struct_name.clone(),
-            struct_fields: struct_fields.clone(),
-            field: StructFieldType::Field(field_name.clone()),
-        });
-
         // Lookup struct field
         // If it is not a struct but is a some store the struct field name and return
         if let Some(field_type) = struct_fields.get(field_name) {
+            // Store field name
+            *var_ref = VariableReference::StructFieldReference(StructFieldRef {
+                variable_ref: Box::new(var_ref.clone()),
+                struct_name: struct_name.clone(),
+                struct_fields: struct_fields.clone(),
+                field: StructFieldType::Field(field_name.clone()),
+            });
+        
             *token_idx += 1;
 
             // Match syntax
@@ -260,6 +262,8 @@ pub fn resolve_variable_expression(
 ) -> Result<Type>
 {
     let var_ref = variable_ref.inner.try_as_variable_reference_mut().unwrap();
+    let var_ref_clone = var_ref.clone();
+
     let origin_token_idx = *token_idx;
 
     let current_token = tokens.get(*token_idx);
@@ -398,10 +402,11 @@ pub fn resolve_variable_expression(
                 }
             },
             Token::Dot => {
-                if let Type::Struct(struct_def) = variable_type {
+                if let Type::Struct(struct_def) = variable_type.clone() {
                     *token_idx += 1;
 
                     // Stack the field names on top of the variable name
+                    // If a `StructFieldType::Function` is returned the last field will be available in the var_ref. (It is not going to point to the function variant, for more info visit `get_struct_field`)
                     let struct_field_variant =
                         get_struct_field(tokens, token_idx, variable_name, &struct_def, var_ref)?;
 
@@ -445,13 +450,12 @@ pub fn resolve_variable_expression(
                                 *token_idx,
                                 debug_infos,
                                 variable_scope,
-                                dbg!(impl_fn.signature.args.clone()),
+                                impl_fn.signature.args.clone(),
                                 function_signatures.clone(),
                                 function_imports.clone(),
                                 custom_items.clone(),
+                                Some((&var_ref_clone, variable_type, variable_id)),
                             )?;
-
-                            dbg!(&call_args);
 
                             *var_ref = VariableReference::StructFieldReference(StructFieldRef {
                                 variable_ref: Box::new(var_ref.clone()),
@@ -464,7 +468,6 @@ pub fn resolve_variable_expression(
                             });
 
                             // Continue parsing it
-
                             resolve_variable_expression(
                                 tokens,
                                 function_token_offset,

@@ -247,6 +247,20 @@ pub enum Type
     },
 }
 
+impl From<CustomItem> for Type
+{
+    fn from(value: CustomItem) -> Self
+    {
+        match value {
+            CustomItem::Struct(inner) => Self::Struct(inner),
+            CustomItem::Enum((ty, variants)) => Self::Enum((Box::new(ty), variants)),
+            CustomItem::Trait { .. } => {
+                unimplemented!()
+            },
+        }
+    }
+}
+
 impl PartialEq for Type
 {
     fn eq(&self, other: &Self) -> bool

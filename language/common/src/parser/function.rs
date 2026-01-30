@@ -148,6 +148,7 @@ pub fn parse_function_call_args(
     function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_items: Rc<IndexMap<String, CustomItem>>,
+    receiver: Option<(&VariableReference, Type, usize)>,
 ) -> anyhow::Result<(
     OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, (Type, UniqueId))>,
     usize,
@@ -170,6 +171,25 @@ pub fn parse_function_call_args(
         }
 
         return Ok((arguments, tokens_idx));
+    }
+
+    if this_function_args.receiver_referenced {
+        // Check if the receiver is a Some
+        // It must be since there is a receiver referenced in the args `this`
+        let (receiver, recv_type, recv_id) =
+            receiver.ok_or(ParserError::VariableNotFound(String::from("this")))?;
+
+        // Manually insert a reference of the original struct into the the function call
+        arguments.insert(
+            FunctionArgumentIdentifier::Identifier(String::from("this")),
+            (
+                ParsedTokenInstance {
+                    inner: ParsedToken::VariableReference(receiver.clone()),
+                    debug_information: DbgInfo::default(),
+                },
+                (recv_type, recv_id),
+            ),
+        );
     }
 
     while tokens_idx < tokens.len() {
@@ -246,7 +266,7 @@ pub fn parse_function_call_args(
                 }
 
                 let fn_argument = this_function_args.arguments.first_entry();
-                
+
                 if let Some(fn_argument) = fn_argument {
                     let (arg_ty, arg_id) = fn_argument.get();
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(

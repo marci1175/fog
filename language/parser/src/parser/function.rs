@@ -960,8 +960,6 @@ impl Parser
             token_idx += 1;
         }
 
-        dbg!(custom_types.get("marci"));
-
         Ok((
             function_list,
             dependency_imports,
@@ -985,8 +983,21 @@ impl Parser
 
         // Parse the struct implementations
         for (_, item) in custom_items.iter_mut() {
+            let item_clone = item.clone();
             if let CustomItem::Struct((_, _, attr)) = item {
-                for (fn_name, def) in attr.implemented_unparsed_functions.drain(..) {
+                for (fn_name, mut def) in attr.implemented_unparsed_functions.drain(..) {
+                    // Modify the functions signature if there is a receiver present in the arguments
+                    if def.signature.args.receiver_referenced {
+                        def.signature.args.arguments.insert_before(
+                            0,
+                            String::from("this"),
+                            (
+                                Type::from(item_clone.clone()),
+                                VARIABLE_ID_SOURCE.get_unique_id(),
+                            ),
+                        );
+                    }
+
                     let impl_definition = FunctionDefinition {
                         signature: def.signature.clone(),
                         inner: self.parse_function_block(
@@ -1070,12 +1081,12 @@ impl Parser
         additional_variables: OrdMap<String, (Type, UniqueId)>,
     ) -> Result<Vec<ParsedTokenInstance>>
     {
-        let module_path = self.module_path.clone();
-
         // Check if the function defined by the source code does not have an indeterminate amount of args
         if this_fn_args.ellipsis_present {
             return Err(ParserError::DeterminiateArgumentsFunction.into());
         }
+
+        let module_path = self.module_path.clone();
 
         let mut token_idx = 0;
 
@@ -1179,6 +1190,7 @@ impl Parser
                     if let Some(variable_type) = variable_scope.get(ident_name).cloned() {
                         // Increment the token index
                         token_idx += 1;
+
                         // Put the variable name into a basic reference
                         let variable_ref =
                             VariableReference::BasicReference(ident_name.to_string(), 0);
@@ -1235,6 +1247,7 @@ impl Parser
                             function_signatures.clone(),
                             function_imports.clone(),
                             custom_items.clone(),
+                            None,
                         )?;
 
                         token_idx += jumped_idx + 2;
@@ -1276,6 +1289,7 @@ impl Parser
                             function_signatures.clone(),
                             function_imports.clone(),
                             custom_items.clone(),
+                            None,
                         )?;
 
                         token_idx += jumped_idx + 2;
