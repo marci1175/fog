@@ -52,6 +52,10 @@ Impl bodies are defined as such:
 }
 ```
 
+---
+> **This is currently in development and may not be available in the latest edition of the compiler!**
+---
+
 Implementations can be accessed similarly to other languages.
 
 ```fog
@@ -83,6 +87,7 @@ pub function main(): int {
     math bar = math { inner: 100 };
 
     int calc1 = bar.foo(2);
+    int calc1 = bar::foo(bar, 2);
     int calc2 = math::bar(202, 3);
     
     # This will return 405

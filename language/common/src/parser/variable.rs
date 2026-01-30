@@ -158,7 +158,7 @@ impl StructFieldReference
 
 /// Parses the tokens passed in and stores the field names into [`StructFieldReference`].
 /// This function returns the last field's type.
-/// When the function returns a [`StructFieldType::Function`] the var_ref will point to the last [`StructFieldType::Field`]. The reason is that we do not modify `var_ref` here, to avoid having to pass in a bunch of arguments. 
+/// When the function returns a [`StructFieldType::Function`] the var_ref will point to the last [`StructFieldType::Field`]. The reason is that we do not modify `var_ref` here, to avoid having to pass in a bunch of arguments.
 /// If we really wanted to parse it and return the correct `var_ref` we would need to greatly clutter the arguments list.
 /// Please keep this little discrepancy in mind.
 pub fn get_struct_field(
@@ -181,7 +181,7 @@ pub fn get_struct_field(
                 struct_fields: struct_fields.clone(),
                 field: StructFieldType::Field(field_name.clone()),
             });
-        
+
             *token_idx += 1;
 
             // Match syntax
@@ -404,7 +404,7 @@ pub fn resolve_variable_expression(
             Token::Dot => {
                 if let Type::Struct(struct_def) = variable_type.clone() {
                     *token_idx += 1;
-
+                    
                     // Stack the field names on top of the variable name
                     // If a `StructFieldType::Function` is returned the last field will be available in the var_ref. (It is not going to point to the function variant, for more info visit `get_struct_field`)
                     let struct_field_variant =
@@ -551,7 +551,7 @@ pub fn resolve_variable_expression(
             // ie: `var1 > var2` Parsing will start at `>` which is not related to the var1 variable
             // This trace can be ignored.
             _ => {
-                tracing::trace!("Invalid variable expr token: {}", tokens[*token_idx]);
+                tracing::warn!("Invalid variable expr token: {}", tokens[*token_idx]);
             },
         }
     }

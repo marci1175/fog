@@ -10,7 +10,7 @@ use common::{
     codegen::{CustomItem, If, StructAttributes},
     compiler::ProjectConfig,
     dashmap::DashMap,
-    error::{parser::ParserError, syntax::SyntaxError},
+    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
@@ -28,7 +28,7 @@ use common::{
         },
     },
     tokenizer::Token,
-    tracing::info,
+    tracing::{info, warn},
     ty::{OrdMap, OrdSet, Type, Value, ty_from_token},
 };
 
@@ -986,15 +986,17 @@ impl Parser
             let item_clone = item.clone();
             if let CustomItem::Struct((_, _, attr)) = item {
                 for (fn_name, mut def) in attr.implemented_unparsed_functions.drain(..) {
+                    let receiver_ty = (
+                        Type::from(item_clone.clone()),
+                        VARIABLE_ID_SOURCE.get_unique_id(),
+                    );
+
                     // Modify the functions signature if there is a receiver present in the arguments
                     if def.signature.args.receiver_referenced {
                         def.signature.args.arguments.insert_before(
                             0,
                             String::from("this"),
-                            (
-                                Type::from(item_clone.clone()),
-                                VARIABLE_ID_SOURCE.get_unique_id(),
-                            ),
+                            receiver_ty.clone(),
                         );
                     }
 
@@ -1011,6 +1013,7 @@ impl Parser
                             custom_items_clone.clone(),
                             def.signature.args.clone(),
                             OrdMap::new(),
+                            Some(receiver_ty),
                         )?,
                         token_offset: def.token_offset,
                     };
@@ -1052,6 +1055,7 @@ impl Parser
                     custom_items_clone.clone(),
                     unparsed_function.signature.args.clone(),
                     OrdMap::new(),
+                    None,
                 )?,
                 token_offset: unparsed_function.token_offset,
             };
@@ -1079,6 +1083,7 @@ impl Parser
         custom_items: Rc<IndexMap<String, CustomItem>>,
         this_fn_args: FunctionArguments,
         additional_variables: OrdMap<String, (Type, UniqueId)>,
+        receiver_type: Option<(Type, usize)>,
     ) -> Result<Vec<ParsedTokenInstance>>
     {
         // Check if the function defined by the source code does not have an indeterminate amount of args
@@ -1537,6 +1542,7 @@ impl Parser
                                 custom_items.clone(),
                                 this_fn_args.clone(),
                                 variable_scope.clone(),
+                                None,
                             )?;
 
                             let mut else_condition_branch = Vec::new();
@@ -1572,6 +1578,7 @@ impl Parser
                                         custom_items.clone(),
                                         this_fn_args.clone(),
                                         variable_scope.clone(),
+                                        None,
                                     )?;
 
                                     token_idx = paren_close_idx + 1;
@@ -1631,6 +1638,7 @@ impl Parser
                             custom_items.clone(),
                             this_fn_args.clone(),
                             variable_scope.clone(),
+                            None,
                         )?;
 
                         token_idx = paren_close_idx + 1;
@@ -1678,6 +1686,49 @@ impl Parser
                         )
                         .unwrap(),
                     });
+                }
+                else if Token::This == current_token {
+                    token_idx += 1;
+                    
+                    let (receiver_type, receiver_id) = receiver_type
+                        .clone()
+                        .ok_or(ParserError::InternalFunctionReceiverTypeMissing)?;
+
+                    let variable_ref =
+                        VariableReference::BasicReference(String::from("this"), receiver_id);
+
+                    // Token idx copy for the slice indexing
+                    // Afaik we should be using token_idx + 1 (we increment above) to correctly index the slice (we would be using ..= otherwise )
+                    let _token_idx_copy = token_idx;
+
+                    // Parse the expression involving the variable
+                    resolve_variable_expression(
+                        &tokens,
+                        function_token_offset,
+                        &self.tokens_debug_info,
+                        &mut token_idx,
+                        function_signatures.clone(),
+                        function_imports.clone(),
+                        &mut variable_scope,
+                        (receiver_type, receiver_id),
+                        custom_items.clone(),
+                        &mut ParsedTokenInstance {
+                            inner: ParsedToken::VariableReference(variable_ref),
+                            // debug_information: fetch_and_merge_debug_information(
+                            //     &self.tokens_debug_info,
+                            //     origin_token_idx + function_token_offset
+                            //         ..token_idx_copy + function_token_offset,
+                            //     true,
+                            // )
+                            // .unwrap(),
+                            debug_information: DbgInfo::default(),
+                        },
+                        &mut parsed_token_instances,
+                        "this",
+                    )?;
+                }
+                else {
+                    warn!("Unimplemented token: {current_token}");
                 }
 
                 token_idx += 1;

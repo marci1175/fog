@@ -11,6 +11,12 @@ trait nber {
 
 marci implements {
     pub function get_num(this, mul: int): int {
+        this.a = 900;
+
+        return this.a * mul;
+    }
+
+    pub function get_num2(this, mul: int): int {
         return this.a * mul;
     }
 }

@@ -12,9 +12,9 @@ use crate::{
 pub enum ParserError
 {
     #[error(
-        "[INTERNAL ERROR] Function with a receiver (`this`) argument was not added to the function signature."
+        "[INTERNAL ERROR] Function with a receiver (`this`) argument has not been passed it's receiver type."
     )]
-    InternalFunctionReceiverArgMissing,
+    InternalFunctionReceiverTypeMissing,
     #[error(
         "Function `{0}` has been defined multiple times. Function overloading is not supported."
     )]
