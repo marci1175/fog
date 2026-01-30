@@ -3,11 +3,10 @@ use std::{collections::HashMap, fmt::Display, rc::Rc};
 use crate::{
     anyhow::{self, Result},
     codegen::{CustomItem, FunctionArgumentIdentifier},
-    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
+    error::{DbgInfo, parser::ParserError},
     indexmap::IndexMap,
     parser::{
         common::{ParsedToken, ParsedTokenInstance, find_closing_comma, find_closing_paren},
-        dbg::fetch_and_merge_debug_information,
         value::parse_value,
         variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
     },

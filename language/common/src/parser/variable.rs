@@ -5,7 +5,7 @@ use crate::{
     error::{parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{ParsedTokenInstance, find_closing_paren},
-        function::{FunctionDefinition, parse_function_call_args},
+        function::parse_function_call_args,
     },
     tokenizer::Token,
     ty::{OrdMap, Type},
