@@ -15,9 +15,9 @@ pub fn root_ui(css: Asset) -> Element
                     div { id: "main_title_bottom", {
                         rsx! {
                             p {{
-                                "Dependency Regsitry service for"
+                                "Dependency Regsitry service for "
                             }}
-                            a { href: "https://github.com/marci1175/fog", {" Fog"} }
+                            a { href: "https://github.com/marci1175/fog", {"Fog"} }
                         }
                     } }
                     div {

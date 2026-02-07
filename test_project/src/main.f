@@ -15,10 +15,6 @@ marci implements {
 
         return this.a * mul;
     }
-
-    pub function get_num2(this, mul: int): int {
-        return this.a * mul;
-    }
 }
 
 marci implements nber {
