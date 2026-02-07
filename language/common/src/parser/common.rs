@@ -126,6 +126,21 @@ pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) 
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
+/// This function will return the idx of the earliest occurence of a `|` in the provided slice.
+pub fn find_closing_bitor(bitor_start_slice: &[Token]) -> Result<usize>
+{
+    let iter = bitor_start_slice.iter().enumerate();
+
+    for (idx, token) in iter {
+        match token {
+            Token::BitOr => return Ok(idx),
+            _ => continue,
+        }
+    }
+
+    Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
+}
+
 /// Pass in 0 for the `open_braces_count` if you're searching for the very next closing token on the same nestedness.
 /// The index this will return will point to the closing `}`.
 pub fn find_closing_braces(braces_start_slice: &[Token], open_braces_count: usize)

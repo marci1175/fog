@@ -35,7 +35,7 @@ pub struct StructAttributes
 }
 
 /// All of the custom types implemented by the User are defined here
-#[derive(Debug, Clone, PartialEq, Display)]
+#[derive(Debug, Clone, PartialEq, Display, Hash)]
 pub enum CustomItem
 {
     Struct(

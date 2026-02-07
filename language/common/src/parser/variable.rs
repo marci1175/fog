@@ -404,7 +404,7 @@ pub fn resolve_variable_expression(
             Token::Dot => {
                 if let Type::Struct(struct_def) = variable_type.clone() {
                     *token_idx += 1;
-                    
+
                     // Stack the field names on top of the variable name
                     // If a `StructFieldType::Function` is returned the last field will be available in the var_ref. (It is not going to point to the function variant, for more info visit `get_struct_field`)
                     let struct_field_variant =

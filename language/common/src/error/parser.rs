@@ -23,6 +23,8 @@ pub enum ParserError
     InvalidImplItem,
     #[error("Trait definition bodies can only contain function signatures.")]
     InvalidTraitItem,
+    #[error("Custom item `{0}` cannot be used to define generics with.")]
+    CustomItemUnavailableForGenerics(String),
     #[error(
         "Functions [{0:?}] of trait `{1}` either wasn't defined or weren't correctly implemented."
     )]

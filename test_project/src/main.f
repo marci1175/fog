@@ -30,3 +30,12 @@ pub function main(): int {
     
     return 0;
 }
+
+pub function add
+    |
+        T <- nber,
+    |
+    (lhs: int, rhs: int): int
+    {
+
+}

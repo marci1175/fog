@@ -106,6 +106,12 @@ pub enum Token
 
     /// Used to expose functions from a module into another one.
     Export,
+
+    LeftArrow,
+    RightArrow,
+
+    /// This can be used as a substitute in function definitions in place of the `:` indicating return type.
+    Returns,
 }
 
 // impl Token {

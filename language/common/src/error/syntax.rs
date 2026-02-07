@@ -9,6 +9,10 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum SyntaxError
 {
+    #[error(
+        "Function generics should be defined as such: <fn-name>|T <- Foo + Bar, Baz <- Foo|(<args>)"
+    )]
+    InvalidFunctionGenericsDefinition,
     #[error("There is a missing comma in the function's call arguments.")]
     MissingCommaInFnCall,
     #[error(
@@ -19,6 +23,8 @@ pub enum SyntaxError
     LeftOpenBraces,
     #[error("An open '(' has been left in the code.")]
     LeftOpenParentheses,
+    #[error("An open '|' has been left in the code.")]
+    LeftOpenBitOr,
     #[error("An open '<' has been left in the code.")]
     LeftOpenAngledBrackets,
     #[error("An open '[' has been left in the code.")]
@@ -75,6 +81,8 @@ pub enum SyntaxError
     FunctionSignatureReturnTypeRequired,
     #[error("A comma has been left out when defining an array.")]
     MissingCommaAtArrayDef,
+    #[error("A comma has been left out when defining a funcition's generics.")]
+    MissingCommaAtGenericsDefinition,
     #[error("The type `{0}` cannot be indexed with.")]
     InvalidIndex(Type),
     #[error("Unparsable expression: `{0}`")]

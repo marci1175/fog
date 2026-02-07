@@ -147,7 +147,7 @@ pub fn access_variable_ptr<'ctx>(
 
                             return Ok((alloca, value.get_type(), fn_sig.return_type.clone()));
                         },
-                        // TODO: Think of a way to fix this
+                        // TODO: Think of a way to improve this (how can we label a value to be void (current impl might be enough))
                         None => {
                             return Ok((
                                 ptr_ty.const_null(),

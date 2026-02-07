@@ -1,12 +1,19 @@
-use std::{collections::HashMap, fmt::Display, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+    rc::Rc,
+};
 
 use crate::{
     anyhow::{self, Result},
     codegen::{CustomItem, FunctionArgumentIdentifier},
-    error::{DbgInfo, parser::ParserError},
+    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        common::{ParsedToken, ParsedTokenInstance, find_closing_comma, find_closing_paren},
+        common::{
+            ParsedToken, ParsedTokenInstance, find_closing_bitor, find_closing_comma,
+            find_closing_paren,
+        },
         value::parse_value,
         variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
     },
@@ -86,6 +93,7 @@ pub struct FunctionArguments
     /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are quniue in this context.
     pub arguments: OrdMap<String, (Type, UniqueId)>,
     pub ellipsis_present: bool,
+    pub generics: OrdMap<String, OrdSet<String>>,
     /// This is true if the function references the struct its implemented for ie. using the this keyword.
     /// Obviously this shouldnt be true for an ordinary function since the `this` keyword cannot be used there.
     pub receiver_referenced: bool,
@@ -114,6 +122,7 @@ impl FunctionArguments
     {
         Self {
             arguments: OrdMap::new(),
+            generics: OrdMap::new(),
             ellipsis_present: false,
             receiver_referenced: false,
         }
@@ -477,4 +486,99 @@ pub fn parse_signature_argument_tokens(
     }
 
     Ok((bracket_closing_idx, args))
+}
+
+pub fn parse_fn_generics(
+    tokens: &[Token],
+    custom_types: &IndexMap<String, CustomItem>,
+    function_generics: &mut OrdMap<String, OrdSet<String>>,
+) -> anyhow::Result<usize>
+{
+    let function_g_closing_idx = find_closing_bitor(tokens).map_err(|_| {
+        ParserError::SyntaxError(
+            crate::error::syntax::SyntaxError::InvalidFunctionGenericsDefinition,
+        )
+    })?;
+
+    let tokens = &tokens[..function_g_closing_idx];
+
+    let mut idx = 0;
+
+    while idx < function_g_closing_idx {
+        if let Token::Identifier(generic_name) = &tokens[idx] {
+            let mut traits_impl: OrdSet<String> = OrdSet::new();
+
+            if let Token::LeftArrow = tokens[idx + 1] {
+                let traits_slice_closing_idx = find_closing_comma(&tokens[idx + 2..])? + idx + 2;
+
+                // In this loop we increment the index until we find
+                'traits_loop: while idx < traits_slice_closing_idx {
+                    if let Some(Token::Identifier(trait_name)) = tokens.get(idx) {
+                        idx += 1;
+
+                        // Check if its a valid trait
+                        match custom_types
+                            .get(trait_name)
+                            .ok_or(ParserError::CustomItemNotFound(trait_name.clone()))?
+                        {
+                            CustomItem::Struct(_) => {
+                                return Err(ParserError::CustomItemUnavailableForGenerics(
+                                    trait_name.clone(),
+                                )
+                                .into());
+                            },
+                            CustomItem::Enum(_) => {
+                                return Err(ParserError::CustomItemUnavailableForGenerics(
+                                    trait_name.clone(),
+                                )
+                                .into());
+                            },
+                            // We just have to check if its a trait or not
+                            CustomItem::Trait { name, .. } => {
+                                // Store trait name
+                                traits_impl.insert(name.clone());
+
+                                // Check syntax
+                                match tokens.get(idx) {
+                                    Some(&Token::Addition) => {
+                                        idx += 1;
+                                        continue 'traits_loop;
+                                    },
+                                    Some(_) => {
+                                        return Err(
+                                            SyntaxError::InvalidFunctionGenericsDefinition.into()
+                                        );
+                                    },
+                                    _ => break 'traits_loop,
+                                }
+                            },
+                        }
+                    }
+
+                    // Check syntax validity
+                    match tokens.get(idx) {
+                        Some(_) => {
+                            return Err(SyntaxError::InvalidFunctionGenericsDefinition.into());
+                        },
+                        _ => break 'traits_loop,
+                    }
+                }
+            }
+
+            // Store function generics
+            function_generics.insert(generic_name.clone(), traits_impl);
+
+            idx += 1;
+        }
+
+        match dbg!(tokens.get(idx)) {
+            Some(&Token::Comma) => {
+                idx += 1;
+            },
+            Some(_) => return Err(ParserError::SyntaxError(SyntaxError::MissingCommaAtGenericsDefinition).into()),
+            _ => break,
+        }
+    }
+
+    Ok(idx)
 }

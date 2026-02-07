@@ -976,6 +976,9 @@ fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<To
         b"feature" => Token::CompilerHint(CompilerHint::Feature),
         b"ref" => Token::Reference,
         b"deref" => Token::Dereference,
+        b"->" => Token::LeftArrow,
+        b"<-" => Token::RightArrow,
+        b"returns" => Token::Returns,
         _ => eval_constant_definition(string_to_match),
     })
 }
