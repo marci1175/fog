@@ -127,7 +127,7 @@ pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) 
 }
 
 /// This function will return the idx of the earliest occurence of a `|` in the provided slice.
-pub fn find_closing_bitor(bitor_start_slice: &[Token]) -> Result<usize>
+pub fn find_next_bitor(bitor_start_slice: &[Token]) -> Result<usize>
 {
     let iter = bitor_start_slice.iter().enumerate();
 
@@ -183,4 +183,15 @@ pub fn find_closing_comma(slice: &[Token]) -> Result<usize>
     }
 
     Err(ParserError::InvalidFunctionCallArguments.into())
+}
+
+pub fn find_next_comma(slice: &[Token]) -> Result<usize>
+{
+    for (idx, item) in slice.iter().enumerate() {
+        if *item == Token::Comma {
+            return Ok(idx);
+        }
+    }
+
+    Err(ParserError::SyntaxError(SyntaxError::CommaNotFound).into())
 }

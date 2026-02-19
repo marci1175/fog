@@ -9,10 +9,12 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum SyntaxError
 {
+    #[error("A comma was expected in the code but was not found.")]
+    CommaNotFound,
     #[error(
-        "Function generics should be defined as such: <fn-name>|T <- Foo + Bar, Baz <- Foo|(<args>)"
+        "Unexpected token: `{0}`. Function generics should be defined as such: <fn-name>|T <- Foo + Bar, Baz <- Foo|(<args>). Generics can only implement traits."
     )]
-    InvalidFunctionGenericsDefinition,
+    InvalidFunctionGenericsDefinition(Token),
     #[error("There is a missing comma in the function's call arguments.")]
     MissingCommaInFnCall,
     #[error(

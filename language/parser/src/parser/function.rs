@@ -76,7 +76,7 @@ pub fn parse_functions(
                         token_idx += 1;
 
                         let jumped_idx = parse_fn_generics(
-                            &tokens[token_idx + 1..],
+                            &tokens[token_idx..],
                             custom_types,
                             &mut function_generics,
                         )?;
@@ -291,12 +291,12 @@ impl Parser
                             token_idx += 1;
 
                             let jumped_idx = parse_fn_generics(
-                                &tokens[token_idx + 1..],
+                                &tokens[token_idx..],
                                 &custom_types,
                                 &mut function_generics,
                             )?;
 
-                            token_idx += jumped_idx + 1;
+                            token_idx += jumped_idx;
                         }
 
                         if tokens[token_idx] == Token::OpenParentheses {
@@ -309,7 +309,7 @@ impl Parser
                             token_idx += bracket_close_idx + 1;
 
                             // Fetch the returned type of the function
-                            if *dbg!(&tokens[token_idx + 1]) == Token::Colon {
+                            if tokens[token_idx + 1] == Token::Colon {
                                 let return_type =
                                     ty_from_token(&tokens[token_idx + 2], &custom_types)?;
 

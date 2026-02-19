@@ -13,8 +13,8 @@ pub fn only_contains_digits(s: &[u8]) -> bool
     s.iter().all(|c| c.is_ascii_digit())
 }
 
-const DOUBLE_BACKSLASH_U8: u8 = b'\\';
-const NEWLINE_CHAR_U8: u8 = b'\n';
+const DOUBLE_BACKSLASH: u8 = b'\\';
+const NEWLINE_CHAR: u8 = b'\n';
 const ENDLINE_CHAR_U8: u8 = b'\r';
 
 // TODO: Recode this function as its too crowded, i should also move parsing stuff out of this functions (such as ptr, enum, array etc, its doing smth that is not its job)
@@ -80,6 +80,8 @@ pub fn tokenize(
                         column: current_char_idx_in_line,
                     },
                 });
+
+                string_buffer.clear();
             }
 
             token_list.push(single_char_token);
@@ -146,7 +148,7 @@ pub fn tokenize(
             continue;
         }
 
-        if (current_char == b' ' || current_char == NEWLINE_CHAR_U8) && !string_buffer.is_empty() {
+        if (current_char == b' ' || current_char == NEWLINE_CHAR) && !string_buffer.is_empty() {
             let token = match_multi_character_expression(&string_buffer)?;
 
             token_list.push(token);
@@ -166,6 +168,30 @@ pub fn tokenize(
         else if string_buffer.len() + 1 == char_list.len() {
             string_buffer.push(char_list[char_list.len() - 1]);
 
+            let token = match_multi_character_expression(&string_buffer)?;
+
+            token_list.push(token);
+            token_debug_info.push(DbgInfo {
+                char_start: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line - (string_buffer.len() - 1),
+                },
+                char_end: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line,
+                },
+            });
+
+            string_buffer.clear();
+        }
+
+        let should_store_string_buffer = match current_char {
+            b'.' | b'-' | b'#' | b'"' | b'=' | b':' | b'&' | b'!' | b'>' | b'<' | b'|' => true,
+            _ => false,
+        };
+
+        // Genius code right here, should be given the coder of the year for this alone (its february)
+        if should_store_string_buffer && !string_buffer.is_empty() {
             let token = match_multi_character_expression(&string_buffer)?;
 
             token_list.push(token);
@@ -307,7 +333,7 @@ pub fn tokenize(
                             loop {
                                 let quote_char = char_list[char_idx + 1];
 
-                                if quote_char == NEWLINE_CHAR_U8 {
+                                if quote_char == NEWLINE_CHAR {
                                     token_list.push(Token::DocComment(
                                         String::from_utf8_lossy(
                                             &char_list[original_char_idx..char_idx],
@@ -370,10 +396,10 @@ pub fn tokenize(
 
                     match quote_char {
                         Some(quote_char) => {
-                            if *quote_char == DOUBLE_BACKSLASH_U8 {
+                            if *quote_char == DOUBLE_BACKSLASH {
                                 match char_list.get(quote_idx + 1) {
                                     Some(b'n') => {
-                                        quotes_buffer.push(NEWLINE_CHAR_U8);
+                                        quotes_buffer.push(NEWLINE_CHAR);
 
                                         quote_idx += 2;
 
@@ -400,14 +426,14 @@ pub fn tokenize(
 
                                         continue;
                                     },
-                                    Some(&DOUBLE_BACKSLASH_U8) => {
-                                        quotes_buffer.push(DOUBLE_BACKSLASH_U8);
+                                    Some(&DOUBLE_BACKSLASH) => {
+                                        quotes_buffer.push(DOUBLE_BACKSLASH);
                                         quote_idx += 2;
 
                                         continue;
                                     },
                                     Some(char) => {
-                                        quotes_buffer.push(DOUBLE_BACKSLASH_U8);
+                                        quotes_buffer.push(DOUBLE_BACKSLASH);
                                         quotes_buffer.push(*char);
 
                                         quote_idx += 2;
@@ -749,6 +775,23 @@ pub fn tokenize(
 
                         continue;
                     }
+                    else if *next_char == b'-' {
+                        token_list.push(Token::LeftArrow);
+                        token_debug_info.push(DbgInfo {
+                            char_start: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line,
+                            },
+                            char_end: CharPosition {
+                                line: line_counter,
+                                column: current_char_idx_in_line + 2,
+                            },
+                        });
+
+                        char_idx += 2;
+
+                        continue;
+                    }
                     else if *next_char == b'=' {
                         token_list.push(Token::EqSmaller);
                         token_debug_info.push(DbgInfo {
@@ -814,7 +857,7 @@ pub fn tokenize(
             },
             _ => {
                 if current_char != b' '
-                    && current_char != NEWLINE_CHAR_U8
+                    && current_char != NEWLINE_CHAR
                     && current_char != ENDLINE_CHAR_U8
                 {
                     string_buffer.push(current_char);
@@ -910,7 +953,7 @@ pub fn tokenize(
             }
         }
 
-        if current_char == NEWLINE_CHAR_U8 {
+        if current_char == NEWLINE_CHAR {
             line_counter += 1;
             line_char_idx = char_idx + 1;
         }
@@ -976,8 +1019,8 @@ fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<To
         b"feature" => Token::CompilerHint(CompilerHint::Feature),
         b"ref" => Token::Reference,
         b"deref" => Token::Dereference,
-        b"->" => Token::LeftArrow,
-        b"<-" => Token::RightArrow,
+        // This would need specific implementation in the tokenizer for `-`
+        // b"<-" => Token::RightArrow,
         b"returns" => Token::Returns,
         _ => eval_constant_definition(string_to_match),
     })

@@ -11,8 +11,7 @@ use crate::{
     indexmap::IndexMap,
     parser::{
         common::{
-            ParsedToken, ParsedTokenInstance, find_closing_bitor, find_closing_comma,
-            find_closing_paren,
+            ParsedToken, ParsedTokenInstance, find_closing_comma, find_closing_paren, find_next_bitor, find_next_comma
         },
         value::parse_value,
         variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
@@ -488,32 +487,50 @@ pub fn parse_signature_argument_tokens(
     Ok((bracket_closing_idx, args))
 }
 
+/// Parses the function generics definitions and modifies the provided [`OrdMap`].
+/// The first token of the provided slice should be the first token after the opening `|`.
+/// Only traits can be implmeneted / required for a generic for now, all of the trait names are looked up to verify them.
+/// The function returns the amount of indexes we have incremented
 pub fn parse_fn_generics(
+    // Parsed tokens
     tokens: &[Token],
+    // Curerently available custom types / items
     custom_types: &IndexMap<String, CustomItem>,
+    // The list of function generics
     function_generics: &mut OrdMap<String, OrdSet<String>>,
 ) -> anyhow::Result<usize>
 {
-    let function_g_closing_idx = find_closing_bitor(tokens).map_err(|_| {
+    let function_g_closing_idx = find_next_bitor(dbg!(tokens)).map_err(|_| {
         ParserError::SyntaxError(
-            crate::error::syntax::SyntaxError::InvalidFunctionGenericsDefinition,
+            crate::error::syntax::SyntaxError::LeftOpenBitOr,
         )
     })?;
 
-    let tokens = &tokens[..function_g_closing_idx];
+    let traits_slice = &tokens[..function_g_closing_idx];
 
     let mut idx = 0;
 
-    while idx < function_g_closing_idx {
-        if let Token::Identifier(generic_name) = &tokens[idx] {
-            let mut traits_impl: OrdSet<String> = OrdSet::new();
+    'generics_loop: while idx < traits_slice.len() {
+        if let Some(Token::Identifier(generic_name)) = traits_slice.get(idx) {
+            // Insert a new field into the function's generics
+            let insertion_result = function_generics.insert(generic_name.clone(), OrdSet::new());
 
-            if let Token::LeftArrow = tokens[idx + 1] {
-                let traits_slice_closing_idx = find_closing_comma(&tokens[idx + 2..])? + idx + 2;
+            // If there has already been a generic with this name inserted, return an error
+            if insertion_result.is_some() {
+                return Err(ParserError::DuplicateGenerics(generic_name.clone()).into());
+            }
 
-                // In this loop we increment the index until we find
-                'traits_loop: while idx < traits_slice_closing_idx {
-                    if let Some(Token::Identifier(trait_name)) = tokens.get(idx) {
+            // Return a mutable reference to the newly inserted generic's trait impls
+            let trait_list = function_generics.get_mut(generic_name).unwrap();
+
+            // Match syntax
+            if let Some(Token::LeftArrow) = traits_slice.get(idx + 1) {
+                // Move index to the beginning of the Traits list
+                idx += 2;
+                
+                // In this loop we increment the index until the comma, which closes the traits list
+                'traits_loop: while idx < traits_slice.len() {
+                    if let Some(Token::Identifier(trait_name)) = traits_slice.get(idx) {
                         idx += 1;
 
                         // Check if its a valid trait
@@ -521,13 +538,7 @@ pub fn parse_fn_generics(
                             .get(trait_name)
                             .ok_or(ParserError::CustomItemNotFound(trait_name.clone()))?
                         {
-                            CustomItem::Struct(_) => {
-                                return Err(ParserError::CustomItemUnavailableForGenerics(
-                                    trait_name.clone(),
-                                )
-                                .into());
-                            },
-                            CustomItem::Enum(_) => {
+                            CustomItem::Enum(_) | CustomItem::Struct(_)=> {
                                 return Err(ParserError::CustomItemUnavailableForGenerics(
                                     trait_name.clone(),
                                 )
@@ -535,18 +546,37 @@ pub fn parse_fn_generics(
                             },
                             // We just have to check if its a trait or not
                             CustomItem::Trait { name, .. } => {
-                                // Store trait name
-                                traits_impl.insert(name.clone());
+                                // Store trait name, into the mutable reference
+                                // Check if the trait is already required
+                                if dbg!(!trait_list.insert(name.clone())) {
+                                    return Err(ParserError::TraitAlreadyRequiredForGeneric(generic_name.clone(), trait_name.clone()).into())
+                                }
 
                                 // Check syntax
-                                match tokens.get(idx) {
+                                match traits_slice.get(idx) {
+                                    // If there is an addition token that means that there are more traits for this generic to implement
                                     Some(&Token::Addition) => {
+                                        // Consume plus sign
                                         idx += 1;
+
+                                        // Check if there are more tokens to parse after the `+`, if not we should raise an error
+                                        if idx >= traits_slice.len() {
+                                            return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition(Token::Addition)).into());
+                                        }
+
                                         continue 'traits_loop;
                                     },
-                                    Some(_) => {
+                                    // If there was a comma, we should stop parsing the traits for this generic, and parse the next generic
+                                    Some(&Token::Comma) => {
+                                        // Consume comma
+                                        idx += 1;
+
+                                        continue 'generics_loop;
+                                    }
+                                    // If there is a different token that means that the syntax doesnt match
+                                    Some(tkn) => {
                                         return Err(
-                                            SyntaxError::InvalidFunctionGenericsDefinition.into()
+                                            SyntaxError::InvalidFunctionGenericsDefinition(tkn.clone()).into()
                                         );
                                     },
                                     _ => break 'traits_loop,
@@ -555,26 +585,26 @@ pub fn parse_fn_generics(
                         }
                     }
 
+                    // Check if we have mentioned atleast one trait to implement for the last generic
+                    // If not we should raise an error
+                    if trait_list.is_empty() {
+                        return Err(ParserError::GenericMustHaveAtleastOneTrait(generic_name.clone()).into());
+                    }
+
                     // Check syntax validity
-                    match tokens.get(idx) {
-                        Some(_) => {
-                            return Err(SyntaxError::InvalidFunctionGenericsDefinition.into());
+                    match traits_slice.get(idx) {
+                        Some(tkn) => {
+                            return Err(SyntaxError::InvalidFunctionGenericsDefinition(tkn.clone()).into());
                         },
                         _ => break 'traits_loop,
                     }
                 }
             }
 
-            // Store function generics
-            function_generics.insert(generic_name.clone(), traits_impl);
-
             idx += 1;
         }
 
-        match dbg!(tokens.get(idx)) {
-            Some(&Token::Comma) => {
-                idx += 1;
-            },
+        match traits_slice.get(idx) {
             Some(_) => return Err(ParserError::SyntaxError(SyntaxError::MissingCommaAtGenericsDefinition).into()),
             _ => break,
         }

@@ -9,6 +9,11 @@ trait nber {
     alszik(this, dur: int): void;
 }
 
+trait majom {
+    beszel(this, szo: string): void;
+}
+
+
 marci implements {
     pub function get_num(this, mul: int): int {
         this.a = 900;
@@ -31,11 +36,6 @@ pub function main(): int {
     return 0;
 }
 
-pub function add
-    |
-        T <- nber,
-    |
-    (lhs: int, rhs: int): int
-    {
-
+pub function add |T <- nber, F <- nber +| (lhs: int, rhs: int): int {
+    return 0;
 }
