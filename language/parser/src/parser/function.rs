@@ -85,10 +85,12 @@ pub fn parse_functions(
                     }
 
                     if tokens[token_idx] == Token::OpenParentheses {
-                        let (bracket_close_idx, mut args) = parse_signature_argument_tokens(
+                        // This function also stores the generics of the function signature
+                        let (bracket_close_idx, args) = parse_signature_argument_tokens(
                             &tokens[token_idx + 1..],
                             custom_types,
                             is_struct_implementation,
+                            function_generics,
                         )?;
 
                         token_idx += bracket_close_idx + 1;
@@ -158,9 +160,6 @@ pub fn parse_functions(
 
                                     // Store the function name in the module path
                                     mod_path.push(function_name.clone());
-
-                                    // Store the generics list
-                                    args.generics = function_generics;
 
                                     // Store the function
                                     let insertion = function_list.insert(
@@ -298,12 +297,13 @@ impl Parser
 
                             token_idx += jumped_idx;
                         }
-
+                        
                         if tokens[token_idx] == Token::OpenParentheses {
-                            let (bracket_close_idx, mut args) = parse_signature_argument_tokens(
+                            let (bracket_close_idx, args) = parse_signature_argument_tokens(
                                 &tokens[token_idx + 1..],
                                 &custom_types,
                                 false,
+                                function_generics,
                             )?;
 
                             token_idx += bracket_close_idx + 1;
@@ -378,8 +378,6 @@ impl Parser
                                         // Store the function name in the module path
                                         mod_path.push(function_name.clone());
 
-                                        args.generics = function_generics;
-
                                         // Store the function
                                         let insertion = function_list.insert(
                                             function_name.clone(),
@@ -437,33 +435,54 @@ impl Parser
             }
             else if current_token == Token::External {
                 if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned()
-                    && tokens[token_idx + 2] == Token::OpenParentheses
-                {
-                    if external_imports.get(&identifier).is_some()
-                        || function_list.get(&identifier).is_some()
                     {
-                        return Err(ParserError::DuplicateSignatureImports(identifier).into());
+                        // Try to collect the function generics specified next to the args
+                        let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
+                        
+                        token_idx += 2;
+
+                        // Check if there are any generics defined
+                        if tokens[token_idx] == Token::BitOr {
+                            // Increment idx
+                            token_idx += 1;
+
+                            let jumped_idx = parse_fn_generics(
+                                &tokens[token_idx..],
+                                &custom_types,
+                                &mut function_generics,
+                            )?;
+
+                            token_idx += jumped_idx + 1;
+                        }
+
+                        if tokens[token_idx] == Token::OpenParentheses {
+                            if external_imports.get(&identifier).is_some()
+                                || function_list.get(&identifier).is_some()
+                            {
+                                return Err(ParserError::DuplicateSignatureImports(identifier).into());
+                            }
+
+                            let mut mod_path = module_path.clone();
+                            mod_path.push(identifier.clone());
+
+                            // Set the index to the item after the `(` for the helper function
+                            token_idx += 1;
+
+                            let fn_sig = parse_function_signature(
+                                &tokens,
+                                &mut token_idx,
+                                &custom_types,
+                                mod_path,
+                                identifier,
+                                false,
+                                function_generics,
+                            )?;
+
+                            external_imports.insert(fn_sig.name.clone(), fn_sig);
+
+                            continue;
+                        }
                     }
-
-                    let mut mod_path = module_path.clone();
-                    mod_path.push(identifier.clone());
-
-                    // Set the index to the item after the `(` for the helper function
-                    token_idx += 3;
-
-                    let fn_sig = parse_function_signature(
-                        &tokens,
-                        &mut token_idx,
-                        &custom_types,
-                        mod_path,
-                        identifier,
-                        false,
-                    )?;
-
-                    external_imports.insert(fn_sig.name.clone(), fn_sig);
-
-                    continue;
-                }
             }
             else if current_token == Token::Import {
                 if let Some(Token::Identifier(_)) = tokens.get(token_idx + 1) {
@@ -666,8 +685,25 @@ impl Parser
                             // Store trait name in mod path
                             module_path.push(fn_name.clone());
 
+                            // Try to collect the function generics specified next to the args
+                            let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
+                            
                             // Increment index
                             idx += 2;
+
+                            // Check if there are any generics defined
+                            if tokens[idx] == Token::BitOr {
+                                // Increment idx
+                                idx += 1;
+
+                                let jumped_idx = parse_fn_generics(
+                                    &tokens[idx..],
+                                    &custom_types,
+                                    &mut function_generics,
+                                )?;
+
+                                idx += jumped_idx + 1;
+                            }
 
                             // This function parses until the return type and offset the idx to the expr closing `;`
                             let fn_sig = parse_function_signature(
@@ -677,6 +713,7 @@ impl Parser
                                 module_path,
                                 fn_name.clone(),
                                 true,
+                                function_generics,
                             )?;
 
                             // Store the function of the trait
@@ -853,7 +890,7 @@ impl Parser
                         .into(),
                 );
             }
-            else if let Token::Identifier(struct_name_ident) = current_token.clone() {
+            else if let Token::Identifier(struct_name_ident) = dbg!(current_token.clone()) {
                 // Create a clone so that we can use this when looking up information, since it would create an immutable and a mutable borrow.
                 let custom_types_clone = custom_types.clone();
 
@@ -1787,6 +1824,7 @@ impl Parser
     }
 }
 
+/// This function is only used to parse function signatures for imports.
 pub fn parse_function_signature(
     tokens: &[Token],
     token_idx: &mut usize,
@@ -1794,12 +1832,14 @@ pub fn parse_function_signature(
     module_path: Vec<String>,
     function_name: String,
     is_struct_implementation: bool,
+    function_generics: OrdMap<String, OrdSet<String>>
 ) -> anyhow::Result<FunctionSignature>
 {
     let (bracket_close_idx, args) = parse_signature_argument_tokens(
-        &tokens[*token_idx..],
+        dbg!(&tokens[*token_idx..]),
         custom_types,
         is_struct_implementation,
+        function_generics
     )?;
 
     *token_idx += bracket_close_idx;

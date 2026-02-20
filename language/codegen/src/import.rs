@@ -135,7 +135,10 @@ pub fn import_user_lib_functions<'a>(
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
-            Type::TraitGeneric { .. } => return Err(CodeGenError::TraitGenericIsNotType.into()),
+            Type::Trait { .. } => return Err(CodeGenError::TraitIsNotType.into()),
+            Type::TraitObject { implemented_traits, inner_type } => {
+                unimplemented!()
+            },
         };
 
         module.add_function(import_name, function_type, None);

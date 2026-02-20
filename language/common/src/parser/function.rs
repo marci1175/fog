@@ -351,6 +351,7 @@ pub fn parse_signature_args(
     tokens: &[Token],
     custom_types: &IndexMap<String, CustomItem>,
     is_struct_implementation: bool,
+    function_generics: &OrdMap<String, OrdSet<String>>
 ) -> Result<FunctionArguments>
 {
     // Create a list of args which the function will take, we will return this later
@@ -369,11 +370,11 @@ pub fn parse_signature_args(
         let current_token = &tokens[args_idx];
 
         // Match the current token
-        if let Token::Identifier(var_name) = current_token {
+        if let Token::Identifier(var_name) = dbg!(current_token) {
             // Match the colon from the signature, to ensure correct signaure
             if tokens[args_idx + 1] == Token::Colon {
                 // Get the type of the argument
-                if let Token::TypeDefinition(var_type) = &tokens[args_idx + 2] {
+                if let Token::TypeDefinition(var_type) = dbg!(&tokens[args_idx + 2]) {
                     // Store the argument in the HashMap
                     args.arguments.insert(
                         var_name.clone(),
@@ -392,7 +393,18 @@ pub fn parse_signature_args(
                     continue;
                 }
                 else {
-                    let custom_ty = ty_from_token(&tokens[args_idx + 2], custom_types)?;
+                    let custom_ty = if let Ok(ty) = ty_from_token(&tokens[args_idx + 2], custom_types) {
+                        ty
+                    }
+                    else if let Some(Token::Identifier(generic_name)) = &tokens.get(args_idx + 2) {
+                        // Get the implemented traits for this generic
+                        let generic = function_generics.get(generic_name).ok_or(ParserError::CustomItemNotFound(generic_name.clone()))?;
+
+                        Type::TraitObject { implemented_traits: generic.clone() }
+                    }
+                    else {
+                        return Err(ParserError::InvalidType(vec![tokens[args_idx + 2].clone()]).into())
+                    };
 
                     // Store the argument in the HashMap
                     args.arguments.insert(
@@ -469,6 +481,7 @@ pub fn parse_signature_argument_tokens(
     tokens: &[Token],
     custom_types: &IndexMap<String, CustomItem>,
     is_struct_implementation: bool,
+    function_generics: OrdMap<String, OrdSet<String>>
 ) -> Result<(usize, FunctionArguments)>
 {
     let bracket_closing_idx =
@@ -476,13 +489,17 @@ pub fn parse_signature_argument_tokens(
 
     let mut args = FunctionArguments::new();
 
+    
     if bracket_closing_idx != 0 {
         args = parse_signature_args(
             &tokens[..bracket_closing_idx],
             custom_types,
             is_struct_implementation,
+            &function_generics,
         )?;
     }
+
+    args.generics = function_generics;
 
     Ok((bracket_closing_idx, args))
 }
@@ -548,7 +565,7 @@ pub fn parse_fn_generics(
                             CustomItem::Trait { name, .. } => {
                                 // Store trait name, into the mutable reference
                                 // Check if the trait is already required
-                                if dbg!(!trait_list.insert(name.clone())) {
+                                if !trait_list.insert(name.clone()) {
                                     return Err(ParserError::TraitAlreadyRequiredForGeneric(generic_name.clone(), trait_name.clone()).into())
                                 }
 

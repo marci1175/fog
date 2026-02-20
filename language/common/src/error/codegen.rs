@@ -9,6 +9,8 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum CodeGenError
 {
+    #[error("Trait objects are not determined types as they are function interfaces.")]
+    TraitObjectOpaqueType,
     #[error("Output path `{0}` is unavailable.")]
     InvalidOutPath(PathBuf),
     #[error("[INTERNAL ERROR] Function `{0}` was not found in the module at codegen.")]
@@ -91,6 +93,6 @@ pub enum CodeGenError
     VagueDereference,
     #[error("Cannot cast inner value of enum with inner type of `{0}` to `{1}`.")]
     EnumInnerTypeMismatch(Type, Type),
-    #[error("Traits cannot be turned into Trait Objects.")]
-    TraitGenericIsNotType,
+    #[error("Traits are not valid types.")]
+    TraitIsNotType,
 }

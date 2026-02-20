@@ -240,11 +240,18 @@ pub enum Type
     Struct((String, OrdMap<String, Type>, StructAttributes)),
     Array((Box<Token>, usize)),
     Pointer(Option<Box<Token>>),
-    TraitGeneric
+    Trait
     {
         name: String,
         functions: OrdMap<String, FunctionSignature>,
     },
+
+    TraitObject {
+        // Traits implemented for a trait object
+        implemented_traits: OrdSet<String>,
+        // The trait object type is a wrapper around a concrete types. These types are determined at compile time.
+        // inner_type: Box<Type>,
+    }
 }
 
 impl From<CustomItem> for Type
@@ -276,18 +283,18 @@ impl PartialEq for Type
             (Self::Array(l0), Self::Array(r0)) => l0 == r0,
             (Self::Pointer(l0), Self::Pointer(r0)) => l0 == r0,
             (
-                Self::TraitGeneric {
+                Self::Trait {
                     name: l_name,
                     functions: l_functions,
                 },
-                Self::TraitGeneric {
+                Self::Trait {
                     name: r_name,
                     functions: r_functions,
                 },
             ) => l_name == r_name && l_functions == r_functions,
             // Implement specific logic cmp for Traits
             (
-                Self::TraitGeneric {
+                Self::Trait {
                     name: trait_name, ..
                 },
                 Self::Struct((_, _, attr)),
@@ -364,10 +371,10 @@ impl Type
                     .sizeof(custom_types.clone())
             },
             Self::Pointer(_) => std::mem::size_of::<usize>(),
-            Self::TraitGeneric {
-                functions: _inner_type,
+            Self::Trait {
                 ..
             } => 0,
+            Self::TraitObject { .. } => 0,
         }
     }
 
@@ -412,7 +419,8 @@ impl Type
             Type::Pointer(_) => {
                 BasicTypeEnum::PointerType(ctx.ptr_type(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE.into()))
             },
-            Type::TraitGeneric { .. } => return Err(CodeGenError::TraitGenericIsNotType.into()),
+            Type::Trait { .. } => return Err(CodeGenError::TraitIsNotType.into()),
+            Type::TraitObject { .. } => todo!(),
         };
 
         Ok(basic_ty)
@@ -457,7 +465,10 @@ impl Type
             },
             Self::Array(array) => Value::Array(array.to_owned()),
             Self::Pointer(_) => Value::Pointer((0, None)),
-            Self::TraitGeneric { .. } => {
+            Self::Trait { .. } => {
+                unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
+            },
+            Self::TraitObject { .. } => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
         }
@@ -488,10 +499,13 @@ impl Display for Type
             },
             Type::Pointer(inner_ty) => format!("Ptr<{:?}>", inner_ty),
             Type::Enum((ty, _)) => format!("Enum<{ty}>"),
-            Type::TraitGeneric {
+            Type::Trait {
                 functions: inner_type,
                 name: trait_name,
-            } => format!("TraitGeneric({trait_name})<{inner_type:#?}>"),
+            } => format!("Trait({trait_name})<{inner_type:#?}>"),
+            Type::TraitObject {
+                implemented_traits, inner_type,
+            } => format!("TraitObject<{inner_type}>({implemented_traits:#?})"),
         })
     }
 }
@@ -592,16 +606,24 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                 Type::Enum(inner),
             ));
         },
-        Some(Type::TraitGeneric {
+        Some(Type::Trait {
             functions: inner_type,
             name: trait_name,
         }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::TraitGeneric {
+                Type::Trait {
                     functions: inner_type,
                     name: trait_name,
                 },
+            ));
+        },
+        Some(Type::TraitObject {
+            implemented_traits,
+        }) => {
+            return Err(ParserError::InvalidTypeCast(
+                raw_string.to_string(),
+                Type::TraitObject { implemented_traits }
             ));
         },
         None => {
@@ -806,7 +828,7 @@ pub fn ty_from_token(
                     // TODO: Make it so that Trait types exist. It will basically mean that any struct can be passed in to this arg which implements this trait
                     // This is a type interface, this isnt a concrete type
                     CustomItem::Trait { name, functions } => {
-                        Ok(Type::TraitGeneric { name, functions })
+                        Ok(Type::Trait { name, functions })
                     },
                 }
             }

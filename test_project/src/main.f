@@ -1,12 +1,13 @@
 external printf(str: string, ...): int;
 external getchar(): int;
 
-struct marci {
-    a: int,    
-}
-
 trait nber {
     alszik(this, dur: int): void;
+}
+
+
+struct marci {
+    a: int,    
 }
 
 trait majom {
@@ -36,6 +37,6 @@ pub function main(): int {
     return 0;
 }
 
-pub function add |T <- nber, F <- nber +| (lhs: int, rhs: int): int {
+pub function add |T <- nber, F <- nber| (lhs: T, rhs: int): int {
     return 0;
 }

@@ -281,9 +281,12 @@ pub fn ty_to_llvm_ty<'a>(
             inkwell::types::BasicTypeEnum::ArrayType(array_ty)
         },
         Type::Pointer(_) => BasicTypeEnum::PointerType(ptr_type),
-        Type::TraitGeneric { .. } => {
-            return Err(CodeGenError::TraitGenericIsNotType.into());
+        Type::Trait { .. } => {
+            return Err(CodeGenError::TraitIsNotType.into());
         },
+        Type::TraitObject { implemented_traits, inner_type } => {
+            ty_to_llvm_ty(ctx, inner_type, custom_types)?
+        }
     };
 
     Ok(field_ty)

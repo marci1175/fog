@@ -522,7 +522,8 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
-                            Type::TraitGeneric { name, functions } => todo!(),
+                            Type::Trait { name, functions } => todo!(),
+                            Type::TraitObject { implemented_traits } => todo!(),
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -670,7 +671,8 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
-                            Type::TraitGeneric { name, functions } => todo!(),
+                            Type::Trait { name, functions } => todo!(),
+                            Type::TraitObject { implemented_traits, inner_type } => todo!(),
                         }
                     },
                     Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
@@ -840,7 +842,8 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
-                            Type::TraitGeneric { name, functions } => todo!(),
+                            Type::Trait { name, functions } => todo!(),
+                            Type::TraitObject { implemented_traits, inner_type } => todo!(),
                         }
                     },
                     Type::String => {
@@ -1026,7 +1029,8 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
-                            Type::TraitGeneric { .. } => todo!(),
+                            Type::Trait { .. } => todo!(),
+                            Type::TraitObject { implemented_traits } => todo!(),
                         }
                     },
                     Type::Void => {
@@ -1042,9 +1046,10 @@ where
                         return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
                     Type::Enum(_) => unreachable!(),
-                    Type::TraitGeneric { .. } => {
+                    Type::Trait { .. } => {
                         return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
+                    Type::TraitObject { implemented_traits } => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1625,7 +1630,8 @@ where
                 Type::Array(type_discriminant) => unimplemented!(),
                 Type::Pointer(_) => todo!(),
                 Type::Enum(_) => todo!(),
-                Type::TraitGeneric { name, functions } => todo!(),
+                Type::Trait { name, functions } => todo!(),
+                Type::TraitObject { implemented_traits } => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
