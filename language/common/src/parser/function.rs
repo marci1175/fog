@@ -400,7 +400,7 @@ pub fn parse_signature_args(
                         // Get the implemented traits for this generic
                         let generic = function_generics.get(generic_name).ok_or(ParserError::CustomItemNotFound(generic_name.clone()))?;
 
-                        Type::TraitObject { implemented_traits: generic.clone() }
+                        Type::TraitObject { implemented_traits: generic.clone(), inner_type: None }
                     }
                     else {
                         return Err(ParserError::InvalidType(vec![tokens[args_idx + 2].clone()]).into())

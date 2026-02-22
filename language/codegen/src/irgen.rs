@@ -523,7 +523,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { name, functions } => todo!(),
-                            Type::TraitObject { implemented_traits } => todo!(),
+                            Type::TraitObject { implemented_traits, inner_type } => todo!(),
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -1030,7 +1030,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { .. } => todo!(),
-                            Type::TraitObject { implemented_traits } => todo!(),
+                            Type::TraitObject { implemented_traits, inner_type } => todo!(),
                         }
                     },
                     Type::Void => {
@@ -1049,7 +1049,7 @@ where
                     Type::Trait { .. } => {
                         return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
-                    Type::TraitObject { implemented_traits } => todo!(),
+                    Type::TraitObject { implemented_traits, inner_type } => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1631,7 +1631,7 @@ where
                 Type::Pointer(_) => todo!(),
                 Type::Enum(_) => todo!(),
                 Type::Trait { name, functions } => todo!(),
-                Type::TraitObject { implemented_traits } => todo!(),
+                Type::TraitObject { implemented_traits, inner_type } => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {

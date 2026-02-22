@@ -240,6 +240,7 @@ pub enum Type
     Struct((String, OrdMap<String, Type>, StructAttributes)),
     Array((Box<Token>, usize)),
     Pointer(Option<Box<Token>>),
+
     Trait
     {
         name: String,
@@ -247,10 +248,13 @@ pub enum Type
     },
 
     TraitObject {
-        // Traits implemented for a trait object
+        /// Traits implemented for a trait object
         implemented_traits: OrdSet<String>,
-        // The trait object type is a wrapper around a concrete types. These types are determined at compile time.
-        // inner_type: Box<Type>,
+        /// The trait object type is a wrapper around a concrete types. These types are determined at compile time.
+        /// If the inner type is unknown this field is None. For instnace it is none when used in defining a function's signature. 
+        /// However, it is Some when used inside the body of the function (after being passed into a function).
+        /// There are checks in the code that throw an internal error if this is None.
+        inner_type: Option<Box<Type>>,
     }
 }
 
@@ -505,7 +509,7 @@ impl Display for Type
             } => format!("Trait({trait_name})<{inner_type:#?}>"),
             Type::TraitObject {
                 implemented_traits, inner_type,
-            } => format!("TraitObject<{inner_type}>({implemented_traits:#?})"),
+            } => format!("TraitObject<{inner_type:?}>({implemented_traits:#?})"),
         })
     }
 }
@@ -619,11 +623,10 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             ));
         },
         Some(Type::TraitObject {
-            implemented_traits,
-        }) => {
+            implemented_traits, inner_type }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::TraitObject { implemented_traits }
+                Type::TraitObject { implemented_traits, inner_type }
             ));
         },
         None => {

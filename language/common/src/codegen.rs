@@ -285,7 +285,7 @@ pub fn ty_to_llvm_ty<'a>(
             return Err(CodeGenError::TraitIsNotType.into());
         },
         Type::TraitObject { implemented_traits, inner_type } => {
-            ty_to_llvm_ty(ctx, inner_type, custom_types)?
+            ty_to_llvm_ty(ctx, inner_type.as_ref().ok_or_else(|| CodeGenError::InternalTraitObjectTypeUnknown)?, custom_types)?
         }
     };
 
