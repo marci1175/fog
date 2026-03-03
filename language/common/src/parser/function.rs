@@ -370,11 +370,11 @@ pub fn parse_signature_args(
         let current_token = &tokens[args_idx];
 
         // Match the current token
-        if let Token::Identifier(var_name) = dbg!(current_token) {
+        if let Token::Identifier(var_name) = current_token {
             // Match the colon from the signature, to ensure correct signaure
             if tokens[args_idx + 1] == Token::Colon {
                 // Get the type of the argument
-                if let Token::TypeDefinition(var_type) = dbg!(&tokens[args_idx + 2]) {
+                if let Token::TypeDefinition(var_type) = &tokens[args_idx + 2] {
                     // Store the argument in the HashMap
                     args.arguments.insert(
                         var_name.clone(),
@@ -517,7 +517,7 @@ pub fn parse_fn_generics(
     function_generics: &mut OrdMap<String, OrdSet<String>>,
 ) -> anyhow::Result<usize>
 {
-    let function_g_closing_idx = find_next_bitor(dbg!(tokens)).map_err(|_| {
+    let function_g_closing_idx = find_next_bitor(tokens).map_err(|_| {
         ParserError::SyntaxError(
             crate::error::syntax::SyntaxError::LeftOpenBitOr,
         )

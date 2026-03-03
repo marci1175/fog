@@ -169,7 +169,7 @@ pub fn parse_functions(
                                             token_offset: token_idx + 4,
                                             signature: FunctionSignature {
                                                 name: function_name.clone(),
-                                                args: dbg!(args.clone()),
+                                                args: args.clone(),
                                                 return_type: return_type.clone(),
                                                 // To be honest I dont really think this matters what we set it, since im not planning to make a disctinction between public and private functions
                                                 // For now ;)
@@ -386,7 +386,7 @@ impl Parser
                                                 token_offset: token_idx + 4,
                                                 signature: FunctionSignature {
                                                     name: function_name.clone(),
-                                                    args: dbg!(args.clone()),
+                                                    args: args.clone(),
                                                     return_type: return_type.clone(),
                                                     visibility: current_token.try_into()?,
                                                     module_path: mod_path.clone(),
@@ -890,7 +890,7 @@ impl Parser
                         .into(),
                 );
             }
-            else if let Token::Identifier(struct_name_ident) = dbg!(current_token.clone()) {
+            else if let Token::Identifier(struct_name_ident) = current_token.clone() {
                 // Create a clone so that we can use this when looking up information, since it would create an immutable and a mutable borrow.
                 let custom_types_clone = custom_types.clone();
 
@@ -1836,7 +1836,7 @@ pub fn parse_function_signature(
 ) -> anyhow::Result<FunctionSignature>
 {
     let (bracket_close_idx, args) = parse_signature_argument_tokens(
-        dbg!(&tokens[*token_idx..]),
+        &tokens[*token_idx..],
         custom_types,
         is_struct_implementation,
         function_generics

@@ -1300,6 +1300,15 @@ where
                 (ParsedTokenInstance, (Type, UniqueId)),
             > = IndexMap::from_iter(arg_iter).into();
 
+            // Check for generics in the arguments and generate more functions based on that
+            for (fn_arg_id, (val, (ty, id))) in fn_argument_list.iter() {
+                if let Type::TraitObject { implemented_traits, inner_type } = ty {
+                    // Check if the function implements the specified traits
+                    // Try to determine this args type
+                    // If it passes, we should generate the function with these specific arguments as the signature.
+                }
+            }
+
             // Keep the list of the arguments passed in
             let arguments_passed_in = create_function_call_args(
                 ctx,
@@ -2228,6 +2237,11 @@ pub fn generate_ir<'ctx>(
     for (item_name, item) in custom_types.iter() {
         if let CustomItem::Struct((name, fields, attr)) = item {
             for (_, impl_fn) in attr.implemented_parsed_functions.iter() {
+                // If there are any generics present in the function arguments, the function cannot be statically parsed and is generated after call during compile
+                if !impl_fn.signature.args.generics.is_empty() {
+                    continue;
+                }
+
                 create_function_with_ir(
                     &parsed_functions,
                     context,
@@ -2247,6 +2261,11 @@ pub fn generate_ir<'ctx>(
     }
 
     for (function_name, function_definition) in parsed_functions.iter() {
+        // If there are any generics present in the function arguments, the function cannot be statically parsed and is generated after call during compile
+        if !function_definition.signature.args.generics.is_empty() {
+            continue;
+        }
+
         create_function_with_ir(
             &parsed_functions,
             context,
@@ -2286,13 +2305,17 @@ fn create_function_with_ir<'ctx>(
         function_definition.signature.clone(),
         custom_types.clone(),
     )?;
+
     let function = module.add_function(function_name, function_type, None);
+    
     add_compiler_hints_to_fn(
         context,
         &function_definition.signature.compiler_hints,
         function,
     )?;
+    
     let return_type = function_definition.signature.return_type.clone();
+    
     if !is_optimized {
         let debug_subprogram = create_subprogram_debug_information(
             context,
@@ -2311,8 +2334,11 @@ fn create_function_with_ir<'ctx>(
 
         function.set_subprogram(debug_subprogram);
     }
+    
     let basic_block = context.append_basic_block(function, "main");
+    
     builder.position_at_end(basic_block);
+    
     if function_definition.signature.return_type == Type::Void {
         // Insert the return void instruction
         let instruction = builder.build_return(None)?;
@@ -2320,7 +2346,9 @@ fn create_function_with_ir<'ctx>(
         // Put the builder before that instruction so that it can resume generating IR
         builder.position_before(&instruction);
     }
+    
     let mut arguments: HashMap<String, (BasicValueEnum, (Type, UniqueId))> = HashMap::new();
+    
     for (idx, argument) in function.get_param_iter().enumerate() {
         // Get the name of the argument from the function signature's argument list
         let argument_entry = function_definition
@@ -2339,6 +2367,7 @@ fn create_function_with_ir<'ctx>(
             (argument, argument_entry.1.clone()),
         );
     }
+    
     create_ir(
         module,
         builder,
@@ -2351,6 +2380,7 @@ fn create_function_with_ir<'ctx>(
         parsed_functions.clone(),
         custom_types.clone(),
     )?;
+    
     Ok(())
 }
 
