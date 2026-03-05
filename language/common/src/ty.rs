@@ -247,15 +247,20 @@ pub enum Type
         functions: OrdMap<String, FunctionSignature>,
     },
 
-    TraitObject {
-        /// Traits implemented for a trait object
-        implemented_traits: OrdSet<String>,
-        /// The trait object type is a wrapper around a concrete types. These types are determined at compile time.
-        /// If the inner type is unknown this field is None. For instnace it is none when used in defining a function's signature. 
-        /// However, it is Some when used inside the body of the function (after being passed into a function).
-        /// There are checks in the code that throw an internal error if this is None.
-        inner_type: Option<Box<Type>>,
-    }
+    // /// A TraitObject is basically a set of traits, I may remove them later and adopt traits better
+    // TraitObject {
+    //     /// Traits implemented for a trait object
+    //     implemented_traits: OrdSet<String>,
+    //     // The trait object type is a wrapper around a concrete types. These types are determined at compile time.
+    //     // If the inner type is unknown this field is None. For instnace it is none when used in defining a function's signature. 
+    //     // However, it is Some when used inside the body of the function (after being passed into a function).
+    //     // There are checks in the code that throw an internal error if this is None.
+    //     // inner_type: Option<Box<Type>>,
+    // }
+    /// A TraitObject is basically a set of traits, I may remove them later and adopt traits better
+    TraitObject (
+        OrdSet<String>
+    )
 }
 
 impl From<CustomItem> for Type
@@ -303,6 +308,14 @@ impl PartialEq for Type
                 },
                 Self::Struct((_, _, attr)),
             ) => attr.traits.contains_key(trait_name),
+            (
+                Self::TraitObject ( implemented_traits, /*inner_type */ ), Self::Struct((_, _, attr))
+            ) => {
+                // Check if all of the traits specified in the TraitObject are implemented by the struct
+                implemented_traits.iter().all(|impl_trait| {
+                    attr.traits.contains_key(impl_trait)
+                })
+            }
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
@@ -507,9 +520,9 @@ impl Display for Type
                 functions: inner_type,
                 name: trait_name,
             } => format!("Trait({trait_name})<{inner_type:#?}>"),
-            Type::TraitObject {
-                implemented_traits, inner_type,
-            } => format!("TraitObject<{inner_type:?}>({implemented_traits:#?})"),
+            Type::TraitObject (
+                implemented_traits,
+            ) => format!("TraitObject({implemented_traits:#?})"),
         })
     }
 }
@@ -622,11 +635,10 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                 },
             ));
         },
-        Some(Type::TraitObject {
-            implemented_traits, inner_type }) => {
+        Some(Type::TraitObject(implemented_traits)) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::TraitObject { implemented_traits, inner_type }
+                Type::TraitObject(implemented_traits)
             ));
         },
         None => {

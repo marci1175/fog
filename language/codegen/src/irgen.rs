@@ -523,7 +523,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { name, functions } => todo!(),
-                            Type::TraitObject { implemented_traits, inner_type } => todo!(),
+                            Type::TraitObject (_) => todo!(),
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -672,7 +672,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { name, functions } => todo!(),
-                            Type::TraitObject { implemented_traits, inner_type } => todo!(),
+                            Type::TraitObject (_) => todo!(),
                         }
                     },
                     Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
@@ -843,7 +843,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { name, functions } => todo!(),
-                            Type::TraitObject { implemented_traits, inner_type } => todo!(),
+                            Type::TraitObject (_) => todo!(),
                         }
                     },
                     Type::String => {
@@ -1030,7 +1030,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { .. } => todo!(),
-                            Type::TraitObject { implemented_traits, inner_type } => todo!(),
+                            Type::TraitObject (_) => todo!(),
                         }
                     },
                     Type::Void => {
@@ -1049,7 +1049,7 @@ where
                     Type::Trait { .. } => {
                         return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
-                    Type::TraitObject { implemented_traits, inner_type } => todo!(),
+                    Type::TraitObject (_) => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1299,15 +1299,6 @@ where
                 FunctionArgumentIdentifier<String, usize>,
                 (ParsedTokenInstance, (Type, UniqueId)),
             > = IndexMap::from_iter(arg_iter).into();
-
-            // Check for generics in the arguments and generate more functions based on that
-            for (fn_arg_id, (val, (ty, id))) in fn_argument_list.iter() {
-                if let Type::TraitObject { implemented_traits, inner_type } = ty {
-                    // Check if the function implements the specified traits
-                    // Try to determine this args type
-                    // If it passes, we should generate the function with these specific arguments as the signature.
-                }
-            }
 
             // Keep the list of the arguments passed in
             let arguments_passed_in = create_function_call_args(
@@ -1640,7 +1631,7 @@ where
                 Type::Pointer(_) => todo!(),
                 Type::Enum(_) => todo!(),
                 Type::Trait { name, functions } => todo!(),
-                Type::TraitObject { implemented_traits, inner_type } => todo!(),
+                Type::TraitObject (_) => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {

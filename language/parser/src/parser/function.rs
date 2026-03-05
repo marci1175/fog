@@ -7,7 +7,7 @@ use std::{
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomItem, If, StructAttributes},
+    codegen::{CustomItem, FunctionArgumentIdentifier, If, StructAttributes},
     compiler::ProjectConfig,
     dashmap::DashMap,
     error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
@@ -1334,6 +1334,50 @@ impl Parser
                             custom_items.clone(),
                             None,
                         )?;
+
+                        // Check for generics in the arguments and insert automaticly generated functions based on that.
+                        // The functions generated will have the same function body of the original function butwith different arguments.
+                        // This iterator will return the indexes of the arguments which are traits
+                        // We then next check the types of the values given to these arguments
+                        // The trait checking is checked in the parsing of the value for the argument
+                        // See the implementation of `PartialEq` for `Type`.
+                        let passed_in_arguments_for_traits = function_sig.signature.args.arguments.iter().enumerate().filter_map(|(idx, (arg_name, (arg_ty, _)))| {
+                            if matches!(arg_ty, Type::TraitObject(_)) {
+                                return Some((idx, arg_name));
+                            }
+
+                            None
+                        }).map(|(arg_idx, arg_id)| {
+                            // We cant know which way the argument has been passed therefor we need to check with both ways, since we know the arguments index and identifier
+                            if let Some((argument, (arg_ty, id))) = variables_passed.get(&FunctionArgumentIdentifier::Index(arg_idx)).or_else(|| {
+                                variables_passed.get(&FunctionArgumentIdentifier::Identifier(arg_id.clone()))
+                            }) {
+                                // Collect the argument types passed in
+                                return Result::<(usize, Type, usize), ParserError>::Ok((arg_idx, arg_ty.clone(), *id)) 
+                            } else {
+                                // IF we cant find it that is an unrecoverable internal error
+                                return Err(ParserError::InternalFunctionArgumentMissing(arg_idx, arg_id.clone()).into())
+                            }
+                        });
+
+                        // Clone the function's arguments
+                        let mut fn_args_clone = function_sig.signature.args.arguments.clone();
+                        
+                        // Modify current argument list with parsed types
+                        for passed_arg in passed_in_arguments_for_traits {
+                            // Return if an error occured in the searching
+                            let (arg_idx, arg_ty, arg_id) = passed_arg?;
+
+                            // A panic cannot happen here due to code above
+                            let (arg_name, (current_arg_ty, current_arg_id)) = fn_args_clone.get_index_mut(arg_id).unwrap();
+
+                            // Update values
+                            *current_arg_ty = arg_ty;
+                            *current_arg_id = arg_id;
+                        }
+
+                        // Insert newly generated function into function list, unsure that the function key does not collide with any currently exiosting functions.
+                        // We may need to modify the functions' key in the fn list, as with this multiple functions can have the same name but with different arguments. (Basically operator overloading)
 
                         token_idx += jumped_idx + 2;
 

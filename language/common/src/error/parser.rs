@@ -11,6 +11,8 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum ParserError
 {
+    #[error("[INTERNAL ERROR] The function's argument (idx: `{0}` | id: `{1}`) was found in the list of passed in arguments.")]
+    InternalFunctionArgumentMissing(usize, String),
     #[error("Trait `{0}` is already required for Generic `{1}`.")]
     TraitAlreadyRequiredForGeneric(String, String),
     #[error("Function generic `{0}` has been defined more than once. Generics are only allowed to be defined once.")]

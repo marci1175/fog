@@ -133,13 +133,11 @@ pub enum CompilerHint
 {
     /// See llvm function attributes
     Cold,
-    /// See llvm function attributes
     NoFree,
-    /// See llvm function attributes
     Inline,
-    /// See llvm function attributes
     NoUnWind,
-    /// Feature flag to only enable compilation of the function if a certain function enabled
+
+    /// Feature flag to only enable compilation of the function if a certain function is enabled
     Feature,
 }
 
@@ -168,7 +166,16 @@ pub fn parse_function_call_args(
     // Arguments which will passed in to the function
     let mut arguments: OrdMap<
         FunctionArgumentIdentifier<String, usize>,
-        (ParsedTokenInstance, (Type, UniqueId)),
+        (
+            // The parsed token of the argument
+            ParsedTokenInstance,
+            (
+                // Parsed argument value type
+                Type,
+                // Unique ID of the type itself
+                UniqueId
+            )
+        ),
     > = OrdMap::new();
 
     // If there are no arguments just return everything as is
@@ -400,7 +407,7 @@ pub fn parse_signature_args(
                         // Get the implemented traits for this generic
                         let generic = function_generics.get(generic_name).ok_or(ParserError::CustomItemNotFound(generic_name.clone()))?;
 
-                        Type::TraitObject { implemented_traits: generic.clone(), inner_type: None }
+                        Type::TraitObject(generic.clone())
                     }
                     else {
                         return Err(ParserError::InvalidType(vec![tokens[args_idx + 2].clone()]).into())

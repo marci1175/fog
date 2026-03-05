@@ -136,7 +136,7 @@ pub fn import_user_lib_functions<'a>(
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
             Type::Trait { .. } => return Err(CodeGenError::TraitIsNotType.into()),
-            Type::TraitObject { implemented_traits, inner_type } => {
+            Type::TraitObject (_) => {
                 unimplemented!()
             },
         };
