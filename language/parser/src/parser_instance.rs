@@ -50,7 +50,7 @@ impl Parser
         // Create user defined signature table
         // Create an import table which can be used later by other functions
         let (
-            unparsed_functions,
+            mut unparsed_functions,
             dep_imports,
             mut external_imports,
             mut custom_types,
@@ -105,7 +105,7 @@ impl Parser
 
         // Set the function table field of this struct
         self.function_table.extend(self.parse_functions(
-            Rc::new(unparsed_functions),
+            &mut unparsed_functions,
             imports.clone(),
             &mut custom_types,
         )?);

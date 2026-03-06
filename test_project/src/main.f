@@ -1,19 +1,13 @@
 external printf(str: string, ...): int;
 external getchar(): int;
 
-trait nber {
-    alszik(this, dur: int): void;
-}
-
-
 struct marci {
     a: int,    
 }
 
 trait majom {
-    beszel(this, szo: string): void;
+    beszel(this): int;
 }
-
 
 marci implements {
     pub function get_num(this, mul: int): int {
@@ -21,22 +15,28 @@ marci implements {
 
         return this.a * mul;
     }
-}
 
-marci implements nber {
-    pub function alszik(this, dur: int): void {
-        print("Alszik %i", dur);
+    pub function beszel(this): int {
+        printf("Szia batyus helyzeto: %i", this.a);
+
+        return 0;
     }
 }
 
 pub function main(): int {
     marci q = marci { a: 10 };
 
-    printf("Get num: %i\n", q.get_num(11));
-    
+    # This shit does NOT work, llvm is doing something shady here lol pls investigate codegen
+    # Must be some sort of a memory issue
+    # Fn isnt called when not stored and is with incorrect arguments inside
+    int a = q.beszel();
+
+    add(q, 10);
+
     return 0;
 }
 
-pub function add |T <- nber, F <- nber| (lhs: T, rhs: int): int {
-    return 0;
+pub function add |T <- majom| (lhs: T, rhs: int): int {
+    int a = lhs.beszel();
+    return a;
 }
