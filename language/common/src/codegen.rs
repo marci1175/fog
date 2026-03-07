@@ -286,7 +286,7 @@ pub fn ty_to_llvm_ty<'a>(
         },
         Type::TraitObject { .. } => {
             return Err(CodeGenError::TraitIsNotType.into());
-        }
+        },
     };
 
     Ok(field_ty)

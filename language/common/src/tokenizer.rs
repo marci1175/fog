@@ -109,7 +109,6 @@ pub enum Token
 
     LeftArrow,
     // RightArrow,
-
     /// This can be used as a substitute in function definitions in place of the `:` indicating return type.
     Returns,
 }

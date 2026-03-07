@@ -27,6 +27,7 @@ use common::{
             resolve_variable_expression,
         },
     },
+    strum::IntoDiscriminant,
     tokenizer::Token,
     tracing::{info, warn},
     ty::{OrdMap, OrdSet, Type, Value, ty_from_token},
@@ -67,7 +68,7 @@ pub fn parse_functions(
                 if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
                     // Try to collect the function generics specified next to the args
                     let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
-                    
+
                     token_idx += 2;
 
                     // Check if there are any generics defined
@@ -96,7 +97,9 @@ pub fn parse_functions(
                         token_idx += bracket_close_idx + 1;
 
                         // Fetch the returned type of the function
-                        if tokens[token_idx + 1] == Token::Colon || tokens[token_idx + 1] == Token::Returns {
+                        if tokens[token_idx + 1] == Token::Colon
+                            || tokens[token_idx + 1] == Token::Returns
+                        {
                             let return_type = ty_from_token(&tokens[token_idx + 2], custom_types)?;
 
                             if tokens[token_idx + 3] == Token::OpenBraces {
@@ -281,7 +284,7 @@ impl Parser
 
                         // Try to collect the function generics specified next to the args
                         let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
-                        
+
                         token_idx += 2;
 
                         // Check if there are any generics defined
@@ -297,7 +300,7 @@ impl Parser
 
                             token_idx += jumped_idx;
                         }
-                        
+
                         if tokens[token_idx] == Token::OpenParentheses {
                             let (bracket_close_idx, args) = parse_signature_argument_tokens(
                                 &tokens[token_idx + 1..],
@@ -434,55 +437,54 @@ impl Parser
                 return Err(ParserError::FunctionRequiresExplicitVisibility.into());
             }
             else if current_token == Token::External {
-                if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned()
-                    {
-                        // Try to collect the function generics specified next to the args
-                        let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
-                        
-                        token_idx += 2;
+                if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned() {
+                    // Try to collect the function generics specified next to the args
+                    let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
 
-                        // Check if there are any generics defined
-                        if tokens[token_idx] == Token::BitOr {
-                            // Increment idx
-                            token_idx += 1;
+                    token_idx += 2;
 
-                            let jumped_idx = parse_fn_generics(
-                                &tokens[token_idx..],
-                                &custom_types,
-                                &mut function_generics,
-                            )?;
+                    // Check if there are any generics defined
+                    if tokens[token_idx] == Token::BitOr {
+                        // Increment idx
+                        token_idx += 1;
 
-                            token_idx += jumped_idx + 1;
-                        }
+                        let jumped_idx = parse_fn_generics(
+                            &tokens[token_idx..],
+                            &custom_types,
+                            &mut function_generics,
+                        )?;
 
-                        if tokens[token_idx] == Token::OpenParentheses {
-                            if external_imports.get(&identifier).is_some()
-                                || function_list.get(&identifier).is_some()
-                            {
-                                return Err(ParserError::DuplicateSignatureImports(identifier).into());
-                            }
-
-                            let mut mod_path = module_path.clone();
-                            mod_path.push(identifier.clone());
-
-                            // Set the index to the item after the `(` for the helper function
-                            token_idx += 1;
-
-                            let fn_sig = parse_function_signature(
-                                &tokens,
-                                &mut token_idx,
-                                &custom_types,
-                                mod_path,
-                                identifier,
-                                false,
-                                function_generics,
-                            )?;
-
-                            external_imports.insert(fn_sig.name.clone(), fn_sig);
-
-                            continue;
-                        }
+                        token_idx += jumped_idx + 1;
                     }
+
+                    if tokens[token_idx] == Token::OpenParentheses {
+                        if external_imports.get(&identifier).is_some()
+                            || function_list.get(&identifier).is_some()
+                        {
+                            return Err(ParserError::DuplicateSignatureImports(identifier).into());
+                        }
+
+                        let mut mod_path = module_path.clone();
+                        mod_path.push(identifier.clone());
+
+                        // Set the index to the item after the `(` for the helper function
+                        token_idx += 1;
+
+                        let fn_sig = parse_function_signature(
+                            &tokens,
+                            &mut token_idx,
+                            &custom_types,
+                            mod_path,
+                            identifier,
+                            false,
+                            function_generics,
+                        )?;
+
+                        external_imports.insert(fn_sig.name.clone(), fn_sig);
+
+                        continue;
+                    }
+                }
             }
             else if current_token == Token::Import {
                 if let Some(Token::Identifier(_)) = tokens.get(token_idx + 1) {
@@ -686,8 +688,9 @@ impl Parser
                             module_path.push(fn_name.clone());
 
                             // Try to collect the function generics specified next to the args
-                            let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
-                            
+                            let mut function_generics: OrdMap<String, OrdSet<String>> =
+                                OrdMap::new();
+
                             // Increment index
                             idx += 2;
 
@@ -1094,6 +1097,7 @@ impl Parser
                             def.signature.args.clone(),
                             OrdMap::new(),
                             Some(receiver_ty),
+                            &mut 0,
                         )?,
                         token_offset: def.token_offset,
                     };
@@ -1124,15 +1128,20 @@ impl Parser
         let mut function_idx = 0;
 
         // Parse the functions
-        while function_idx < dbg!(unparsed_functions.len()) {
+        while function_idx < unparsed_functions.len() {
             let (fn_name, unparsed_function) = unparsed_functions.get_index(function_idx).unwrap();
             let fn_name = fn_name.clone();
             let unparsed_function = unparsed_function.clone();
 
-            if !unparsed_function.signature.args.generics.is_empty() {
+            // We should  skip the function if it has been parsed or if it has a trait in its argument as those functions are generated later in code
+            if !unparsed_function.signature.args.generics.is_empty()
+                || parsed_functions.contains_key(&fn_name)
+            {
+                function_idx += 1;
+
                 continue;
             }
-            
+
             let function_definition = FunctionDefinition {
                 signature: unparsed_function.signature.clone(),
                 inner: self.parse_function_block(
@@ -1145,6 +1154,7 @@ impl Parser
                     unparsed_function.signature.args.clone(),
                     OrdMap::new(),
                     None,
+                    &mut function_idx,
                 )?,
                 token_offset: unparsed_function.token_offset,
             };
@@ -1156,10 +1166,12 @@ impl Parser
                 function_idx + 1,
                 unparsed_functions.len()
             );
-            parsed_functions.insert(fn_name.clone(), function_definition);
+            parsed_functions.insert_before(dbg!(function_idx), fn_name.clone(), function_definition);
 
             function_idx += 1;
         }
+
+        dbg!(&parsed_functions.keys());
 
         Ok(parsed_functions)
     }
@@ -1175,6 +1187,7 @@ impl Parser
         this_fn_args: FunctionArguments,
         additional_variables: OrdMap<String, (Type, UniqueId)>,
         receiver_type: Option<(Type, usize)>,
+        this_function_idx: &mut usize,
     ) -> Result<Vec<ParsedTokenInstance>>
     {
         // Check if the function defined by the source code does not have an indeterminate amount of args
@@ -1352,39 +1365,66 @@ impl Parser
                         // We then next check the types of the values given to these arguments
                         // The trait checking is checked in the parsing of the value for the argument
                         // See the implementation of `PartialEq` for `Type`.
-                        let passed_in_arguments_for_traits = function_sig.signature.args.arguments.iter().enumerate().filter_map(|(idx, (arg_name, (arg_ty, _)))| {
-                            if matches!(arg_ty, Type::TraitObject(_)) {
-                                return Some((idx, arg_name));
-                            }
+                        let passed_in_arguments_for_traits = function_sig
+                            .signature
+                            .args
+                            .arguments
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, (arg_name, (arg_ty, _)))| {
+                                if matches!(arg_ty, Type::TraitObject(_)) {
+                                    return Some((idx, arg_name));
+                                }
 
-                            None
-                        }).map(|(arg_idx, arg_id)| {
-                            // We cant know which way the argument has been passed therefor we need to check with both ways, since we know the arguments index and identifier
-                            if let Some((_argument, (arg_ty, id))) = variables_passed.get(&FunctionArgumentIdentifier::Index(arg_idx)).or_else(|| {
-                                variables_passed.get(&FunctionArgumentIdentifier::Identifier(arg_id.clone()))
-                            }) {
-                                // Collect the argument types passed in
-                                return Result::<(usize, Type, usize), ParserError>::Ok((arg_idx, arg_ty.clone(), *id)) 
-                            } else {
-                                // IF we cant find it that is an unrecoverable internal error
-                                return Err(ParserError::InternalFunctionArgumentMissing(arg_idx, arg_id.clone()).into())
-                            }
-                        }).collect::<Vec<_>>();
+                                None
+                            })
+                            .map(|(arg_idx, arg_name)| {
+                                // We cant know which way the argument has been passed therefor we need to check with both ways, since we know the arguments index and identifier
+                                if let Some((_argument, (arg_ty, id))) = variables_passed
+                                    .get(&FunctionArgumentIdentifier::Index(arg_idx))
+                                    .or_else(|| {
+                                        variables_passed.get(
+                                            &FunctionArgumentIdentifier::Identifier(
+                                                arg_name.clone(),
+                                            ),
+                                        )
+                                    })
+                                {
+                                    // Collect the argument types passed in
+                                    return Result::<(usize, Type, String, usize), ParserError>::Ok(
+                                        (arg_idx, arg_ty.clone(), arg_name.clone(), *id),
+                                    );
+                                }
+                                else {
+                                    // IF we cant find it that is an unrecoverable internal error
+                                    return Err(ParserError::InternalFunctionArgumentMissing(
+                                        arg_idx,
+                                        arg_name.clone(),
+                                    )
+                                    .into());
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
 
                         // Custom logic if there is a trait present in the function arguments
                         // If there is one, automaticly generate a function according to the arguments given.
                         // Store the function in the list with a special name for future reference.
-                        let function_to_store = if passed_in_arguments_for_traits.is_empty() {
+                        let function_to_store = if !passed_in_arguments_for_traits.is_empty() {
                             // Clone the function's arguments
                             let mut gen_fn_sig_clone = function_sig.signature.clone();
-                            
+
+                            // Remove the list of generics to avoid handling it as a function with actual generics, as all of the generic arguments have been made concrete
+                            gen_fn_sig_clone.args.generics.clear();
+
                             // Modify current argument list with parsed types
                             for passed_arg in passed_in_arguments_for_traits {
                                 // Return if an error occured in the searching
-                                let (_arg_idx, arg_ty, arg_id) = passed_arg?;
+                                let (_arg_idx, arg_ty, arg_name, arg_id) = passed_arg?;
 
                                 // A panic cannot happen here due to code above
-                                let (_arg_name, (current_arg_ty, current_arg_id)) = gen_fn_sig_clone.args.arguments.get_index_mut(arg_id).unwrap();
+                                let (current_arg_ty, current_arg_id) =
+                                    gen_fn_sig_clone.args.arguments.get_mut(&arg_name).unwrap();
 
                                 // Update values
                                 *current_arg_ty = arg_ty;
@@ -1394,25 +1434,58 @@ impl Parser
                             // Insert newly generated function into function list, ensure that the function key does not collide with any currently existing functions.
                             // We may need to modify the functions' key in the fn list, as with this multiple functions can have the same name but with different arguments. (Basically operator overloading)
                             // We create a special function name present with "" to make llvm support custom characters.
-                            let generated_function_name = format!(r#""__internal_fn_trait_generated_{}_{:?}""#, gen_fn_sig_clone.name.clone(), gen_fn_sig_clone.args.arguments);
-                            
+                            let generated_function_name = format!(
+                                "__internal_fn_trait_generated_{}_[{}]",
+                                gen_fn_sig_clone.name.clone(),
+                                gen_fn_sig_clone
+                                    .args
+                                    .arguments
+                                    .iter()
+                                    .map(|(name, (ty, id))| {
+                                        format!("{name}: {:?}<{id}>", {
+                                            match ty {
+                                                Type::Struct((name, _, _)) => {
+                                                    format!("Struct({name})")
+                                                },
+                                                _ => {
+                                                    format!("{:?}", ty.discriminant())
+                                                },
+                                            }
+                                        })
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(" ")
+                            );
+
                             // Modify the name of the function we want to store
                             gen_fn_sig_clone.name = generated_function_name.clone();
-                            
+
                             // Create the unparsed function definition instance
-                            let generated_function = UnparsedFunctionDefinition { signature: gen_fn_sig_clone, inner: function_sig.inner.clone(), token_offset: function_sig.token_offset.clone() };
-                            
+                            let generated_function = UnparsedFunctionDefinition {
+                                signature: gen_fn_sig_clone,
+                                inner: function_sig.inner.clone(),
+                                token_offset: function_sig.token_offset.clone(),
+                            };
+
                             // Check if the function is already stored in the functions' map
                             if !function_signatures.contains_key(&generated_function_name) {
-                                function_signatures.insert(generated_function_name, generated_function.clone());
+                                let (insertion_idx, _) = function_signatures.insert_before(
+                                    *this_function_idx,
+                                    generated_function_name,
+                                    generated_function.clone(),
+                                );
+
+                                // Figure ts out
+                                *this_function_idx = insertion_idx - 1;
                             }
 
                             // Return the generated function
                             generated_function
-                        } else {
+                        }
+                        else {
                             function_sig.clone()
                         };
-                        
+
                         // Increment idx
                         token_idx += jumped_idx + 2;
 
@@ -1420,7 +1493,10 @@ impl Parser
                         // If the function did not have any trait we just store the original function
                         parsed_token_instances.push(ParsedTokenInstance {
                             inner: ParsedToken::FunctionCall(
-                                (function_to_store.signature.clone(), ident_name.clone()),
+                                (
+                                    function_to_store.signature.clone(),
+                                    function_to_store.signature.name.clone(),
+                                ),
                                 variables_passed,
                             ),
                             debug_information: fetch_and_merge_debug_information(
@@ -1704,6 +1780,7 @@ impl Parser
                                 this_fn_args.clone(),
                                 variable_scope.clone(),
                                 None,
+                                &mut 0,
                             )?;
 
                             let mut else_condition_branch = Vec::new();
@@ -1740,6 +1817,7 @@ impl Parser
                                         this_fn_args.clone(),
                                         variable_scope.clone(),
                                         None,
+                                        &mut 0,
                                     )?;
 
                                     token_idx = paren_close_idx + 1;
@@ -1800,6 +1878,7 @@ impl Parser
                             this_fn_args.clone(),
                             variable_scope.clone(),
                             None,
+                            &mut 0,
                         )?;
 
                         token_idx = paren_close_idx + 1;
@@ -1913,14 +1992,14 @@ pub fn parse_function_signature(
     module_path: Vec<String>,
     function_name: String,
     is_struct_implementation: bool,
-    function_generics: OrdMap<String, OrdSet<String>>
+    function_generics: OrdMap<String, OrdSet<String>>,
 ) -> anyhow::Result<FunctionSignature>
 {
     let (bracket_close_idx, args) = parse_signature_argument_tokens(
         &tokens[*token_idx..],
         custom_types,
         is_struct_implementation,
-        function_generics
+        function_generics,
     )?;
 
     *token_idx += bracket_close_idx;

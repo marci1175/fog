@@ -11,13 +11,19 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum ParserError
 {
-    #[error("[INTERNAL ERROR] The function's argument (idx: `{0}` | id: `{1}`) was found in the list of passed in arguments.")]
+    #[error(
+        "[INTERNAL ERROR] The function's argument (idx: `{0}` | id: `{1}`) was found in the list of passed in arguments."
+    )]
     InternalFunctionArgumentMissing(usize, String),
     #[error("Trait `{0}` is already required for Generic `{1}`.")]
     TraitAlreadyRequiredForGeneric(String, String),
-    #[error("Function generic `{0}` has been defined more than once. Generics are only allowed to be defined once.")]
+    #[error(
+        "Function generic `{0}` has been defined more than once. Generics are only allowed to be defined once."
+    )]
     DuplicateGenerics(String),
-    #[error("Generic {0} must have atleast one trait implemented to be a valid function generic type.")]
+    #[error(
+        "Generic {0} must have atleast one trait implemented to be a valid function generic type."
+    )]
     GenericMustHaveAtleastOneTrait(String),
     #[error(
         "[INTERNAL ERROR] Function with a receiver (`this`) argument has not been passed it's receiver type."

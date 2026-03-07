@@ -23,6 +23,11 @@ marci implements {
     }
 }
 
+pub function add |T <- majom| (lhs: T, rhs: int): int {
+    int a = lhs.beszel();
+    return a;
+}
+
 pub function main(): int {
     marci q = marci { a: 10 };
 
@@ -34,9 +39,4 @@ pub function main(): int {
     add(q, 10);
 
     return 0;
-}
-
-pub function add |T <- majom| (lhs: T, rhs: int): int {
-    int a = lhs.beszel();
-    return a;
 }

@@ -523,7 +523,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { name, functions } => todo!(),
-                            Type::TraitObject (_) => todo!(),
+                            Type::TraitObject(_) => todo!(),
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -672,7 +672,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { name, functions } => todo!(),
-                            Type::TraitObject (_) => todo!(),
+                            Type::TraitObject(_) => todo!(),
                         }
                     },
                     Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
@@ -843,7 +843,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { name, functions } => todo!(),
-                            Type::TraitObject (_) => todo!(),
+                            Type::TraitObject(_) => todo!(),
                         }
                     },
                     Type::String => {
@@ -1030,7 +1030,7 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { .. } => todo!(),
-                            Type::TraitObject (_) => todo!(),
+                            Type::TraitObject(_) => todo!(),
                         }
                     },
                     Type::Void => {
@@ -1049,7 +1049,7 @@ where
                     Type::Trait { .. } => {
                         return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
-                    Type::TraitObject (_) => todo!(),
+                    Type::TraitObject(_) => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1631,7 +1631,7 @@ where
                 Type::Pointer(_) => todo!(),
                 Type::Enum(_) => todo!(),
                 Type::Trait { name, functions } => todo!(),
-                Type::TraitObject (_) => todo!(),
+                Type::TraitObject(_) => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
@@ -2298,15 +2298,15 @@ fn create_function_with_ir<'ctx>(
     )?;
 
     let function = module.add_function(function_name, function_type, None);
-    
+
     add_compiler_hints_to_fn(
         context,
         &function_definition.signature.compiler_hints,
         function,
     )?;
-    
+
     let return_type = function_definition.signature.return_type.clone();
-    
+
     if !is_optimized {
         let debug_subprogram = create_subprogram_debug_information(
             context,
@@ -2325,11 +2325,11 @@ fn create_function_with_ir<'ctx>(
 
         function.set_subprogram(debug_subprogram);
     }
-    
+
     let basic_block = context.append_basic_block(function, "main");
-    
+
     builder.position_at_end(basic_block);
-    
+
     if function_definition.signature.return_type == Type::Void {
         // Insert the return void instruction
         let instruction = builder.build_return(None)?;
@@ -2337,9 +2337,9 @@ fn create_function_with_ir<'ctx>(
         // Put the builder before that instruction so that it can resume generating IR
         builder.position_before(&instruction);
     }
-    
+
     let mut arguments: HashMap<String, (BasicValueEnum, (Type, UniqueId))> = HashMap::new();
-    
+
     for (idx, argument) in function.get_param_iter().enumerate() {
         // Get the name of the argument from the function signature's argument list
         let argument_entry = function_definition
@@ -2358,7 +2358,7 @@ fn create_function_with_ir<'ctx>(
             (argument, argument_entry.1.clone()),
         );
     }
-    
+
     create_ir(
         module,
         builder,
@@ -2371,7 +2371,7 @@ fn create_function_with_ir<'ctx>(
         parsed_functions.clone(),
         custom_types.clone(),
     )?;
-    
+
     Ok(())
 }
 

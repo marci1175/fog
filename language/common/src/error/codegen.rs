@@ -9,7 +9,9 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum CodeGenError
 {
-    #[error("[INTERNAL ERROR] Inner type of a trait object is unknown. The internal type should only be None if referenced in a function signature.")]
+    #[error(
+        "[INTERNAL ERROR] Inner type of a trait object is unknown. The internal type should only be None if referenced in a function signature."
+    )]
     InternalTraitObjectTypeUnknown,
     #[error("Trait objects are not determined types as they are function interfaces.")]
     TraitObjectOpaqueType,
