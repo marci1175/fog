@@ -1166,12 +1166,18 @@ impl Parser
                 function_idx + 1,
                 unparsed_functions.len()
             );
-            parsed_functions.insert_before(dbg!(function_idx), fn_name.clone(), function_definition);
+            parsed_functions.insert(fn_name.clone(), function_definition);
+            
+            for a in parsed_functions.iter().enumerate() {
+                dbg!(a.0, a.1.0);
+            }
 
             function_idx += 1;
         }
 
-        dbg!(&parsed_functions.keys());
+        for a in parsed_functions.iter().enumerate() {
+            dbg!(a.0, a.1.0);
+        }
 
         Ok(parsed_functions)
     }
@@ -1180,7 +1186,7 @@ impl Parser
         &self,
         tokens: Vec<Token>,
         function_token_offset: usize,
-        function_signatures: &mut IndexMap<String, UnparsedFunctionDefinition>,
+        parsed_functions: &mut IndexMap<String, UnparsedFunctionDefinition>,
         this_function_signature: FunctionSignature,
         function_imports: Rc<HashMap<String, FunctionSignature>>,
         custom_items: Rc<IndexMap<String, CustomItem>>,
@@ -1238,7 +1244,7 @@ impl Parser
                                 function_token_offset,
                                 &self.tokens_debug_info,
                                 selected_tokens_range.start,
-                                (function_signatures.clone()).into(),
+                                (parsed_functions.clone()).into(),
                                 &mut variable_scope,
                                 Some(var_type.clone()),
                                 function_imports.clone(),
@@ -1314,7 +1320,7 @@ impl Parser
                             function_token_offset,
                             &self.tokens_debug_info,
                             &mut token_idx,
-                            (function_signatures.clone()).into(),
+                            (parsed_functions.clone()).into(),
                             function_imports.clone(),
                             &mut variable_scope,
                             variable_type,
@@ -1333,7 +1339,7 @@ impl Parser
                             ident_name,
                         )?;
                     }
-                    else if let Some(function_sig) = function_signatures.get(ident_name).clone() {
+                    else if let Some(function_sig) = parsed_functions.get(ident_name).clone() {
                         // If after the function name the first thing isnt a `(` return a syntax error.
                         if tokens[token_idx + 1] != Token::OpenParentheses {
                             return Err(ParserError::SyntaxError(
@@ -1353,7 +1359,7 @@ impl Parser
                             &self.tokens_debug_info,
                             &mut variable_scope,
                             function_sig.signature.args.clone(),
-                            (function_signatures.clone()).into(),
+                            (parsed_functions.clone()).into(),
                             function_imports.clone(),
                             custom_items.clone(),
                             None,
@@ -1468,15 +1474,14 @@ impl Parser
                             };
 
                             // Check if the function is already stored in the functions' map
-                            if !function_signatures.contains_key(&generated_function_name) {
-                                let (insertion_idx, _) = function_signatures.insert_before(
-                                    *this_function_idx,
+                            if !parsed_functions.contains_key(&generated_function_name) {
+                                parsed_functions.shift_insert(
+                                    dbg!(*this_function_idx),
                                     generated_function_name,
                                     generated_function.clone(),
                                 );
 
-                                // Figure ts out
-                                *this_function_idx = insertion_idx - 1;
+                                *this_function_idx -= 1;
                             }
 
                             // Return the generated function
@@ -1488,6 +1493,10 @@ impl Parser
 
                         // Increment idx
                         token_idx += jumped_idx + 2;
+                       
+                        for a in parsed_functions.iter().enumerate() {
+                            dbg!(a.0, a.1.0);
+                        }
 
                         // Store call of the function we have returned in the custom function generating part
                         // If the function did not have any trait we just store the original function
@@ -1528,7 +1537,7 @@ impl Parser
                             &self.tokens_debug_info,
                             &mut variable_scope,
                             function_sig.args.clone(),
-                            (function_signatures.clone()).into(),
+                            (parsed_functions.clone()).into(),
                             function_imports.clone(),
                             custom_items.clone(),
                             None,
@@ -1582,7 +1591,7 @@ impl Parser
                                         function_token_offset,
                                         &self.tokens_debug_info,
                                         token_idx,
-                                        (function_signatures.clone()).into(),
+                                        (parsed_functions.clone()).into(),
                                         &mut variable_scope,
                                         Some(variable_type.clone()),
                                         function_imports.clone(),
@@ -1646,7 +1655,7 @@ impl Parser
                                         function_token_offset,
                                         &self.tokens_debug_info,
                                         token_idx,
-                                        (function_signatures.clone()).into(),
+                                        (parsed_functions.clone()).into(),
                                         &mut variable_scope,
                                         Some(variable_type.clone()),
                                         function_imports.clone(),
@@ -1708,7 +1717,7 @@ impl Parser
                             function_token_offset,
                             &self.tokens_debug_info,
                             origin_token_idx,
-                            (function_signatures.clone()).into(),
+                            (parsed_functions.clone()).into(),
                             &mut variable_scope,
                             Some(this_function_signature.return_type.clone()),
                             function_imports.clone(),
@@ -1745,7 +1754,7 @@ impl Parser
                             function_token_offset,
                             &self.tokens_debug_info,
                             token_idx,
-                            (function_signatures.clone()).into(),
+                            (parsed_functions.clone()).into(),
                             &mut variable_scope,
                             None,
                             function_imports.clone(),
@@ -1765,7 +1774,7 @@ impl Parser
                             let true_condition_block = self.parse_function_block(
                                 true_block_slice,
                                 token_idx + function_token_offset,
-                                function_signatures,
+                                parsed_functions,
                                 FunctionSignature {
                                     name: String::new(),
                                     args: FunctionArguments::new(),
@@ -1802,7 +1811,7 @@ impl Parser
                                     else_condition_branch = self.parse_function_block(
                                         false_block_slice,
                                         function_token_offset + token_idx,
-                                        function_signatures,
+                                        parsed_functions,
                                         FunctionSignature {
                                             name: String::new(),
                                             args: FunctionArguments::new(),
@@ -1863,7 +1872,7 @@ impl Parser
                         let loop_body = self.parse_function_block(
                             loop_body_tokens.to_vec(),
                             function_token_offset + token_idx,
-                            function_signatures,
+                            parsed_functions,
                             FunctionSignature {
                                 name: String::new(),
                                 args: FunctionArguments::new(),
@@ -1947,7 +1956,7 @@ impl Parser
                         function_token_offset,
                         &self.tokens_debug_info,
                         &mut token_idx,
-                        (function_signatures.clone()).into(),
+                        (parsed_functions.clone()).into(),
                         function_imports.clone(),
                         &mut variable_scope,
                         (receiver_type, receiver_id),
