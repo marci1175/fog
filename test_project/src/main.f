@@ -23,7 +23,7 @@ marci implements {
     }
 }
 
-pub function add |T <- majom| (lhs: T, rhs: int): int {
+pub function add |T <- majom| (lhs: T): int {
     int a = lhs.beszel();
     return a;
 }
@@ -34,9 +34,9 @@ pub function main(): int {
     # This shit does NOT work, llvm is doing something shady here lol pls investigate codegen
     # Must be some sort of a memory issue
     # Fn isnt called when not stored and is with incorrect arguments inside
-    int a = q.beszel();
+    # int a = q.beszel();
 
-    add(q, 10);
+    add(q);
 
     return 0;
 }
