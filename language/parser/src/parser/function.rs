@@ -1301,8 +1301,10 @@ impl Parser
                         token_idx += 1;
 
                         // Put the variable name into a basic reference
-                        let variable_ref =
-                            VariableReference::BasicReference(ident_name.to_string(), variable_type.1);
+                        let variable_ref = VariableReference::BasicReference(
+                            ident_name.to_string(),
+                            variable_type.1,
+                        );
 
                         // Token idx copy for the slice indexing
                         // Afaik we should be using token_idx + 1 (we increment above) to correctly index the slice (we would be using ..= otherwise )
@@ -1314,7 +1316,7 @@ impl Parser
                             debug_information: fetch_and_merge_debug_information(
                                 &self.tokens_debug_info,
                                 origin_token_idx + function_token_offset
-                                ..token_idx_copy + function_token_offset,
+                                    ..token_idx_copy + function_token_offset,
                                 true,
                             )
                             .unwrap(),
@@ -1342,7 +1344,7 @@ impl Parser
 
                         continue;
                     }
-                    else if let Some(function_sig) = unparsed_functions.get(&ident_name).clone() {
+                    else if let Some(function_sig) = unparsed_functions.get(&ident_name) {
                         // If after the function name the first thing isnt a `(` return a syntax error.
                         if tokens[token_idx + 1] != Token::OpenParentheses {
                             return Err(ParserError::SyntaxError(
@@ -1400,17 +1402,19 @@ impl Parser
                                     })
                                 {
                                     // Collect the argument types passed in
-                                    return Result::<(usize, Type, String, usize), ParserError>::Ok(
-                                        (arg_idx, arg_ty.clone(), arg_name.clone(), *id),
-                                    );
+                                    Result::<(usize, Type, String, usize), ParserError>::Ok((
+                                        arg_idx,
+                                        arg_ty.clone(),
+                                        arg_name.clone(),
+                                        *id,
+                                    ))
                                 }
                                 else {
                                     // IF we cant find it that is an unrecoverable internal error
-                                    return Err(ParserError::InternalFunctionArgumentMissing(
+                                    Err(ParserError::InternalFunctionArgumentMissing(
                                         arg_idx,
                                         arg_name.clone(),
-                                    )
-                                    .into());
+                                    ))
                                 }
                             })
                             .collect::<Vec<_>>();
@@ -1472,7 +1476,7 @@ impl Parser
                             let generated_function = UnparsedFunctionDefinition {
                                 signature: gen_fn_sig_clone.clone(),
                                 inner: function_sig.inner.clone(),
-                                token_offset: function_sig.token_offset.clone(),
+                                token_offset: function_sig.token_offset,
                             };
 
                             let function_signature = generated_function.signature.clone();

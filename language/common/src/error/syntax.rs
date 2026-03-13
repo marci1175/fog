@@ -1,10 +1,6 @@
 use thiserror::Error;
 
-use crate::{
-    parser::function::FunctionSignature,
-    tokenizer::Token,
-    ty::{OrdMap, Type},
-};
+use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
 
 #[derive(Debug, Error)]
 pub enum SyntaxError

@@ -1,8 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Display,
-    rc::Rc,
-};
+use std::{collections::HashMap, fmt::Display, rc::Rc};
 
 use crate::{
     anyhow::{self, Result},
@@ -209,7 +205,6 @@ pub fn parse_function_call_args(
 
         return Ok((arguments, tokens_idx));
     }
-
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
@@ -464,7 +459,7 @@ pub fn parse_signature_args(
 
             // Set the arg
             args.receiver_referenced = true;
-            
+
             // If the next token isnt a Comma even though there are tokens left, we should not continue and we should return an error
             if !(next_token.is_some()
                 && next_token != Some(&Token::Comma)
