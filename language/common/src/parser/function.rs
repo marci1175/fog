@@ -12,7 +12,7 @@ use crate::{
     parser::{
         common::{
             ParsedToken, ParsedTokenInstance, find_closing_comma, find_closing_paren,
-            find_next_bitor, find_next_comma,
+            find_next_bitor,
         },
         value::parse_value,
         variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
@@ -43,9 +43,12 @@ pub struct FunctionDefinition
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub enum FunctionVisibility
 {
+    /// Not available to any scopes besides the file it was created in
     #[default]
     Private,
+    /// Is exposed as a function to import
     Public,
+    /// Can only be accessed from the same library it was created in
     PublicLibrary,
     /// Branches are parsed like function, and this type is supposed to indicate that the function is actually a branch.
     /// A branch does not have any visibility.
@@ -179,15 +182,6 @@ pub fn parse_function_call_args(
         ),
     > = OrdMap::new();
 
-    // If there are no arguments just return everything as is
-    if tokens.is_empty() {
-        if !this_function_args.arguments.is_empty() {
-            return Err(ParserError::InvalidFunctionArgumentCount.into());
-        }
-
-        return Ok((arguments, tokens_idx));
-    }
-
     if this_function_args.receiver_referenced {
         // Check if the receiver is a Some
         // It must be since there is a receiver referenced in the args `this`
@@ -206,6 +200,16 @@ pub fn parse_function_call_args(
             ),
         );
     }
+
+    // If there are no arguments just return everything as is
+    if tokens.is_empty() {
+        if !this_function_args.arguments.is_empty() {
+            return Err(ParserError::InvalidFunctionArgumentCount.into());
+        }
+
+        return Ok((arguments, tokens_idx));
+    }
+
 
     while tokens_idx < tokens.len() {
         let current_token = tokens[tokens_idx].clone();
@@ -460,7 +464,7 @@ pub fn parse_signature_args(
 
             // Set the arg
             args.receiver_referenced = true;
-
+            
             // If the next token isnt a Comma even though there are tokens left, we should not continue and we should return an error
             if !(next_token.is_some()
                 && next_token != Some(&Token::Comma)

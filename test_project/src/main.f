@@ -1,7 +1,8 @@
 external printf(str: string, ...): int;
 
 struct marci {
-    a: int,    
+    a: int,
+    c: float
 }
 
 trait majom {
@@ -16,15 +17,16 @@ marci implements {
     }
 }
 
-pub function beszeltet |T <- majom| (lhs: T): int {
-    int a = lhs.beszel();
-    return a;
-}
-
 pub function main(): int {
-    marci q = marci { a: 10 };
+    marci q = marci { a: 200, c: 432 };
 
-    beszeltet(q);
+    q.beszel();
+
+    q.a;
+    q.c;
 
     return 0;
 }
+
+# investigate internal function not using the `this` argument in llvm ir
+# Check float parsing

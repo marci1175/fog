@@ -63,8 +63,8 @@ pub enum SyntaxError
     InvalidStructDefinition,
     #[error("Invalid Dot placement, variable cannot have fields.")]
     InvalidDotPlacement,
-    #[error("Struct field `{0}` was not found in Struct `{0}`.")]
-    StructFieldNotFound(String, (String, OrdMap<String, Type>)),
+    #[error("Struct field `{0}` was not found in Struct `{1}`.")]
+    StructFieldNotFound(String, String),
     #[error("Invalid Struct field definition.")]
     InvalidStructFieldDefinition,
     #[error("Missing/Invalid Struct body definition.")]

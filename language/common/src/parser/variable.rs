@@ -213,7 +213,7 @@ pub fn get_struct_field(
         else {
             Err(ParserError::SyntaxError(SyntaxError::StructFieldNotFound(
                 field_name.clone(),
-                (struct_name.clone(), struct_fields.clone()),
+                struct_name.clone(),
             ))
             .into())
         }
@@ -488,6 +488,7 @@ pub fn resolve_variable_expression(
                     return Ok(ty);
                 }
                 else {
+                    // This error may be raised on trait objects if we are parsing the files incorrectly
                     return Err(ParserError::TypeWithoutFields(variable_type).into());
                 }
             },

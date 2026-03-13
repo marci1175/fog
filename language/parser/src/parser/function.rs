@@ -905,7 +905,7 @@ impl Parser
                 {
                     token_idx += 1;
 
-                    // Raise error if the next token isnt `Token::Implements` because of syntax
+                    // Raise error if the next token isnt `Token::Implements` because of syntax / grammar
                     if tokens.get(token_idx) != Some(&Token::Implements) {
                         return Err(
                             ParserError::SyntaxError(SyntaxError::InvalidFunctionImplDef).into(),
@@ -1294,19 +1294,31 @@ impl Parser
                     }
                 }
                 // Handle operations to variables like `foo[0] = 5`
-                else if let Token::Identifier(ref ident_name) = current_token {
+                else if let Token::Identifier(ident_name) = current_token {
                     // If the variable exists in the current scope
-                    if let Some(variable_type) = variable_scope.get(ident_name).cloned() {
+                    if let Some(variable_type) = variable_scope.get(&ident_name).cloned() {
                         // Increment the token index
                         token_idx += 1;
 
                         // Put the variable name into a basic reference
                         let variable_ref =
-                            VariableReference::BasicReference(ident_name.to_string(), 0);
+                            VariableReference::BasicReference(ident_name.to_string(), variable_type.1);
 
                         // Token idx copy for the slice indexing
                         // Afaik we should be using token_idx + 1 (we increment above) to correctly index the slice (we would be using ..= otherwise )
                         let token_idx_copy = token_idx;
+
+                        // Create a variable reference so we can modify it later
+                        let mut variable_reference = ParsedTokenInstance {
+                            inner: ParsedToken::VariableReference(variable_ref),
+                            debug_information: fetch_and_merge_debug_information(
+                                &self.tokens_debug_info,
+                                origin_token_idx + function_token_offset
+                                ..token_idx_copy + function_token_offset,
+                                true,
+                            )
+                            .unwrap(),
+                        };
 
                         // Parse the expression involving the variable
                         resolve_variable_expression(
@@ -1319,21 +1331,18 @@ impl Parser
                             &mut variable_scope,
                             variable_type,
                             custom_items.clone(),
-                            &mut ParsedTokenInstance {
-                                inner: ParsedToken::VariableReference(variable_ref),
-                                debug_information: fetch_and_merge_debug_information(
-                                    &self.tokens_debug_info,
-                                    origin_token_idx + function_token_offset
-                                        ..token_idx_copy + function_token_offset,
-                                    true,
-                                )
-                                .unwrap(),
-                            },
+                            &mut variable_reference,
                             &mut parsed_token_instances,
-                            ident_name,
+                            &ident_name,
                         )?;
+
+                        // Store the variable reference
+                        // We do it this way llvm is going to optimize it out if its useless, else we will let whatever wants to run here (like a function called on a struct)
+                        parsed_token_instances.push(variable_reference);
+
+                        continue;
                     }
-                    else if let Some(function_sig) = unparsed_functions.get(ident_name).clone() {
+                    else if let Some(function_sig) = unparsed_functions.get(&ident_name).clone() {
                         // If after the function name the first thing isnt a `(` return a syntax error.
                         if tokens[token_idx + 1] != Token::OpenParentheses {
                             return Err(ParserError::SyntaxError(
@@ -1517,7 +1526,7 @@ impl Parser
                             .unwrap(),
                         });
                     }
-                    else if let Some(function_sig) = function_imports.get(ident_name) {
+                    else if let Some(function_sig) = function_imports.get(&ident_name) {
                         // If after the function name the first thing isnt a `(` return a syntax error.
                         if tokens[token_idx + 1] != Token::OpenParentheses {
                             return Err(ParserError::SyntaxError(
@@ -1559,7 +1568,7 @@ impl Parser
                             .unwrap(),
                         });
                     }
-                    else if let Some(custom_type) = custom_items.get(ident_name) {
+                    else if let Some(custom_type) = custom_items.get(&ident_name) {
                         let unique_variable_id = VARIABLE_ID_SOURCE.get_unique_id();
 
                         match custom_type {
