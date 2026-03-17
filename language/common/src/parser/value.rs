@@ -384,7 +384,6 @@ pub fn parse_value(
             },
 
             _ => {
-                // dbg!(parsed_token);
                 dbg!(current_token);
 
                 unimplemented!()
@@ -588,6 +587,31 @@ pub fn parse_token_as_value(
                         (parsed_token, function.signature.return_type.clone())
                     }
                 }
+            }
+            // This should be a function with a full path specified
+            else if Some(&Token::DoubleColon) == tokens.get(*token_idx + 1) {
+                let mut item_access_path: Vec<String> = vec![identifier.clone()];
+
+                *token_idx += 1;
+
+                loop {
+                    if let Some(Token::Identifier(ident)) = tokens.get(*token_idx) && tokens.get(*token_idx + 1) == Some(&Token::DoubleColon) {
+                        item_access_path.push(ident.clone());
+
+                        *token_idx += 2;
+
+                        continue;
+                    }
+
+                    // We normally escape out of the loop
+                    break;
+                }
+
+                // Check if the specified item on the path exists, and what kind of item is it (struct?, fn?)
+
+                // Handle the path how we want to
+
+                todo!()
             }
             // If the identifier could not be found in the function list search in the variable scope
             else if let Some((variable_type, variable_id)) =

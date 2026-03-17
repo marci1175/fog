@@ -44,6 +44,11 @@ pub struct Parser
 impl Parser
 {
     // TODO: recode importing stuff
+    /*
+        First of all, remove the extra logic from here relating to dependencies
+        Also, when parsing the deps make a dependency tree, with the value of `HashMap<&[&str], Dependency>`
+        Implement parsing for `foo::bar::x()` type expressions, this will allow us to use functions with the same name on different paths
+    */
     pub fn parse(&mut self, dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>)
     -> Result<()>
     {
