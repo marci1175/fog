@@ -10,7 +10,9 @@ use common::{
 
 pub fn only_contains_digits(s: &[u8]) -> bool
 {
-    s.iter().all(|c| c.is_ascii_digit())
+    s.iter().all(|c| {
+        c.is_ascii_digit()
+    })
 }
 
 const DOUBLE_BACKSLASH: u8 = b'\\';
@@ -191,30 +193,30 @@ pub fn tokenize(
         };
 
         // Genius code right here, should be given the coder of the year for this alone (its february)
-        if should_store_string_buffer && !string_buffer.is_empty() {
-            let token = match_multi_character_expression(&string_buffer)?;
+        // if should_store_string_buffer && !string_buffer.is_empty() {
+        //     let token = match_multi_character_expression(&string_buffer)?;
 
-            token_list.push(token);
-            token_debug_info.push(DbgInfo {
-                char_start: CharPosition {
-                    line: line_counter,
-                    column: current_char_idx_in_line - (string_buffer.len() - 1),
-                },
-                char_end: CharPosition {
-                    line: line_counter,
-                    column: current_char_idx_in_line,
-                },
-            });
+        //     token_list.push(token);
+        //     token_debug_info.push(DbgInfo {
+        //         char_start: CharPosition {
+        //             line: line_counter,
+        //             column: current_char_idx_in_line - (string_buffer.len() - 1),
+        //         },
+        //         char_end: CharPosition {
+        //             line: line_counter,
+        //             column: current_char_idx_in_line,
+        //         },
+        //     });
 
-            string_buffer.clear();
-        }
+        //     string_buffer.clear();
+        // }
 
         match current_char {
             b'.' => {
                 let next_char = char_list.get(char_idx + 1);
                 let next_char_2 = char_list.get(char_idx + 2);
 
-                let dot = b'.';
+                let dot: u8 = b'.';
                 if Some(&dot) == next_char_2 && Some(&dot) == next_char {
                     token_list.push(Token::Ellipsis);
                     token_debug_info.push(DbgInfo {
@@ -232,9 +234,7 @@ pub fn tokenize(
 
                     continue;
                 }
-                else if only_contains_digits(&string_buffer) && !string_buffer.is_empty()
-                /* This might break ellpisis parsing */
-                {
+                else if only_contains_digits(&string_buffer) && !string_buffer.is_empty() {
                     string_buffer.push(current_char);
                 }
                 else {
