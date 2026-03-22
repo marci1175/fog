@@ -48,9 +48,10 @@ pub fn parse_functions(
     // This argument basically sets whether functions are allowed to use `this` in their arguments.
     // Functions implemented for struct can use this to reference themselves.
     is_struct_implementation: bool,
-) -> Result<IndexMap<String, UnparsedFunctionDefinition>, anyhow::Error>
+) -> Result<IndexMap<Vec<String>, UnparsedFunctionDefinition>, anyhow::Error>
 {
-    let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
+    // TODO: The key shouldnt be the name, it should be the path to the function 
+    let mut function_list: IndexMap<Vec<String>, UnparsedFunctionDefinition> = IndexMap::new();
     let mut function_compiler_hint_buffer: OrdSet<CompilerHint> = OrdSet::new();
     let mut function_enabling_feature: OrdSet<String> = OrdSet::new();
     let mut token_idx = 0;
@@ -77,7 +78,7 @@ pub fn parse_functions(
                         token_idx += 1;
 
                         let jumped_idx = parse_fn_generics(
-                            &tokens[token_idx..],
+                            dbg!(&tokens[token_idx..]),
                             custom_types,
                             &mut function_generics,
                         )?;
@@ -166,7 +167,7 @@ pub fn parse_functions(
 
                                     // Store the function
                                     let insertion = function_list.insert(
-                                        function_name.clone(),
+                                        mod_path.clone(),
                                         UnparsedFunctionDefinition {
                                             inner: braces_contains.clone(),
                                             token_offset: token_idx + 4,
@@ -254,6 +255,7 @@ impl Parser
         /*
             TODO: Make it so that this function has a side effect on main instead of storing all the imports here.
             TODO: Recode the importing in the source code.
+            TODO: Recode visibilty for all items
         */
 
         let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
@@ -300,6 +302,7 @@ impl Parser
 
                             token_idx += jumped_idx;
                         }
+
 
                         if tokens[token_idx] == Token::OpenParentheses {
                             let (bracket_close_idx, args) = parse_signature_argument_tokens(
@@ -431,6 +434,10 @@ impl Parser
                             ParserError::SyntaxError(SyntaxError::InvalidFunctionName).into()
                         );
                     }
+                }
+                else {
+                    // Raise an error cuz a pub can only be behind a function
+                    return Err(ParserError::SyntaxError(SyntaxError::VisibiltyFollowedByItemTypeKeyword).into());
                 }
             }
             else if current_token == Token::Function {
@@ -674,19 +681,18 @@ impl Parser
                     // Parse the entire body
                     while trait_body.len() > idx {
                         if let Some(Token::Identifier(fn_name)) = trait_body.get(idx) {
-                            // Check that we are not redefining any functions
-                            if trait_functions.contains_key(fn_name) {
-                                return Err(
-                                    ParserError::FunctionRedefinition(fn_name.clone()).into()
-                                );
-                            }
-
                             // Modify module path
                             let mut module_path = module_path.clone();
 
-                            // Store trait name in mod path
+                            // Store function name in mod path
                             module_path.push(fn_name.clone());
 
+                            // Check that we are not redefining any functions
+                            if trait_functions.contains_key(fn_name) {
+                                return Err(
+                                    ParserError::FunctionRedefinition(module_path.clone()).into()
+                                );
+                            }
                             // Try to collect the function generics specified next to the args
                             let mut function_generics: OrdMap<String, OrdSet<String>> =
                                 OrdMap::new();
@@ -784,6 +790,37 @@ impl Parser
                     return Err(ParserError::InvalidCompilerHint(tokens[token_idx].clone()).into());
                 }
             }
+            else if current_token == Token::Namespace {
+                // Move cursor
+                token_idx += 1;
+
+                if let Some(Token::Identifier(namespace)) = tokens.get(token_idx) {
+                    token_idx += 1;
+
+                    if tokens.get(token_idx) == Some(&Token::OpenBraces) {
+                        token_idx += 1;
+
+                        // Fetch namespace tokens
+                        let namespace_closing_idx = find_closing_braces(&tokens[token_idx..], 0)?;
+                        let namespace_token_slice = &tokens[token_idx..namespace_closing_idx + token_idx];
+                        
+                        // Create a module path for the functions
+                        let mut module_path = module_path.clone();
+                        module_path.push(namespace.clone());
+
+                        // The namespace's items
+                        let namespace_items = parse_functions(namespace_token_slice, &enabled_features, module_path, &custom_types, false)?;
+                        
+
+                    }
+                    else {
+                        return Err(ParserError::SyntaxError(SyntaxError::InvalidNamespaceDefinition).into())
+                    }
+                }
+                else {
+                    return Err(ParserError::SyntaxError(SyntaxError::InvalidNamespaceDefinition).into())
+                }
+            }
             else if let Token::Enum(ty) = current_token.clone() {
                 let is_ty_inferred = ty.is_none();
                 // If there is an inner type try to fetch.
@@ -822,6 +859,7 @@ impl Parser
                                     Some(variant_type.clone()),
                                     self.imported_functions.clone(),
                                     Rc::new(custom_types.clone()),
+                                    module_path.clone()
                                 )?;
 
                                 body_idx += idx;
@@ -918,7 +956,9 @@ impl Parser
                     let next_token = tokens.get(token_idx);
 
                     // Fetch the implementation body
-                    let (implementation_body, trait_to_impl) =
+                    // The implementation body contains the tokens for the functions it implements
+                    let (implementation_body, impld_trait) =
+                        // If we are implementing a trait for the struct we also store additional information about the trait, such as its name and the functions we need implement
                         if let Some(Token::Identifier(trait_name)) = next_token {
                             // Increment idx to the Token::OpenBraces
                             token_idx += 1;
@@ -952,7 +992,7 @@ impl Parser
                                 .into());
                             }
                         }
-                        // Parse the functions we have implmemented for the struct
+                        // This is the path it takes if we are just implementing functions for a struct and not implementing a trait.
                         else if let Some(Token::OpenBraces) = next_token {
                             // Move the idx into the impl body
                             token_idx += 1;
@@ -992,13 +1032,28 @@ impl Parser
                         true,
                     )?;
 
-                    if let Some((mut fns_to_impl, trait_name)) = trait_to_impl {
+                    // If we are implementing a trait we also generate functions for the specified type.
+                    if let Some((mut fns_to_impl, trait_name)) = impld_trait {
+                        //
+                        // For future reference:
+                        // What im doing here is that a trait has a few functions it implements.
+                        // When implementing the functions (args specified by trait) I first parse the functions, before asserting that their signature matches the one specified by the trait.
+                        // In this check, I remove the functions which pass the check (their signature matches the function signature specified by the trait)
+                        // If there are any functions which are not removed that means that they werent correctly implemented.
+                        //
+
                         // Check if all of the trait's functions have been implemented
                         fns_to_impl.retain(|k, v| {
                             // Remove those functions from this local list that match the trait fn's signature, meaning that they are correct
                             // Only keep those that are invalid
-                            if let Some(impled_fn) = functions.get(k) {
-                                // Check sig eq
+                            if let Some(impled_fn) = functions.get(&{
+                                let mut module_path = module_path.clone();
+
+                                module_path.push(k.clone());
+
+                                module_path
+                            }) {
+                                // Check if the function in the trait implementation matches the one in the function list.
                                 !(impled_fn.signature.name == *v.name
                                     && impled_fn.signature.args.check_arg_eq(&v.args)
                                     && impled_fn.signature.return_type == v.return_type
@@ -1011,7 +1066,7 @@ impl Parser
                         });
 
                         // Check if there are any functions left in the list and return an error if there are
-                        // This means that functions werent or werent correctly implemented
+                        // This means that functions werent correctly implemented
                         if !fns_to_impl.is_empty() {
                             return Err(ParserError::InvalidTraitImplementation(
                                 fns_to_impl
@@ -1039,7 +1094,6 @@ impl Parser
                     return Err(ParserError::CustomItemNotFound(struct_name_ident.clone()).into());
                 }
             }
-
             token_idx += 1;
         }
 
@@ -1243,6 +1297,7 @@ impl Parser
                                 Some(var_type.clone()),
                                 function_imports.clone(),
                                 custom_items.clone(),
+                                    module_path.clone()
                             )?;
 
                             // Set the new idx
@@ -1336,6 +1391,7 @@ impl Parser
                             &mut variable_reference,
                             &mut parsed_token_instances,
                             &ident_name,
+                                    module_path.clone()
                         )?;
 
                         // Store the variable reference
@@ -1368,6 +1424,7 @@ impl Parser
                             function_imports.clone(),
                             custom_items.clone(),
                             None,
+                                    module_path.clone()
                         )?;
 
                         // Check for generics in the arguments and insert automaticly generated functions based on that.
@@ -1554,6 +1611,7 @@ impl Parser
                             function_imports.clone(),
                             custom_items.clone(),
                             None,
+                                    module_path.clone()
                         )?;
 
                         token_idx += jumped_idx + 2;
@@ -1609,6 +1667,7 @@ impl Parser
                                         Some(variable_type.clone()),
                                         function_imports.clone(),
                                         custom_items.clone(),
+                                    module_path.clone()
                                     )?;
 
                                     parsed_token_instances.push(ParsedTokenInstance {
@@ -1673,6 +1732,7 @@ impl Parser
                                         Some(variable_type.clone()),
                                         function_imports.clone(),
                                         custom_items.clone(),
+                                    module_path.clone()
                                     )?;
 
                                     parsed_token_instances.push(ParsedTokenInstance {
@@ -1735,6 +1795,7 @@ impl Parser
                             Some(this_function_signature.return_type.clone()),
                             function_imports.clone(),
                             custom_items.clone(),
+                                    module_path.clone()
                         )?;
 
                         token_idx += jmp_idx;
@@ -1772,6 +1833,7 @@ impl Parser
                             None,
                             function_imports.clone(),
                             custom_items.clone(),
+                                    module_path.clone()
                         )?;
 
                         token_idx = paren_close_idx + 1;
@@ -1987,6 +2049,7 @@ impl Parser
                         },
                         &mut parsed_token_instances,
                         "this",
+                                    module_path.clone()
                     )?;
                 }
                 else {

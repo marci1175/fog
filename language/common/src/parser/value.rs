@@ -64,6 +64,7 @@ pub fn parse_value(
     mut desired_variable_type: Option<Type>,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Rc<IndexMap<String, CustomItem>>,
+    module_path: Vec<String>,
 ) -> Result<(ParsedTokenInstance, usize, Type)>
 {
     let mut token_idx = 0;
@@ -124,6 +125,7 @@ pub fn parse_value(
                                     next_token,
                                     function_imports.clone(),
                                     custom_types.clone(),
+                    module_path.clone(),
                                 )?
                                 .0,
                             ),
@@ -160,6 +162,7 @@ pub fn parse_value(
                     current_token,
                     function_imports.clone(),
                     custom_types.clone(),
+                    module_path.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -185,6 +188,7 @@ pub fn parse_value(
                     current_token,
                     function_imports.clone(),
                     custom_types.clone(),
+                    module_path.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -207,6 +211,7 @@ pub fn parse_value(
                     current_token,
                     function_imports.clone(),
                     custom_types.clone(),
+                    module_path.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -230,6 +235,7 @@ pub fn parse_value(
                     current_token,
                     function_imports.clone(),
                     custom_types.clone(),
+                    module_path.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -253,6 +259,7 @@ pub fn parse_value(
                     current_token,
                     function_imports.clone(),
                     custom_types.clone(),
+                    module_path.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -290,6 +297,7 @@ pub fn parse_value(
                         next_token,
                         function_imports.clone(),
                         custom_types.clone(),
+                    module_path.clone(),
                     )?;
 
                     parsed_token = Some(ParsedTokenInstance {
@@ -323,6 +331,7 @@ pub fn parse_value(
                     current_token,
                     function_imports.clone(),
                     custom_types.clone(),
+                    module_path.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -374,6 +383,7 @@ pub fn parse_value(
                     &Token::This,
                     function_imports.clone(),
                     custom_types.clone(),
+                    module_path.clone(),
                 )?;
 
                 // Initialize parsed token with a value.
@@ -422,6 +432,7 @@ pub fn parse_token_as_value(
     eval_token: &Token,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Rc<IndexMap<String, CustomItem>>,
+    module_path: Vec<String>,
 ) -> Result<(ParsedTokenInstance, Type)>
 {
     // Match the token
@@ -531,6 +542,7 @@ pub fn parse_token_as_value(
                     function_imports.clone(),
                     custom_types.clone(),
                     None,
+                    module_path.clone(),
                 )?;
 
                 // Return the function call
@@ -645,6 +657,7 @@ pub fn parse_token_as_value(
                     &mut basic_reference,
                     &mut Vec::new(),
                     identifier,
+                    module_path,
                 )?;
 
                 // Return the VariableReference
@@ -663,6 +676,7 @@ pub fn parse_token_as_value(
                     function_imports.clone(),
                     custom_types.clone(),
                     None,
+                    module_path.clone(),
                 )?;
 
                 // Return the function call
@@ -741,6 +755,7 @@ pub fn parse_token_as_value(
                                 custom_types.clone(),
                                 variable_scope,
                                 attr.clone(),
+                                module_path.clone(),
                             )?;
 
                             // Increment the index to the token after the struct init.
@@ -831,6 +846,7 @@ pub fn parse_token_as_value(
                 Some(desired_variable_type.clone()),
                 function_imports,
                 custom_types.clone(),
+                    module_path.clone(),
             )?;
 
             *token_idx += closing_idx + 1;
@@ -870,6 +886,7 @@ pub fn parse_token_as_value(
                         Some(inner_ty.clone()),
                         function_imports.clone(),
                         custom_types.clone(),
+                    module_path.clone(),
                     )?;
 
                     // Store the parsed token
@@ -923,6 +940,7 @@ pub fn parse_token_as_value(
                 }),
                 function_imports,
                 custom_types.clone(),
+                    module_path.clone(),
             )?;
 
             *token_idx += jmp_idx + 1;
@@ -945,6 +963,7 @@ pub fn parse_token_as_value(
                 desired_variable_type.clone(),
                 function_imports,
                 custom_types.clone(),
+                    module_path.clone(),
             )?;
 
             *token_idx += jmp_idx + 1;
@@ -986,6 +1005,7 @@ pub fn parse_token_as_value(
                 &mut basic_reference,
                 &mut Vec::new(),
                 "this",
+                    module_path.clone(),
             )?;
 
             // Return the VariableReference
@@ -1028,6 +1048,7 @@ pub fn init_struct(
     custom_types: Rc<IndexMap<String, CustomItem>>,
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     struct_attributes: StructAttributes,
+    module_path: Vec<String>,
 ) -> Result<(usize, ParsedTokenInstance)>
 {
     let mut struct_field_init_map: IndexMap<String, Box<ParsedTokenInstance>> = IndexMap::new();
@@ -1059,6 +1080,7 @@ pub fn init_struct(
                 ),
                 function_imports.clone(),
                 custom_types.clone(),
+                module_path.clone(),
             )?;
 
             idx += jump_idx + 2;

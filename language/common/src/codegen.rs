@@ -29,9 +29,12 @@ use strum::Display;
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructAttributes
 {
-    pub traits: OrdMap<String, OrdMap<String, UnparsedFunctionDefinition>>,
-    pub implemented_unparsed_functions: OrdMap<String, UnparsedFunctionDefinition>,
-    pub implemented_parsed_functions: OrdMap<String, FunctionDefinition>,
+    // Traits implemented
+    pub traits: OrdMap<String, OrdMap<Vec<String>, UnparsedFunctionDefinition>>,
+    // This only holds the functions implemented for the struct only. Trait impls are not stored here.
+    pub implemented_unparsed_functions: OrdMap<Vec<String>, UnparsedFunctionDefinition>,
+    // The impled fns are moved here later.
+    pub implemented_parsed_functions: OrdMap<Vec<String>, FunctionDefinition>,
 }
 
 /// All of the custom types implemented by the User are defined here

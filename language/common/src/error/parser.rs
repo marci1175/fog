@@ -30,9 +30,9 @@ pub enum ParserError
     )]
     InternalFunctionReceiverTypeMissing,
     #[error(
-        "Function `{0}` has been defined multiple times. Function overloading is not supported."
+        "Function `{0:?}` has been defined multiple times. Function overloading is not supported."
     )]
-    FunctionRedefinition(String),
+    FunctionRedefinition(Vec<String>),
     #[error("Implementation bodies can only contain function implementations.")]
     InvalidImplItem,
     #[error("Trait definition bodies can only contain function signatures.")]

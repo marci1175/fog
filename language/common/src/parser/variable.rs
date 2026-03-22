@@ -165,10 +165,12 @@ pub fn get_struct_field(
     tokens: &[Token],
     token_idx: &mut usize,
     identifier: &str,
+    module_path: Vec<String>,
     (struct_name, struct_fields, attributes): &(String, OrdMap<String, Type>, StructAttributes),
     var_ref: &mut VariableReference,
 ) -> anyhow::Result<StructFieldType<Type, (usize, UnparsedFunctionDefinition)>>
 {
+    dbg!(&attributes);
     // Match field name
     if let Some(Token::Identifier(field_name)) = tokens.get(*token_idx) {
         // Lookup struct field
@@ -194,7 +196,7 @@ pub fn get_struct_field(
                     .ok_or(ParserError::TypeWithoutFields(field_type.clone()))?;
 
                 // Call this function once again and iterate
-                get_struct_field(tokens, token_idx, identifier, next_struct_def, var_ref)
+                get_struct_field(tokens, token_idx, identifier, module_path, next_struct_def, var_ref)
             }
             else {
                 // Return field type
@@ -203,7 +205,14 @@ pub fn get_struct_field(
         }
         // If a function was implemented with this name and it was referenced here we should parse the function call
         // This means that there is a receiver in the function def ie `this`
-        else if let Some(impl_fn) = attributes.implemented_unparsed_functions.get(field_name) {
+        else if let Some(impl_fn) = attributes.implemented_unparsed_functions.get(&{
+            let mut mod_path = module_path.clone();
+
+            mod_path.push(struct_name.to_string());
+            mod_path.push(field_name.to_string());
+
+            dbg!(mod_path)
+        }) {
             // Return the function's name we will parse it later, not here (to avoid having to add 1000 arguments to this function too)
             Ok(StructFieldType::Function((
                 impl_fn.token_offset,
@@ -259,6 +268,7 @@ pub fn resolve_variable_expression(
     variable_ref: &mut ParsedTokenInstance,
     parsed_tokens: &mut Vec<ParsedTokenInstance>,
     variable_name: &str,
+    module_path: Vec<String>,
 ) -> Result<Type>
 {
     let var_ref = variable_ref.inner.try_as_variable_reference_mut().unwrap();
@@ -296,6 +306,7 @@ pub fn resolve_variable_expression(
                     Some(variable_type.clone()),
                     function_imports.clone(),
                     custom_items.clone(),
+                    module_path.clone(),
                 )?;
 
                 parsed_tokens.push(ParsedTokenInstance {
@@ -329,6 +340,7 @@ pub fn resolve_variable_expression(
                     current_token.clone().try_into()?,
                     function_imports.clone(),
                     custom_items.clone(),
+                    module_path.clone(),
                 )?;
             },
             Token::OpenSquareBrackets => {
@@ -359,6 +371,7 @@ pub fn resolve_variable_expression(
                     Some(Type::U32),
                     function_imports.clone(),
                     custom_items.clone(),
+                    module_path.clone(),
                 )?;
 
                 *token_idx = square_brackets_break_idx;
@@ -385,6 +398,7 @@ pub fn resolve_variable_expression(
                             variable_ref,
                             parsed_tokens,
                             variable_name,
+                    module_path.clone(),
                         )?;
 
                         return Ok(ty);
@@ -408,7 +422,7 @@ pub fn resolve_variable_expression(
                     // Stack the field names on top of the variable name
                     // If a `StructFieldType::Function` is returned the last field will be available in the var_ref. (It is not going to point to the function variant, for more info visit `get_struct_field`)
                     let struct_field_variant =
-                        get_struct_field(tokens, token_idx, variable_name, &struct_def, var_ref)?;
+                        get_struct_field(tokens, token_idx, variable_name, module_path.clone(), &struct_def, var_ref)?;
 
                     let ty = match struct_field_variant {
                         StructFieldType::Field(field_type) => {
@@ -427,6 +441,7 @@ pub fn resolve_variable_expression(
                                 variable_ref,
                                 parsed_tokens,
                                 variable_name,
+                                module_path.clone(),
                             )?
                         },
                         StructFieldType::Function((token_offset, impl_fn)) => {
@@ -455,6 +470,7 @@ pub fn resolve_variable_expression(
                                 function_imports.clone(),
                                 custom_items.clone(),
                                 Some((&var_ref_clone, variable_type, variable_id)),
+                    module_path.clone(),
                             )?;
 
                             *var_ref = VariableReference::StructFieldReference(StructFieldRef {
@@ -481,6 +497,7 @@ pub fn resolve_variable_expression(
                                 variable_ref,
                                 parsed_tokens,
                                 variable_name,
+                                module_path,
                             )?
                         },
                     };
@@ -535,6 +552,7 @@ pub fn resolve_variable_expression(
                         },
                         parsed_tokens,
                         variable_name,
+                    module_path.clone(),
                     )?;
 
                     // Return the type casted literal
@@ -573,6 +591,7 @@ pub fn set_value_math_expr(
     math_symbol: MathematicalSymbol,
     standard_function_table: Rc<HashMap<String, FunctionSignature>>,
     custom_items: Rc<IndexMap<String, CustomItem>>,
+    module_path: Vec<String>
 ) -> Result<()>
 {
     let origin_token_idx = *token_idx;
@@ -595,6 +614,7 @@ pub fn set_value_math_expr(
         eval_token,
         standard_function_table,
         custom_items.clone(),
+                    module_path.clone(),
     )?;
 
     *variable_reference = ParsedTokenInstance {

@@ -43,11 +43,22 @@ pub struct Parser
 
 impl Parser
 {
-    // TODO: recode importing stuff
     /*
+        TODO: recode importing stuff
+
         First of all, remove the extra logic from here relating to dependencies
         Also, when parsing the deps make a dependency tree, with the value of `HashMap<&[&str], Dependency>`
         Implement parsing for `foo::bar::x()` type expressions, this will allow us to use functions with the same name on different paths
+
+        Modify the type resolving function to look up dependency items
+        Create the `namespace` keyword rework how the dependency paths work
+        ```
+        namespace backend {
+            struct request {};
+        }
+
+        use backend::request;
+        ``` 
     */
     pub fn parse(&mut self, dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>)
     -> Result<()>

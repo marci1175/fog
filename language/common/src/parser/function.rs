@@ -100,7 +100,8 @@ pub struct FunctionArguments
 
 impl FunctionArguments
 {
-    /// We need to implement a Custom eq check on [`FunctionArguments`]s because the use of [`UniqueId`].
+    /// We need to implement a Custom eq check on [`FunctionArguments`]s because the use of the [`UniqueId`] they both contain.
+    /// If the argument's order and name match this returns `true` otherwise `false`.
     pub fn check_arg_eq(&self, rhs: &Self) -> bool
     {
         self.arguments
@@ -154,6 +155,7 @@ pub fn parse_function_call_args(
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_items: Rc<IndexMap<String, CustomItem>>,
     receiver: Option<(&VariableReference, Type, usize)>,
+    module_path: Vec<String>,
 ) -> anyhow::Result<(
     OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, (Type, UniqueId))>,
     usize,
@@ -230,6 +232,7 @@ pub fn parse_function_call_args(
                     Some(argument_type.clone()),
                     imported_functions.clone(),
                     custom_items.clone(),
+                    module_path.clone(),
                 )?;
 
                 tokens_idx += jump_idx;
@@ -293,6 +296,7 @@ pub fn parse_function_call_args(
                         Some(arg_ty.clone()),
                         imported_functions.clone(),
                         custom_items.clone(),
+                    module_path.clone(),
                     )?;
 
                     tokens_idx += 1;
@@ -320,6 +324,7 @@ pub fn parse_function_call_args(
                         None,
                         imported_functions.clone(),
                         custom_items.clone(),
+                    module_path.clone(),
                     )?;
 
                     tokens_idx += 1;

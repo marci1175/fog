@@ -188,28 +188,26 @@ pub fn tokenize(
         }
 
         let should_store_string_buffer = match current_char {
-            b'.' | b'-' | b'#' | b'"' | b'=' | b':' | b'&' | b'!' | b'>' | b'<' | b'|' => true,
+            b'-' | b'#' | b'"' | b'=' | b':' | b'&' | b'!' | b'>' | b'<' | b'|' => true,
             _ => false,
         };
 
         // Genius code right here, should be given the coder of the year for this alone (its february)
-        // if should_store_string_buffer && !string_buffer.is_empty() {
-        //     let token = match_multi_character_expression(&string_buffer)?;
-
-        //     token_list.push(token);
-        //     token_debug_info.push(DbgInfo {
-        //         char_start: CharPosition {
-        //             line: line_counter,
-        //             column: current_char_idx_in_line - (string_buffer.len() - 1),
-        //         },
-        //         char_end: CharPosition {
-        //             line: line_counter,
-        //             column: current_char_idx_in_line,
-        //         },
-        //     });
-
-        //     string_buffer.clear();
-        // }
+        if should_store_string_buffer && !string_buffer.is_empty() {
+            let token = match_multi_character_expression(&string_buffer)?;
+            token_list.push(token);
+            token_debug_info.push(DbgInfo {
+                char_start: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line - (string_buffer.len() - 1),
+                },
+                char_end: CharPosition {
+                    line: line_counter,
+                    column: current_char_idx_in_line,
+                },
+            });
+            string_buffer.clear();
+        }
 
         match current_char {
             b'.' => {
@@ -1022,6 +1020,7 @@ fn match_multi_character_expression(string_to_match: &[u8]) -> anyhow::Result<To
         // This would need specific implementation in the tokenizer for `-`
         // b"<-" => Token::RightArrow,
         b"returns" => Token::Returns,
+        b"namespace" => Token::Namespace,
         _ => eval_constant_definition(string_to_match),
     })
 }

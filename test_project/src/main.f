@@ -9,21 +9,27 @@ trait majom {
     beszel(this): int;
 }
 
-marci implements {
+trait tanydon {
+    a(this): int;
+}
+
+marci implements majom {
     pub function beszel(this): int {
         # This unwraps a none in parsing
-        printf("Marci szama: %f", this.c as floatlong);
+        printf("Marci szama: %f", this.c);
 
         return 0;
     }
 }
 
+pub function test |T <- majom| (a: T): void {
+    a.beszel();
+}
+
 pub function main(): int {
     marci q = marci { a: 200, c: 432.2 };
 
-    q.beszel();
+    test(q);
 
     return 0;
 }
-
-# Check float parsing
