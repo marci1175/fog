@@ -949,7 +949,7 @@ impl Parser
                 // Check if this identifier is a struct.
                 // Syntax should be like this
                 // <struct-name> implements (trait name) { <functions> }
-                if let Some(CustomItem::Struct((_, _, attributes))) =
+                if let Some(CustomItem::Struct((_, fields, attributes))) =
                     custom_types.get_mut(&struct_name_ident)
                 {
                     token_idx += 1;
@@ -1045,6 +1045,7 @@ impl Parser
 
                     // If we are implementing a trait we also generate functions for the specified type.
                     if let Some((mut fns_to_impl, trait_name, access_path)) = impld_trait {
+
                         //
                         // For future reference:
                         // What im doing here is that a trait has a few functions it implements.
@@ -1088,11 +1089,13 @@ impl Parser
                     }
 
                     // Store the implemented functions in the struct attributes field.
-                    attributes.impl_fn_list.extend(
-                        functions
-                            .iter()
-                            .map(|(n, d)| (n.to_owned(), ParsedState::Unparsed(d.to_owned()))),
-                    );
+                    for (n, d) in functions.iter() {
+                        if fields.contains_key(n) {
+                            return Err(ParserError::StructNameCollision(n.clone()).into());
+                        }
+
+                        attributes.impl_fn_list.insert(n.to_owned(), ParsedState::Unparsed(d.to_owned()));   
+                    }
                 }
                 else {
                     return Err(ParserError::CustomItemNotFound(struct_name_ident.clone()).into());

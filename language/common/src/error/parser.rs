@@ -11,6 +11,8 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum ParserError
 {
+    #[error("An implemented function and field cannot have the same name. Function name collides with field `{0}`.")]
+    StructNameCollision(String),
     #[error(
         "[INTERNAL ERROR] The function's argument (idx: `{0}` | id: `{1}`) was found in the list of passed in arguments."
     )]

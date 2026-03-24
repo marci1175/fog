@@ -10,19 +10,26 @@ trait majom {
 }
 
 trait abc {
-    a(this): int;
+    ligma(this, a: int): void;
 }
 
 marci implements majom {
     pub function beszel(this): int {
-        printf("Marci szama: %f", this.c);
+        printf("Marci szama: %f\n", this.c);
 
         return 0;
     }
 }
 
-pub function test |T <- majom| (a: T): void {
+marci implements abc {
+    pub function ligma(this, a: int): void {
+        printf("A: %i", a);
+    }
+}
+
+pub function test |T <- majom + abc| (a: T): void {
     a.beszel();
+    a.ligma(9000);
 }
 
 pub function main(): int {
