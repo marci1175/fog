@@ -9,13 +9,12 @@ trait majom {
     beszel(this): int;
 }
 
-trait tanydon {
+trait abc {
     a(this): int;
 }
 
 marci implements majom {
     pub function beszel(this): int {
-        # This unwraps a none in parsing
         printf("Marci szama: %f", this.c);
 
         return 0;
