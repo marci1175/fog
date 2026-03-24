@@ -299,7 +299,7 @@ pub fn parse_function_call_args(
                         Some(arg_ty.clone()),
                         imported_functions.clone(),
                         custom_items.clone(),
-                    module_path.clone(),
+                        module_path.clone(),
                     )?;
 
                     tokens_idx += 1;
@@ -327,7 +327,7 @@ pub fn parse_function_call_args(
                         None,
                         imported_functions.clone(),
                         custom_items.clone(),
-                    module_path.clone(),
+                        module_path.clone(),
                     )?;
 
                     tokens_idx += 1;

@@ -10,9 +10,7 @@ use common::{
 
 pub fn only_contains_digits(s: &[u8]) -> bool
 {
-    s.iter().all(|c| {
-        c.is_ascii_digit()
-    })
+    s.iter().all(|c| c.is_ascii_digit())
 }
 
 const DOUBLE_BACKSLASH: u8 = b'\\';

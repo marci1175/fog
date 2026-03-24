@@ -58,7 +58,7 @@ impl Parser
         }
 
         use backend::request;
-        ``` 
+        ```
     */
     pub fn parse(&mut self, dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>)
     -> Result<()>

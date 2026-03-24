@@ -7,7 +7,9 @@ pub enum SyntaxError
 {
     #[error("The namespace's body was defined incorrectly. (Check brackets and keyword order.)")]
     InvalidNamespaceDefinition,
-    #[error("A a visibilty keyword needs to follow an Item type keyword. (ie. pub function x | pub struct x | etc...)")]
+    #[error(
+        "A a visibilty keyword needs to follow an Item type keyword. (ie. pub function x | pub struct x | etc...)"
+    )]
     VisibiltyFollowedByItemTypeKeyword,
     #[error("A comma was expected in the code but was not found.")]
     CommaNotFound,

@@ -278,7 +278,8 @@ impl Parser
                         }
 
                         // Try to collect the function generics specified next to the args
-                        let mut function_generics: OrdMap<String, OrdSet<Vec<String>>> = OrdMap::new();
+                        let mut function_generics: OrdMap<String, OrdSet<Vec<String>>> =
+                            OrdMap::new();
 
                         token_idx += 2;
 
@@ -295,7 +296,6 @@ impl Parser
 
                             token_idx += jumped_idx;
                         }
-
 
                         if tokens[token_idx] == Token::OpenParentheses {
                             let (bracket_close_idx, args) = parse_signature_argument_tokens(
@@ -430,7 +430,10 @@ impl Parser
                 }
                 else {
                     // Raise an error cuz a pub can only be behind a function
-                    return Err(ParserError::SyntaxError(SyntaxError::VisibiltyFollowedByItemTypeKeyword).into());
+                    return Err(ParserError::SyntaxError(
+                        SyntaxError::VisibiltyFollowedByItemTypeKeyword,
+                    )
+                    .into());
                 }
             }
             else if current_token == Token::Function {
@@ -800,23 +803,33 @@ impl Parser
 
                         // Fetch namespace tokens
                         let namespace_closing_idx = find_closing_braces(&tokens[token_idx..], 0)?;
-                        let namespace_token_slice = &tokens[token_idx..namespace_closing_idx + token_idx];
-                        
+                        let namespace_token_slice =
+                            &tokens[token_idx..namespace_closing_idx + token_idx];
+
                         // Create a module path for the functions
                         let mut module_path = module_path.clone();
                         module_path.push(namespace.clone());
 
                         // The namespace's items
-                        let namespace_items = parse_functions(namespace_token_slice, &enabled_features, module_path, &custom_types, false)?;
-                        
-
+                        let _namespace_items = parse_functions(
+                            namespace_token_slice,
+                            &enabled_features,
+                            module_path,
+                            &custom_types,
+                            false,
+                        )?;
                     }
                     else {
-                        return Err(ParserError::SyntaxError(SyntaxError::InvalidNamespaceDefinition).into())
+                        return Err(ParserError::SyntaxError(
+                            SyntaxError::InvalidNamespaceDefinition,
+                        )
+                        .into());
                     }
                 }
                 else {
-                    return Err(ParserError::SyntaxError(SyntaxError::InvalidNamespaceDefinition).into())
+                    return Err(
+                        ParserError::SyntaxError(SyntaxError::InvalidNamespaceDefinition).into(),
+                    );
                 }
             }
             else if let Token::Enum(ty) = current_token.clone() {
@@ -857,7 +870,7 @@ impl Parser
                                     Some(variant_type.clone()),
                                     self.imported_functions.clone(),
                                     Rc::new(custom_types.clone()),
-                                    module_path.clone()
+                                    module_path.clone(),
                                 )?;
 
                                 body_idx += idx;
@@ -1071,15 +1084,15 @@ impl Parser
                         }
 
                         // Store the implemented trait
-                        attributes
-                            .traits_implemented
-                            .insert(access_path);
+                        attributes.traits_implemented.insert(access_path);
                     }
 
                     // Store the implemented functions in the struct attributes field.
-                    attributes
-                        .impl_fn_list
-                        .extend(functions.iter().map(|(n, d)| (n.to_owned(), ParsedState::Unparsed(d.to_owned()))));
+                    attributes.impl_fn_list.extend(
+                        functions
+                            .iter()
+                            .map(|(n, d)| (n.to_owned(), ParsedState::Unparsed(d.to_owned()))),
+                    );
                 }
                 else {
                     return Err(ParserError::CustomItemNotFound(struct_name_ident.clone()).into());
@@ -1154,7 +1167,7 @@ impl Parser
                     // Check where we should put this function.
                     // If there is a receiver in the function we will store it in the struct attribute
                     // If there isnt we will store this function just like an import but with the struct's name added to the path
-                    
+
                     if impl_definition.signature.args.receiver_referenced {
                         *def = common::codegen::ParsedState::Parsed(impl_definition);
                     }
@@ -1286,7 +1299,7 @@ impl Parser
                                 Some(var_type.clone()),
                                 function_imports.clone(),
                                 custom_items.clone(),
-                                    module_path.clone()
+                                module_path.clone(),
                             )?;
 
                             // Set the new idx
@@ -1380,7 +1393,7 @@ impl Parser
                             &mut variable_reference,
                             &mut parsed_token_instances,
                             &ident_name,
-                                    module_path.clone()
+                            module_path.clone(),
                         )?;
 
                         // Store the variable reference
@@ -1413,7 +1426,7 @@ impl Parser
                             function_imports.clone(),
                             custom_items.clone(),
                             None,
-                                    module_path.clone()
+                            module_path.clone(),
                         )?;
 
                         // Check for generics in the arguments and insert automaticly generated functions based on that.
@@ -1600,7 +1613,7 @@ impl Parser
                             function_imports.clone(),
                             custom_items.clone(),
                             None,
-                                    module_path.clone()
+                            module_path.clone(),
                         )?;
 
                         token_idx += jumped_idx + 2;
@@ -1656,7 +1669,7 @@ impl Parser
                                         Some(variable_type.clone()),
                                         function_imports.clone(),
                                         custom_items.clone(),
-                                    module_path.clone()
+                                        module_path.clone(),
                                     )?;
 
                                     parsed_token_instances.push(ParsedTokenInstance {
@@ -1721,7 +1734,7 @@ impl Parser
                                         Some(variable_type.clone()),
                                         function_imports.clone(),
                                         custom_items.clone(),
-                                    module_path.clone()
+                                        module_path.clone(),
                                     )?;
 
                                     parsed_token_instances.push(ParsedTokenInstance {
@@ -1784,7 +1797,7 @@ impl Parser
                             Some(this_function_signature.return_type.clone()),
                             function_imports.clone(),
                             custom_items.clone(),
-                                    module_path.clone()
+                            module_path.clone(),
                         )?;
 
                         token_idx += jmp_idx;
@@ -1822,7 +1835,7 @@ impl Parser
                             None,
                             function_imports.clone(),
                             custom_items.clone(),
-                                    module_path.clone()
+                            module_path.clone(),
                         )?;
 
                         token_idx = paren_close_idx + 1;
@@ -2038,7 +2051,7 @@ impl Parser
                         },
                         &mut parsed_token_instances,
                         "this",
-                                    module_path.clone()
+                        module_path.clone(),
                     )?;
                 }
                 else {

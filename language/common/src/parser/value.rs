@@ -125,7 +125,7 @@ pub fn parse_value(
                                     next_token,
                                     function_imports.clone(),
                                     custom_types.clone(),
-                    module_path.clone(),
+                                    module_path.clone(),
                                 )?
                                 .0,
                             ),
@@ -297,7 +297,7 @@ pub fn parse_value(
                         next_token,
                         function_imports.clone(),
                         custom_types.clone(),
-                    module_path.clone(),
+                        module_path.clone(),
                     )?;
 
                     parsed_token = Some(ParsedTokenInstance {
@@ -607,7 +607,9 @@ pub fn parse_token_as_value(
                 *token_idx += 1;
 
                 loop {
-                    if let Some(Token::Identifier(ident)) = tokens.get(*token_idx) && tokens.get(*token_idx + 1) == Some(&Token::DoubleColon) {
+                    if let Some(Token::Identifier(ident)) = tokens.get(*token_idx)
+                        && tokens.get(*token_idx + 1) == Some(&Token::DoubleColon)
+                    {
                         item_access_path.push(ident.clone());
 
                         *token_idx += 2;
@@ -846,7 +848,7 @@ pub fn parse_token_as_value(
                 Some(desired_variable_type.clone()),
                 function_imports,
                 custom_types.clone(),
-                    module_path.clone(),
+                module_path.clone(),
             )?;
 
             *token_idx += closing_idx + 1;
@@ -886,7 +888,7 @@ pub fn parse_token_as_value(
                         Some(inner_ty.clone()),
                         function_imports.clone(),
                         custom_types.clone(),
-                    module_path.clone(),
+                        module_path.clone(),
                     )?;
 
                     // Store the parsed token
@@ -940,7 +942,7 @@ pub fn parse_token_as_value(
                 }),
                 function_imports,
                 custom_types.clone(),
-                    module_path.clone(),
+                module_path.clone(),
             )?;
 
             *token_idx += jmp_idx + 1;
@@ -963,7 +965,7 @@ pub fn parse_token_as_value(
                 desired_variable_type.clone(),
                 function_imports,
                 custom_types.clone(),
-                    module_path.clone(),
+                module_path.clone(),
             )?;
 
             *token_idx += jmp_idx + 1;
@@ -1005,7 +1007,7 @@ pub fn parse_token_as_value(
                 &mut basic_reference,
                 &mut Vec::new(),
                 "this",
-                    module_path.clone(),
+                module_path.clone(),
             )?;
 
             // Return the VariableReference

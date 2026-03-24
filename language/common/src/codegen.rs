@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     ops::{Deref, DerefMut},
     rc::Rc,
     sync::Arc,
@@ -29,19 +29,20 @@ use strum::Display;
 /// A recode of the type
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructAttributes
-{   
+{
     /// The Set should consist of the full access path to the traits implemented.
     /// Example: {["dep1", "common", "trait1"], ["dep1", "common", "trait2"]}
     pub traits_implemented: OrdSet<Vec<String>>,
 
     /// This field contains all the functions implemented for the struct.
     /// The function can be implemented through a trait or just normal impl statements.
-    pub impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>
+    pub impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>,
 }
 
 /// Function implementation variant for a struct.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ImplType {
+pub enum ImplType
+{
     /// Trait implementations should contain the whole access path to the trait function.
     TraitImplementation(Vec<String>),
 
@@ -51,7 +52,8 @@ pub enum ImplType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, strum::EnumTryAs)]
-pub enum ParsedState<PARSED, UNPARSED> {
+pub enum ParsedState<PARSED, UNPARSED>
+{
     Parsed(PARSED),
     Unparsed(UNPARSED),
 }

@@ -307,7 +307,8 @@ impl PartialEq for Type
             // Implement specific logic cmp for Traits
             (
                 Self::Trait {
-                    access_path: trait_name, ..
+                    access_path: trait_name,
+                    ..
                 },
                 Self::Struct((_, _, attr)),
             ) => attr.traits_implemented.contains(trait_name),
@@ -688,8 +689,10 @@ impl<K, V> Deref for OrdMap<K, V>
     }
 }
 
-impl<K, V> Default for OrdMap<K, V> {
-    fn default() -> Self {
+impl<K, V> Default for OrdMap<K, V>
+{
+    fn default() -> Self
+    {
         Self(IndexMap::default())
     }
 }
@@ -850,7 +853,17 @@ pub fn ty_from_token(
                     CustomItem::Enum((ty, body)) => Ok(Type::Enum((Box::new(ty), body))),
                     // TODO: Make it so that Trait types exist. It will basically mean that any struct can be passed in to this arg which implements this trait
                     // This is a type interface, this isnt a concrete type
-                    CustomItem::Trait { name, functions, access_path } => Ok(Type::Trait { name, functions, access_path }),
+                    CustomItem::Trait {
+                        name,
+                        functions,
+                        access_path,
+                    } => {
+                        Ok(Type::Trait {
+                            name,
+                            functions,
+                            access_path,
+                        })
+                    },
                 }
             }
             else {
