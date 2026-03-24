@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     ops::{Deref, DerefMut},
     rc::Rc,
     sync::Arc,
@@ -13,7 +13,7 @@ use crate::{
         function::{FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition},
     },
     tokenizer::Token,
-    ty::{OrdMap, Type, ty_from_token},
+    ty::{OrdMap, OrdSet, Type, ty_from_token},
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -26,15 +26,34 @@ use inkwell::{
 };
 use strum::Display;
 
+/// A recode of the type
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructAttributes
-{
-    // Traits implemented
-    pub traits: OrdMap<String, OrdMap<Vec<String>, UnparsedFunctionDefinition>>,
-    // This only holds the functions implemented for the struct only. Trait impls are not stored here.
-    pub implemented_unparsed_functions: OrdMap<Vec<String>, UnparsedFunctionDefinition>,
-    // The impled fns are moved here later.
-    pub implemented_parsed_functions: OrdMap<Vec<String>, FunctionDefinition>,
+{   
+    /// The Set should consist of the full access path to the traits implemented.
+    /// Example: {["dep1", "common", "trait1"], ["dep1", "common", "trait2"]}
+    pub traits_implemented: OrdSet<Vec<String>>,
+
+    /// This field contains all the functions implemented for the struct.
+    /// The function can be implemented through a trait or just normal impl statements.
+    pub impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>
+}
+
+/// Function implementation variant for a struct.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ImplType {
+    /// Trait implementations should contain the whole access path to the trait function.
+    TraitImplementation(Vec<String>),
+
+    /// A struct implementation only consist of a function name since its access path doesnt matter.
+    /// I am not planning to make functions implemented for a function accessible outside of the struct's variable. ( ie. no ```Struct::function1()``` )
+    StructImplementation(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, strum::EnumTryAs)]
+pub enum ParsedState<PARSED, UNPARSED> {
+    Parsed(PARSED),
+    Unparsed(UNPARSED),
 }
 
 /// All of the custom types implemented by the User are defined here
@@ -65,6 +84,7 @@ pub enum CustomItem
     {
         name: String,
         functions: OrdMap<String, FunctionSignature>,
+        access_path: Vec<String>,
     },
 }
 

@@ -522,7 +522,7 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
-                            Type::Trait { name, functions } => todo!(),
+                            Type::Trait { name, functions, access_path } => todo!(),
                             Type::TraitObject(_) => todo!(),
                         }
                     },
@@ -671,7 +671,7 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
-                            Type::Trait { name, functions } => todo!(),
+                            Type::Trait { name, functions, access_path } => todo!(),
                             Type::TraitObject(_) => todo!(),
                         }
                     },
@@ -842,7 +842,7 @@ where
                             },
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
-                            Type::Trait { name, functions } => todo!(),
+                            Type::Trait { name, functions, access_path } => todo!(),
                             Type::TraitObject(_) => todo!(),
                         }
                     },
@@ -1630,7 +1630,7 @@ where
                 Type::Array(type_discriminant) => unimplemented!(),
                 Type::Pointer(_) => todo!(),
                 Type::Enum(_) => todo!(),
-                Type::Trait { name, functions } => todo!(),
+                Type::Trait { name, functions, access_path } => todo!(),
                 Type::TraitObject(_) => todo!(),
             };
 
@@ -2227,7 +2227,10 @@ pub fn generate_ir<'ctx>(
 
     for (_item_name, item) in custom_types.iter() {
         if let CustomItem::Struct((_name, _fields, attr)) = item {
-            for (_, impl_fn) in attr.implemented_parsed_functions.iter() {
+            for (_, impl_fn) in attr.impl_fn_list.iter() {
+                // It is safe to unwrap this here since all the functions have been parsed.
+                let impl_fn = impl_fn.try_as_parsed_ref().unwrap();
+                
                 // If there are any generics present in the function arguments, the function should not be statically parsed and is generated after call during compile
                 if !impl_fn.signature.args.generics.is_empty() {
                     continue;

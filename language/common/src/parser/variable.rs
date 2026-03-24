@@ -205,14 +205,11 @@ pub fn get_struct_field(
         }
         // If a function was implemented with this name and it was referenced here we should parse the function call
         // This means that there is a receiver in the function def ie `this`
-        else if let Some(impl_fn) = attributes.implemented_unparsed_functions.get(&{
-            let mut mod_path = module_path.clone();
+        else if let Some(impl_fn) = attributes.impl_fn_list.get(field_name) {
+            // This unwrap is safe here since everything is being parsed
+            // If code gets changed later this will invertedly panic
+            let impl_fn = impl_fn.try_as_unparsed_ref().unwrap();
 
-            mod_path.push(struct_name.to_string());
-            mod_path.push(field_name.to_string());
-
-            dbg!(mod_path)
-        }) {
             // Return the function's name we will parse it later, not here (to avoid having to add 1000 arguments to this function too)
             Ok(StructFieldType::Function((
                 impl_fn.token_offset,

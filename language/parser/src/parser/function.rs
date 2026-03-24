@@ -7,7 +7,7 @@ use std::{
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomItem, FunctionArgumentIdentifier, If, StructAttributes},
+    codegen::{CustomItem, FunctionArgumentIdentifier, If, ParsedState, StructAttributes},
     compiler::ProjectConfig,
     dashmap::DashMap,
     error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
@@ -48,10 +48,9 @@ pub fn parse_functions(
     // This argument basically sets whether functions are allowed to use `this` in their arguments.
     // Functions implemented for struct can use this to reference themselves.
     is_struct_implementation: bool,
-) -> Result<IndexMap<Vec<String>, UnparsedFunctionDefinition>, anyhow::Error>
+) -> Result<IndexMap<String, UnparsedFunctionDefinition>, anyhow::Error>
 {
-    // TODO: The key shouldnt be the name, it should be the path to the function 
-    let mut function_list: IndexMap<Vec<String>, UnparsedFunctionDefinition> = IndexMap::new();
+    let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
     let mut function_compiler_hint_buffer: OrdSet<CompilerHint> = OrdSet::new();
     let mut function_enabling_feature: OrdSet<String> = OrdSet::new();
     let mut token_idx = 0;
@@ -68,7 +67,7 @@ pub fn parse_functions(
             if tokens[token_idx] == Token::Function {
                 if let Token::Identifier(function_name) = tokens[token_idx + 1].clone() {
                     // Try to collect the function generics specified next to the args
-                    let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
+                    let mut function_generics: OrdMap<String, OrdSet<Vec<String>>> = OrdMap::new();
 
                     token_idx += 2;
 
@@ -159,15 +158,9 @@ pub fn parse_functions(
                                 if !function_enabling_features.is_disjoint(enabled_features)
                                     || function_enabling_features.is_empty()
                                 {
-                                    // Create a clone of the module path so we can modifiy it locally
-                                    let mut mod_path = module_path.clone();
-
-                                    // Store the function name in the module path
-                                    mod_path.push(function_name.clone());
-
                                     // Store the function
                                     let insertion = function_list.insert(
-                                        mod_path.clone(),
+                                        function_name.clone(),
                                         UnparsedFunctionDefinition {
                                             inner: braces_contains.clone(),
                                             token_offset: token_idx + 4,
@@ -178,7 +171,7 @@ pub fn parse_functions(
                                                 // To be honest I dont really think this matters what we set it, since im not planning to make a disctinction between public and private functions
                                                 // For now ;)
                                                 visibility: current_token.try_into()?,
-                                                module_path: mod_path.clone(),
+                                                module_path: module_path.clone(),
                                                 compiler_hints: compiler_hints.clone(),
                                                 enabling_features: function_enabling_features
                                                     .clone(),
@@ -285,7 +278,7 @@ impl Parser
                         }
 
                         // Try to collect the function generics specified next to the args
-                        let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
+                        let mut function_generics: OrdMap<String, OrdSet<Vec<String>>> = OrdMap::new();
 
                         token_idx += 2;
 
@@ -446,7 +439,7 @@ impl Parser
             else if current_token == Token::External {
                 if let Some(Token::Identifier(identifier)) = tokens.get(token_idx + 1).cloned() {
                     // Try to collect the function generics specified next to the args
-                    let mut function_generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
+                    let mut function_generics: OrdMap<String, OrdSet<Vec<String>>> = OrdMap::new();
 
                     token_idx += 2;
 
@@ -694,7 +687,7 @@ impl Parser
                                 );
                             }
                             // Try to collect the function generics specified next to the args
-                            let mut function_generics: OrdMap<String, OrdSet<String>> =
+                            let mut function_generics: OrdMap<String, OrdSet<Vec<String>>> =
                                 OrdMap::new();
 
                             // Increment index
@@ -745,6 +738,11 @@ impl Parser
                         CustomItem::Trait {
                             name: trait_name.clone(),
                             functions: trait_functions,
+                            access_path: {
+                                let mut module_path = module_path.clone();
+                                module_path.push(trait_name.clone());
+                                module_path
+                            },
                         },
                     );
                 }
@@ -963,7 +961,7 @@ impl Parser
                             // Increment idx to the Token::OpenBraces
                             token_idx += 1;
 
-                            if let Some(CustomItem::Trait { functions, .. }) =
+                            if let Some(CustomItem::Trait { functions, access_path, .. }) =
                                 custom_types_clone.get(trait_name)
                                 && Some(&Token::OpenBraces) == tokens.get(token_idx)
                             {
@@ -983,7 +981,7 @@ impl Parser
                                 // Closing idx is the `}` so increment one more
                                 token_idx = closing_idx;
 
-                                (impl_body, Some((impl_fns, trait_name.clone())))
+                                (impl_body, Some((impl_fns, trait_name, access_path.clone())))
                             }
                             else {
                                 return Err(ParserError::SyntaxError(
@@ -1033,7 +1031,7 @@ impl Parser
                     )?;
 
                     // If we are implementing a trait we also generate functions for the specified type.
-                    if let Some((mut fns_to_impl, trait_name)) = impld_trait {
+                    if let Some((mut fns_to_impl, trait_name, access_path)) = impld_trait {
                         //
                         // For future reference:
                         // What im doing here is that a trait has a few functions it implements.
@@ -1046,13 +1044,7 @@ impl Parser
                         fns_to_impl.retain(|k, v| {
                             // Remove those functions from this local list that match the trait fn's signature, meaning that they are correct
                             // Only keep those that are invalid
-                            if let Some(impled_fn) = functions.get(&{
-                                let mut module_path = module_path.clone();
-
-                                module_path.push(k.clone());
-
-                                module_path
-                            }) {
+                            if let Some(impled_fn) = functions.get(k) {
                                 // Check if the function in the trait implementation matches the one in the function list.
                                 !(impled_fn.signature.name == *v.name
                                     && impled_fn.signature.args.check_arg_eq(&v.args)
@@ -1073,22 +1065,21 @@ impl Parser
                                     .keys()
                                     .map(|k| k.to_string())
                                     .collect::<Vec<String>>(),
-                                trait_name,
+                                trait_name.clone(),
                             )
                             .into());
                         }
 
                         // Store the implemented trait
                         attributes
-                            .traits
-                            .insert(trait_name, OrdMap::from(functions));
-
-                        continue;
+                            .traits_implemented
+                            .insert(access_path);
                     }
 
+                    // Store the implemented functions in the struct attributes field.
                     attributes
-                        .implemented_unparsed_functions
-                        .extend(functions.iter().map(|(n, d)| (n.to_owned(), d.to_owned())));
+                        .impl_fn_list
+                        .extend(functions.iter().map(|(n, d)| (n.to_owned(), ParsedState::Unparsed(d.to_owned()))));
                 }
                 else {
                     return Err(ParserError::CustomItemNotFound(struct_name_ident.clone()).into());
@@ -1122,15 +1113,18 @@ impl Parser
         for (_, item) in custom_items.iter_mut() {
             let item_clone = item.clone();
             if let CustomItem::Struct((_, _, attr)) = item {
-                for (fn_name, mut def) in attr.implemented_unparsed_functions.drain(..) {
+                for (_fn_name, def) in attr.impl_fn_list.iter_mut() {
+                    // It is safe to unwrap here, becuase none of the functiondefs are parsed right now.
+                    let unparsed_def = def.try_as_unparsed_mut().unwrap();
+
                     let receiver_ty = (
                         Type::from(item_clone.clone()),
                         VARIABLE_ID_SOURCE.get_unique_id(),
                     );
 
                     // Modify the functions signature if there is a receiver present in the arguments
-                    if def.signature.args.receiver_referenced {
-                        def.signature.args.arguments.insert_before(
+                    if unparsed_def.signature.args.receiver_referenced {
+                        unparsed_def.signature.args.arguments.insert_before(
                             0,
                             String::from("this"),
                             receiver_ty.clone(),
@@ -1138,36 +1132,31 @@ impl Parser
                     }
 
                     let impl_definition = FunctionDefinition {
-                        signature: def.signature.clone(),
+                        signature: unparsed_def.signature.clone(),
                         inner: self.parse_function_block(
-                            def.inner.clone(),
-                            def.token_offset,
+                            unparsed_def.inner.clone(),
+                            unparsed_def.token_offset,
                             // TODO: Improve this
                             &mut IndexMap::new(),
                             &mut IndexMap::new(),
-                            def.signature.clone(),
+                            unparsed_def.signature.clone(),
                             function_imports.clone(),
                             // TODO: And this
                             custom_items_clone.clone(),
-                            def.signature.args.clone(),
+                            unparsed_def.signature.args.clone(),
                             OrdMap::new(),
                             Some(receiver_ty),
                         )?,
-                        token_offset: def.token_offset,
+                        token_offset: unparsed_def.token_offset,
                     };
 
+                    // NOTICE: PLEASE REVIEW WHAT I MEANT HERE
                     // Check where we should put this function.
                     // If there is a receiver in the function we will store it in the struct attribute
                     // If there isnt we will store this function just like an import but with the struct's name added to the path
+                    
                     if impl_definition.signature.args.receiver_referenced {
-                        // Check for name collision in impls
-                        if attr
-                            .implemented_parsed_functions
-                            .insert(fn_name.clone(), impl_definition)
-                            .is_some()
-                        {
-                            return Err(ParserError::FunctionRedefinition(fn_name.clone()).into());
-                        }
+                        *def = common::codegen::ParsedState::Parsed(impl_definition);
                     }
                     else {
                         // TODO: When recoding imports we should also make it so that people are able to import functions in the source code. THen well be able to use this part
@@ -2077,7 +2066,7 @@ pub fn parse_function_signature(
     module_path: Vec<String>,
     function_name: String,
     is_struct_implementation: bool,
-    function_generics: OrdMap<String, OrdSet<String>>,
+    function_generics: OrdMap<String, OrdSet<Vec<String>>>,
 ) -> anyhow::Result<FunctionSignature>
 {
     let (bracket_close_idx, args) = parse_signature_argument_tokens(

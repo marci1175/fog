@@ -72,6 +72,7 @@ pub struct FunctionSignature
     pub name: String,
     pub args: FunctionArguments,
     pub return_type: Type,
+    /// Module path does NOT contain function name.
     pub module_path: Vec<String>,
     pub visibility: FunctionVisibility,
     pub compiler_hints: OrdSet<CompilerHint>,
@@ -92,7 +93,9 @@ pub struct FunctionArguments
     /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are quniue in this context.
     pub arguments: OrdMap<String, (Type, UniqueId)>,
     pub ellipsis_present: bool,
-    pub generics: OrdMap<String, OrdSet<String>>,
+    /// The map consists of the generic types and their traits.
+    /// ie: { "T": {"trait1", "trait2"} }
+    pub generics: OrdMap<String, OrdSet<Vec<String>>>,
     /// This is true if the function references the struct its implemented for ie. using the this keyword.
     /// Obviously this shouldnt be true for an ordinary function since the `this` keyword cannot be used there.
     pub receiver_referenced: bool,
@@ -363,7 +366,7 @@ pub fn parse_signature_args(
     tokens: &[Token],
     custom_types: &IndexMap<String, CustomItem>,
     is_struct_implementation: bool,
-    function_generics: &OrdMap<String, OrdSet<String>>,
+    function_generics: &OrdMap<String, OrdSet<Vec<String>>>,
 ) -> Result<FunctionArguments>
 {
     // Create a list of args which the function will take, we will return this later
@@ -500,7 +503,7 @@ pub fn parse_signature_argument_tokens(
     tokens: &[Token],
     custom_types: &IndexMap<String, CustomItem>,
     is_struct_implementation: bool,
-    function_generics: OrdMap<String, OrdSet<String>>,
+    function_generics: OrdMap<String, OrdSet<Vec<String>>>,
 ) -> Result<(usize, FunctionArguments)>
 {
     let bracket_closing_idx =
@@ -532,7 +535,7 @@ pub fn parse_fn_generics(
     // Curerently available custom types / items
     custom_types: &IndexMap<String, CustomItem>,
     // The list of function generics
-    function_generics: &mut OrdMap<String, OrdSet<String>>,
+    function_generics: &mut OrdMap<String, OrdSet<Vec<String>>>,
 ) -> anyhow::Result<usize>
 {
     let function_g_closing_idx = find_next_bitor(tokens)
@@ -577,10 +580,10 @@ pub fn parse_fn_generics(
                                 .into());
                             },
                             // We just have to check if its a trait or not
-                            CustomItem::Trait { name, .. } => {
+                            CustomItem::Trait { access_path, .. } => {
                                 // Store trait name, into the mutable reference
                                 // Check if the trait is already required
-                                if !trait_list.insert(name.clone()) {
+                                if !trait_list.insert(access_path.clone()) {
                                     return Err(ParserError::TraitAlreadyRequiredForGeneric(
                                         generic_name.clone(),
                                         trait_name.clone(),

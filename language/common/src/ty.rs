@@ -244,6 +244,9 @@ pub enum Type
     Trait
     {
         name: String,
+        /// Includes the trait name
+        /// ie: ["dep1", "module1", "trait1"]
+        access_path: Vec<String>,
         functions: OrdMap<String, FunctionSignature>,
     },
 
@@ -258,7 +261,7 @@ pub enum Type
     //     // inner_type: Option<Box<Type>>,
     // }
     /// A TraitObject is basically a set of traits, I may remove them later and adopt traits better
-    TraitObject(OrdSet<String>),
+    TraitObject(OrdSet<Vec<String>>),
 }
 
 impl From<CustomItem> for Type
@@ -293,24 +296,26 @@ impl PartialEq for Type
                 Self::Trait {
                     name: l_name,
                     functions: l_functions,
+                    access_path: l_access_path,
                 },
                 Self::Trait {
                     name: r_name,
                     functions: r_functions,
+                    access_path: r_access_path,
                 },
-            ) => l_name == r_name && l_functions == r_functions,
+            ) => l_name == r_name && l_functions == r_functions && l_access_path == r_access_path,
             // Implement specific logic cmp for Traits
             (
                 Self::Trait {
-                    name: trait_name, ..
+                    access_path: trait_name, ..
                 },
                 Self::Struct((_, _, attr)),
-            ) => attr.traits.contains_key(trait_name),
+            ) => attr.traits_implemented.contains(trait_name),
             (Self::TraitObject(implemented_traits /*inner_type */), Self::Struct((_, _, attr))) => {
                 // Check if all of the traits specified in the TraitObject are implemented by the struct
                 implemented_traits
                     .iter()
-                    .all(|impl_trait| attr.traits.contains_key(impl_trait))
+                    .all(|impl_trait| attr.traits_implemented.contains(impl_trait))
             },
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
@@ -512,8 +517,9 @@ impl Display for Type
             Type::Enum((ty, _)) => format!("Enum<{ty}>"),
             Type::Trait {
                 functions: inner_type,
-                name: trait_name,
-            } => format!("Trait({trait_name})<{inner_type:#?}>"),
+                name: _,
+                access_path: trait_name,
+            } => format!("Trait({trait_name:?})<{inner_type:#?}>"),
             Type::TraitObject(implemented_traits) => {
                 format!("TraitObject({implemented_traits:#?})")
             },
@@ -618,14 +624,16 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             ));
         },
         Some(Type::Trait {
-            functions: inner_type,
-            name: trait_name,
+            functions,
+            access_path,
+            name,
         }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
                 Type::Trait {
-                    functions: inner_type,
-                    name: trait_name,
+                    functions,
+                    access_path,
+                    name,
                 },
             ));
         },
@@ -667,7 +675,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
 
 /// This custom wrapper type is for implementing [`Hash`] for [`IndexMap`].
 /// The type implements its own custom [`PartialEq`] in which the order of the items matter. Therefor, two maps with the same items with a different order will not be equal.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct OrdMap<K, V>(IndexMap<K, V>);
 
 impl<K, V> Deref for OrdMap<K, V>
@@ -677,6 +685,12 @@ impl<K, V> Deref for OrdMap<K, V>
     fn deref(&self) -> &Self::Target
     {
         &self.0
+    }
+}
+
+impl<K, V> Default for OrdMap<K, V> {
+    fn default() -> Self {
+        Self(IndexMap::default())
     }
 }
 
@@ -836,7 +850,7 @@ pub fn ty_from_token(
                     CustomItem::Enum((ty, body)) => Ok(Type::Enum((Box::new(ty), body))),
                     // TODO: Make it so that Trait types exist. It will basically mean that any struct can be passed in to this arg which implements this trait
                     // This is a type interface, this isnt a concrete type
-                    CustomItem::Trait { name, functions } => Ok(Type::Trait { name, functions }),
+                    CustomItem::Trait { name, functions, access_path } => Ok(Type::Trait { name, functions, access_path }),
                 }
             }
             else {
