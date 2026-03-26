@@ -170,7 +170,7 @@ pub fn get_struct_field(
     var_ref: &mut VariableReference,
 ) -> anyhow::Result<StructFieldType<Type, (usize, UnparsedFunctionDefinition)>>
 {
-    dbg!(&attributes);
+    // dbg!(&attributes);
     // Match field name
     if let Some(Token::Identifier(field_name)) = tokens.get(*token_idx) {
         // Lookup struct field
@@ -188,7 +188,6 @@ pub fn get_struct_field(
 
             // Match syntax
             if let Some(Token::Dot) = tokens.get(*token_idx) {
-                // Increment idx
                 *token_idx += 1;
 
                 let next_struct_def = field_type

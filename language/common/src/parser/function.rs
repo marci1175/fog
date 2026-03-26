@@ -314,7 +314,7 @@ pub fn parse_function_call_args(
                     // Remove the argument from the argument list
                     fn_argument.shift_remove();
                 }
-                // If an argument is apssed into a function which takes a variable amount of arguments, it wont be found in the fn argument list
+                // If an argument is passed into a function which takes a variable amount of arguments, it wont be found in the fn argument list
                 // We can allocate a new variable id to the argument passed in this way
                 else {
                     let (parsed_argument, _jump_idx, arg_ty) = parse_value(

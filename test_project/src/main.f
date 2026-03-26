@@ -13,6 +13,11 @@ trait abc {
     ligma(this, a: int): void;
 }
 
+trait asdasd {
+    asd(this, a: int): void;
+}
+
+
 marci implements majom {
     pub function beszel(this): int {
         printf("Marci szama: %f\n", this.c);
@@ -23,11 +28,11 @@ marci implements majom {
 
 marci implements abc {
     pub function ligma(this, a: int): void {
-        printf("A: %i", a);
+        printf("A: %i\n", a);
     }
 }
 
-pub function test |T <- majom + abc| (a: T): void {
+pub function test |T <- majom + abc + asdasd| (a: T): void {
     a.beszel();
     a.ligma(9000);
 }
@@ -36,6 +41,7 @@ pub function main(): int {
     marci q = marci { a: 200, c: 432.2 };
 
     test(q);
+    q.ligma(43);
 
     return 0;
 }

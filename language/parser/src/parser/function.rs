@@ -1090,10 +1090,12 @@ impl Parser
 
                     // Store the implemented functions in the struct attributes field.
                     for (n, d) in functions.iter() {
+                        // Check if the function's name we are saving for the struct doesnt collide with any of its fields
                         if fields.contains_key(n) {
                             return Err(ParserError::StructNameCollision(n.clone()).into());
                         }
 
+                        // Store the functions
                         attributes.impl_fn_list.insert(n.to_owned(), ParsedState::Unparsed(d.to_owned()));   
                     }
                 }
@@ -1445,13 +1447,13 @@ impl Parser
                             .iter()
                             .enumerate()
                             .filter_map(|(idx, (arg_name, (arg_ty, _)))| {
-                                if matches!(arg_ty, Type::TraitObject(_)) {
-                                    return Some((idx, arg_name));
+                                if let Type::TraitObject(traits) = arg_ty {
+                                    return Some((idx, arg_name, traits.clone()));
                                 }
 
                                 None
                             })
-                            .map(|(arg_idx, arg_name)| {
+                            .map(|(arg_idx, arg_name, impled_traits)| {
                                 // We cant know which way the argument has been passed therefor we need to check with both ways, since we know the arguments index and identifier
                                 if let Some((_argument, (arg_ty, id))) = variables_passed
                                     .get(&FunctionArgumentIdentifier::Index(arg_idx))
@@ -1464,11 +1466,12 @@ impl Parser
                                     })
                                 {
                                     // Collect the argument types passed in
-                                    Result::<(usize, Type, String, usize), ParserError>::Ok((
+                                    Result::<(usize, Type, String, usize, OrdSet<Vec<String>>), ParserError>::Ok((
                                         arg_idx,
                                         arg_ty.clone(),
                                         arg_name.clone(),
                                         *id,
+                                        impled_traits
                                     ))
                                 }
                                 else {
@@ -1494,7 +1497,15 @@ impl Parser
                             // Modify current argument list with parsed types
                             for passed_arg in passed_in_arguments_for_traits {
                                 // Return if an error occured in the searching
-                                let (_arg_idx, arg_ty, arg_name, arg_id) = passed_arg?;
+                                let (_arg_idx, arg_ty, arg_name, arg_id, impled_traits) = passed_arg?;
+
+                                // Get the types implemented traits
+                                let concrete_arg_impled_traits = get_type_traits(&arg_ty);
+
+                                // Check if the type we passed implements the required traits
+                                if &impled_traits != concrete_arg_impled_traits {
+                                    return Err(ParserError::TraitMismatch(arg_ty.clone(), impled_traits.difference(&concrete_arg_impled_traits).cloned().collect::<Vec<_>>()).into())
+                                }
 
                                 // A panic cannot happen here due to code above
                                 let (current_arg_ty, current_arg_id) =
@@ -2120,5 +2131,32 @@ pub fn parse_function_signature(
     }
     else {
         Err(SyntaxError::FunctionSignatureReturnTypeRequired.into())
+    }
+}
+
+// This is a blanket function will need to expand it if i want primitives to implement traits
+pub fn get_type_traits(ty: &Type) -> &OrdSet<Vec<String>> {
+    match ty {
+        Type::I64 => todo!(),
+        Type::F64 => todo!(),
+        Type::U64 => todo!(),
+        Type::I32 => todo!(),
+        Type::F32 => todo!(),
+        Type::U32 => todo!(),
+        Type::I16 => todo!(),
+        Type::F16 => todo!(),
+        Type::U16 => todo!(),
+        Type::U8 => todo!(),
+        Type::String => todo!(),
+        Type::Boolean => todo!(),
+        Type::Void => todo!(),
+        Type::Enum(_) => todo!(),
+        Type::Struct((name, fields, attributes)) => {
+            &attributes.traits_implemented
+        },
+        Type::Array(_) => todo!(),
+        Type::Pointer(token) => todo!(),
+        Type::Trait { name, access_path, functions } => todo!(),
+        Type::TraitObject(ord_set) => todo!(),
     }
 }
