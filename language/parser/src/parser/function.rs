@@ -1504,7 +1504,7 @@ impl Parser
 
                                 // Check if the type we passed implements the required traits
                                 if &impled_traits != concrete_arg_impled_traits {
-                                    return Err(ParserError::TraitMismatch(arg_ty.clone(), impled_traits.difference(&concrete_arg_impled_traits).cloned().collect::<Vec<_>>()).into())
+                                    return Err(ParserError::TraitMismatch(arg_ty.clone(), impled_traits.difference(concrete_arg_impled_traits).cloned().collect::<Vec<_>>()).into())
                                 }
 
                                 // A panic cannot happen here due to code above
@@ -2151,12 +2151,12 @@ pub fn get_type_traits(ty: &Type) -> &OrdSet<Vec<String>> {
         Type::Boolean => todo!(),
         Type::Void => todo!(),
         Type::Enum(_) => todo!(),
-        Type::Struct((name, fields, attributes)) => {
+        Type::Struct((_name, _fields, attributes)) => {
             &attributes.traits_implemented
         },
         Type::Array(_) => todo!(),
-        Type::Pointer(token) => todo!(),
-        Type::Trait { name, access_path, functions } => todo!(),
-        Type::TraitObject(ord_set) => todo!(),
+        Type::Pointer(_token) => todo!(),
+        Type::Trait { name: _, access_path: _, functions: _ } => todo!(),
+        Type::TraitObject(_ord_set) => todo!(),
     }
 }

@@ -116,7 +116,7 @@ pub fn import_user_lib_functions<'a>(
             Type::Array((inner_ty, len)) => {
                 let array_ty = ty_to_llvm_ty(
                     ctx,
-                    &ty_from_token(&*inner_ty, &custom_types)?,
+                    &ty_from_token(inner_ty, &custom_types)?,
                     custom_types.clone(),
                 )?;
 
@@ -131,7 +131,7 @@ pub fn import_user_lib_functions<'a>(
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
             Type::Enum((ty, _)) => {
-                let return_type = ty.to_basic_type_enum(&ctx, custom_types.clone())?;
+                let return_type = ty.to_basic_type_enum(ctx, custom_types.clone())?;
 
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },

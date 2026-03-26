@@ -1,25 +1,21 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     rc::Rc,
 };
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomItem, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty},
-    error::codegen::CodeGenError,
+    codegen::{CustomItem, ty_to_llvm_ty},
     indexmap::IndexMap,
     inkwell::{
-        basic_block::BasicBlock,
         builder::Builder,
         context::Context,
-        module::Module,
         types::{ArrayType, BasicMetadataTypeEnum},
-        values::{FunctionValue, IntValue, PointerValue},
+        values::{IntValue, PointerValue},
     },
     parser::{
         common::{ParsedToken, ParsedTokenInstance},
-        function::FunctionDefinition,
-        variable::{UniqueId, VariableReference},
+        variable::UniqueId,
     },
     ty::Type,
 };
@@ -80,11 +76,10 @@ pub fn create_new_variable<'a, 'b>(
 
     // Check if we have already pre-allocated the variable
     // If yes, we should return the pointer to the pre-allocated variable
-    if let Some(var_id) = var_id {
-        if let Some(ptr) = allocation_table.get(&var_id) {
+    if let Some(var_id) = var_id
+        && let Some(ptr) = allocation_table.get(&var_id) {
             return Ok((*ptr, var_type.into()));
         }
-    }
     // If no, just allocate a new one
     // This assumes that we are not in a loop.
     // Allocate an instance of the converted type

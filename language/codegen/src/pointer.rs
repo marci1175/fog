@@ -1,7 +1,7 @@
 use common::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     anyhow::Result,
-    codegen::{CustomItem, LoopBodyBlocks, StructAttributes, ty_to_llvm_ty},
+    codegen::{CustomItem, LoopBodyBlocks, ty_to_llvm_ty},
     error::{codegen::CodeGenError, parser::ParserError},
     indexmap::IndexMap,
     inkwell::{
@@ -10,13 +10,13 @@ use common::{
         builder::Builder,
         context::Context,
         module::Module,
-        types::{BasicMetadataTypeEnum, BasicTypeEnum, PointerType, StructType},
+        types::{BasicMetadataTypeEnum, BasicTypeEnum},
         values::{FunctionValue, PointerValue},
     },
     parser::{
-        common::{ParsedToken, ParsedTokenInstance},
+        common::ParsedTokenInstance,
         function::FunctionDefinition,
-        variable::{StructFieldRef, UniqueId, VariableReference},
+        variable::{UniqueId, VariableReference},
     },
     ty::{Type, Value, ty_from_token},
 };
@@ -85,7 +85,7 @@ pub fn access_variable_ptr<'ctx>(
                     }
                     else {
                         // if the struct doesnt have this field return an error
-                        return Err(CodeGenError::InternalStructFieldNotFound.into());
+                        Err(CodeGenError::InternalStructFieldNotFound.into())
                     }
                 },
                 common::parser::variable::StructFieldType::Function((fn_sig, call_args)) => {
@@ -145,21 +145,21 @@ pub fn access_variable_ptr<'ctx>(
                             // Store the returned value
                             builder.build_store(alloca, value)?;
 
-                            return Ok((alloca, value.get_type(), fn_sig.return_type.clone()));
+                            Ok((alloca, value.get_type(), fn_sig.return_type.clone()))
                         },
                         // TODO: Think of a way to improve this (how can we label a value to be void (current impl might be enough))
                         None => {
-                            return Ok((
+                            Ok((
                                 ptr_ty.const_null(),
                                 BasicTypeEnum::IntType(ctx.i32_type()),
                                 Type::Void,
-                            ));
+                            ))
                         },
                     }
                 },
             }
         },
-        VariableReference::BasicReference(variable_name, variable_id) => {
+        VariableReference::BasicReference(variable_name, _variable_id) => {
             let ((ptr, _ptr_ty), (variable_type, _)) =
                 variable_map
                     .get(variable_name)
@@ -168,8 +168,8 @@ pub fn access_variable_ptr<'ctx>(
                     ))?;
 
             return Ok((
-                ptr.clone(),
-                ty_to_llvm_ty(ctx, &variable_type, custom_types)?,
+                *ptr,
+                ty_to_llvm_ty(ctx, variable_type, custom_types)?,
                 variable_type.clone(),
             ));
         },
@@ -365,7 +365,7 @@ pub fn set_value_of_ptr<'ctx>(
         Value::Struct((struct_name, struct_fields, struct_values, attr)) => {
             // Get the struct pointer's ty
             let pointee_struct_ty = ty_to_llvm_ty(
-                &ctx,
+                ctx,
                 &Type::Struct((struct_name, struct_fields.clone(), attr)),
                 custom_types.clone(),
             )?
@@ -430,7 +430,7 @@ pub fn set_value_of_ptr<'ctx>(
             // Store the struct in the main variable
             builder.build_store(v_ptr, constructed_struct)?;
         },
-        Value::Array(inner_ty) => unimplemented!(),
+        Value::Array(_inner_ty) => unimplemented!(),
         Value::Pointer((inner, _)) => {
             // Cast the integer to be a pointer since we cannot inherently create a pointer with a pre-determined destination
             let ptr = builder.build_int_to_ptr(
@@ -440,16 +440,16 @@ pub fn set_value_of_ptr<'ctx>(
             )?;
 
             // LLVM does let us initalize a pointer type with a pre-determined address
-            let store = builder.build_store(v_ptr, ptr)?;
+            let _store = builder.build_store(v_ptr, ptr)?;
 
             // Do not let llvm optimize it, cuz it can optimize out writes / reads
             // store.set_volatile(true)?;
         },
         Value::Enum((_ty, body, val)) => {
             set_value_of_ptr(
-                &ctx,
-                &builder,
-                &module,
+                ctx,
+                builder,
+                module,
                 body.get(&val)
                     .ok_or(ParserError::EnumVariantNotFound(val))?
                     .inner
@@ -513,7 +513,7 @@ where
         custom_types.clone(),
     )?;
 
-    if let Some((idx_ptr, ptr_ty, idx_ty_disc)) = index_val {
+    if let Some((idx_ptr, _ptr_ty, idx_ty_disc)) = index_val {
         let idx = builder.build_load(
             ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
             idx_ptr,
@@ -534,7 +534,7 @@ where
         };
 
         let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
-        let inner_ty = ty_from_token(&*inner_ty_token, custom_types)?;
+        let inner_ty = ty_from_token(&inner_ty_token, custom_types)?;
 
         Ok((
             gep_ptr,

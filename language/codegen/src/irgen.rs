@@ -21,20 +21,20 @@ use common::{
         common::{ParsedToken, ParsedTokenInstance},
         function::{CompilerHint, FunctionDefinition},
         value::MathematicalSymbol,
-        variable::{ControlFlowType, UniqueId, VARIABLE_ID_SOURCE, VariableReference},
+        variable::{ControlFlowType, UniqueId},
     },
     tokenizer::Token,
     ty::{OrdMap, OrdSet, Type, ty_from_token},
 };
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     rc::Rc,
 };
 
 use crate::{
     allocate::{allocate_string, create_allocation_table, create_new_variable},
     debug::create_subprogram_debug_information,
-    pointer::{access_array_index, access_variable_ptr, set_value_of_ptr},
+    pointer::{access_variable_ptr, set_value_of_ptr},
 };
 
 pub fn create_ir<'main, 'ctx>(
@@ -95,7 +95,7 @@ where
                 builder.build_store(v_ptr, value)?;
                 (v_ptr, BasicMetadataTypeEnum::VectorType(value.get_type()))
             },
-            BasicValueEnum::ScalableVectorValue(scalable_vector_value) => todo!(),
+            BasicValueEnum::ScalableVectorValue(_scalable_vector_value) => todo!(),
         };
 
         variable_map.insert(arg_name, ((v_ptr, ty), arg_ty));
@@ -161,7 +161,7 @@ where
 {
     let parsed_token = parsed_token_instance.inner;
     // Debug info for returning error spans
-    let parsed_token_debug_info = parsed_token_instance.debug_information;
+    let _parsed_token_debug_info = parsed_token_instance.debug_information;
 
     let created_var = match parsed_token.clone() {
         ParsedToken::NewVariable {
@@ -207,10 +207,10 @@ where
             None
         },
         ParsedToken::VariableReference(var_ref_variant) => {
-            if let Some((var_ref_name, (var_ref_ptr, var_ref_ty), var_ref_ty_disc)) =
+            if let Some((var_ref_name, (var_ref_ptr, _var_ref_ty), _var_ref_ty_disc)) =
                 variable_reference
             {
-                let (ptr, ptr_ty, ty) = access_variable_ptr(
+                let (ptr, ptr_ty, _ty) = access_variable_ptr(
                     ctx,
                     module,
                     &fn_ret_ty,
@@ -354,11 +354,11 @@ where
                     // Check if the type is an enum
                     if let Type::Enum((ty, _body)) = literal.get_type() {
                         // Check if the enum's inner type matches with the desired type. If not raise an error
-                        if &*ty == &desired_type {
+                        if *ty == desired_type {
                             builder.build_store(
                                 ref_ptr,
                                 builder.build_load(
-                                    desired_type.to_basic_type_enum(&ctx, custom_types.clone())?,
+                                    desired_type.to_basic_type_enum(ctx, custom_types.clone())?,
                                     var_ptr,
                                     "get_enum_inner",
                                 )?,
@@ -483,7 +483,7 @@ where
 
                                 let int_string = raw_val.to_string();
 
-                                let (buf_ptr, buf_ty) =
+                                let (buf_ptr, _buf_ty) =
                                     allocate_string(builder, ctx.i8_type(), int_string)?;
 
                                 builder.build_store(ref_ptr, buf_ptr)?;
@@ -523,9 +523,9 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait {
-                                name,
-                                functions,
-                                access_path,
+                                name: _,
+                                functions: _,
+                                access_path: _,
                             } => todo!(),
                             Type::TraitObject(_) => todo!(),
                         }
@@ -637,7 +637,7 @@ where
 
                                 let int_string = raw_val.to_string();
 
-                                let (buf_ptr, buf_ty) =
+                                let (buf_ptr, _buf_ty) =
                                     allocate_string(builder, ctx.i8_type(), int_string)?;
 
                                 builder.build_store(ref_ptr, buf_ptr)?;
@@ -676,9 +676,9 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait {
-                                name,
-                                functions,
-                                access_path,
+                                name: _,
+                                functions: _,
+                                access_path: _,
                             } => todo!(),
                             Type::TraitObject(_) => todo!(),
                         }
@@ -811,7 +811,7 @@ where
 
                                 let int_string = raw_val.to_string();
 
-                                let (buf_ptr, buf_ty) =
+                                let (buf_ptr, _buf_ty) =
                                     allocate_string(builder, ctx.i8_type(), int_string)?;
 
                                 builder.build_store(ref_ptr, buf_ptr)?;
@@ -851,9 +851,9 @@ where
                             Type::Pointer(_) => todo!(),
                             Type::Enum(_) => unreachable!(),
                             Type::Trait {
-                                name,
-                                functions,
-                                access_path,
+                                name: _,
+                                functions: _,
+                                access_path: _,
                             } => todo!(),
                             Type::TraitObject(_) => todo!(),
                         }
@@ -1007,7 +1007,7 @@ where
                                     .build_load(var_ty.into_int_type(), var_ptr, "")?
                                     .into_int_value();
 
-                                let (buf, buf_ty) = if val.get_zero_extended_constant().unwrap()
+                                let (buf, _buf_ty) = if val.get_zero_extended_constant().unwrap()
                                     == 0
                                 {
                                     allocate_string(builder, ctx.i8_type(), "false".to_string())?
@@ -1173,7 +1173,7 @@ where
                         },
                     };
 
-                    if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference {
+                    if let Some((_var_ref_name, (var_ptr, _var_ty), _disc)) = variable_reference {
                         builder.build_store(var_ptr, math_res)?;
                     }
                     else {
@@ -1250,7 +1250,7 @@ where
                             )?
                         },
                     };
-                    if let Some((var_ref_name, (var_ptr, var_ty), disc)) = variable_reference {
+                    if let Some((_var_ref_name, (var_ptr, _var_ty), _disc)) = variable_reference {
                         builder.build_store(var_ptr, math_res)?;
                     }
                     else {
@@ -1280,7 +1280,7 @@ where
 
             None
         },
-        ParsedToken::Brackets(parsed_tokens, type_discriminants) => todo!(),
+        ParsedToken::Brackets(_parsed_tokens, _type_discriminants) => todo!(),
         ParsedToken::FunctionCall((fn_sig, fn_name), passed_arguments) => {
             // Try accessing the function in the current module
             let function_value = module
@@ -1291,7 +1291,7 @@ where
                 passed_arguments
                     .iter()
                     .enumerate()
-                    .map(|(argument_idx, (arg_name, value))| {
+                    .map(|(argument_idx, (_arg_name, value))| {
                         (
                             match fn_sig
                                 .args
@@ -1439,7 +1439,7 @@ where
 
             None
         },
-        ParsedToken::MathematicalBlock(parsed_token) => todo!(),
+        ParsedToken::MathematicalBlock(_parsed_token) => todo!(),
         ParsedToken::ReturnValue(parsed_token) => {
             // Create a temporary variable to store the literal in
             // This temporary variable is used to return the value
@@ -1525,7 +1525,7 @@ where
                 custom_types.clone(),
             )?;
 
-            if let Some((cond_ptr, cond_ty, ty_disc)) = created_var {
+            if let Some((cond_ptr, cond_ty, _ty_disc)) = created_var {
                 let branch_compl = ctx.append_basic_block(this_fn, "cond_branch_true");
                 let branch_incompl = ctx.append_basic_block(this_fn, "cond_branch_false");
                 let branch_uncond = ctx.append_basic_block(this_fn, "cond_branch_uncond");
@@ -1639,13 +1639,13 @@ where
                 Type::Struct(_) => {
                     unimplemented!()
                 },
-                Type::Array(type_discriminant) => unimplemented!(),
+                Type::Array(_type_discriminant) => unimplemented!(),
                 Type::Pointer(_) => todo!(),
                 Type::Enum(_) => todo!(),
                 Type::Trait {
-                    name,
-                    functions,
-                    access_path,
+                    name: _,
+                    functions: _,
+                    access_path: _,
                 } => todo!(),
                 Type::TraitObject(_) => todo!(),
             };
@@ -1678,7 +1678,7 @@ where
                 Some((v_ptr, v_ty, Type::Boolean))
             }
         },
-        ParsedToken::CodeBlock(parsed_tokens) => todo!(),
+        ParsedToken::CodeBlock(_parsed_tokens) => todo!(),
         ParsedToken::Loop(parsed_tokens) => {
             // Create the loop body
             let loop_body = ctx.append_basic_block(this_fn, "loop_body");
@@ -1846,7 +1846,7 @@ where
                             // If not ignore the type check
                             if let Type::Pointer(Some(inner_token)) = var_ty_disc {
                                 let reference_inner_ty =
-                                    ty_from_token(&*inner_token, &custom_types)?;
+                                    ty_from_token(&inner_token, &custom_types)?;
 
                                 // Check the type of the value, check for a type mismatch inside the pointer
                                 if reference_inner_ty != ty_disc {
@@ -1915,7 +1915,7 @@ where
 
                             // If the inner value does not have a pre-determined inner type of the value the pointer is pointing to, assume the type we want to dereference to is the variable's type
                             let deref_ty: Type = if let Some(pointer_inner) = ptr_variant {
-                                ty_from_token(&*pointer_inner, &custom_types)?
+                                ty_from_token(&pointer_inner, &custom_types)?
                             }
                             else {
                                 var_ref_ty_disc.clone()
@@ -1969,7 +1969,7 @@ where
                             Some((ptr, ty, {
                                 match ty_disc.try_as_pointer().unwrap() {
                                     Some(pointer_inner) => {
-                                        ty_from_token(&*pointer_inner, &custom_types)?
+                                        ty_from_token(&pointer_inner, &custom_types)?
                                     },
                                     None => {
                                         return Err(CodeGenError::VagueDereference.into());
@@ -2395,8 +2395,8 @@ fn create_function_with_ir<'ctx>(
     Ok(())
 }
 
-pub fn add_compiler_hints_to_fn<'ctx>(
-    context: &'ctx Context,
+pub fn add_compiler_hints_to_fn(
+    context: &Context,
     compiler_hints: &OrdSet<CompilerHint>,
     function: FunctionValue<'_>,
 ) -> anyhow::Result<()>

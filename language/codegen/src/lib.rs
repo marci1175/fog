@@ -25,7 +25,7 @@ use common::{
     tracing::info,
 };
 use parser::parser_instance::Parser;
-use std::{collections::HashMap, fs, io::ErrorKind, path::PathBuf, rc::Rc, sync::Arc};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf, rc::Rc};
 
 use crate::{
     import::import_user_lib_functions,
@@ -40,7 +40,11 @@ pub fn llvm_codegen_main<'ctx>(
     module: &Module<'ctx>,
     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     path_to_ir_output: PathBuf,
+
+    #[allow(unused_variables)]
+    // For some reason inkwell crashes when having a break statement in the IR when generating object files.
     path_to_o_output: PathBuf,
+    
     is_optimized: bool,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Rc<IndexMap<String, CustomItem>>,
