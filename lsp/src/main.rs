@@ -476,6 +476,7 @@ impl LanguageServer for Backend
     }
 }
 #[derive(Debug, Deserialize, Serialize)]
+#[allow(dead_code)]
 struct InlayHintParams
 {
     path: String,

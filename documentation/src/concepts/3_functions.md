@@ -38,6 +38,18 @@ pub function name_2(arg1: int, arg2: float): int {
 }
 ```
 
+## Generics as arguments
+
+> Generics can also be used in function arguments to help with the object-orientedness of the language.
+
+```fog
+pub function foo |<generic's name> <- <trait1> + <trait2>, <...>|: int {
+    foo.trait1_fn()
+}
+```
+
+**Consult the [traits](6_traits_impls.md) page for further information.**
+
 ## Importing Functions
 
 We can import functions from other source files or from libc.

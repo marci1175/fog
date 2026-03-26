@@ -5,43 +5,42 @@ struct marci {
     c: floatlong
 }
 
-trait majom {
-    beszel(this): int;
+struct doggo {
+    thought: string
 }
 
-trait abc {
-    ligma(this, a: int): void;
+trait human {
+    talk(this): int;
 }
 
-trait asdasd {
-    asd(this, a: int): void;
+trait dog {
+    bark(this): void;
 }
 
-
-marci implements majom {
-    pub function beszel(this): int {
-        printf("Marci szama: %f\n", this.c);
+marci implements human {
+    pub function talk(this): int {
+        printf("My float: %f\n", this.c);
 
         return 0;
     }
 }
 
-marci implements abc {
-    pub function ligma(this, a: int): void {
-        printf("A: %i\n", a);
+doggo implements dog {
+    pub function bark(this): void {
+        printf("The dog says: %s", this.thought);
     }
 }
 
-pub function test |T <- majom + abc| (a: T): void {
-    a.beszel();
-    a.ligma(9000);
+pub function do_something |H <- human, D <- dog| (human: H, dog: D): void {
+    human.talk();
+    dog.bark();
 }
 
 pub function main(): int {
-    marci q = marci { a: 200, c: 432.2 };
+    marci me = marci { a: 200, c: 432.2 };
+    doggo my_dog = doggo { thought: "bark" };
 
-    test(q);
-    q.ligma(43);
+    do_something(me, my_dog);
 
     return 0;
 }

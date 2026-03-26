@@ -1,6 +1,6 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::rc::Rc;
 
-use codegen::{import::import_user_lib_functions, irgen::generate_ir, llvm_codegen};
+use codegen::{import::import_user_lib_functions, irgen::generate_ir};
 use common::{
     compiler::ProjectConfig,
     inkwell::{
