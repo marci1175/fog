@@ -26,10 +26,7 @@ use common::{
     tokenizer::Token,
     ty::{OrdMap, OrdSet, Type, ty_from_token},
 };
-use std::{
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     allocate::{allocate_string, create_allocation_table, create_new_variable},

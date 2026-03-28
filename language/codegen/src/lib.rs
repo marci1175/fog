@@ -44,7 +44,7 @@ pub fn llvm_codegen_main<'ctx>(
     #[allow(unused_variables)]
     // For some reason inkwell crashes when having a break statement in the IR when generating object files.
     path_to_o_output: PathBuf,
-    
+
     is_optimized: bool,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Rc<IndexMap<String, CustomItem>>,
@@ -62,7 +62,8 @@ pub fn llvm_codegen_main<'ctx>(
         if let Ok(mut o_opt) = OpenOptions::new()
             .create(true)
             .write(true)
-            .open(format!("{}/input_ir.dbg", env!("CARGO_MANIFEST_DIR")))
+            .append(false)
+            .open(format!("{}/compiler-ir", env!("CARGO_MANIFEST_DIR")))
         {
             for (_, def) in parsed_functions.iter() {
                 o_opt.write_all(format!("------------------- FUNCTION DEFINITION START-------------------\n{:#?}\n------------------- FUNCTION DEFINITION END-------------------\n------------------- FUNCTION BODY START-------------------{:#?}------------------- FUNCTION BODY END-------------------\n", def.signature, def.inner.clone()).as_bytes())?;

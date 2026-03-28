@@ -13,7 +13,9 @@ pub enum ParserError
 {
     #[error("Type `{0}` does not implement the following required traits: {1:?}.")]
     TraitMismatch(Type, Vec<Vec<String>>),
-    #[error("An implemented function and field cannot have the same name. Function name collides with field `{0}`.")]
+    #[error(
+        "An implemented function and field cannot have the same name. Function name collides with field `{0}`."
+    )]
     StructNameCollision(String),
     #[error(
         "[INTERNAL ERROR] The function's argument (idx: `{0}` | id: `{1}`) was found in the list of passed in arguments."

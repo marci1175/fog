@@ -1501,10 +1501,12 @@ impl Parser
 
                                 // Get the types implemented traits
                                 let concrete_arg_impled_traits = get_type_traits(&arg_ty);
+                                
+                                let missing_required_traits = impled_traits.difference(concrete_arg_impled_traits).cloned().collect::<Vec<_>>();
 
                                 // Check if the type we passed implements the required traits
-                                if &impled_traits != concrete_arg_impled_traits {
-                                    return Err(ParserError::TraitMismatch(arg_ty.clone(), impled_traits.difference(concrete_arg_impled_traits).cloned().collect::<Vec<_>>()).into())
+                                if !missing_required_traits.is_empty() {
+                                    return Err(ParserError::TraitMismatch(arg_ty.clone(), missing_required_traits).into())
                                 }
 
                                 // A panic cannot happen here due to code above
@@ -1563,7 +1565,7 @@ impl Parser
                                 function_imports.clone(),
                                 custom_items.clone(),
                                 generated_function.signature.args.clone(),
-                                // No idea what this is
+                                // Notice: No idea what this is
                                 additional_variables.clone(),
                                 None,
                             )?;
@@ -1586,7 +1588,7 @@ impl Parser
 
                         // Increment idx
                         token_idx += jumped_idx + 2;
-
+                        
                         // Store call of the function we have returned in the custom function generating part
                         // If the function did not have any trait we just store the original function
                         parsed_token_instances.push(ParsedTokenInstance {

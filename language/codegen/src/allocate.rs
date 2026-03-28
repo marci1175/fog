@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{collections::HashMap, rc::Rc};
 
 use common::{
     anyhow::{self, Result},
@@ -77,9 +74,10 @@ pub fn create_new_variable<'a, 'b>(
     // Check if we have already pre-allocated the variable
     // If yes, we should return the pointer to the pre-allocated variable
     if let Some(var_id) = var_id
-        && let Some(ptr) = allocation_table.get(&var_id) {
-            return Ok((*ptr, var_type.into()));
-        }
+        && let Some(ptr) = allocation_table.get(&var_id)
+    {
+        return Ok((*ptr, var_type.into()));
+    }
     // If no, just allocate a new one
     // This assumes that we are not in a loop.
     // Allocate an instance of the converted type

@@ -545,6 +545,9 @@ pub fn parse_token_as_value(
                     module_path.clone(),
                 )?;
 
+                //
+                // TODO: Please unify function call parsing code, see the parsing in function.rs and here.........
+                //
                 // Return the function call
                 let parsed_token: ParsedToken = ParsedToken::FunctionCall(
                     (function.signature.clone(), identifier.clone()),
