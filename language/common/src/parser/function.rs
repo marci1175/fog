@@ -151,7 +151,8 @@ pub enum CompilerHint
 
 /// Allows us to create associations based on values.
 /// This type stores an internal map, and gives a unique id to every unique value.
-pub struct Interner<VALUE> {
+#[derive(Debug, Default)]
+pub struct Interner<VALUE: Eq + Hash> {
     interner: BiMap<VALUE, ID>,
     _internal_counter: usize,
 }
@@ -195,7 +196,8 @@ type ID = usize;
 /// This is a custom type which allows two important things for handling functions and scopes.
 /// 1. It can look up a function based on its <PATH>.
 /// 2. It allows us to check whether a function's name is already present in the map.
-pub struct FunctionMap<PATH, NAME, DEFINITION>
+#[derive(Debug, Default)]
+pub struct FunctionMap<PATH, NAME: Eq + Hash, DEFINITION>
 {
     /// The function that are contained in this map.
     /// The `PATH` must be unqiue to every function.
@@ -257,19 +259,18 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
         &mut self,
         key: PATH,
         value: DEFINITION,
-        name: NAME,
+        name: Rc<NAME>,
     ) -> Option<(ID, DEFINITION)>
     {
-        let name = Rc::new(name);
         let id = self._interner.insert_or_get_association(name.clone());
 
         let insert_result = self.functions.insert(key, (id, value));
         
-        if let Some((replaced_name, _)) =
+        if let Some((replaced_id, _)) =
             &insert_result
         {
             // If the function this was replaced by does not match the name of the old function we need to update the namespace map.
-            self.decrement_namespace(replaced_name);
+            self.decrement_namespace(replaced_id);
         }
 
         self.increment_namespace(id);
