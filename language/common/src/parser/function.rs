@@ -175,7 +175,10 @@ impl<VALUE: Eq + Hash> Interner<VALUE> {
             *right
         }
         else {
-            let curr_id = self._internal_counter.add(1);
+            self._internal_counter += 1;
+            
+            let curr_id = self._internal_counter;
+
             self.interner.insert(value, curr_id);
 
             curr_id
