@@ -32,7 +32,7 @@ pub struct Parser
 {
     pub tokens: Vec<Token>,
     pub tokens_debug_info: Vec<DbgInfo>,
-    pub function_table: IndexMap<String, FunctionDefinition>,
+    pub function_table: IndexMap<Vec<String>, FunctionDefinition>,
     pub library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
     pub custom_types: Rc<IndexMap<String, CustomItem>>,
     pub imported_functions: Rc<HashMap<String, FunctionSignature>>,
@@ -79,10 +79,8 @@ impl Parser
                 external_imports.insert(imported_fn_sig.name.clone(), imported_fn_sig.clone())
             }
             else if let Some(file_imported_fn) = file_imported_functions.get(import) {
-                self.function_table.insert(
-                    file_imported_fn.signature.name.clone(),
-                    file_imported_fn.clone(),
-                );
+                self.function_table
+                    .insert(import.clone(), file_imported_fn.clone());
 
                 external_imports.insert(
                     file_imported_fn.signature.name.clone(),
@@ -120,11 +118,11 @@ impl Parser
         );
 
         // Set the function table field of this struct
-        self.function_table.extend(self.parse_functions(
-            &mut unparsed_functions,
-            imports.clone(),
-            &mut custom_types,
-        )?);
+        // self.function_table.extend(self.parse_functions(
+        //     &mut unparsed_functions,
+        //     imports.clone(),
+        //     &mut custom_types,
+        // )?);
 
         self.custom_types = Rc::new(custom_types);
 

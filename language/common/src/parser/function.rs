@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fmt::Display, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet}, fmt::Display, hash::Hash, ops::Add, rc::Rc
+};
+
+use bimap::BiMap;
 
 use crate::{
     anyhow::{self, Result},
@@ -143,6 +147,229 @@ pub enum CompilerHint
 
     /// Feature flag to only enable compilation of the function if a certain function is enabled
     Feature,
+}
+
+/// Allows us to create associations based on values.
+/// This type stores an internal map, and gives a unique id to every unique value.
+pub struct Interner<VALUE> {
+    interner: BiMap<VALUE, ID>,
+    _internal_counter: usize,
+}
+
+impl<VALUE: Eq + Hash> Interner<VALUE> {
+    pub fn new() -> Self {
+        Self { interner: BiMap::new(), _internal_counter: 0 }
+    }
+
+    pub fn lookup_name(&self, value: &VALUE) -> Option<&ID> {
+        self.interner.get_by_left(value)
+    }
+
+    pub fn lookup_id(&self, id: &ID) -> Option<&VALUE> {
+        self.interner.get_by_right(id)
+    }
+
+    pub fn insert_or_get_association(&mut self, value: VALUE) -> ID {
+        if let Some(right) = self.interner.get_by_left(&value) {
+            *right
+        }
+        else {
+            let curr_id = self._internal_counter.add(1);
+            self.interner.insert(value, curr_id);
+
+            curr_id
+        }
+    }
+
+    pub fn remove_association_by_value(&mut self, value: &VALUE) -> Option<(VALUE, usize)> {
+        self.interner.remove_by_left(value)
+    }
+
+    pub fn remove_association_by_id(&mut self, id: &ID) -> Option<(VALUE, usize)> {
+        self.interner.remove_by_right(id)
+    }
+}
+
+type ID = usize;
+
+/// This is a custom type which allows two important things for handling functions and scopes.
+/// 1. It can look up a function based on its <PATH>.
+/// 2. It allows us to check whether a function's name is already present in the map.
+pub struct FunctionMap<PATH, NAME, DEFINITION>
+{
+    /// The function that are contained in this map.
+    /// The `PATH` must be unqiue to every function.
+    functions: IndexMap<PATH, (ID, DEFINITION)>,
+    /// The namespace map of the functions. This allows us to see how many functions are there in the namespace with the same name.
+    namespace_members: HashMap<ID, usize>,
+
+    _interner: Interner<Rc<NAME>>
+}
+
+/// Allows us to specify the method we want to remove a key from a map.
+pub enum RemoveType
+{
+    /// See [`indexmap::IndexMap::swap_remove`] for more documentation.
+    Swap,
+    /// See [`indexmap::IndexMap::shift_remove`] for more documentation.
+    Shift,
+}
+
+impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFINITION>
+{
+    pub fn new() -> Self
+    {
+        Self {
+            functions: IndexMap::new(),
+            namespace_members: HashMap::new(),
+            _interner: Interner::new(),
+        }
+    }
+
+    /// If a key is inserted with this method, it first checks if that path is already present in the map.
+    /// If it is present it will not overwrite the map's field, instead it will return the passed in function.
+    /// The function also increment the function's counter in the namespace map.
+    pub fn try_insert(
+        &mut self,
+        key: PATH,
+        value: DEFINITION,
+        name: Rc<NAME>,
+    ) -> Option<(PATH, DEFINITION, Rc<NAME>)>
+    {
+        let id = self._interner.insert_or_get_association(name.clone());
+
+        if self.functions.contains_key(&key) {
+            return Some((key, value, name));
+        }
+
+        self.increment_namespace(id);
+
+        self.functions.insert(key, (id, value));
+
+        None
+    }
+
+    /// If a key is inserted with this function, it will automaticly overwrite the value paired to the specified key.
+    /// The returned value is the overwritten value of the map.
+    /// If the function returns [`None`], it means that the key we inserted was not present in the map.
+    /// The function also increment the function's counter in the namespace map.
+    pub fn insert(
+        &mut self,
+        key: PATH,
+        value: DEFINITION,
+        name: NAME,
+    ) -> Option<(ID, DEFINITION)>
+    {
+        let name = Rc::new(name);
+        let id = self._interner.insert_or_get_association(name.clone());
+
+        let insert_result = self.functions.insert(key, (id, value));
+        
+        if let Some((replaced_name, _)) =
+            &insert_result
+        {
+            // If the function this was replaced by does not match the name of the old function we need to update the namespace map.
+            self.decrement_namespace(replaced_name);
+        }
+
+        self.increment_namespace(id);
+
+        insert_result
+    }
+
+    /// This internal function increment the function's count in the namespace.
+    /// If the name is not present it creates one.
+    fn increment_namespace(&mut self, id: ID)
+    {
+        // IF the namespace had this value this will return `false` otherwise `true`.
+        if let Some(fn_count) = self.namespace_members.get_mut(&id) {
+            *fn_count += 1;
+        }
+        else {
+            // We ensure that we only insert if there isnt an existing namespace member with this name.
+            self.namespace_members.insert(id, 1);
+        }
+    }
+
+    pub fn contains_name(&self, name: Rc<NAME>) -> bool
+    {
+        if let Some(id) = self._interner.lookup_name(&name) {
+            return self.namespace_members.contains_key(id)
+        }
+        
+        false
+    }
+
+    pub fn contains_function(&self, path: &PATH) -> bool
+    {
+        self.functions.contains_key(path)
+    }
+
+    pub fn get_function(&self, path: &PATH) -> Option<&(ID, DEFINITION)>
+    {
+        self.functions.get(path)
+    }
+
+    pub fn get_name_from_id(&self, id: &ID) -> Option<&Rc<NAME>> {
+        self._interner.lookup_id(id)
+    }
+
+    pub fn get_function_full(&self, path: &PATH) -> Option<(&ID, &Rc<NAME>, &DEFINITION)>
+    {
+        self.functions.get(path).map(|(id, def)| {
+            let name = self._interner.lookup_id(id).unwrap();
+
+            (id, name, def)
+        })
+    }
+
+    pub fn remove(&mut self, key: &PATH, remove_type: RemoveType)
+    -> Option<(ID, DEFINITION)>
+    {
+        // Remove the function definition on the specified path
+        if let Some((id, def)) = {
+            // Remove the function the specified way
+            match remove_type {
+                RemoveType::Swap => self.functions.swap_remove(key),
+                RemoveType::Shift => self.functions.shift_remove(key),
+            }
+        } {
+            // If the function's count is 0, remove the field from the namespace.
+            self.decrement_namespace(&id);
+
+            // Reutrn the removed function
+            Some((id, def))
+        }
+        else {
+            None
+        }
+    }
+
+    /// Check how many function with this name are present in the namespace.
+    /// Subtract one from the function's counter in the namespace.
+    /// Removes the field from the namespace if the counter is 0.
+    fn decrement_namespace(&mut self, id: &ID)
+    {
+        let should_remove = if let Some(fn_count) = self.namespace_members.get_mut(id) {
+            // Subtract 1 from the count
+            *fn_count -= 1;
+
+            // Check if the function count is 0.
+            *fn_count == 0
+        }
+        else {
+            // I was too scared to make this an `unreachable_unchecked` lol
+            unreachable!(
+                "[INTERNAL ERROR] If you see this, that means ive messed up big time. Please check <FunctionMap> internal behavior."
+            )
+        };
+
+        // If there are no more function's with this name in the namespace remove the field.
+        if should_remove {
+            self.namespace_members.remove(id);
+            self._interner.remove_association_by_id(id);
+        }
+    }
 }
 
 /// The slice should startwith the first token from inside the Parentheses.

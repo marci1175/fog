@@ -16,8 +16,8 @@ use common::{
         common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
         dbg::fetch_and_merge_debug_information,
         function::{
-            self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionSignature,
-            FunctionVisibility, UnparsedFunctionDefinition, parse_fn_generics,
+            self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionMap,
+            FunctionSignature, FunctionVisibility, UnparsedFunctionDefinition, parse_fn_generics,
             parse_function_call_args, parse_signature_argument_tokens,
         },
         import::parse_import_path,
@@ -231,7 +231,7 @@ impl Parser
         &self,
         dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>,
     ) -> Result<(
-        IndexMap<String, UnparsedFunctionDefinition>,
+        IndexMap<Vec<String>, UnparsedFunctionDefinition>,
         HashSet<Vec<String>>,
         HashMap<String, FunctionSignature>,
         IndexMap<String, CustomItem>,
@@ -251,7 +251,9 @@ impl Parser
             TODO: Recode visibilty for all items
         */
 
-        let mut function_list: IndexMap<String, UnparsedFunctionDefinition> = IndexMap::new();
+        let mut function_list: FunctionMap<Vec<String>, String, UnparsedFunctionDefinition> =
+            FunctionMap::new();
+
         // The key is the function's name
         let mut external_imports: HashMap<String, FunctionSignature> = HashMap::new();
         let mut dependency_imports: HashSet<Vec<String>> = HashSet::new();
@@ -379,7 +381,7 @@ impl Parser
 
                                         // Store the function
                                         let insertion = function_list.insert(
-                                            function_name.clone(),
+                                            mod_path.clone(),
                                             UnparsedFunctionDefinition {
                                                 inner: braces_contains.clone(),
                                                 token_offset: token_idx + 4,
@@ -811,7 +813,7 @@ impl Parser
                         module_path.push(namespace.clone());
 
                         // The namespace's items
-                        let _namespace_items = parse_functions(
+                        let namespace_items = parse_functions(
                             namespace_token_slice,
                             &enabled_features,
                             module_path,
@@ -1045,7 +1047,6 @@ impl Parser
 
                     // If we are implementing a trait we also generate functions for the specified type.
                     if let Some((mut fns_to_impl, trait_name, access_path)) = impld_trait {
-
                         //
                         // For future reference:
                         // What im doing here is that a trait has a few functions it implements.
@@ -1096,7 +1097,9 @@ impl Parser
                         }
 
                         // Store the functions
-                        attributes.impl_fn_list.insert(n.to_owned(), ParsedState::Unparsed(d.to_owned()));   
+                        attributes
+                            .impl_fn_list
+                            .insert(n.to_owned(), ParsedState::Unparsed(d.to_owned()));
                     }
                 }
                 else {
@@ -1466,12 +1469,15 @@ impl Parser
                                     })
                                 {
                                     // Collect the argument types passed in
-                                    Result::<(usize, Type, String, usize, OrdSet<Vec<String>>), ParserError>::Ok((
+                                    Result::<
+                                        (usize, Type, String, usize, OrdSet<Vec<String>>),
+                                        ParserError,
+                                    >::Ok((
                                         arg_idx,
                                         arg_ty.clone(),
                                         arg_name.clone(),
                                         *id,
-                                        impled_traits
+                                        impled_traits,
                                     ))
                                 }
                                 else {
@@ -1497,16 +1503,24 @@ impl Parser
                             // Modify current argument list with parsed types
                             for passed_arg in passed_in_arguments_for_traits {
                                 // Return if an error occured in the searching
-                                let (_arg_idx, arg_ty, arg_name, arg_id, impled_traits) = passed_arg?;
+                                let (_arg_idx, arg_ty, arg_name, arg_id, impled_traits) =
+                                    passed_arg?;
 
                                 // Get the types implemented traits
                                 let concrete_arg_impled_traits = get_type_traits(&arg_ty);
-                                
-                                let missing_required_traits = impled_traits.difference(concrete_arg_impled_traits).cloned().collect::<Vec<_>>();
+
+                                let missing_required_traits = impled_traits
+                                    .difference(concrete_arg_impled_traits)
+                                    .cloned()
+                                    .collect::<Vec<_>>();
 
                                 // Check if the type we passed implements the required traits
                                 if !missing_required_traits.is_empty() {
-                                    return Err(ParserError::TraitMismatch(arg_ty.clone(), missing_required_traits).into())
+                                    return Err(ParserError::TraitMismatch(
+                                        arg_ty.clone(),
+                                        missing_required_traits,
+                                    )
+                                    .into());
                                 }
 
                                 // A panic cannot happen here due to code above
@@ -1588,7 +1602,7 @@ impl Parser
 
                         // Increment idx
                         token_idx += jumped_idx + 2;
-                        
+
                         // Store call of the function we have returned in the custom function generating part
                         // If the function did not have any trait we just store the original function
                         parsed_token_instances.push(ParsedTokenInstance {
@@ -2137,7 +2151,8 @@ pub fn parse_function_signature(
 }
 
 // This is a blanket function will need to expand it if i want primitives to implement traits
-pub fn get_type_traits(ty: &Type) -> &OrdSet<Vec<String>> {
+pub fn get_type_traits(ty: &Type) -> &OrdSet<Vec<String>>
+{
     match ty {
         Type::I64 => todo!(),
         Type::F64 => todo!(),
@@ -2153,12 +2168,14 @@ pub fn get_type_traits(ty: &Type) -> &OrdSet<Vec<String>> {
         Type::Boolean => todo!(),
         Type::Void => todo!(),
         Type::Enum(_) => todo!(),
-        Type::Struct((_name, _fields, attributes)) => {
-            &attributes.traits_implemented
-        },
+        Type::Struct((_name, _fields, attributes)) => &attributes.traits_implemented,
         Type::Array(_) => todo!(),
         Type::Pointer(_token) => todo!(),
-        Type::Trait { name: _, access_path: _, functions: _ } => todo!(),
+        Type::Trait {
+            name: _,
+            access_path: _,
+            functions: _,
+        } => todo!(),
         Type::TraitObject(_ord_set) => todo!(),
     }
 }
