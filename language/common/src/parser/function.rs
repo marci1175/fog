@@ -200,7 +200,7 @@ type ID = usize;
 /// 1. It can look up a function based on its <PATH>.
 /// 2. It allows us to check whether a function's name is already present in the map.
 #[derive(Debug, Default)]
-pub struct FunctionMap<PATH, NAME: Eq + Hash, DEFINITION>
+pub struct FunctionMap<PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION>
 {
     /// The function that are contained in this map.
     /// The `PATH` must be unqiue to every function.
