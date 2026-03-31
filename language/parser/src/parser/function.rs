@@ -231,7 +231,7 @@ impl Parser
         &self,
         dep_fn_list: Rc<DashMap<Vec<String>, FunctionSignature>>,
     ) -> Result<(
-        IndexMap<Vec<String>, UnparsedFunctionDefinition>,
+        FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>,
         HashSet<Vec<String>>,
         HashMap<String, FunctionSignature>,
         IndexMap<String, CustomItem>,
@@ -396,6 +396,7 @@ impl Parser
                                                         .clone(),
                                                 },
                                             },
+                                            function_name.into()
                                         );
 
                                         // If a function with a similar name exists throw an error as there is no function overloading an excpetion is when they are covered under different features
@@ -1120,7 +1121,7 @@ impl Parser
 
     pub fn parse_functions(
         &self,
-        unparsed_functions: &mut IndexMap<String, UnparsedFunctionDefinition>,
+        unparsed_functions: &mut FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>,
         function_imports: Rc<HashMap<String, FunctionSignature>>,
         custom_items: &mut IndexMap<String, CustomItem>,
     ) -> Result<IndexMap<String, FunctionDefinition>>

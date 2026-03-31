@@ -374,6 +374,28 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
             self._interner.remove_association_by_id(id);
         }
     }
+
+    pub fn iter(&self) -> FunctionMapIterator<'_, PATH, NAME, DEFINITION> {
+        FunctionMapIterator {
+            inner_iter: self.functions.iter(),
+            interner: &self._interner,
+        }
+    }
+}
+
+pub struct FunctionMapIterator<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION> {
+    inner_iter: indexmap::map::Iter<'a, PATH, (ID, DEFINITION)>,
+    interner: &'a Interner<Rc<NAME>>,
+}
+
+impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION> Iterator for FunctionMapIterator<'a, PATH, NAME, DEFINITION> {
+    type Item = (&'a PATH, &'a Rc<NAME>, &'a DEFINITION);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner_iter.next().map(|(path, (id, def))| {
+            (path, self.interner.lookup_id(id).unwrap(), def)
+        })
+    }
 }
 
 /// The slice should startwith the first token from inside the Parentheses.
