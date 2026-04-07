@@ -151,7 +151,7 @@ pub enum CompilerHint
 
 /// Allows us to create associations based on values.
 /// This type stores an internal map, and gives a unique id to every unique value.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Interner<VALUE: Eq + Hash> {
     interner: BiMap<VALUE, ID>,
     _internal_counter: usize,
@@ -199,11 +199,12 @@ type ID = usize;
 /// This is a custom type which allows two important things for handling functions and scopes.
 /// 1. It can look up a function based on its <PATH>.
 /// 2. It allows us to check whether a function's name is already present in the map.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FunctionMap<PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION>
 {
     /// The function that are contained in this map.
     /// The `PATH` must be unqiue to every function.
+    /// A <PATH>'s last item is the function name.
     functions: IndexMap<PATH, (ID, DEFINITION)>,
     /// The namespace map of the functions. This allows us to see how many functions are there in the namespace with the same name.
     namespace_members: HashMap<ID, usize>,
@@ -309,9 +310,28 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
         self.functions.contains_key(path)
     }
 
-    pub fn get_function(&self, path: &PATH) -> Option<&(ID, DEFINITION)>
+    pub fn get_function(&self, path: &PATH) -> Option<(&Rc<NAME>, &DEFINITION)>
+    {
+        self.functions.get(path).map(|(intern_id, def)| {
+            (self._interner.lookup_id(intern_id).unwrap(), def)
+        })
+    }
+
+    pub fn get_function2(&self, path: &PATH) -> Option<&(ID, DEFINITION)>
     {
         self.functions.get(path)
+    }
+    
+    pub fn get_function_by_idx(&self, idx: usize) -> Option<(&PATH, (&Rc<NAME>, &DEFINITION))>
+    {
+        self.functions.get_index(idx).map(|(path, (intern_id, def))| {
+            (path, (self._interner.lookup_id(intern_id).unwrap(), def))
+        })
+    }
+
+    pub fn get_function_by_idx2(&self, idx: usize) -> Option<(&PATH, &(ID, DEFINITION))>
+    {
+        self.functions.get_index(idx)
     }
 
     pub fn get_name_from_id(&self, id: &ID) -> Option<&Rc<NAME>> {
@@ -381,6 +401,10 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
             interner: &self._interner,
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.functions.len()
+    }
 }
 
 pub struct FunctionMapIterator<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION> {
@@ -407,7 +431,7 @@ pub fn parse_function_call_args(
     debug_infos: &[DbgInfo],
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     mut this_function_args: FunctionArguments,
-    function_signatures: Rc<IndexMap<String, UnparsedFunctionDefinition>>,
+    function_signatures: Rc<FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>>,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_items: Rc<IndexMap<String, CustomItem>>,
     receiver: Option<(&VariableReference, Type, usize)>,

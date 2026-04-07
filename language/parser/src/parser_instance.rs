@@ -11,7 +11,7 @@ use common::{
     error::{DbgInfo, parser::ParserError},
     indexmap::IndexMap,
     parser::function::{
-        FunctionDefinition, FunctionSignature, FunctionVisibility, UnparsedFunctionDefinition,
+        FunctionDefinition, FunctionMap, FunctionSignature, FunctionVisibility, UnparsedFunctionDefinition
     },
     tokenizer::Token,
     ty::OrdSet,
@@ -32,7 +32,7 @@ pub struct Parser
 {
     pub tokens: Vec<Token>,
     pub tokens_debug_info: Vec<DbgInfo>,
-    pub function_table: FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>,
+    pub function_table: FunctionMap<Vec<String>, String, FunctionDefinition>,
     pub library_public_function_table: IndexMap<Vec<String>, FunctionSignature>,
     pub custom_types: Rc<IndexMap<String, CustomItem>>,
     pub imported_functions: Rc<HashMap<String, FunctionSignature>>,
@@ -80,7 +80,7 @@ impl Parser
             }
             else if let Some(file_imported_fn) = file_imported_functions.get(import) {
                 self.function_table
-                    .insert(import.clone(), file_imported_fn.clone());
+                    .insert(import.clone(), file_imported_fn.clone(), file_imported_fn.signature.name.clone().into());
 
                 external_imports.insert(
                     file_imported_fn.signature.name.clone(),
@@ -106,10 +106,10 @@ impl Parser
         self.library_public_function_table = IndexMap::from_iter(
             unparsed_functions
                 .iter()
-                .filter(|(_fn_name, unparsed_fn)| {
+                .filter(|(_fn_path, _fn_name, unparsed_fn)| {
                     unparsed_fn.signature.visibility == FunctionVisibility::PublicLibrary
                 })
-                .map(|(_fn_name, unparsed_fn)| {
+                .map(|(_, _, unparsed_fn)| {
                     (
                         unparsed_fn.signature.module_path.clone(),
                         unparsed_fn.signature.clone(),
@@ -118,11 +118,16 @@ impl Parser
         );
 
         // Set the function table field of this struct
-        self.function_table.extend(self.parse_functions(
-            &mut unparsed_functions,
-            imports.clone(),
-            &mut custom_types,
-        )?);
+        
+        //
+        // TODO: Do not start by implementing extend for Functionmap, instead recode the importing code.
+        //
+
+        // self.function_table.extend(self.parse_functions(
+        //     &mut unparsed_functions,
+        //     imports.clone(),
+        //     &mut custom_types,
+        // )?);
 
         self.custom_types = Rc::new(custom_types);
 
@@ -140,7 +145,7 @@ impl Parser
         Self {
             tokens,
             tokens_debug_info: token_ranges,
-            function_table: IndexMap::new(),
+            function_table: FunctionMap::new(),
             imported_functions: Rc::new(HashMap::new()),
             library_public_function_table: IndexMap::new(),
             enabled_features,
@@ -150,7 +155,7 @@ impl Parser
         }
     }
 
-    pub fn function_table(&self) -> &IndexMap<String, FunctionDefinition>
+    pub fn function_table(&self) -> &FunctionMap<Vec<String>, String, FunctionDefinition>
     {
         &self.function_table
     }

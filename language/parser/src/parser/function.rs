@@ -396,11 +396,11 @@ impl Parser
                                                         .clone(),
                                                 },
                                             },
-                                            function_name.into()
+                                            Rc::new(function_name.clone())
                                         );
 
                                         // If a function with a similar name exists throw an error as there is no function overloading an excpetion is when they are covered under different features
-                                        if let Some(overwritten_function) = insertion {
+                                        if let Some((_id, overwritten_function)) = insertion {
                                             return Err(ParserError::SyntaxError(
                                                 SyntaxError::DuplicateFunctions(
                                                     function_name,
@@ -465,7 +465,7 @@ impl Parser
 
                     if tokens[token_idx] == Token::OpenParentheses {
                         if external_imports.get(&identifier).is_some()
-                            || function_list.get(&identifier).is_some()
+                            || function_list.contains_name(identifier.clone().into())
                         {
                             return Err(ParserError::DuplicateSignatureImports(identifier).into());
                         }
@@ -541,7 +541,7 @@ impl Parser
 
                     // Save the file's name and the functions it contains so that we can refer to it later.
                     imported_file_list.extend(parser_state.function_table().clone().iter().map(
-                        |(_fn_name, fn_entry)| {
+                        |(_fn_path, _fn_name, fn_entry)| {
                             (fn_entry.signature.module_path.clone(), fn_entry.clone())
                         },
                     ));
@@ -1159,7 +1159,7 @@ impl Parser
                             unparsed_def.inner.clone(),
                             unparsed_def.token_offset,
                             // TODO: Improve this
-                            &mut IndexMap::new(),
+                            &mut FunctionMap::new(),
                             &mut IndexMap::new(),
                             unparsed_def.signature.clone(),
                             function_imports.clone(),
@@ -1194,31 +1194,30 @@ impl Parser
 
         // Parse the functions
         while function_idx < unparsed_functions.len() {
-            let (fn_name, unparsed_function) = unparsed_functions.get_index(function_idx).unwrap();
-            let fn_name = fn_name.clone();
+            let (fn_path, (fn_name, unparsed_function)) = unparsed_functions.get_function_by_idx(function_idx).unwrap();
             let unparsed_function = unparsed_function.clone();
 
-            // We should  skip the function if it has been parsed or if it has a trait in its argument as those functions are generated later in code
+            // We should skip the function if it has been parsed or if it has a trait in its argument as those functions are generated later in code
             if !unparsed_function.signature.args.generics.is_empty()
-                || parsed_functions.contains_key(&fn_name)
+                || parsed_functions.contains_key(&fn_name.clone().to_string())
             {
                 function_idx += 1;
 
                 continue;
             }
 
-            let parsed_tokens = self.parse_function_block(
-                unparsed_function.inner.clone(),
-                unparsed_function.token_offset,
-                unparsed_functions,
-                &mut parsed_functions,
-                unparsed_function.signature.clone(),
-                function_imports.clone(),
-                custom_items_clone.clone(),
-                unparsed_function.signature.args.clone(),
-                OrdMap::new(),
-                None,
-            )?;
+            // let parsed_tokens = self.parse_function_block(
+            //     unparsed_function.inner.clone(),
+            //     unparsed_function.token_offset,
+            //     unparsed_functions,
+            //     &mut parsed_functions,
+            //     unparsed_function.signature.clone(),
+            //     function_imports.clone(),
+            //     custom_items_clone.clone(),
+            //     unparsed_function.signature.args.clone(),
+            //     OrdMap::new(),
+            //     None,
+            // )?;
 
             let function_definition = FunctionDefinition {
                 signature: unparsed_function.signature.clone(),
@@ -1234,7 +1233,7 @@ impl Parser
                 unparsed_functions.len()
             );
 
-            parsed_functions.insert(fn_name.clone(), function_definition);
+            parsed_functions.insert(fn_name.to_string(), function_definition);
 
             function_idx += 1;
         }
@@ -1246,7 +1245,7 @@ impl Parser
         &self,
         tokens: Vec<Token>,
         function_token_offset: usize,
-        unparsed_functions: &mut IndexMap<String, UnparsedFunctionDefinition>,
+        unparsed_functions: &mut FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>,
         parsed_functions: &mut IndexMap<String, FunctionDefinition>,
         this_function_signature: FunctionSignature,
         function_imports: Rc<HashMap<String, FunctionSignature>>,
