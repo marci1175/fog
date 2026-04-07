@@ -23,7 +23,7 @@ use common::{
     ty::{OrdSet, Type},
 };
 use imports::list_manager::create_dependency_functions_list;
-use parser::{parser_instance::Parser, tokenizer::tokenize};
+use parser::{parser_instance::ParserSettings, tokenizer::tokenize};
 
 pub struct CompilerState
 {
@@ -139,15 +139,13 @@ impl CompilerState
             cpu_features.clone(),
         )?;
 
-        let mut parser = Parser::new(
-            tokens,
-            token_ranges,
+        let mut parser = ParserSettings::new(
             self.config.clone(),
             vec![self.config.name.clone()],
             self.enabled_features.clone(),
         );
 
-        parser.parse(dependency_fn_list)?;
+        // parser.parse(vec![], dependency_fn_list)?;
 
         let function_table = parser.function_table();
         let imported_functions = parser.imported_functions().clone();

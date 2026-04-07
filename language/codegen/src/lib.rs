@@ -24,7 +24,7 @@ use common::{
     parser::function::{FunctionDefinition, FunctionSignature},
     tracing::info,
 };
-use parser::parser_instance::Parser;
+use parser::parser_instance::ParserSettings;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, rc::Rc};
 
 use crate::{
@@ -159,7 +159,7 @@ pub fn llvm_codegen<'ctx>(
     target_ir_path: PathBuf,
     target_o_path: PathBuf,
     optimization: bool,
-    parser_state: Parser,
+    parser_state: ParserSettings,
     function_table: &common::indexmap::IndexMap<String, FunctionDefinition>,
     imported_functions: Rc<std::collections::HashMap<String, FunctionSignature>>,
     context: &'ctx Context,
@@ -172,22 +172,22 @@ pub fn llvm_codegen<'ctx>(
     cpu_features: Option<String>,
 ) -> Result<(), common::anyhow::Error>
 {
-    let _target = llvm_codegen_main(
-        context,
-        builder,
-        &module,
-        Rc::new(function_table.clone()),
-        target_ir_path,
-        target_o_path.clone(),
-        optimization,
-        imported_functions,
-        parser_state.custom_types,
-        flags_passed_in,
-        path_to_src,
-        target_triple,
-        cpu_name,
-        cpu_features,
-    )?;
+    // let _target = llvm_codegen_main(
+    //     context,
+    //     builder,
+    //     &module,
+    //     Rc::new(function_table.clone()),
+    //     target_ir_path,
+    //     target_o_path.clone(),
+    //     optimization,
+    //     imported_functions,
+    //     parser_state.custom_types,
+    //     flags_passed_in,
+    //     path_to_src,
+    //     target_triple,
+    //     cpu_name,
+    //     cpu_features,
+    // )?;
 
     Ok(())
 }

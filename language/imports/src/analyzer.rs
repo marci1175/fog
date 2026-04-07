@@ -4,7 +4,7 @@ use common::{
     anyhow, compiler::ProjectConfig, dashmap::DashMap, parser::function::FunctionSignature,
     ty::OrdSet,
 };
-use parser::{parser_instance::Parser, tokenizer::tokenize};
+use parser::{parser_instance::ParserSettings, tokenizer::tokenize};
 
 pub fn analyze_dependency(
     source_file_contents: &str,
@@ -12,11 +12,11 @@ pub fn analyze_dependency(
     config: ProjectConfig,
     module_path: Vec<String>,
     enabled_features: OrdSet<String>,
-) -> anyhow::Result<Parser>
+) -> anyhow::Result<ParserSettings>
 {
     let (tokens, token_ranges, _) = tokenize(source_file_contents, None)?;
 
-    let mut parser = Parser::new(tokens, token_ranges, config, module_path, enabled_features);
+    let mut parser = ParserSettings::new(tokens, token_ranges, config, module_path, enabled_features);
 
     parser.parse(deps)?;
 

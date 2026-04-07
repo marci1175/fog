@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{dependency::DependencyInfo, distributed_compiler::DistributedCompilerWorker};
 
+/// This contains the project's `config.toml`.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ProjectConfig
 {
