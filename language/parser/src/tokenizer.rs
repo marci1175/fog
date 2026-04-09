@@ -66,7 +66,7 @@ fn parse_string(
 
         if (text[idx] as char).is_numeric() {
             // Collect the characters until its not a number anymore
-            while (text[idx] as char).is_numeric() && (text.len() > idx) {
+            while (text.len() > idx) && (text[idx] as char).is_numeric(){
                 buffer.push(text[idx]);
                 idx += 1;
             }
@@ -80,6 +80,14 @@ fn parse_string(
                 ),
             ));
         }
+        /*
+            NOTICE:
+            THIS TYPE OF TOKEN MATCHING LIMITS THE SYNTAX OF TOKENS:
+            If we want to be able to parse >>= both > and >> have to be a valid token.
+            This part of the code is basically limited to parsing special expressions.
+            If I were to try to tokenize `helloint` the identifier branch would parse int with hello.
+            This branch is made to parse `a*f` or `foo==bar`.
+        */
         else if let Some(matched) = try_match_token(&[text[idx]]) {
             let mut last_matched = matched;
 
@@ -128,7 +136,8 @@ fn parse_string(
         // If its not a number and was not matched by the keywords this should be an identifier
         else {
             // Store the chars until we can match a char
-            while let None = try_match_token(&[text[idx]]) && (text.len() > idx) {
+            while (text.len() > idx) && let None = try_match_token(&[text[idx]])
+            {
                 buffer.push(text[idx]);
                 idx += 1;
             }
