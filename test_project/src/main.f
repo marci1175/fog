@@ -1,3 +1,1 @@
-pub function main(): int {
-    return 1.453534();
-}
+pub function marci() "asda sdas"function
