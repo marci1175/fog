@@ -1,3 +1,3 @@
 pub function main(): int {
-    return foo==bar;
+    return 1.453534();
 }

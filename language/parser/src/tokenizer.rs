@@ -64,7 +64,7 @@ fn parse_string(
     while idx < text.len() {
         let iter_start_idx = idx;
 
-        if (text[idx] as char).is_numeric() {
+        if text[idx].is_ascii_digit() {
             // Collect the characters until its not a number anymore
             while (text.len() > idx) && (text[idx] as char).is_numeric(){
                 buffer.push(text[idx]);
@@ -73,7 +73,8 @@ fn parse_string(
 
             // Store the number we have parsed
             token_list.push(Spanned::new(
-                Token::UnparsedLiteral(String::from_utf8(buffer.clone()).unwrap()),
+                // Empty the buffer when making the literal
+                Token::UnparsedLiteral(String::from_utf8(std::mem::take(&mut buffer)).unwrap()),
                 SpanInfo::new(
                     CharPosition::new(line_number, span_offset + iter_start_idx),
                     CharPosition::new(line_number, span_offset + idx),
@@ -88,49 +89,32 @@ fn parse_string(
             If I were to try to tokenize `helloint` the identifier branch would parse int with hello.
             This branch is made to parse `a*f` or `foo==bar`.
         */
-        else if let Some(matched) = try_match_token(&[text[idx]]) {
-            let mut last_matched = matched;
+        else if let Some(_) = try_match_token(&[text[idx]]) {
+            // Try to greedily consume the longest matching token
+            let mut match_end = idx + 1;
 
-            idx += 1;
-
-            if idx < text.len() {
-                buffer.push(text[idx - 1]);
-                buffer.push(text[idx]);
-
-                loop {
-                    if let Some(matched) = try_match_token(&buffer) {
-                        last_matched = matched;
-                        idx += 1;
-
-                        if !(idx < text.len()) {
-                            break;
-                        }
-
-                        buffer.push(text[idx]);
-                    }
-                    else {
-                        break;
-                    }
+            while match_end < text.len() {
+                if try_match_token(&text[idx..=match_end]).is_some() {
+                    match_end += 1;
+                } else {
+                    break;
                 }
-
-                // Store the last matched token
-                token_list.push(Spanned::new(
-                    last_matched.clone(),
-                    SpanInfo::new(
-                        CharPosition::new(line_number, span_offset + iter_start_idx),
-                        CharPosition::new(line_number, span_offset + idx),
-                    ),
-                ));
             }
-            else {
-                // Store the last matched token
-                token_list.push(Spanned::new(
-                    last_matched.clone(),
-                    SpanInfo::new(
-                        CharPosition::new(line_number, span_offset + iter_start_idx),
-                        CharPosition::new(line_number, span_offset + idx),
-                    ),
-                ));
+
+            // Walk back to the last valid match
+            while match_end > idx {
+                if let Some(matched) = try_match_token(&text[idx..match_end]) {
+                    token_list.push(Spanned::new(
+                        matched,
+                        SpanInfo::new(
+                            CharPosition::new(line_number, span_offset + idx),
+                            CharPosition::new(line_number, span_offset + match_end),
+                        ),
+                    ));
+                    idx = match_end;
+                    break;
+                }
+                match_end -= 1;
             }
         }
         // If its not a number and was not matched by the keywords this should be an identifier
@@ -144,16 +128,14 @@ fn parse_string(
 
             // Store the identifier
             token_list.push(Spanned::new(
-                Token::Identifier(String::from_utf8(buffer.clone()).unwrap()),
+                // Empty the buffer when creating the identifier
+                Token::Identifier(String::from_utf8(std::mem::take(&mut buffer)).unwrap()),
                 SpanInfo::new(
                     CharPosition::new(line_number, span_offset + iter_start_idx),
                     CharPosition::new(line_number, span_offset + idx),
                 ),
             ));
         }
-
-        // Clear the buffer
-        buffer.clear();
     }
 }
 
