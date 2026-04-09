@@ -8,10 +8,11 @@ use common::{
     codegen::CustomItem,
     compiler::ProjectConfig,
     dashmap::DashMap,
-    error::{DbgInfo, parser::ParserError},
+    error::{SpanInfo, parser::ParserError},
     indexmap::IndexMap,
     parser::function::{
-        FunctionDefinition, FunctionMap, FunctionSignature, FunctionVisibility, UnparsedFunctionDefinition
+        FunctionDefinition, FunctionMap, FunctionSignature, FunctionVisibility,
+        UnparsedFunctionDefinition,
     },
     tokenizer::Token,
     ty::OrdSet,
@@ -60,8 +61,8 @@ impl ParserSettings
         use backend::request;
         ```
     */
-    pub fn parse(&self, tokens: Vec<Token>, dependency_functions_map: &FunctionMap<Vec<String>, String, FunctionSignature>)
-    -> Result<()>
+
+    pub fn parse(&self, tokens: Vec<Token>) -> Result<()>
     {
         // Create user defined signature table
         // Create an import table which can be used later by other functions
@@ -118,7 +119,7 @@ impl ParserSettings
         // );
 
         // Set the function table field of this struct
-        
+
         //
         // TODO: Do not start by implementing extend for Functionmap, instead recode the importing code.
         //

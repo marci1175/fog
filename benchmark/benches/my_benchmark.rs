@@ -15,10 +15,7 @@ use common::{
 use criterion::{Criterion, criterion_group, criterion_main};
 use parser::{parser_instance::ParserSettings, tokenizer::tokenize};
 
-fn criterion_benchmark(c: &mut Criterion)
-{
-    
-}
+fn criterion_benchmark(c: &mut Criterion) {}
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);

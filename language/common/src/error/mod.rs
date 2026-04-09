@@ -11,18 +11,19 @@ pub mod syntax;
 pub struct ErrorWrapper<T>
 {
     pub error: T,
-    pub debug_information: DbgInfo,
+    pub debug_information: SpanInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Copy)]
 
-pub struct DbgInfo
+pub struct SpanInfo
 {
     pub char_start: CharPosition,
+    // The char end position is inclusive.
     pub char_end: CharPosition,
 }
 
-impl DbgInfo
+impl SpanInfo
 {
     pub fn new(char_start: CharPosition, char_end: CharPosition) -> Self
     {

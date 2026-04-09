@@ -1,14 +1,14 @@
 use std::ops::Range;
 
-use crate::error::DbgInfo;
+use crate::error::SpanInfo;
 
 /// This function `should` not return a None.
 /// This function will return Some(DbgInfo::Default) if the combined ranges return a none (indicates an issue with indexing) until this function is stabilized.
 pub fn fetch_and_merge_debug_information(
-    list: &[DbgInfo],
+    list: &[SpanInfo],
     range: Range<usize>,
     is_ordered: bool,
-) -> Option<DbgInfo>
+) -> Option<SpanInfo>
 {
     let fetched_items = list.get(range);
     // fetched_items.map(|debug_infos| combine_ranges(debug_infos, is_ordered))
@@ -22,7 +22,7 @@ pub fn fetch_and_merge_debug_information(
 /// This function ignores whether the ranges are joint.
 /// If this function with is_ordered, it will create a range based on the first and the last item of the range
 /// This function will panic if an empty list is passed in
-pub fn combine_ranges(debug_infos: &[DbgInfo], is_ordered: bool) -> DbgInfo
+pub fn combine_ranges(debug_infos: &[SpanInfo], is_ordered: bool) -> SpanInfo
 {
     if debug_infos.len() == 1 {
         return debug_infos[0];
@@ -32,7 +32,7 @@ pub fn combine_ranges(debug_infos: &[DbgInfo], is_ordered: bool) -> DbgInfo
         let start = debug_infos[0];
         let end = debug_infos[debug_infos.len() - 1];
 
-        DbgInfo {
+        SpanInfo {
             char_start: start.char_start,
             char_end: end.char_end,
         }
@@ -50,7 +50,7 @@ pub fn combine_ranges(debug_infos: &[DbgInfo], is_ordered: bool) -> DbgInfo
 
 /// Compares two ranges and combines them. (Assumes theyre overlapping)
 #[inline(always)]
-pub fn merge_ranges(lhs: &mut DbgInfo, rhs: &DbgInfo)
+pub fn merge_ranges(lhs: &mut SpanInfo, rhs: &SpanInfo)
 {
     if lhs.char_start > rhs.char_start {
         lhs.char_start = rhs.char_start;

@@ -75,7 +75,11 @@ impl CompilerState
         );
 
         info!("Tokenizing...");
-        let (tokens, token_ranges, _) = tokenize(file_contents, None)?;
+
+        let (tokens) = tokenize(file_contents)?;
+
+        dbg!(&tokens);
+        panic!();
 
         info!("Creating LLVM context...");
         let context = Context::create();
@@ -147,24 +151,24 @@ impl CompilerState
 
         // parser.parse(vec![], dependency_fn_list)?;
 
-        let function_table = parser.function_table();
-        let imported_functions = parser.imported_functions().clone();
+        // let function_table = parser.function_table();
+        // let imported_functions = parser.imported_functions().clone();
 
-        if !is_lib {
-            if let Some(fn_sig) = function_table.get("main") {
-                if fn_sig.signature.return_type != Type::I32
-                    || !fn_sig.signature.args.arguments.is_empty()
-                {
-                    return Err(CodeGenError::InvalidMain.into());
-                }
-            }
-            else {
-                return Err(CodeGenError::InvalidMain.into());
-            }
-        }
-        else if function_table.contains_key("main") {
-            info!("A `main` function has been found, but the library flag is set to `true`.");
-        }
+        // if !is_lib {
+        //     if let Some(fn_sig) = function_table.get("main") {
+        //         if fn_sig.signature.return_type != Type::I32
+        //             || !fn_sig.signature.args.arguments.is_empty()
+        //         {
+        //             return Err(CodeGenError::InvalidMain.into());
+        //         }
+        //     }
+        //     else {
+        //         return Err(CodeGenError::InvalidMain.into());
+        //     }
+        // }
+        // else if function_table.contains_key("main") {
+        //     info!("A `main` function has been found, but the library flag is set to `true`.");
+        // }
 
         // This does NOT work with structs and comments
         // check function token offset and custom types offsetting tokens
@@ -183,22 +187,22 @@ impl CompilerState
         //     }
         // }
 
-        llvm_codegen(
-            target_ir_path.clone(),
-            target_o_path,
-            optimization,
-            parser.clone(),
-            function_table,
-            Rc::new(imported_functions),
-            &context,
-            &builder,
-            module,
-            path_to_src,
-            flags_passed_in,
-            target_triple,
-            cpu_name,
-            cpu_features,
-        )?;
+        // llvm_codegen(
+        //     target_ir_path.clone(),
+        //     target_o_path,
+        //     optimization,
+        //     parser.clone(),
+        //     function_table,
+        //     Rc::new(imported_functions),
+        //     &context,
+        //     &builder,
+        //     module,
+        //     path_to_src,
+        //     flags_passed_in,
+        //     target_triple,
+        //     cpu_name,
+        //     cpu_features,
+        // )?;
 
         // Linking the object file
         // link_llvm_to_target(&module, target, target_o_path)?;

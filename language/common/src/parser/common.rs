@@ -3,7 +3,7 @@ use strum_macros::Display;
 
 use crate::{
     codegen::{DerefMode, FunctionArgumentIdentifier, If, Order},
-    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
+    error::{SpanInfo, parser::ParserError, syntax::SyntaxError},
     parser::{
         function::FunctionSignature,
         value::MathematicalSymbol,
@@ -18,7 +18,7 @@ use crate::{
 pub struct ParsedTokenInstance
 {
     pub inner: ParsedToken,
-    pub debug_information: DbgInfo,
+    pub debug_information: SpanInfo,
 }
 
 impl PartialEq for ParsedTokenInstance

@@ -10,7 +10,7 @@ use common::{
     codegen::{CustomItem, FunctionArgumentIdentifier, If, ParsedState, StructAttributes},
     compiler::ProjectConfig,
     dashmap::DashMap,
-    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
+    error::{SpanInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
@@ -232,7 +232,6 @@ impl ParserSettings
         dependency_function_list: Rc<DashMap<Vec<String>, FunctionSignature>>,
     ) -> Result<()>
     {
-        
         Ok(())
     }
 
@@ -243,7 +242,7 @@ impl ParserSettings
         custom_items: &mut IndexMap<String, CustomItem>,
     ) -> Result<IndexMap<String, FunctionDefinition>>
     {
-        return Ok(IndexMap::new())
+        return Ok(IndexMap::new());
     }
 
     pub fn parse_function_block(
@@ -260,7 +259,7 @@ impl ParserSettings
         // receiver_type: Option<(Type, usize)>,
     ) -> Result<Vec<ParsedTokenInstance>>
     {
-        return Ok(vec![])
+        return Ok(vec![]);
     }
 }
 

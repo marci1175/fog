@@ -14,11 +14,11 @@ pub fn analyze_dependency(
     enabled_features: OrdSet<String>,
 ) -> anyhow::Result<ParserSettings>
 {
-    let (tokens, token_ranges, _) = tokenize(source_file_contents, None)?;
+    let (tokens) = tokenize(source_file_contents)?;
 
-    let mut parser = ParserSettings::new(tokens, token_ranges, config, module_path, enabled_features);
+    let mut parser = ParserSettings::new(config, module_path, enabled_features);
 
-    parser.parse(deps)?;
+    // parser.parse(deps)?;
 
     Ok(parser)
 }

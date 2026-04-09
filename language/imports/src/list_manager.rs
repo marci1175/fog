@@ -297,9 +297,9 @@ fn scan_dependency<'ctx>(
                 )?;
 
                 // Store the public functions in the main dep list.
-                for (path, sig) in parser_state.library_public_function_table.to_owned() {
-                    deps.insert(path, sig);
-                }
+                // for (path, sig) in parser_state.library_public_function_table.to_owned() {
+                //     deps.insert(path, sig);
+                // }
 
                 // Specific the paths of the additional linking material and store it
                 additional_linking_material_list.extend(
@@ -315,7 +315,8 @@ fn scan_dependency<'ctx>(
                         }),
                 );
 
-                let imported_functions = Rc::new(parser_state.imported_functions().clone());
+                // let imported_functions = Rc::new(parser_state.imported_functions().clone());
+                let imported_functions = Rc::new(todo!());
 
                 // Generate LLVM-IR for the dependency
                 let target_ir_path = PathBuf::from(format!(
@@ -337,7 +338,7 @@ fn scan_dependency<'ctx>(
                         )),
                         optimization,
                         parser_state.clone(),
-                        parser_state.function_table(),
+                        todo!(),
                         imported_functions,
                         context,
                         builder,

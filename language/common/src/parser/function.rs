@@ -1,5 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet}, fmt::Display, hash::Hash, ops::Add, rc::Rc
+    collections::{HashMap, HashSet},
+    fmt::Display,
+    hash::Hash,
+    ops::Add,
+    rc::Rc,
 };
 
 use bimap::BiMap;
@@ -7,7 +11,7 @@ use bimap::BiMap;
 use crate::{
     anyhow::{self, Result},
     codegen::{CustomItem, FunctionArgumentIdentifier},
-    error::{DbgInfo, parser::ParserError, syntax::SyntaxError},
+    error::{SpanInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         common::{
@@ -152,31 +156,40 @@ pub enum CompilerHint
 /// Allows us to create associations based on values.
 /// This type stores an internal map, and gives a unique id to every unique value.
 #[derive(Debug, Default, Clone)]
-pub struct Interner<VALUE: Eq + Hash> {
+pub struct Interner<VALUE: Eq + Hash>
+{
     interner: BiMap<VALUE, ID>,
     _internal_counter: usize,
 }
 
-impl<VALUE: Eq + Hash> Interner<VALUE> {
-    pub fn new() -> Self {
-        Self { interner: BiMap::new(), _internal_counter: 0 }
+impl<VALUE: Eq + Hash> Interner<VALUE>
+{
+    pub fn new() -> Self
+    {
+        Self {
+            interner: BiMap::new(),
+            _internal_counter: 0,
+        }
     }
 
-    pub fn lookup_name(&self, value: &VALUE) -> Option<&ID> {
+    pub fn lookup_name(&self, value: &VALUE) -> Option<&ID>
+    {
         self.interner.get_by_left(value)
     }
 
-    pub fn lookup_id(&self, id: &ID) -> Option<&VALUE> {
+    pub fn lookup_id(&self, id: &ID) -> Option<&VALUE>
+    {
         self.interner.get_by_right(id)
     }
 
-    pub fn insert_or_get_association(&mut self, value: VALUE) -> ID {
+    pub fn insert_or_get_association(&mut self, value: VALUE) -> ID
+    {
         if let Some(right) = self.interner.get_by_left(&value) {
             *right
         }
         else {
             self._internal_counter += 1;
-            
+
             let curr_id = self._internal_counter;
 
             self.interner.insert(value, curr_id);
@@ -185,11 +198,13 @@ impl<VALUE: Eq + Hash> Interner<VALUE> {
         }
     }
 
-    pub fn remove_association_by_value(&mut self, value: &VALUE) -> Option<(VALUE, usize)> {
+    pub fn remove_association_by_value(&mut self, value: &VALUE) -> Option<(VALUE, usize)>
+    {
         self.interner.remove_by_left(value)
     }
 
-    pub fn remove_association_by_id(&mut self, id: &ID) -> Option<(VALUE, usize)> {
+    pub fn remove_association_by_id(&mut self, id: &ID) -> Option<(VALUE, usize)>
+    {
         self.interner.remove_by_right(id)
     }
 }
@@ -209,7 +224,7 @@ pub struct FunctionMap<PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION>
     /// The namespace map of the functions. This allows us to see how many functions are there in the namespace with the same name.
     namespace_members: HashMap<ID, usize>,
 
-    _interner: Interner<Rc<NAME>>
+    _interner: Interner<Rc<NAME>>,
 }
 
 /// Allows us to specify the method we want to remove a key from a map.
@@ -269,10 +284,8 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
         let id = self._interner.insert_or_get_association(name.clone());
 
         let insert_result = self.functions.insert(key, (id, value));
-        
-        if let Some((replaced_id, _)) =
-            &insert_result
-        {
+
+        if let Some((replaced_id, _)) = &insert_result {
             // If the function this was replaced by does not match the name of the old function we need to update the namespace map.
             self.decrement_namespace(replaced_id);
         }
@@ -299,9 +312,9 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
     pub fn contains_name(&self, name: Rc<NAME>) -> bool
     {
         if let Some(id) = self._interner.lookup_name(&name) {
-            return self.namespace_members.contains_key(id)
+            return self.namespace_members.contains_key(id);
         }
-        
+
         false
     }
 
@@ -312,21 +325,23 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
 
     pub fn get_function(&self, path: &PATH) -> Option<(&Rc<NAME>, &DEFINITION)>
     {
-        self.functions.get(path).map(|(intern_id, def)| {
-            (self._interner.lookup_id(intern_id).unwrap(), def)
-        })
+        self.functions
+            .get(path)
+            .map(|(intern_id, def)| (self._interner.lookup_id(intern_id).unwrap(), def))
     }
 
     pub fn get_function2(&self, path: &PATH) -> Option<&(ID, DEFINITION)>
     {
         self.functions.get(path)
     }
-    
+
     pub fn get_function_by_idx(&self, idx: usize) -> Option<(&PATH, (&Rc<NAME>, &DEFINITION))>
     {
-        self.functions.get_index(idx).map(|(path, (intern_id, def))| {
-            (path, (self._interner.lookup_id(intern_id).unwrap(), def))
-        })
+        self.functions
+            .get_index(idx)
+            .map(|(path, (intern_id, def))| {
+                (path, (self._interner.lookup_id(intern_id).unwrap(), def))
+            })
     }
 
     pub fn get_function_by_idx2(&self, idx: usize) -> Option<(&PATH, &(ID, DEFINITION))>
@@ -334,7 +349,8 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
         self.functions.get_index(idx)
     }
 
-    pub fn get_name_from_id(&self, id: &ID) -> Option<&Rc<NAME>> {
+    pub fn get_name_from_id(&self, id: &ID) -> Option<&Rc<NAME>>
+    {
         self._interner.lookup_id(id)
     }
 
@@ -347,8 +363,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
         })
     }
 
-    pub fn remove(&mut self, key: &PATH, remove_type: RemoveType)
-    -> Option<(ID, DEFINITION)>
+    pub fn remove(&mut self, key: &PATH, remove_type: RemoveType) -> Option<(ID, DEFINITION)>
     {
         // Remove the function definition on the specified path
         if let Some((id, def)) = {
@@ -395,30 +410,36 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
         }
     }
 
-    pub fn iter(&self) -> FunctionMapIterator<'_, PATH, NAME, DEFINITION> {
+    pub fn iter(&self) -> FunctionMapIterator<'_, PATH, NAME, DEFINITION>
+    {
         FunctionMapIterator {
             inner_iter: self.functions.iter(),
             interner: &self._interner,
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn len(&self) -> usize
+    {
         self.functions.len()
     }
 }
 
-pub struct FunctionMapIterator<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION> {
+pub struct FunctionMapIterator<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION>
+{
     inner_iter: indexmap::map::Iter<'a, PATH, (ID, DEFINITION)>,
     interner: &'a Interner<Rc<NAME>>,
 }
 
-impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION> Iterator for FunctionMapIterator<'a, PATH, NAME, DEFINITION> {
+impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION> Iterator
+    for FunctionMapIterator<'a, PATH, NAME, DEFINITION>
+{
     type Item = (&'a PATH, &'a Rc<NAME>, &'a DEFINITION);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner_iter.next().map(|(path, (id, def))| {
-            (path, self.interner.lookup_id(id).unwrap(), def)
-        })
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        self.inner_iter
+            .next()
+            .map(|(path, (id, def))| (path, self.interner.lookup_id(id).unwrap(), def))
     }
 }
 
@@ -428,7 +449,7 @@ pub fn parse_function_call_args(
     tokens: &[Token],
     function_tokens_offset: usize,
     mut origin_token_idx: usize,
-    debug_infos: &[DbgInfo],
+    debug_infos: &[SpanInfo],
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     mut this_function_args: FunctionArguments,
     function_signatures: Rc<FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>>,
@@ -472,7 +493,7 @@ pub fn parse_function_call_args(
             (
                 ParsedTokenInstance {
                     inner: ParsedToken::VariableReference(receiver.clone()),
-                    debug_information: DbgInfo::default(),
+                    debug_information: SpanInfo::default(),
                 },
                 (recv_type, recv_id),
             ),
@@ -646,134 +667,7 @@ pub fn parse_signature_args(
     function_generics: &OrdMap<String, OrdSet<Vec<String>>>,
 ) -> Result<FunctionArguments>
 {
-    // Create a list of args which the function will take, we will return this later
-    let mut args: FunctionArguments = FunctionArguments::new();
-
-    // Create an index which will iterate through the tokens
-    let mut args_idx = 0;
-
-    // Iter until we find a CloseBracket: ")"
-    // This will be the end of the function's arguments
-    while args_idx < tokens.len() {
-        // Match the signature of an argument
-        // Get the variable's name
-        // If the token is an identifier then we know that this is a variable name
-        // If the token is a colon then we know that this is a type definition
-        let current_token = &tokens[args_idx];
-
-        // Match the current token
-        if let Token::Identifier(var_name) = current_token {
-            // Match the colon from the signature, to ensure correct signaure
-            if tokens[args_idx + 1] == Token::Colon {
-                // Get the type of the argument
-                if let Token::TypeDefinition(var_type) = &tokens[args_idx + 2] {
-                    // Store the argument in the HashMap
-                    args.arguments.insert(
-                        var_name.clone(),
-                        (var_type.clone(), VARIABLE_ID_SOURCE.get_unique_id()),
-                    );
-
-                    // Increment the idx based on the next token
-                    if let Some(Token::Comma) = tokens.get(args_idx + 3) {
-                        args_idx += 4;
-                    }
-                    else {
-                        args_idx += 3;
-                    }
-
-                    // Countinue the loop
-                    continue;
-                }
-                else {
-                    let custom_ty = if let Ok(ty) =
-                        ty_from_token(&tokens[args_idx + 2], custom_types)
-                    {
-                        ty
-                    }
-                    else if let Some(Token::Identifier(generic_name)) = &tokens.get(args_idx + 2)
-                    {
-                        // Get the implemented traits for this generic
-                        let generic = function_generics
-                            .get(generic_name)
-                            .ok_or(ParserError::CustomItemNotFound(generic_name.clone()))?;
-
-                        Type::TraitObject(generic.clone())
-                    }
-                    else {
-                        return Err(
-                            ParserError::InvalidType(vec![tokens[args_idx + 2].clone()]).into()
-                        );
-                    };
-
-                    // Store the argument in the HashMap
-                    args.arguments.insert(
-                        var_name.clone(),
-                        (custom_ty.clone(), VARIABLE_ID_SOURCE.get_unique_id()),
-                    );
-
-                    // Increment the idx based on the next token
-                    if let Some(Token::Comma) = tokens.get(args_idx + 3) {
-                        args_idx += 4;
-                    }
-                    else {
-                        args_idx += 3;
-                    }
-
-                    // Countinue the loop
-                    continue;
-                }
-            }
-        }
-        // This token must only be at the first position of the arguments
-        else if &Token::This == current_token {
-            // Check the position of the `this` token
-            if args_idx != 0 {
-                return Err(ParserError::InvalidReceiverPosition.into());
-            }
-
-            // Check if the use of `this` is allowed
-            if !is_struct_implementation {
-                return Err(ParserError::InvalidReceiverUsage.into());
-            }
-
-            // Check for syntax validity
-            let next_token = tokens.get(args_idx + 1);
-
-            // Increment cursor
-            args_idx += 2;
-
-            // Set the arg
-            args.receiver_referenced = true;
-
-            // If the next token isnt a Comma even though there are tokens left, we should not continue and we should return an error
-            if !(next_token.is_some()
-                && next_token != Some(&Token::Comma)
-                && args_idx < tokens.len())
-            {
-                continue;
-            }
-        }
-        // If an ellipsis is found, that means that there can be an indefinite amount of arguments, this however can only be used at the end of the arguments when importing an external function
-        else if &Token::Ellipsis == current_token {
-            // Check if this is the last argument, and return an error if it isn't
-            if args_idx != tokens.len() - 1 {
-                return Err(ParserError::InvalidEllipsisPosition.into());
-            }
-
-            // Store the ellipsis
-            args.ellipsis_present = true;
-
-            args_idx += 1;
-
-            // Countinue the loop
-            continue;
-        }
-
-        // If the pattern didnt match the tokens return an error
-        return Err(ParserError::InvalidSignatureDefinition.into());
-    }
-
-    Ok(args)
+    Ok(todo!())
 }
 
 pub fn parse_signature_argument_tokens(

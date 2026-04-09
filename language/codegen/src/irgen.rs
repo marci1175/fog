@@ -1863,7 +1863,7 @@ where
                             return Ok(Some((
                                 ptr,
                                 ty,
-                                Type::Pointer(Some(Box::new(Token::TypeDefinition(ty_disc)))),
+                                Type::Pointer(Some(Box::new(Token::TypeDefinition(todo!())))),
                             )));
                         },
                     }

@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use crate::{
-    error::{parser::ParserError, syntax::SyntaxError},
+    error::SpanInfo,
     parser::function::CompilerHint,
     ty::{Type, Value},
 };
@@ -12,24 +14,15 @@ pub enum Token
 
     UnparsedLiteral(String),
 
-    /// ref
-    /// Example: ```ptr foo = ref bar;```
-    Reference,
-    /// deref
-    /// Example: ```int foo = deref bar;```
-    Dereference,
-
     Identifier(String),
     DocComment(String),
 
     As,
 
-    Const, // Used to flag variables as non-mutable (vars a mutable by default): `const int marci = 0;`
-    Struct,
-    TypeDefinition(Type),
+    Const, // Used to flag variables as non-mutable: `const int marci = 0;`
+    Variable,
 
-    /// Kinda like C enums but with any type
-    Enum(Option<Box<Token>>),
+    TypeDefinition(TypeToken),
 
     Function,
     Ellipsis,
@@ -108,40 +101,59 @@ pub enum Token
     Export,
 
     LeftArrow,
-    // RightArrow,
+    RightArrow,
     /// This can be used as a substitute in function definitions in place of the `:` indicating return type.
     Returns,
 
     Namespace,
 }
 
-// impl Token {
-//     pub fn return_error(error_type: ParserError, char_range: Range<usize>) -> anyhow::Error {
-//         error_type.into()
-//     }
-// }
-
-/// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.
-pub fn find_closing_angled_bracket_char(
-    paren_start_slice: &[u8],
-    angled_bracket_count: usize,
-) -> Result<usize, ParserError>
+/// This are only the tpye indicating tokens, not the actual types themselves.
+/// This is just for organizing the tokens basically.
+#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
+pub enum TypeToken
 {
-    let mut paren_layer_counter = 1;
-    for (idx, token) in paren_start_slice.iter().enumerate() {
-        match token {
-            b'<' => paren_layer_counter += 1,
-            b'>' => {
-                paren_layer_counter -= 1;
-                if paren_layer_counter == angled_bracket_count {
-                    return Ok(idx);
-                }
-            },
-            _ => continue,
-        }
-    }
+    I64,
+    F64,
+    U64,
 
-    Err(ParserError::SyntaxError(
-        SyntaxError::LeftOpenAngledBrackets,
-    ))
+    I32,
+    F32,
+    U32,
+
+    I16,
+    F16,
+    U16,
+
+    U8,
+
+    String,
+    Boolean,
+
+    Void,
+    Enum,
+    Array,
+    Struct,
+
+    /// ref
+    /// Example: ```ptr foo = ref bar;```
+    Reference,
+    /// deref
+    /// Example: ```int foo = deref bar;```
+    Dereference,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Spanned<T>
+{
+    inner: T,
+    span: SpanInfo,
+}
+
+impl<T> Spanned<T>
+{
+    pub fn new(inner: T, span: SpanInfo) -> Self
+    {
+        Self { inner, span }
+    }
 }

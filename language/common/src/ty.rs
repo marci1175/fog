@@ -870,8 +870,8 @@ pub fn ty_from_token(
                 Err(ParserError::InvalidType(vec![token.clone()]).into())
             }
         },
-        Token::TypeDefinition(type_def) => Ok(type_def.clone()),
-
+        Token::TypeDefinition(type_def) => Ok(todo!()),
+        // Token::TypeDefinition(type_def) => Ok(type_def.clone()),
         _ => Err(ParserError::InvalidType(vec![token.clone()]).into()),
     }
 }
