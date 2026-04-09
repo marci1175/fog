@@ -66,7 +66,7 @@ fn parse_string(
 
         if text[idx].is_ascii_digit() {
             // Collect the characters until its not a number anymore
-            while (text.len() > idx) && (text[idx] as char).is_numeric(){
+            while (idx < text.len()) && text[idx].is_ascii_digit() {
                 buffer.push(text[idx]);
                 idx += 1;
             }
@@ -89,7 +89,7 @@ fn parse_string(
             If I were to try to tokenize `helloint` the identifier branch would parse int with hello.
             This branch is made to parse `a*f` or `foo==bar`.
         */
-        else if let Some(_) = try_match_token(&[text[idx]]) {
+        else if try_match_token(&[text[idx]]).is_some() {
             // Try to greedily consume the longest matching token
             let mut match_end = idx + 1;
 
@@ -120,7 +120,7 @@ fn parse_string(
         // If its not a number and was not matched by the keywords this should be an identifier
         else {
             // Store the chars until we can match a char
-            while (text.len() > idx) && let None = try_match_token(&[text[idx]])
+            while (idx < text.len()) && let None = try_match_token(&[text[idx]])
             {
                 buffer.push(text[idx]);
                 idx += 1;
