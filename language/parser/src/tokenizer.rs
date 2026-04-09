@@ -20,82 +20,26 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
             let trimmed_text = raw_text.trim();
 
             let column_idx_begin = column_idx;
+
             // Increment column idx by the text length (This includes whitespace)
             column_idx += raw_text.len();
 
             let column_idx_end = column_idx;
 
-            let token_span_info = SpanInfo::new(
-                CharPosition::new(line_number, column_idx_begin),
-                CharPosition::new(line_number, column_idx_end),
-            );
-
+            // Try to match full keywords present
             if let Some(tkn) = try_match_token(trimmed_text.as_bytes()) {
-                token_list.push(Spanned::new(tkn, token_span_info));
+                token_list.push(Spanned::new(
+                    tkn,
+                    SpanInfo::new(
+                        CharPosition::new(line_number, column_idx_begin),
+                        CharPosition::new(line_number, column_idx_end),
+                    ),
+                ));
             }
             // If the token was not immediately recognized it is most likely number or an Identifier
             // If the trimmed text could also be an empty string.
             else if !trimmed_text.is_empty() {
-                // `trimmed_text` cannot be empty here, so we can actually check the first charater
-                // if the trimmed text is a number, then this is supposed to be some sort of a number
-                // We will only check the validness of the number later on in the resolver process.
-                if trimmed_text.starts_with(char::is_numeric) {
-                    // Lets try to find the end of the number (We store every digit and . and split with the rest)
-                    let num_end_pos = trimmed_text.find(|c: char| !(c.is_numeric() || c == '.'));
-
-                    if let Some(pos) = num_end_pos {
-                        // Split the string at the desired position
-                        let (number, expressions) = trimmed_text.split_at(pos);
-
-                        // Store the number
-                        token_list.push(Spanned::new(
-                            Token::UnparsedLiteral(number.to_string()),
-                            SpanInfo::new(
-                                CharPosition::new(line_number, column_idx_begin),
-                                CharPosition::new(line_number, column_idx_begin + pos),
-                            ),
-                        ));
-
-                        /*
-                            What I was thinking of doing is basically parsing the characters until there is no match to a token (/ keyword)
-                            So in this case: ==*
-                            I'd parse the first character, (this will parse as a setvalue sign) after seeing that this succeeded parse the second with it (this will return an equal sign)
-                            When parsing the 3rd char with the last two it will not return any valid token. Store the last successful token parsing result, and continue this process from the 3rd char.
-                        */
-
-                        // Variables to keep track of stuff
-                        let mut char_buf = String::new();
-                        let mut last_token: Option<Token> = None;
-                        let mut last_stored_token_idx = 0;
-                        let mut last_idx = 0;
-
-                        // Parse the tokens after the number
-                        for c in expressions.char_indices() {
-                            try_match_char(
-                                &mut token_list,
-                                &mut char_buf,
-                                &mut last_token,
-                                &mut last_stored_token_idx,
-                                c,
-                                line_number,
-                            );
-
-                            last_idx = c.0;
-                        }
-
-                        // If there were any tokens we didnt store (for example when the last character matched too) we need to store that too.
-                        if let Some(last_matched) = last_token {
-                            token_list.push(Spanned::new(last_matched, SpanInfo::new(CharPosition::new(line_number, last_stored_token_idx), CharPosition::new(line_number, last_idx))));
-                        }
-                    }
-                    // This means that only a number was present in the `trimmed_text`
-                    else {
-                        token_list.push(Spanned::new(
-                            Token::UnparsedLiteral(trimmed_text.to_string()),
-                            token_span_info,
-                        ));
-                    }
-                }
+                parse_string(&mut token_list, line_number, trimmed_text, column_idx_begin);
             }
             else {
                 continue;
@@ -106,56 +50,101 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
     Ok(token_list)
 }
 
-fn try_match_char(
+fn parse_string(
     token_list: &mut Vec<Spanned<Token>>,
-    char_buf: &mut String,
-    last_matched_token: &mut Option<Token>,
-    last_stored_token_idx: &mut usize,
-    // The current char indice
-    (idx, c): (usize, char),
     line_number: usize,
+    text: &str,
+    span_offset: usize,
 )
 {
-    // Store the character into a buffer
-    char_buf.push(c);
+    let mut buffer: Vec<u8> = Vec::new();
+    let text = text.as_bytes();
+    let mut idx = 0;
 
-    // Try to match the current contents of the char buffer
-    // If it succeeds then store the next character until it doesnt.
-    if let Some(matched) = try_match_token(char_buf.as_bytes()) {
-        *last_matched_token = Some(matched);
+    while idx < text.len() {
+        let iter_start_idx = idx;
 
-        // Try to store the next character on the next iter and try to match again
-        return;
-    }
-    // If it didnt match with anything, store the last match and continue parsing from the last character
-    else if let Some(last_matched) = &last_matched_token {
-        // Reset the buffer
-        *char_buf = String::new();
+        if (text[idx] as char).is_numeric() {
+            // Collect the characters until its not a number anymore
+            while (text[idx] as char).is_numeric() && (text.len() > idx) {
+                buffer.push(text[idx]);
+                idx += 1;
+            }
 
-        // Store the last match
-        token_list.push(Spanned::new(
-            last_matched.clone(),
-            SpanInfo::new(
-                CharPosition::new(line_number, *last_stored_token_idx),
-                CharPosition::new(line_number, idx - 1),
-            ),
-        ));
+            // Store the number we have parsed
+            token_list.push(Spanned::new(
+                Token::UnparsedLiteral(String::from_utf8(buffer.clone()).unwrap()),
+                SpanInfo::new(
+                    CharPosition::new(line_number, span_offset + iter_start_idx),
+                    CharPosition::new(line_number, span_offset + idx),
+                ),
+            ));
+        }
+        else if let Some(matched) = try_match_token(&[text[idx]]) {
+            let mut last_matched = matched;
 
-        // Update the last matched idx
-        *last_stored_token_idx = idx;
+            idx += 1;
 
-        // Restart the process
-        try_match_char(
-            token_list,
-            char_buf,
-            last_matched_token,
-            last_stored_token_idx,
-            (idx, c),
-            line_number,
-        );
-    }
-    else {
-        panic!("Return an error here")
+            if idx < text.len() {
+                buffer.push(text[idx - 1]);
+                buffer.push(text[idx]);
+
+                loop {
+                    if let Some(matched) = try_match_token(&buffer) {
+                        last_matched = matched;
+                        idx += 1;
+
+                        if !(idx < text.len()) {
+                            break;
+                        }
+
+                        buffer.push(text[idx]);
+                    }
+                    else {
+                        break;
+                    }
+                }
+
+                // Store the last matched token
+                token_list.push(Spanned::new(
+                    last_matched.clone(),
+                    SpanInfo::new(
+                        CharPosition::new(line_number, span_offset + iter_start_idx),
+                        CharPosition::new(line_number, span_offset + idx),
+                    ),
+                ));
+            }
+            else {
+                // Store the last matched token
+                token_list.push(Spanned::new(
+                    last_matched.clone(),
+                    SpanInfo::new(
+                        CharPosition::new(line_number, span_offset + iter_start_idx),
+                        CharPosition::new(line_number, span_offset + idx),
+                    ),
+                ));
+            }
+        }
+        // If its not a number and was not matched by the keywords this should be an identifier
+        else {
+            // Store the chars until we can match a char
+            while let None = try_match_token(&[text[idx]]) && (text.len() > idx) {
+                buffer.push(text[idx]);
+                idx += 1;
+            }
+
+            // Store the identifier
+            token_list.push(Spanned::new(
+                Token::Identifier(String::from_utf8(buffer.clone()).unwrap()),
+                SpanInfo::new(
+                    CharPosition::new(line_number, span_offset + iter_start_idx),
+                    CharPosition::new(line_number, span_offset + idx),
+                ),
+            ));
+        }
+
+        // Clear the buffer
+        buffer.clear();
     }
 }
 
