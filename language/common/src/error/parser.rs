@@ -11,6 +11,8 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum ParserError
 {
+    #[error("Unexpected token placement.")]
+    UnexpectedToken,
     #[error("Type `{0}` does not implement the following required traits: {1:?}.")]
     TraitMismatch(Type, Vec<Vec<String>>),
     #[error(

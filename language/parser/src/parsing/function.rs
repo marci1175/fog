@@ -13,11 +13,11 @@ use common::{
     error::{SpanInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
+        common::{ItemVisibility, ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
         dbg::fetch_and_merge_debug_information,
         function::{
-            self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionMap,
-            FunctionSignature, FunctionVisibility, UnparsedFunctionDefinition, parse_fn_generics,
+            self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionSignature,
+            PathMap, UnparsedFunctionDefinition, parse_fn_generics,
             parse_function_call_args, parse_signature_argument_tokens,
         },
         import::parse_import_path,
@@ -33,7 +33,7 @@ use common::{
     ty::{OrdMap, OrdSet, Type, Value, ty_from_token},
 };
 
-use crate::{parser_instance::ParserSettings, tokenizer::tokenize};
+use crate::{parser::Settings, tokenizer::tokenize};
 
 /// This function parses all of the functions found in the Token slice.
 /// The returned functions still need to be parsed.
@@ -58,9 +58,9 @@ pub fn parse_functions(
     while token_idx < tokens.len() {
         let current_token = tokens[token_idx].clone();
 
-        if current_token == Token::Private
-            || current_token == Token::Public
-            || current_token == Token::PublicLibrary
+        if current_token == Token::ItemVisibility(common::parser::common::ItemVisibility::Private)
+            || current_token == Token::ItemVisibility(common::parser::common::ItemVisibility::Public)
+            || current_token == Token::ItemVisibility(common::parser::common::ItemVisibility::PublicLibrary)
         {
             token_idx += 1;
 
@@ -170,7 +170,7 @@ pub fn parse_functions(
                                                 return_type: return_type.clone(),
                                                 // To be honest I dont really think this matters what we set it, since im not planning to make a disctinction between public and private functions
                                                 // For now ;)
-                                                visibility: current_token.try_into()?,
+                                                visibility: current_token.try_as_item_visibility().ok_or(ParserError::InvalidSignatureDefinition)?,
                                                 module_path: module_path.clone(),
                                                 compiler_hints: compiler_hints.clone(),
                                                 enabling_features: function_enabling_features
@@ -223,21 +223,11 @@ pub fn parse_functions(
     Ok(function_list)
 }
 
-impl ParserSettings
+impl Settings
 {
-    /// Creates signature table
-    /// Returns all of the custom types, etc
-    pub fn create_signature_table(
-        &self,
-        dependency_function_list: Rc<DashMap<Vec<String>, FunctionSignature>>,
-    ) -> Result<()>
-    {
-        Ok(())
-    }
-
     pub fn parse_functions(
         &self,
-        unparsed_functions: &mut FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>,
+        unparsed_functions: &mut PathMap<Vec<String>, String, UnparsedFunctionDefinition>,
         function_imports: Rc<HashMap<String, FunctionSignature>>,
         custom_items: &mut IndexMap<String, CustomItem>,
     ) -> Result<IndexMap<String, FunctionDefinition>>
@@ -249,7 +239,7 @@ impl ParserSettings
         &self,
         // tokens: Vec<Token>,
         // function_token_offset: usize,
-        // unparsed_functions: &mut FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>,
+        // unparsed_functions: &mut PathMap<Vec<String>, String, UnparsedFunctionDefinition>,
         // parsed_functions: &mut IndexMap<String, FunctionDefinition>,
         // this_function_signature: FunctionSignature,
         // function_imports: Rc<HashMap<String, FunctionSignature>>,
@@ -302,7 +292,7 @@ pub fn parse_function_signature(
             module_path,
             // Imported functions can only be accessed at the source file they were imported at
             // I might change this later to smth like pub import similar to pub mod in rust
-            visibility: FunctionVisibility::Private,
+            visibility: ItemVisibility::Private,
             compiler_hints: OrdSet::new(),
             enabling_features: OrdSet::new(),
         })

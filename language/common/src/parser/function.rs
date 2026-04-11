@@ -15,8 +15,7 @@ use crate::{
     indexmap::IndexMap,
     parser::{
         common::{
-            ParsedToken, ParsedTokenInstance, find_closing_comma, find_closing_paren,
-            find_next_bitor,
+            ItemVisibility, ParsedToken, ParsedTokenInstance, find_closing_comma, find_closing_paren, find_next_bitor
         },
         value::parse_value,
         variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
@@ -45,36 +44,6 @@ pub struct FunctionDefinition
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub enum FunctionVisibility
-{
-    /// Not available to any scopes besides the file it was created in
-    #[default]
-    Private,
-    /// Is exposed as a function to import
-    Public,
-    /// Can only be accessed from the same library it was created in
-    PublicLibrary,
-    /// Branches are parsed like function, and this type is supposed to indicate that the function is actually a branch.
-    /// A branch does not have any visibility.
-    Branch,
-}
-
-impl TryFrom<Token> for FunctionVisibility
-{
-    type Error = ParserError;
-
-    fn try_from(value: Token) -> Result<Self, Self::Error>
-    {
-        Ok(match value {
-            Token::Public => Self::Public,
-            Token::PublicLibrary => Self::PublicLibrary,
-            Token::Private => Self::Private,
-            _ => return Err(ParserError::InvalidSignatureDefinition),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionSignature
 {
     pub name: String,
@@ -82,7 +51,7 @@ pub struct FunctionSignature
     pub return_type: Type,
     /// Module path does NOT contain function name.
     pub module_path: Vec<String>,
-    pub visibility: FunctionVisibility,
+    pub visibility: ItemVisibility,
     pub compiler_hints: OrdSet<CompilerHint>,
     pub enabling_features: OrdSet<String>,
 }
@@ -274,12 +243,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
     /// The returned value is the overwritten value of the map.
     /// If the function returns [`None`], it means that the key we inserted was not present in the map.
     /// The function also increment the function's counter in the namespace map.
-    pub fn insert(
-        &mut self,
-        key: PATH,
-        value: ITEM,
-        name: Rc<NAME>,
-    ) -> Option<(ID, ITEM)>
+    pub fn insert(&mut self, key: PATH, value: ITEM, name: Rc<NAME>) -> Option<(ID, ITEM)>
     {
         let id = self._interner.insert_or_get_association(name.clone());
 
@@ -337,11 +301,9 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
 
     pub fn get_item_by_idx(&self, idx: usize) -> Option<(&PATH, (&Rc<NAME>, &ITEM))>
     {
-        self.items
-            .get_index(idx)
-            .map(|(path, (intern_id, def))| {
-                (path, (self._interner.lookup_id(intern_id).unwrap(), def))
-            })
+        self.items.get_index(idx).map(|(path, (intern_id, def))| {
+            (path, (self._interner.lookup_id(intern_id).unwrap(), def))
+        })
     }
 
     pub fn get_item_by_idx2(&self, idx: usize) -> Option<(&PATH, &(ID, ITEM))>
@@ -430,8 +392,7 @@ pub struct PathMapIterator<'a, PATH: Eq + Hash, NAME: Eq + Hash, ITEM>
     interner: &'a Interner<Rc<NAME>>,
 }
 
-impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
-    for PathMapIterator<'a, PATH, NAME, ITEM>
+impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator for PathMapIterator<'a, PATH, NAME, ITEM>
 {
     type Item = (&'a PATH, &'a Rc<NAME>, &'a ITEM);
 

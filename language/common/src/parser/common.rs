@@ -37,6 +37,67 @@ impl PartialEq<ParsedToken> for ParsedTokenInstance
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct TokenStream<T>
+{
+    buffer: Vec<T>,
+    idx: usize,
+}
+
+impl<T> TokenStream<T>
+{
+    pub fn new(tokens: Vec<T>) -> Self
+    {
+        Self { buffer: tokens, idx: 0 }
+    }
+
+    pub fn peek(&self, nth: isize) -> Option<&T>
+    {
+        self.idx
+            .checked_add_signed(nth)
+            .map(|idx| self.buffer.get(idx))
+            .flatten()
+    }
+
+    /// This does not remove the token from the list, therefor it is O(1).
+    pub fn consume(&mut self) -> Option<&T> {
+        let query = self.buffer.get(self.idx);
+        self.idx += 1;        
+        return query;
+    }
+
+    /// This does not remove the token from the list, therefor it is O(1).
+    pub fn consume_bulk(&mut self, nth: usize) -> Option<&[T]> {
+        let query = self.buffer.get(self.idx..self.idx + nth);
+        self.idx += nth;
+        return query;
+    }
+
+    pub fn get_current(&self) -> Option<&T> {
+        self.buffer.get(self.idx)
+    }
+    
+    pub fn idx_mut(&mut self) -> &mut usize {
+        &mut self.idx
+    }
+    
+    pub fn tokens_mut(&mut self) -> &mut Vec<T> {
+        &mut self.buffer
+    }
+    
+    pub const fn len(&self) -> usize {
+        self.buffer.len()
+    }
+    
+    pub fn idx(&self) -> usize {
+        self.idx
+    }
+    
+    pub const fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum ParsedToken
 {
@@ -102,6 +163,21 @@ pub enum ParsedToken
         inner_expr: Box<ParsedTokenInstance>,
         mode: DerefMode,
     },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub enum ItemVisibility
+{
+    /// Not available to any scopes besides the file it was created in
+    #[default]
+    Private, // priv
+    /// Is exposed as a function to import
+    Public, // pub
+    /// Can only be accessed from the same library it was created in
+    PublicLibrary, // publib
+    /// Branches are parsed like function, and this type is supposed to indicate that the function is actually a branch.
+    /// A branch does not have any visibility, it is only for debugging.
+    Branch,
 }
 
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.

@@ -1,1 +1,1 @@
-pub function marci() "asda sdas"function
+pub jazmin asdas askjd asjs

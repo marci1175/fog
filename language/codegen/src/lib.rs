@@ -24,7 +24,7 @@ use common::{
     parser::function::{FunctionDefinition, FunctionSignature},
     tracing::info,
 };
-use parser::parser::ParserSettings;
+use parser::parser::Settings;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, rc::Rc};
 
 use crate::{
@@ -159,7 +159,7 @@ pub fn llvm_codegen<'ctx>(
     target_ir_path: PathBuf,
     target_o_path: PathBuf,
     optimization: bool,
-    parser_state: ParserSettings,
+    parser_state: Settings,
     function_table: &common::indexmap::IndexMap<String, FunctionDefinition>,
     imported_functions: Rc<std::collections::HashMap<String, FunctionSignature>>,
     context: &'ctx Context,

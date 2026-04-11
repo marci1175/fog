@@ -1,13 +1,12 @@
-use std::sync::Arc;
-
+use strum::EnumTryAs;
 use crate::{
     error::SpanInfo,
-    parser::function::CompilerHint,
+    parser::{common::ItemVisibility, function::CompilerHint},
     ty::{Type, Value},
 };
 
 /// The basic output type of the tokenizer.
-#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumTryAs)]
 pub enum Token
 {
     Literal(Value),
@@ -90,9 +89,7 @@ pub enum Token
     Trait,
     This,
 
-    Private,       // priv
-    Public,        // pub
-    PublicLibrary, // publib
+    ItemVisibility(ItemVisibility),       
 
     CompilerHintSymbol, // @
     CompilerHint(CompilerHint),
@@ -141,19 +138,4 @@ pub enum TypeToken
     /// deref
     /// Example: ```int foo = deref bar;```
     Dereference,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Spanned<T>
-{
-    inner: T,
-    span: SpanInfo,
-}
-
-impl<T> Spanned<T>
-{
-    pub fn new(inner: T, span: SpanInfo) -> Self
-    {
-        Self { inner, span }
-    }
 }

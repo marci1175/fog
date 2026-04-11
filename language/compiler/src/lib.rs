@@ -23,7 +23,7 @@ use common::{
     ty::{OrdSet, Type},
 };
 use imports::list_manager::create_dependency_functions_list;
-use parser::{parser::ParserSettings, tokenizer::tokenize};
+use parser::{parser::Settings, tokenizer::tokenize};
 
 pub struct CompilerState
 {
@@ -76,80 +76,78 @@ impl CompilerState
 
         info!("Tokenizing...");
 
-        let (tokens) = tokenize(file_contents)?;
+        let tokens = tokenize(file_contents)?;
 
-        dbg!(&tokens);
-        panic!();
+        // info!("Creating LLVM context...");
+        // let context = Context::create();
+        // let builder = context.create_builder();
+        // let module = context.create_module("main");
 
-        info!("Creating LLVM context...");
-        let context = Context::create();
-        let builder = context.create_builder();
-        let module = context.create_module("main");
+        // info!("Initializing LLVM environment...");
+        // unsafe {
+        //     LLVM_InitializeAllTargetInfos();
+        //     LLVM_InitializeAllTargets();
+        //     LLVM_InitializeAllTargetMCs();
+        //     LLVM_InitializeAllAsmParsers();
+        //     LLVM_InitializeAllAsmPrinters();
+        // }
 
-        info!("Initializing LLVM environment...");
-        unsafe {
-            LLVM_InitializeAllTargetInfos();
-            LLVM_InitializeAllTargets();
-            LLVM_InitializeAllTargetMCs();
-            LLVM_InitializeAllAsmParsers();
-            LLVM_InitializeAllAsmPrinters();
-        }
+        // let mut dependency_output_paths = Vec::new();
+        // let deps_path = PathBuf::from(format!("{}\\deps", self.root_dir.display()));
 
-        let mut dependency_output_paths = Vec::new();
-        let deps_path = PathBuf::from(format!("{}\\deps", self.root_dir.display()));
+        // info!("Analyzing dependencies...");
 
-        info!("Analyzing dependencies...");
+        // // Create an extern libs folder which we will store all the external (pre compiled) deps in
+        // let extern_libs_path = PathBuf::from(format!("{}\\extern_libs", self.config.build_path));
 
-        // Create an extern libs folder which we will store all the external (pre compiled) deps in
-        let extern_libs_path = PathBuf::from(format!("{}\\extern_libs", self.config.build_path));
+        // let _ = create_dir_all(&extern_libs_path);
 
-        let _ = create_dir_all(&extern_libs_path);
+        // let mut additional_linking_material_list: Vec<PathBuf> = Vec::new();
 
-        let mut additional_linking_material_list: Vec<PathBuf> = Vec::new();
+        // // Move all of the external dep files to the folder
+        // for origin_path in &self.config.additional_linking_material {
+        //     let mut extern_libs_path = extern_libs_path.clone();
 
-        // Move all of the external dep files to the folder
-        for origin_path in &self.config.additional_linking_material {
-            let mut extern_libs_path = extern_libs_path.clone();
+        //     // Modify path with the file name
+        //     extern_libs_path.push(
+        //         origin_path
+        //             .file_name()
+        //             .unwrap()
+        //             .to_string_lossy()
+        //             .to_string(),
+        //     );
 
-            // Modify path with the file name
-            extern_libs_path.push(
-                origin_path
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string(),
-            );
+        //     fs::copy(origin_path, &extern_libs_path)?;
 
-            fs::copy(origin_path, &extern_libs_path)?;
+        //     additional_linking_material_list.push(extern_libs_path);
+        // }
 
-            additional_linking_material_list.push(extern_libs_path);
-        }
+        // // Create dependency imports
+        // let dependency_fn_list = create_dependency_functions_list(
+        //     &mut dependency_output_paths,
+        //     &mut additional_linking_material_list,
+        //     self.config.dependencies.clone(),
+        //     self.config.remote_compiler_workers.clone(),
+        //     deps_path.clone(),
+        //     self.root_dir.clone(),
+        //     optimization,
+        //     &context,
+        //     &builder,
+        //     &module,
+        //     flags_passed_in,
+        //     target_triple.clone(),
+        //     cpu_name.clone(),
+        //     cpu_features.clone(),
+        // )?;
 
-        // Create dependency imports
-        let dependency_fn_list = create_dependency_functions_list(
-            &mut dependency_output_paths,
-            &mut additional_linking_material_list,
-            self.config.dependencies.clone(),
-            self.config.remote_compiler_workers.clone(),
-            deps_path.clone(),
-            self.root_dir.clone(),
-            optimization,
-            &context,
-            &builder,
-            &module,
-            flags_passed_in,
-            target_triple.clone(),
-            cpu_name.clone(),
-            cpu_features.clone(),
-        )?;
-
-        let mut parser = ParserSettings::new(
+        let parser_settings = Settings::new(
             self.config.clone(),
             vec![self.config.name.clone()],
             self.enabled_features.clone(),
+            PathBuf::from(format!("{path_to_src}\\main.f")),
         );
 
-        // parser.parse(vec![], dependency_fn_list)?;
+        parser_settings.parse(tokens)?;
 
         // let function_table = parser.function_table();
         // let imported_functions = parser.imported_functions().clone();
@@ -206,14 +204,16 @@ impl CompilerState
 
         // Linking the object file
         // link_llvm_to_target(&module, target, target_o_path)?;
-        dependency_output_paths.push(target_ir_path.clone());
+        // dependency_output_paths.push(target_ir_path.clone());
 
-        Ok(BuildManifest {
-            // Localize path for later use, if we cannot strip it, it means that the path is already a stripped version, therefor we can skip that
-            build_output_paths: dependency_output_paths,
-            additional_linking_material: additional_linking_material_list,
-            // Localize path for later use
-            output_path: build_path,
-        })
+        // Ok(BuildManifest {
+        //     // Localize path for later use, if we cannot strip it, it means that the path is already a stripped version, therefor we can skip that
+        //     build_output_paths: dependency_output_paths,
+        //     additional_linking_material: additional_linking_material_list,
+        //     // Localize path for later use
+        //     output_path: build_path,
+        // })
+
+        Ok(todo!())
     }
 }

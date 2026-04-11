@@ -1,6 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
-    rc::Rc,
+    collections::{HashMap, HashSet}, path::PathBuf, rc::Rc
 };
 
 use common::{
@@ -8,28 +7,38 @@ use common::{
     codegen::CustomItem,
     compiler::ProjectConfig,
     dashmap::DashMap,
-    error::{SpanInfo, parser::ParserError},
+    error::{SpanInfo, Spanned, codegen::CodeGenError, parser::ParserError},
     indexmap::IndexMap,
-    parser::function::{
-        FunctionDefinition, PathMap, FunctionSignature, FunctionVisibility,
+    parser::{common::TokenStream, function::{
+        FunctionDefinition, FunctionSignature, PathMap,
         UnparsedFunctionDefinition,
-    },
+    }},
     tokenizer::Token,
     ty::OrdSet,
 };
 
-#[derive(Debug, Clone)]
-pub struct SigTable
+#[derive(Clone, Debug)]
+pub struct Context
 {
-    pub function_list: IndexMap<String, UnparsedFunctionDefinition>,
-    pub dependency_imports: HashSet<Vec<String>>,
-    pub external_imports: HashMap<String, FunctionSignature>,
-    pub custom_types: IndexMap<String, CustomItem>,
-    pub imported_file_list: HashMap<Vec<String>, FunctionDefinition>,
+    pub functions: PathMap<Vec<String>, String, UnparsedFunctionDefinition>,
+    pub items: PathMap<Vec<String>, String, CustomItem>,
+    pub external_decls: PathMap<Vec<String>, String, FunctionSignature>,
+}
+
+impl Context
+{
+    pub fn new() -> Self
+    {
+        Self {
+            functions: PathMap::new(),
+            items: PathMap::new(),
+            external_decls: PathMap::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct ParserSettings
+pub struct Settings
 {
     // Project settings
     pub config: ProjectConfig,
@@ -37,9 +46,10 @@ pub struct ParserSettings
     /// The path to the root of this project.
     /// This is important when we are parsing libraries.
     pub module_path: Vec<String>,
+    pub root_path: PathBuf,
 }
 
-impl ParserSettings
+impl Settings
 {
     /*
         REEEEEEEEEEEEEEEEEEEECOOOOOOOOODE
@@ -62,13 +72,34 @@ impl ParserSettings
         ```
     */
 
-    pub fn parse(&self, tokens: Vec<Token>) -> Result<()>
+    /*
+        Internal notes:
+        imma change some of the syntax for example imma make it so that i can do `pub import "blabla.f", so that i can bring path into scope.`
+    */
+
+    pub fn parse(&self, token_list: Vec<Spanned<Token>>) -> Result<()>
     {
         // The first step should be parsing the top level items, such as structs, functions, enums.
         // We will store all the items present, and parse the inner contents of the function later.
         // By doing this, the compiler wont be single pass anymore and the sequence of function declarations wont be important.
+        // Im gonna first parse the entire main file and then work out/parse all the other files which were linked.
+        let mut ctx = Context::new();
+        let mut tokens: TokenStream<Spanned<Token>> = TokenStream::new(token_list);
 
-        
+        if tokens.is_empty() {
+            return Err(CodeGenError::NoMain.into());
+        }
+
+        while let Some(tkn) = tokens.consume() {
+            match tkn.inner() {
+                Token::ItemVisibility(vis) => {
+                    
+                }
+
+                // If the token was not recognized, return an error.
+                _ => return Err(tkn.raise_error(self.root_path.clone(), ParserError::UnexpectedToken).into())
+            }
+        }
 
         Ok(())
     }
@@ -77,35 +108,14 @@ impl ParserSettings
         config: ProjectConfig,
         module_path: Vec<String>,
         enabled_features: OrdSet<String>,
+        root_path: PathBuf,
     ) -> Self
     {
         Self {
             enabled_features,
             config,
             module_path,
+            root_path,
         }
-    }
-
-    fn link_files(&self) {
-        
-    }
-
-    fn create_context(&self) -> Result<Context> {
-        let mut ctx = Context::new();
-
-
-
-        Ok(ctx)
-    }
-}
-
-pub struct Context {
-    pub functions: PathMap<Vec<String>, String, UnparsedFunctionDefinition>,
-    pub items: PathMap<Vec<String>, String, CustomItem>,
-}
-
-impl Context {
-    pub fn new() -> Self {
-        Self { functions: PathMap::new(), items: PathMap::new() }
     }
 }

@@ -1,11 +1,11 @@
 use common::{
     anyhow,
-    error::{CharPosition, SpanInfo},
+    error::{CharPosition, SpanInfo, Spanned},
     parser::function::CompilerHint,
-    tokenizer::{Spanned, Token, TypeToken},
-    ty::{Type, Value},
+    tokenizer::{Token, TypeToken},
+    ty::Value,
 };
-use std::{sync::Arc, u8};
+use std::u8;
 
 pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
 {
@@ -37,10 +37,24 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
                     capture.string_buffer.extend(string_p.as_bytes());
 
                     // Store the captured string
-                    token_list.push(Spanned::new(Token::Literal(Value::String(String::from_utf8(capture.string_buffer.clone()).unwrap())), SpanInfo::new(capture.span_start, CharPosition::new(line_number, column_idx_begin + quote_idx))));
-                    
+                    token_list.push(Spanned::new(
+                        Token::Literal(Value::String(
+                            String::from_utf8(capture.string_buffer.clone()).unwrap(),
+                        )),
+                        SpanInfo::new(
+                            capture.span_start,
+                            CharPosition::new(line_number, column_idx_begin + quote_idx),
+                        ),
+                    ));
+
                     // Parse the rest of the text
-                    parse_single_text(&mut token_list, line_number, other.trim(), column_idx_begin, &mut capture_string);
+                    parse_single_text(
+                        &mut token_list,
+                        line_number,
+                        other.trim(),
+                        column_idx_begin,
+                        &mut capture_string,
+                    );
 
                     // Reset the capture state
                     capture_string = None;
@@ -52,13 +66,19 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
             }
             else if trimmed_text.starts_with('#') {
                 // If its a comment just skip the whole line / the rest of the line
-                continue 'line_loop; 
+                continue 'line_loop;
             }
             // Parse the text
             // Please note that we always pass one word (text between two whitespaces) to this function.
             // If the trimmed text could also be an empty string.
             else if !trimmed_text.is_empty() {
-                parse_single_text(&mut token_list, line_number, trimmed_text, column_idx_begin, &mut capture_string);
+                parse_single_text(
+                    &mut token_list,
+                    line_number,
+                    trimmed_text,
+                    column_idx_begin,
+                    &mut capture_string,
+                );
             }
             else {
                 continue;
@@ -74,7 +94,7 @@ fn parse_single_text(
     line_number: usize,
     text: &str,
     span_offset: usize,
-    capture_string: &mut Option<CaptureString>
+    capture_string: &mut Option<CaptureString>,
 )
 {
     let mut buffer: Vec<u8> = Vec::new();
@@ -121,7 +141,8 @@ fn parse_single_text(
             while match_end < text.len() {
                 if try_match_token(&text[idx..=match_end]).is_some() {
                     match_end += 1;
-                } else {
+                }
+                else {
                     break;
                 }
             }
@@ -143,7 +164,7 @@ fn parse_single_text(
             let mut string_buffer = Vec::new();
             let idx_start = idx;
             let mut quote_present = false;
-            
+
             // Move the cursor to the first letter of the string
             idx += 1;
 
@@ -160,7 +181,10 @@ fn parse_single_text(
 
             // If the quote was present that means that the string didnt have any spaces.
             if quote_present {
-                token_list.push(Spanned::new(Token::Literal(Value::String(String::from_utf8(string_buffer).unwrap())), create_span_info(line_number, span_offset, idx_start,  idx)));
+                token_list.push(Spanned::new(
+                    Token::Literal(Value::String(String::from_utf8(string_buffer).unwrap())),
+                    create_span_info(line_number, span_offset, idx_start, idx),
+                ));
             }
             // If the quote was not present, that means that the string consists of multiple words.
             // We have to set the state of `capture_string` to capture the next words.
@@ -174,7 +198,8 @@ fn parse_single_text(
         // If its not a number and was not matched by the keywords this should be an identifier
         else {
             // Store the chars until we can match a char
-            while (idx < text.len()) && let None = try_match_token(&[text[idx]])
+            while (idx < text.len())
+                && let None = try_match_token(&[text[idx]])
             {
                 buffer.push(text[idx]);
                 idx += 1;
@@ -191,8 +216,18 @@ fn parse_single_text(
 }
 
 /// This assumes that the Span we are trying to create is in one line.
-fn create_span_info(line: usize, offset: usize, start: usize, end: usize) -> SpanInfo {
-    SpanInfo { char_start: CharPosition { line, column: offset + start }, char_end: CharPosition { line, column: offset + end } }
+fn create_span_info(line: usize, offset: usize, start: usize, end: usize) -> SpanInfo
+{
+    SpanInfo {
+        char_start: CharPosition {
+            line,
+            column: offset + start,
+        },
+        char_end: CharPosition {
+            line,
+            column: offset + end,
+        },
+    }
 }
 
 fn try_match_token(string_to_match: &[u8]) -> Option<Token>
@@ -256,9 +291,9 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"while" => Token::While,
         b"break" => Token::Break,
         b"continue" => Token::Continue,
-        b"priv" => Token::Private,
-        b"pub" => Token::Public,
-        b"publib" => Token::PublicLibrary,
+        b"priv" => Token::ItemVisibility(common::parser::common::ItemVisibility::Private),
+        b"pub" => Token::ItemVisibility(common::parser::common::ItemVisibility::Public),
+        b"publib" => Token::ItemVisibility(common::parser::common::ItemVisibility::PublicLibrary),
         b"exp" => Token::Export,
         b"cold" => Token::CompilerHint(CompilerHint::Cold),
         b"nofree" => Token::CompilerHint(CompilerHint::NoFree),
@@ -284,7 +319,8 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
     })
 }
 
-struct CaptureString {
+struct CaptureString
+{
     span_start: CharPosition,
     string_buffer: Vec<u8>,
 }
