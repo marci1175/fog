@@ -23,7 +23,7 @@ use common::{
     ty::{OrdSet, Type},
 };
 use imports::list_manager::create_dependency_functions_list;
-use parser::{parser_instance::ParserSettings, tokenizer::tokenize};
+use parser::{parser::ParserSettings, tokenizer::tokenize};
 
 pub struct CompilerState
 {

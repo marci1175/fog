@@ -211,16 +211,16 @@ impl<VALUE: Eq + Hash> Interner<VALUE>
 
 type ID = usize;
 
-/// This is a custom type which allows two important things for handling functions and scopes.
-/// 1. It can look up a function based on its <PATH>.
-/// 2. It allows us to check whether a function's name is already present in the map.
+/// This is a custom type which allows two important things. Handling items and their respective scopes.
+/// 1. It can look up an item based on its <PATH>.
+/// 2. It allows us to check whether a items's name is already present in the map.
 #[derive(Debug, Default, Clone)]
-pub struct FunctionMap<PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION>
+pub struct PathMap<PATH: Eq + Hash, NAME: Eq + Hash, ITEM>
 {
     /// The function that are contained in this map.
     /// The `PATH` must be unqiue to every function.
     /// A <PATH>'s last item is the function name.
-    functions: IndexMap<PATH, (ID, DEFINITION)>,
+    items: IndexMap<PATH, (ID, ITEM)>,
     /// The namespace map of the functions. This allows us to see how many functions are there in the namespace with the same name.
     namespace_members: HashMap<ID, usize>,
 
@@ -236,12 +236,12 @@ pub enum RemoveType
     Shift,
 }
 
-impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFINITION>
+impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
 {
     pub fn new() -> Self
     {
         Self {
-            functions: IndexMap::new(),
+            items: IndexMap::new(),
             namespace_members: HashMap::new(),
             _interner: Interner::new(),
         }
@@ -253,19 +253,19 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
     pub fn try_insert(
         &mut self,
         key: PATH,
-        value: DEFINITION,
+        value: ITEM,
         name: Rc<NAME>,
-    ) -> Option<(PATH, DEFINITION, Rc<NAME>)>
+    ) -> Option<(PATH, ITEM, Rc<NAME>)>
     {
         let id = self._interner.insert_or_get_association(name.clone());
 
-        if self.functions.contains_key(&key) {
+        if self.items.contains_key(&key) {
             return Some((key, value, name));
         }
 
         self.increment_namespace(id);
 
-        self.functions.insert(key, (id, value));
+        self.items.insert(key, (id, value));
 
         None
     }
@@ -277,13 +277,13 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
     pub fn insert(
         &mut self,
         key: PATH,
-        value: DEFINITION,
+        value: ITEM,
         name: Rc<NAME>,
-    ) -> Option<(ID, DEFINITION)>
+    ) -> Option<(ID, ITEM)>
     {
         let id = self._interner.insert_or_get_association(name.clone());
 
-        let insert_result = self.functions.insert(key, (id, value));
+        let insert_result = self.items.insert(key, (id, value));
 
         if let Some((replaced_id, _)) = &insert_result {
             // If the function this was replaced by does not match the name of the old function we need to update the namespace map.
@@ -320,33 +320,33 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
 
     pub fn contains_function(&self, path: &PATH) -> bool
     {
-        self.functions.contains_key(path)
+        self.items.contains_key(path)
     }
 
-    pub fn get_function(&self, path: &PATH) -> Option<(&Rc<NAME>, &DEFINITION)>
+    pub fn get_item(&self, path: &PATH) -> Option<(&Rc<NAME>, &ITEM)>
     {
-        self.functions
+        self.items
             .get(path)
             .map(|(intern_id, def)| (self._interner.lookup_id(intern_id).unwrap(), def))
     }
 
-    pub fn get_function2(&self, path: &PATH) -> Option<&(ID, DEFINITION)>
+    pub fn get_item2(&self, path: &PATH) -> Option<&(ID, ITEM)>
     {
-        self.functions.get(path)
+        self.items.get(path)
     }
 
-    pub fn get_function_by_idx(&self, idx: usize) -> Option<(&PATH, (&Rc<NAME>, &DEFINITION))>
+    pub fn get_item_by_idx(&self, idx: usize) -> Option<(&PATH, (&Rc<NAME>, &ITEM))>
     {
-        self.functions
+        self.items
             .get_index(idx)
             .map(|(path, (intern_id, def))| {
                 (path, (self._interner.lookup_id(intern_id).unwrap(), def))
             })
     }
 
-    pub fn get_function_by_idx2(&self, idx: usize) -> Option<(&PATH, &(ID, DEFINITION))>
+    pub fn get_item_by_idx2(&self, idx: usize) -> Option<(&PATH, &(ID, ITEM))>
     {
-        self.functions.get_index(idx)
+        self.items.get_index(idx)
     }
 
     pub fn get_name_from_id(&self, id: &ID) -> Option<&Rc<NAME>>
@@ -354,23 +354,23 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
         self._interner.lookup_id(id)
     }
 
-    pub fn get_function_full(&self, path: &PATH) -> Option<(&ID, &Rc<NAME>, &DEFINITION)>
+    pub fn get_item_full(&self, path: &PATH) -> Option<(&ID, &Rc<NAME>, &ITEM)>
     {
-        self.functions.get(path).map(|(id, def)| {
+        self.items.get(path).map(|(id, def)| {
             let name = self._interner.lookup_id(id).unwrap();
 
             (id, name, def)
         })
     }
 
-    pub fn remove(&mut self, key: &PATH, remove_type: RemoveType) -> Option<(ID, DEFINITION)>
+    pub fn remove(&mut self, key: &PATH, remove_type: RemoveType) -> Option<(ID, ITEM)>
     {
         // Remove the function definition on the specified path
         if let Some((id, def)) = {
             // Remove the function the specified way
             match remove_type {
-                RemoveType::Swap => self.functions.swap_remove(key),
-                RemoveType::Shift => self.functions.shift_remove(key),
+                RemoveType::Swap => self.items.swap_remove(key),
+                RemoveType::Shift => self.items.shift_remove(key),
             }
         } {
             // If the function's count is 0, remove the field from the namespace.
@@ -410,30 +410,30 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, DEFINITION> FunctionMap<PATH, NAME, DEFIN
         }
     }
 
-    pub fn iter(&self) -> FunctionMapIterator<'_, PATH, NAME, DEFINITION>
+    pub fn iter(&self) -> PathMapIterator<'_, PATH, NAME, ITEM>
     {
-        FunctionMapIterator {
-            inner_iter: self.functions.iter(),
+        PathMapIterator {
+            inner_iter: self.items.iter(),
             interner: &self._interner,
         }
     }
 
     pub fn len(&self) -> usize
     {
-        self.functions.len()
+        self.items.len()
     }
 }
 
-pub struct FunctionMapIterator<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION>
+pub struct PathMapIterator<'a, PATH: Eq + Hash, NAME: Eq + Hash, ITEM>
 {
-    inner_iter: indexmap::map::Iter<'a, PATH, (ID, DEFINITION)>,
+    inner_iter: indexmap::map::Iter<'a, PATH, (ID, ITEM)>,
     interner: &'a Interner<Rc<NAME>>,
 }
 
-impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, DEFINITION> Iterator
-    for FunctionMapIterator<'a, PATH, NAME, DEFINITION>
+impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
+    for PathMapIterator<'a, PATH, NAME, ITEM>
 {
-    type Item = (&'a PATH, &'a Rc<NAME>, &'a DEFINITION);
+    type Item = (&'a PATH, &'a Rc<NAME>, &'a ITEM);
 
     fn next(&mut self) -> Option<Self::Item>
     {
@@ -452,7 +452,7 @@ pub fn parse_function_call_args(
     debug_infos: &[SpanInfo],
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     mut this_function_args: FunctionArguments,
-    function_signatures: Rc<FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>>,
+    function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
     imported_functions: Rc<HashMap<String, FunctionSignature>>,
     custom_items: Rc<IndexMap<String, CustomItem>>,
     receiver: Option<(&VariableReference, Type, usize)>,

@@ -2,7 +2,7 @@ use crate::{
     codegen::DerefMode,
     error::parser::ParserError,
     parser::{
-        function::{FunctionMap, parse_function_call_args},
+        function::{PathMap, parse_function_call_args},
         variable::resolve_variable_expression,
     },
     tokenizer::Token,
@@ -61,7 +61,7 @@ pub fn parse_value(
     function_tokens_offset: usize,
     debug_infos: &[SpanInfo],
     origin_token_idx: usize,
-    function_signatures: Rc<FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>>,
+    function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
     mut desired_variable_type: Option<Type>,
@@ -82,7 +82,7 @@ pub fn parse_token_as_value(
     debug_infos: &[SpanInfo],
     origin_token_idx: usize,
     // Functions available
-    function_signatures: Rc<FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>>,
+    function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
     // Variables available
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     // The variable's type which we are parsing for
@@ -106,7 +106,7 @@ pub fn init_struct(
     origin_token_idx: usize,
     this_struct_field: &IndexMap<String, Type>,
     this_struct_name: String,
-    function_signatures: Rc<FunctionMap<Vec<String>, String, UnparsedFunctionDefinition>>,
+    function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
     function_imports: Rc<HashMap<String, FunctionSignature>>,
     custom_types: Rc<IndexMap<String, CustomItem>>,
     variable_scope: &mut IndexMap<String, (Type, UniqueId)>,

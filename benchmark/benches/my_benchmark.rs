@@ -13,7 +13,7 @@ use common::{
     ty::OrdSet,
 };
 use criterion::{Criterion, criterion_group, criterion_main};
-use parser::{parser_instance::ParserSettings, tokenizer::tokenize};
+use parser::{parser::ParserSettings, tokenizer::tokenize};
 
 fn criterion_benchmark(c: &mut Criterion) {}
 

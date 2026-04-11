@@ -24,7 +24,7 @@ use common::{
     parser::function::{FunctionDefinition, FunctionSignature},
     tracing::info,
 };
-use parser::parser_instance::ParserSettings;
+use parser::parser::ParserSettings;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, rc::Rc};
 
 use crate::{
