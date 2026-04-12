@@ -86,7 +86,7 @@ impl<T> Spanned<T>
     }
 
     pub fn raise_error<E>(&self, file: PathBuf, error: E) -> SpannedError<E> {
-        return SpannedError { error, file, span: dbg!(self.span) };
+        return SpannedError { error, file, span: self.span };
     }
 }
 
@@ -105,8 +105,14 @@ impl<E: ToString> Into<anyhow::Error> for SpannedError<E> {
 
 impl<E: ToString> Display for SpannedError<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Lets display the whole error first
-        let mut message = self.error.to_string();
+        // Create message buffer
+        let mut message = String::new();
+
+        // Display the location first
+        message.push_str(&format!("{}:{}\n", self.file.display(), self.span.char_start.line));
+
+        // Lets display the whole error next
+        message.push_str(&self.error.to_string());
 
         // Separate the error location from the error
         message.push('\n');
@@ -130,7 +136,7 @@ impl<E: ToString> Display for SpannedError<E> {
                 }
 
                 // Push the error indicators
-                for _ in self.span.char_start.column..self.span.char_end.column - 1 {
+                for _ in self.span.char_start.column..self.span.char_end.column {
                     message.push('^');
                 }
 

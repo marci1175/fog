@@ -83,23 +83,28 @@ impl Settings
         let mut ctx = Context::new();
         let mut tokens: TokenStream<Spanned<Token>> = TokenStream::new(token_list);
 
-        if tokens.is_empty() {
-            return Err(CodeGenError::NoMain.into());
-        }
+        // Check if the source file is empty
+        // if tokens.is_empty() {
+        //     return Err(CodeGenError::NoMain.into());
+        // }
 
         while let Some(tkn) = tokens.consume().cloned() {
             match tkn.inner() {
                 Token::ItemVisibility(vis) => {
+                    // Type of the item
                     let item_tkn = tokens.try_consume(ParserError::ItemTypeExpected)?;
+
+                    // Match the type of the item
                     match item_tkn.inner() {
                         Token::TypeDefinition(item_type) => {
                             match item_type {
-                                common::tokenizer::TypeToken::Enum => parse_enum(&mut ctx, vis),
-                                common::tokenizer::TypeToken::Struct => parse_struct(&mut ctx, vis),
+                                common::tokenizer::TypeToken::Enum => parse_enum(&mut ctx, vis, &mut tokens),
+                                common::tokenizer::TypeToken::Struct => parse_struct(&mut ctx, vis, &mut tokens),
                                 _ => return Err(item_tkn.raise_error(self.root_path.clone(), ParserError::ItemTypeExpected).into())
                             }
                         }
-                        Token::Function => parse_function(&mut ctx, vis),
+                        Token::Function => parse_function(&mut ctx, vis, &mut tokens),
+                        
                         _ => return Err(item_tkn.raise_error(self.root_path.clone(), ParserError::ItemTypeExpected).into())
                     }
                 }
@@ -128,6 +133,14 @@ impl Settings
     }
 }
 
-pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility) {}
-pub fn parse_enum(ctx: &mut Context, vis: &ItemVisibility) {}
-pub fn parse_struct(ctx: &mut Context, vis: &ItemVisibility) {}
+pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) {
+
+}
+
+pub fn parse_enum(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) {
+
+}
+
+pub fn parse_struct(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) {
+
+}
