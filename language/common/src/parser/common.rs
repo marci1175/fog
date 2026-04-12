@@ -60,17 +60,33 @@ impl<T> TokenStream<T>
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
+    /// The function only increments an internal index.
     pub fn consume(&mut self) -> Option<&T> {
         let query = self.buffer.get(self.idx);
-        self.idx += 1;        
+        self.idx += 1;
         return query;
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
+    /// The function only increments an internal index.
+    /// If the tokenstream does not have any more items left, this function will return the provided error.
+    pub fn try_consume<E>(&mut self, error: E) -> Result<&T, E> {
+        let query = self.buffer.get(self.idx).ok_or(error)?;
+        self.idx += 1;       
+        return Ok(query);
+    }
+
+    /// This does not remove the token from the list, therefor it is O(1).
+    /// The function only increments an internal index.
     pub fn consume_bulk(&mut self, nth: usize) -> Option<&[T]> {
         let query = self.buffer.get(self.idx..self.idx + nth);
         self.idx += nth;
         return query;
+    }
+
+    /// Decrement the cursor by `num`. If `num > self.idx` the internal index is zeroed.
+    pub fn decrement_cursor(&mut self, num: usize) {
+        self.idx = self.idx.checked_sub(num).unwrap_or(0);
     }
 
     pub fn get_current(&self) -> Option<&T> {

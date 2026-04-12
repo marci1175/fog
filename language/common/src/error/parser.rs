@@ -124,9 +124,11 @@ pub enum ParserError
     #[error("Array has type `{0:?}` as its initalizer type.")]
     InvalidArrayTypeDefinition(Vec<Token>),
     #[error(
-        "A function must have its visibility explicitly set. Visibility options: `pub`, `publib`, `priv`."
+        "An item must have its visibility explicitly set. Visibility options: `pub`, `publib`, `priv`."
     )]
-    FunctionRequiresExplicitVisibility,
+    ItemRequiresExplicitVisibility,
+    #[error("An item type must be explicitly set. Item types: `function`, `struct`, `enum`... .")]
+    ItemTypeExpected,
     #[error("Token `{0}` is not a valid compiler hint.")]
     InvalidCompilerHint(Token),
     #[error(

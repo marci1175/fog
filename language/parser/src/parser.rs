@@ -9,7 +9,7 @@ use common::{
     dashmap::DashMap,
     error::{SpanInfo, Spanned, codegen::CodeGenError, parser::ParserError},
     indexmap::IndexMap,
-    parser::{common::TokenStream, function::{
+    parser::{common::{ItemVisibility, TokenStream}, function::{
         FunctionDefinition, FunctionSignature, PathMap,
         UnparsedFunctionDefinition,
     }},
@@ -52,9 +52,6 @@ pub struct Settings
 impl Settings
 {
     /*
-        REEEEEEEEEEEEEEEEEEEECOOOOOOOOODE
-
-        ---------Fuck all this---------
         TODO: recode importing stuff
 
         First of all, remove the extra logic from here relating to dependencies
@@ -90,14 +87,25 @@ impl Settings
             return Err(CodeGenError::NoMain.into());
         }
 
-        while let Some(tkn) = tokens.consume() {
+        while let Some(tkn) = tokens.consume().cloned() {
             match tkn.inner() {
                 Token::ItemVisibility(vis) => {
-                    
+                    let item_tkn = tokens.try_consume(ParserError::ItemTypeExpected)?;
+                    match item_tkn.inner() {
+                        Token::TypeDefinition(item_type) => {
+                            match item_type {
+                                common::tokenizer::TypeToken::Enum => parse_enum(&mut ctx, vis),
+                                common::tokenizer::TypeToken::Struct => parse_struct(&mut ctx, vis),
+                                _ => return Err(item_tkn.raise_error(self.root_path.clone(), ParserError::ItemTypeExpected).into())
+                            }
+                        }
+                        Token::Function => parse_function(&mut ctx, vis),
+                        _ => return Err(item_tkn.raise_error(self.root_path.clone(), ParserError::ItemTypeExpected).into())
+                    }
                 }
 
                 // If the token was not recognized, return an error.
-                _ => return Err(tkn.raise_error(self.root_path.clone(), ParserError::UnexpectedToken).into())
+                _ => return Err(tkn.raise_error(self.root_path.clone(), ParserError::ItemRequiresExplicitVisibility).into())
             }
         }
 
@@ -119,3 +127,7 @@ impl Settings
         }
     }
 }
+
+pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility) {}
+pub fn parse_enum(ctx: &mut Context, vis: &ItemVisibility) {}
+pub fn parse_struct(ctx: &mut Context, vis: &ItemVisibility) {}

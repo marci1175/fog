@@ -211,7 +211,7 @@ pub fn parse_functions(
             }
         }
         else if current_token == Token::Function {
-            return Err(ParserError::FunctionRequiresExplicitVisibility.into());
+            return Err(ParserError::ItemRequiresExplicitVisibility.into());
         }
         else {
             return Err(ParserError::InvalidImplItem.into());
