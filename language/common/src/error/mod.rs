@@ -1,4 +1,4 @@
-use std::{fmt::Display, fs, path::PathBuf};
+use std::{fmt::Display, fs, ops::Deref, path::PathBuf};
 
 use anyhow::Error;
 
@@ -87,6 +87,14 @@ impl<T> Spanned<T>
 
     pub fn raise_error<E>(&self, file: PathBuf, error: E) -> SpannedError<E> {
         return SpannedError { error, file, span: self.span };
+    }
+}
+
+impl<T> Deref for Spanned<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner()
     }
 }
 

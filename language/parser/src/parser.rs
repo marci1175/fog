@@ -3,7 +3,7 @@ use std::{
 };
 
 use common::{
-    anyhow::Result,
+    anyhow::{self, Result},
     codegen::CustomItem,
     compiler::ProjectConfig,
     dashmap::DashMap,
@@ -13,7 +13,7 @@ use common::{
         FunctionDefinition, FunctionSignature, PathMap,
         UnparsedFunctionDefinition,
     }},
-    tokenizer::Token,
+    tokenizer::{Token, TokenDiscriminants},
     ty::OrdSet,
 };
 
@@ -74,43 +74,38 @@ impl Settings
         imma change some of the syntax for example imma make it so that i can do `pub import "blabla.f", so that i can bring path into scope.`
     */
 
-    pub fn parse(&self, token_list: Vec<Spanned<Token>>) -> Result<()>
+    pub fn parse(&self, tokens: &mut TokenStream<Spanned<Token>>) -> Result<()>
     {
         // The first step should be parsing the top level items, such as structs, functions, enums.
         // We will store all the items present, and parse the inner contents of the function later.
         // By doing this, the compiler wont be single pass anymore and the sequence of function declarations wont be important.
         // Im gonna first parse the entire main file and then work out/parse all the other files which were linked.
         let mut ctx = Context::new();
-        let mut tokens: TokenStream<Spanned<Token>> = TokenStream::new(token_list);
 
-        // Check if the source file is empty
-        // if tokens.is_empty() {
-        //     return Err(CodeGenError::NoMain.into());
-        // }
-
+        // Parse the actual tokens
         while let Some(tkn) = tokens.consume().cloned() {
             match tkn.inner() {
                 Token::ItemVisibility(vis) => {
                     // Type of the item
-                    let item_tkn = tokens.try_consume(ParserError::ItemTypeExpected)?;
+                    let item_tkn = tokens.try_consume_match(ParserError::ItemTypeExpected, &TokenDiscriminants::TypeDefinition)?;
 
                     // Match the type of the item
                     match item_tkn.inner() {
                         Token::TypeDefinition(item_type) => {
                             match item_type {
-                                common::tokenizer::TypeToken::Enum => parse_enum(&mut ctx, vis, &mut tokens),
-                                common::tokenizer::TypeToken::Struct => parse_struct(&mut ctx, vis, &mut tokens),
-                                _ => return Err(item_tkn.raise_error(self.root_path.clone(), ParserError::ItemTypeExpected).into())
+                                common::tokenizer::TypeToken::Enum => parse_enum(&mut ctx, vis, tokens),
+                                common::tokenizer::TypeToken::Struct => parse_struct(&mut ctx, vis, tokens),
+                                common::tokenizer::TypeToken::Function => parse_function(&mut ctx, vis, tokens)?,
+                                _ => return Err(ParserError::ItemTypeExpected.into())
                             }
                         }
-                        Token::Function => parse_function(&mut ctx, vis, &mut tokens),
                         
-                        _ => return Err(item_tkn.raise_error(self.root_path.clone(), ParserError::ItemTypeExpected).into())
+                        _ => return Err(ParserError::ItemTypeExpected.into())
                     }
                 }
 
                 // If the token was not recognized, return an error.
-                _ => return Err(tkn.raise_error(self.root_path.clone(), ParserError::ItemRequiresExplicitVisibility).into())
+                _ => return Err(ParserError::ItemRequiresExplicitVisibility.into())
             }
         }
 
@@ -133,8 +128,11 @@ impl Settings
     }
 }
 
-pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) {
+///
+pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) -> anyhow::Result<()> {
+    let ident = tokens.try_consume_match(ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidFunctionName), &TokenDiscriminants::Identifier)?;
 
+    Ok(())
 }
 
 pub fn parse_enum(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) {

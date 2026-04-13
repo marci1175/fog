@@ -8,7 +8,7 @@ use crate::{
     ty::Type,
 };
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
     #[error("Unexpected token placement.")]

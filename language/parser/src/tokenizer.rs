@@ -280,7 +280,7 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"true" => Token::Literal(Value::Boolean(true)),
         b"external" => Token::External,
         b"import" => Token::Import,
-        b"function" => Token::Function,
+        b"function" => Token::TypeDefinition(TypeToken::Function),
         b"return" => Token::Return,
         b"as" => Token::As,
         b"if" => Token::If,

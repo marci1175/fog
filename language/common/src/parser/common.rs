@@ -70,8 +70,15 @@ impl<T> TokenStream<T>
     /// This does not remove the token from the list, therefor it is O(1).
     /// The function only increments an internal index.
     /// If the tokenstream does not have any more items left, this function will return the provided error.
-    pub fn try_consume<E>(&mut self, error: E) -> Result<&T, E> {
-        let query = self.buffer.get(self.idx).ok_or(error)?;
+    pub fn try_consume_match<E: Clone, D>(&mut self, error: E, discriminant: &D) -> Result<&T, E>
+    where
+    T: PartialEq<D> {
+        let query = self.buffer.get(self.idx).ok_or(error.clone())?;
+
+        if query != discriminant {
+            return Err(error);
+        }
+
         self.idx += 1;       
         return Ok(query);
     }
@@ -89,8 +96,8 @@ impl<T> TokenStream<T>
         self.idx = self.idx.checked_sub(num).unwrap_or(0);
     }
 
-    pub fn get_current(&self) -> Option<&T> {
-        self.buffer.get(self.idx)
+    pub fn get_last_consumed(&self) -> Option<&T> {
+        self.buffer.get(self.idx - 1)
     }
     
     pub fn idx_mut(&mut self) -> &mut usize {

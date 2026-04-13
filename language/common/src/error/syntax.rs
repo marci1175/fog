@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum SyntaxError
 {
     #[error("The namespace's body was defined incorrectly. (Check brackets and keyword order.)")]

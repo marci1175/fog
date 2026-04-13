@@ -6,21 +6,14 @@ use std::{
 
 use codegen::llvm_codegen;
 use common::{
-    anyhow::{self, Result},
-    compiler::ProjectConfig,
-    error::{application::ApplicationError, codegen::CodeGenError},
-    inkwell::{
+    anyhow::{self, Result}, compiler::ProjectConfig, error::{application::ApplicationError, codegen::CodeGenError}, inkwell::{
         context::Context,
         llvm_sys::target::{
             LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters,
             LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets,
         },
         targets::{TargetMachine, TargetTriple},
-    },
-    linker::BuildManifest,
-    toml,
-    tracing::info,
-    ty::{OrdSet, Type},
+    }, linker::BuildManifest, parser::common::TokenStream, toml, tracing::info, ty::{OrdSet, Type}
 };
 use imports::list_manager::create_dependency_functions_list;
 use parser::{parser::Settings, tokenizer::tokenize};
@@ -76,7 +69,7 @@ impl CompilerState
 
         info!("Tokenizing...");
 
-        let tokens = tokenize(file_contents)?;
+        let mut tokens = TokenStream::new(tokenize(file_contents)?);
 
         // info!("Creating LLVM context...");
         // let context = Context::create();
@@ -147,7 +140,14 @@ impl CompilerState
             PathBuf::from(format!("{path_to_src}\\main.f")),
         );
 
-        parser_settings.parse(tokens)?;
+        match parser_settings.parse(&mut tokens) {
+            Ok(ret) => {},
+            Err(error) => {
+                let spanned_err = tokens.get_last_consumed().map(|tkn| tkn.raise_error(parser_settings.root_path, error)).unwrap();
+
+                return Err(spanned_err.into());
+            },
+        }
 
         // let function_table = parser.function_table();
         // let imported_functions = parser.imported_functions().clone();
