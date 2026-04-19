@@ -70,7 +70,7 @@ doggo implements dog {
     }
 }
 
-pub function do_something |H <- human, D <- dog| (human: H, dog: D): void {
+pub function do_something |H: human, D: dog| (human: H, dog: D): void {
     human.talk();
     dog.bark();
 }

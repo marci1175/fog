@@ -43,7 +43,7 @@ pub function name_2(arg1: int, arg2: float): int {
 > Generics can also be used in function arguments to help with the object-orientedness of the language.
 
 ```fog
-pub function foo |<generic's name> <- <trait1> + <trait2>, <...>|: int {
+pub function foo |<generic's name>: <trait1> + <trait2>, <...>|: int {
     foo.trait1_fn()
 }
 ```

@@ -11,7 +11,7 @@ use common::{
     indexmap::IndexMap,
     parser::{common::{ItemVisibility, TokenStream}, function::{
         FunctionDefinition, FunctionSignature, PathMap,
-        UnparsedFunctionDefinition,
+        UnparsedFunctionDefinition, parse_signature_argument_tokens,
     }},
     tokenizer::{Token, TokenDiscriminants},
     ty::OrdSet,
@@ -130,10 +130,27 @@ impl Settings
 
 ///
 pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) -> anyhow::Result<()> {
+    // Get the function name token
     let function_name_tkn = tokens.try_consume_match(ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidFunctionName), &TokenDiscriminants::Identifier)?;
+    // Parse function name, its safe to unwrap here
     let function_name = function_name_tkn.try_as_identifier_ref().unwrap();
 
-    
+    //Parse the arguments of the function
+    // If the first token is a '|' that means the function has generics defined
+    // If the first token is a '(' that means that its just a normal function
+    if let Some(first_token) = tokens.consume() {
+        match first_token.inner() {
+            // Parse generics before arguments
+            Token::BitOr => {
+                
+            },
+            // Parse arguments
+            Token::OpenParentheses => {
+                
+            },
+            _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into())
+        }
+    }
 
     Ok(())
 }
