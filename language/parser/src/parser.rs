@@ -130,7 +130,10 @@ impl Settings
 
 ///
 pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) -> anyhow::Result<()> {
-    let ident = tokens.try_consume_match(ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidFunctionName), &TokenDiscriminants::Identifier)?;
+    let function_name_tkn = tokens.try_consume_match(ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidFunctionName), &TokenDiscriminants::Identifier)?;
+    let function_name = function_name_tkn.try_as_identifier_ref().unwrap();
+
+    
 
     Ok(())
 }
