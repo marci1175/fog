@@ -15,7 +15,8 @@ use crate::{
     indexmap::IndexMap,
     parser::{
         common::{
-            ItemVisibility, ParsedToken, ParsedTokenInstance, find_closing_comma, find_closing_paren, find_next_bitor
+            ItemVisibility, ParsedToken, ParsedTokenInstance, find_closing_comma,
+            find_closing_paren, find_next_bitor,
         },
         value::parse_value,
         variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
@@ -733,9 +734,7 @@ pub fn parse_fn_generics(
                                         // Check if there are more tokens to parse after the `+`, if not we should raise an error
                                         if idx >= traits_slice.len() {
                                             return Err(ParserError::SyntaxError(
-                                                SyntaxError::InvalidFunctionGenericsDefinition(
-                                                    Token::Addition,
-                                                ),
+                                                SyntaxError::InvalidFunctionGenericsDefinition, // Token::Addition,
                                             )
                                             .into());
                                         }
@@ -751,12 +750,9 @@ pub fn parse_fn_generics(
                                     },
                                     // If there is a different token that means that the syntax doesnt match
                                     Some(tkn) => {
-                                        return Err(
-                                            SyntaxError::InvalidFunctionGenericsDefinition(
-                                                tkn.clone(),
-                                            )
-                                            .into(),
-                                        );
+                                        return Err(SyntaxError::InvalidFunctionGenericsDefinition
+                                            // tkn.clone(),
+                                            .into());
                                     },
                                     _ => break 'traits_loop,
                                 }
@@ -776,10 +772,9 @@ pub fn parse_fn_generics(
                     // Check syntax validity
                     match traits_slice.get(idx) {
                         Some(tkn) => {
-                            return Err(SyntaxError::InvalidFunctionGenericsDefinition(
-                                tkn.clone(),
-                            )
-                            .into());
+                            return Err(SyntaxError::InvalidFunctionGenericsDefinition
+                                // tkn.clone(),
+                                .into());
                         },
                         _ => break 'traits_loop,
                     }

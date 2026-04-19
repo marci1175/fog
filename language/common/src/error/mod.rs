@@ -77,47 +77,65 @@ impl<T> Spanned<T>
         Self { inner, span }
     }
 
-    pub fn get_span(&self) -> &SpanInfo {
+    pub fn get_span(&self) -> &SpanInfo
+    {
         &self.span
     }
-    
-    pub fn inner(&self) -> &T {
+
+    pub fn inner(&self) -> &T
+    {
         &self.inner
     }
 
-    pub fn raise_error<E>(&self, file: PathBuf, error: E) -> SpannedError<E> {
-        return SpannedError { error, file, span: self.span };
+    pub fn raise_error<E>(&self, file: PathBuf, error: E) -> SpannedError<E>
+    {
+        return SpannedError {
+            error,
+            file,
+            span: self.span,
+        };
     }
 }
 
-impl<T> Deref for Spanned<T> {
+impl<T> Deref for Spanned<T>
+{
     type Target = T;
 
-    fn deref(&self) -> &Self::Target {
+    fn deref(&self) -> &Self::Target
+    {
         self.inner()
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct SpannedError<E> {
+pub struct SpannedError<E>
+{
     error: E,
     file: PathBuf,
     span: SpanInfo,
 }
 
-impl<E: ToString> Into<anyhow::Error> for SpannedError<E> {
-    fn into(self) -> anyhow::Error {
+impl<E: ToString> Into<anyhow::Error> for SpannedError<E>
+{
+    fn into(self) -> anyhow::Error
+    {
         Error::msg(self.to_string())
     }
 }
 
-impl<E: ToString> Display for SpannedError<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<E: ToString> Display for SpannedError<E>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
         // Create message buffer
         let mut message = String::new();
 
         // Display the location first
-        message.push_str(&format!("{}:{}\n", self.file.display(), self.span.char_start.line));
+        message.push_str(&format!(
+            "{}:{}\n",
+            self.file.display(),
+            self.span.char_start.line
+        ));
 
         // Lets display the whole error next
         message.push_str(&self.error.to_string());
@@ -133,7 +151,7 @@ impl<E: ToString> Display for SpannedError<E> {
             if self.span.char_end.line == self.span.char_start.line {
                 // Fetch the relevant line
                 let relevant_line = lines.nth(self.span.char_start.line - 1).unwrap_or_default();
-                
+
                 // Store the relevant line
                 message.push_str(relevant_line);
                 message.push('\n');
@@ -154,7 +172,9 @@ impl<E: ToString> Display for SpannedError<E> {
             else {
                 // These are the lines which need to be printed fully.
                 let iterator_len = self.span.char_end.line - self.span.char_start.line;
-                let mut relevant_lines = lines.skip(self.span.char_start.line - 1).take(iterator_len + 1);
+                let mut relevant_lines = lines
+                    .skip(self.span.char_start.line - 1)
+                    .take(iterator_len + 1);
 
                 // The first line should be printed from the beginning of the span's column
                 let first_line = relevant_lines.next().unwrap_or_default();
@@ -172,20 +192,20 @@ impl<E: ToString> Display for SpannedError<E> {
                 for _ in self.span.char_start.column..first_line.len() {
                     message.push('^');
                 }
-                
+
                 message.push('\n');
 
                 // Iterate over all the lines pushing the error indicators too, but leave out the last line
                 for (idx, line) in relevant_lines.enumerate() {
-                    // Check if this is the last line 
+                    // Check if this is the last line
                     if idx + 1 == iterator_len {
                         message.push_str(line);
-                
+
                         // Push the error indicators
                         for _ in 0..self.span.char_end.column - 1 {
                             message.push('^');
                         }
-    
+
                         message.push('\n');
 
                         continue;
@@ -193,7 +213,7 @@ impl<E: ToString> Display for SpannedError<E> {
 
                     message.push_str(line);
                     message.push('\n');
-                    
+
                     for _ in 0..line.len() {
                         message.push('^');
                     }

@@ -11,7 +11,9 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
-    #[error("When defining a function, after the function name the generics or arguments must follow in the following order. <vis> function <name> [|[<generic name>: [<trait name>]]|] ([<argument name>: <type>])")]
+    #[error(
+        "When defining a function, after the function name the generics or arguments must follow in the following order. <vis> function <name> [|[<generic name>: [<trait name>]]|] ([<argument name>: <type>])"
+    )]
     InvalidFunctionArgumentDefinition,
     #[error("Unexpected token placement.")]
     UnexpectedToken,

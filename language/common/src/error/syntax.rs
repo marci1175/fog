@@ -14,9 +14,9 @@ pub enum SyntaxError
     #[error("A comma was expected in the code but was not found.")]
     CommaNotFound,
     #[error(
-        "Unexpected token: `{0}`. Function generics should be defined as such: <fn-name>|T <- Foo + Bar, Baz <- Foo|(<args>). Generics can only implement traits."
+        "Function generics should be defined as such: <fn-name>|T: Foo + Bar, Baz: Foo|(<args>). Generics can only implement traits."
     )]
-    InvalidFunctionGenericsDefinition(Token),
+    InvalidFunctionGenericsDefinition,
     #[error("There is a missing comma in the function's call arguments.")]
     MissingCommaInFnCall,
     #[error(

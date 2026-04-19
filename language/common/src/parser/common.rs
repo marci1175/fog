@@ -48,7 +48,10 @@ impl<T> TokenStream<T>
 {
     pub fn new(tokens: Vec<T>) -> Self
     {
-        Self { buffer: tokens, idx: 0 }
+        Self {
+            buffer: tokens,
+            idx: 0,
+        }
     }
 
     pub fn peek(&self, nth: isize) -> Option<&T>
@@ -61,7 +64,8 @@ impl<T> TokenStream<T>
 
     /// This does not remove the token from the list, therefor it is O(1).
     /// The function only increments an internal index.
-    pub fn consume(&mut self) -> Option<&T> {
+    pub fn consume(&mut self) -> Option<&T>
+    {
         let query = self.buffer.get(self.idx);
         self.idx += 1;
         return query;
@@ -72,51 +76,60 @@ impl<T> TokenStream<T>
     /// If the tokenstream does not have any more items left, this function will return the provided error.
     pub fn try_consume_match<E: Clone, D>(&mut self, error: E, discriminant: &D) -> Result<&T, E>
     where
-    T: PartialEq<D> {
+        T: PartialEq<D>,
+    {
         let query = self.buffer.get(self.idx).ok_or(error.clone())?;
 
         if query != discriminant {
             return Err(error);
         }
 
-        self.idx += 1;       
+        self.idx += 1;
         return Ok(query);
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
     /// The function only increments an internal index.
-    pub fn consume_bulk(&mut self, nth: usize) -> Option<&[T]> {
+    pub fn consume_bulk(&mut self, nth: usize) -> Option<&[T]>
+    {
         let query = self.buffer.get(self.idx..self.idx + nth);
         self.idx += nth;
         return query;
     }
 
     /// Decrement the cursor by `num`. If `num > self.idx` the internal index is zeroed.
-    pub fn decrement_cursor(&mut self, num: usize) {
+    pub fn decrement_cursor(&mut self, num: usize)
+    {
         self.idx = self.idx.checked_sub(num).unwrap_or(0);
     }
 
-    pub fn get_last_consumed(&self) -> Option<&T> {
+    pub fn get_last_consumed(&self) -> Option<&T>
+    {
         self.buffer.get(self.idx - 1)
     }
-    
-    pub fn idx_mut(&mut self) -> &mut usize {
+
+    pub fn idx_mut(&mut self) -> &mut usize
+    {
         &mut self.idx
     }
-    
-    pub fn tokens_mut(&mut self) -> &mut Vec<T> {
+
+    pub fn tokens_mut(&mut self) -> &mut Vec<T>
+    {
         &mut self.buffer
     }
-    
-    pub const fn len(&self) -> usize {
+
+    pub const fn len(&self) -> usize
+    {
         self.buffer.len()
     }
-    
-    pub fn idx(&self) -> usize {
+
+    pub fn idx(&self) -> usize
+    {
         self.idx
     }
-    
-    pub const fn is_empty(&self) -> bool {
+
+    pub const fn is_empty(&self) -> bool
+    {
         self.buffer.is_empty()
     }
 }

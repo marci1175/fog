@@ -1,5 +1,7 @@
 use std::{
-    collections::{HashMap, HashSet}, path::PathBuf, rc::Rc
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    rc::Rc,
 };
 
 use common::{
@@ -9,12 +11,15 @@ use common::{
     dashmap::DashMap,
     error::{SpanInfo, Spanned, codegen::CodeGenError, parser::ParserError},
     indexmap::IndexMap,
-    parser::{common::{ItemVisibility, TokenStream}, function::{
-        FunctionDefinition, FunctionSignature, PathMap,
-        UnparsedFunctionDefinition, parse_signature_argument_tokens,
-    }},
+    parser::{
+        common::{ItemVisibility, TokenStream},
+        function::{
+            FunctionArguments, FunctionDefinition, FunctionSignature, PathMap,
+            UnparsedFunctionDefinition, parse_signature_argument_tokens,
+        },
+    },
     tokenizer::{Token, TokenDiscriminants},
-    ty::OrdSet,
+    ty::{OrdMap, OrdSet},
 };
 
 #[derive(Clone, Debug)]
@@ -87,25 +92,34 @@ impl Settings
             match tkn.inner() {
                 Token::ItemVisibility(vis) => {
                     // Type of the item
-                    let item_tkn = tokens.try_consume_match(ParserError::ItemTypeExpected, &TokenDiscriminants::TypeDefinition)?;
+                    let item_tkn = tokens.try_consume_match(
+                        ParserError::ItemTypeExpected,
+                        &TokenDiscriminants::TypeDefinition,
+                    )?;
 
                     // Match the type of the item
                     match item_tkn.inner() {
                         Token::TypeDefinition(item_type) => {
                             match item_type {
-                                common::tokenizer::TypeToken::Enum => parse_enum(&mut ctx, vis, tokens),
-                                common::tokenizer::TypeToken::Struct => parse_struct(&mut ctx, vis, tokens),
-                                common::tokenizer::TypeToken::Function => parse_function(&mut ctx, vis, tokens)?,
-                                _ => return Err(ParserError::ItemTypeExpected.into())
+                                common::tokenizer::TypeToken::Enum => {
+                                    parse_enum(&mut ctx, vis, tokens)
+                                },
+                                common::tokenizer::TypeToken::Struct => {
+                                    parse_struct(&mut ctx, vis, tokens)
+                                },
+                                common::tokenizer::TypeToken::Function => {
+                                    parse_function(&mut ctx, vis, tokens)?
+                                },
+                                _ => return Err(ParserError::ItemTypeExpected.into()),
                             }
-                        }
-                        
-                        _ => return Err(ParserError::ItemTypeExpected.into())
+                        },
+
+                        _ => return Err(ParserError::ItemTypeExpected.into()),
                     }
-                }
+                },
 
                 // If the token was not recognized, return an error.
-                _ => return Err(ParserError::ItemRequiresExplicitVisibility.into())
+                _ => return Err(ParserError::ItemRequiresExplicitVisibility.into()),
             }
         }
 
@@ -128,12 +142,28 @@ impl Settings
     }
 }
 
+/*
+
+    All of these functions should be moved to the `common` library.
+
+*/
+
 ///
-pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) -> anyhow::Result<()> {
+pub fn parse_function(
+    ctx: &mut Context,
+    vis: &ItemVisibility,
+    tokens: &mut TokenStream<Spanned<Token>>,
+) -> anyhow::Result<()>
+{
     // Get the function name token
-    let function_name_tkn = tokens.try_consume_match(ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidFunctionName), &TokenDiscriminants::Identifier)?;
+    let function_name_tkn = tokens.try_consume_match(
+        ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidFunctionName),
+        &TokenDiscriminants::Identifier,
+    )?;
     // Parse function name, its safe to unwrap here
     let function_name = function_name_tkn.try_as_identifier_ref().unwrap();
+
+    let mut arguments = FunctionArguments::new();
 
     //Parse the arguments of the function
     // If the first token is a '|' that means the function has generics defined
@@ -142,23 +172,71 @@ pub fn parse_function(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut Toke
         match first_token.inner() {
             // Parse generics before arguments
             Token::BitOr => {
-                
+                parse_fn_generics(ctx, &mut arguments, tokens)?;
+                parse_fn_arguments(ctx, &mut arguments, tokens)?;
             },
             // Parse arguments
-            Token::OpenParentheses => {
-                
-            },
-            _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into())
+            Token::OpenParentheses => parse_fn_arguments(ctx, &mut arguments, tokens)?,
+            _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
 
     Ok(())
 }
 
-pub fn parse_enum(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) {
+/// The function assumes the first token to be the first token in the `|`s.
+pub fn parse_fn_generics(
+    ctx: &mut Context,
+    arguments: &mut FunctionArguments,
+    tokens: &mut TokenStream<Spanned<Token>>,
+) -> anyhow::Result<()>
+{
+    let mut generics: OrdMap<String, OrdSet<Vec<String>>> = OrdMap::new();
+    
+    /*
+        Syntax definition:
 
+        {
+            <generic> ":" { { <trait> ["+"] } [","] } [","]
+        }
+    */
+    // Lets loop through all the generics
+    while let Some(tkn) = tokens.consume() {
+        match tkn.inner() {
+            Token::Identifier(generic_name) => {},
+            // If we encounter the closing `|` break the loop
+            Token::BitOr => break,
+
+            _ => {
+                return Err(ParserError::SyntaxError(
+                    common::error::syntax::SyntaxError::InvalidFunctionGenericsDefinition,
+                )
+                .into());
+            },
+        }
+    }
+
+    Ok(())
 }
 
-pub fn parse_struct(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>) {
+/// The function assumes the first token to be the first token in the parentheses.
+pub fn parse_fn_arguments(
+    ctx: &mut Context,
+    arguments: &mut FunctionArguments,
+    tokens: &mut TokenStream<Spanned<Token>>,
+) -> anyhow::Result<()>
+{
+    Ok(())
+}
 
+pub fn parse_enum(ctx: &mut Context, vis: &ItemVisibility, tokens: &mut TokenStream<Spanned<Token>>)
+{
+}
+
+pub fn parse_struct(
+    ctx: &mut Context,
+    vis: &ItemVisibility,
+    tokens: &mut TokenStream<Spanned<Token>>,
+)
+{
 }

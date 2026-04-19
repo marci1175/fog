@@ -13,12 +13,15 @@ use common::{
     error::{SpanInfo, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        common::{ItemVisibility, ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
+        common::{
+            ItemVisibility, ParsedToken, ParsedTokenInstance, find_closing_braces,
+            find_closing_paren,
+        },
         dbg::fetch_and_merge_debug_information,
         function::{
-            self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionSignature,
-            PathMap, UnparsedFunctionDefinition, parse_fn_generics,
-            parse_function_call_args, parse_signature_argument_tokens,
+            self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap,
+            UnparsedFunctionDefinition, parse_fn_generics, parse_function_call_args,
+            parse_signature_argument_tokens,
         },
         import::parse_import_path,
         value::parse_value,

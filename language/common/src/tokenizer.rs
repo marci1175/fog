@@ -1,12 +1,14 @@
-use strum::{EnumDiscriminants, EnumTryAs};
 use crate::{
     error::{SpanInfo, Spanned},
     parser::{common::ItemVisibility, function::CompilerHint},
     ty::{Type, Value},
 };
+use strum::{EnumDiscriminants, EnumTryAs};
 
 /// The basic output type of the tokenizer.
-#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumTryAs, EnumDiscriminants)]
+#[derive(
+    Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumTryAs, EnumDiscriminants,
+)]
 pub enum Token
 {
     Literal(Value),
@@ -88,7 +90,7 @@ pub enum Token
     Trait,
     This,
 
-    ItemVisibility(ItemVisibility),       
+    ItemVisibility(ItemVisibility),
 
     CompilerHintSymbol, // @
     CompilerHint(CompilerHint),
@@ -104,14 +106,18 @@ pub enum Token
     Namespace,
 }
 
-impl PartialEq<TokenDiscriminants> for Spanned<Token> {
-    fn eq(&self, other: &TokenDiscriminants) -> bool {
+impl PartialEq<TokenDiscriminants> for Spanned<Token>
+{
+    fn eq(&self, other: &TokenDiscriminants) -> bool
+    {
         self.inner() == other
     }
 }
 
-impl PartialEq<TokenDiscriminants> for Token {
-    fn eq(&self, other: &TokenDiscriminants) -> bool {
+impl PartialEq<TokenDiscriminants> for Token
+{
+    fn eq(&self, other: &TokenDiscriminants) -> bool
+    {
         match self {
             Token::Literal(_) => other == &TokenDiscriminants::Literal,
             Token::UnparsedLiteral(_) => other == &TokenDiscriminants::UnparsedLiteral,
