@@ -11,6 +11,8 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("[INTERNAL ERROR] A compiler instruction was expected in the TokenStream.")]
+    InternalCompilerInstructionExpected,
     #[error(
         "When defining a function, after the function name the generics or arguments must follow in the following order. <vis> function <name> [|[<generic name>: [<trait name>]]|] ([<argument name>: <type>])"
     )]
@@ -134,9 +136,9 @@ pub enum ParserError
     #[error("Token `{0}` is not a valid compiler hint.")]
     InvalidCompilerHint(Token),
     #[error(
-        "Function is only enabled when feature `{0:?}` is enabled, which is an invalid feature."
+        "Function is only enabled when the specific feature is enabled, which is an invalid feature."
     )]
-    InvalidFunctionFeature(Option<Token>),
+    InvalidFunctionFeature,
     #[error(
         "Function requires feature `{0}` to be enabled but project only has features `{1:?}` enabled."
     )]

@@ -2424,7 +2424,7 @@ pub fn add_compiler_hints_to_fn(
 
                 function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
             },
-            CompilerInstruction::Feature => {
+            CompilerInstruction::Feature(_) => {
                 return Err(
                     CodeGenError::InternalFunctionCompilerHintParsingError(hint.clone()).into(),
                 );

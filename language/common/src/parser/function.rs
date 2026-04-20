@@ -7,6 +7,7 @@ use std::{
 };
 
 use bimap::BiMap;
+use strum::EnumDiscriminants;
 
 use crate::{
     anyhow::{self, Result},
@@ -110,7 +111,8 @@ impl FunctionArguments
     }
 }
 
-#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumDiscriminants)]
+#[strum_discriminants(derive(Hash))]
 pub enum CompilerInstruction
 {
     /// See llvm function attributes
@@ -120,7 +122,19 @@ pub enum CompilerInstruction
     NoUnWind,
 
     /// Feature flag to only enable compilation of the function if a certain function is enabled
-    Feature,
+    Feature(String),
+}
+
+impl Into<CompilerInstruction> for CompilerInstructionDiscriminants {
+    fn into(self) -> CompilerInstruction {
+        match self {
+            CompilerInstructionDiscriminants::Cold => CompilerInstruction::Cold,
+            CompilerInstructionDiscriminants::NoFree => CompilerInstruction::NoFree,
+            CompilerInstructionDiscriminants::Inline => CompilerInstruction::Inline,
+            CompilerInstructionDiscriminants::NoUnWind => CompilerInstruction::NoUnWind,
+            CompilerInstructionDiscriminants::Feature => CompilerInstruction::Feature(String::new()),
+        }
+    }
 }
 
 /// Allows us to create associations based on values.

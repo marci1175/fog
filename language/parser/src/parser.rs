@@ -14,7 +14,7 @@ use common::{
     parser::{
         common::{ItemVisibility, TokenStream},
         function::{
-            CompilerInstruction, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap, UnparsedFunctionDefinition, parse_signature_argument_tokens
+            CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap, UnparsedFunctionDefinition, parse_signature_argument_tokens
         },
     },
     tokenizer::{Token, TokenDiscriminants},
@@ -295,15 +295,18 @@ pub fn parse_compiler_instruction(instr_buf: &mut OrdSet<CompilerInstruction>, t
         match tkn.inner() {
             Token::CompilerInstruction(instr) => {
                 // If this is a feature that means the next token should be a string referencing the feature name.
-                if instr == CompilerInstruction::Feature {
-
+                if instr == &CompilerInstructionDiscriminants::Feature {
+                    // Its safe to unwrap since we are already checking inside the try consume
+                    let feature_name = tokens.try_consume_match(ParserError::InvalidFunctionFeature, &TokenDiscriminants::Identifier)?.try_as_identifier_ref().unwrap();
+                    
+                    instr_buf.insert(CompilerInstruction::Feature(feature_name.clone()));
                 }
                 // If its not a feature we can just store the instruction as is.
                 else {
-
+                    instr_buf.insert((*instr).into());
                 }
             }
-            _ => {}
+            _ => return Err(ParserError::SyntaxError(common::error::syntax::SyntaxError::CompilerInstructionRequiredAfterSymbol).into()),
         }
     }
     else {

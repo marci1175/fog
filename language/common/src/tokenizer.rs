@@ -1,6 +1,6 @@
 use crate::{
     error::{SpanInfo, Spanned},
-    parser::{common::ItemVisibility, function::CompilerInstruction},
+    parser::{common::ItemVisibility, function::{CompilerInstruction, CompilerInstructionDiscriminants}},
     ty::{Type, Value},
 };
 use strum::{EnumDiscriminants, EnumTryAs};
@@ -93,7 +93,7 @@ pub enum Token
     ItemVisibility(ItemVisibility),
 
     CompilerHintSymbol, // @
-    CompilerInstruction(CompilerInstruction),
+    CompilerInstruction(CompilerInstructionDiscriminants),
 
     /// Used to expose functions from a module into another one.
     Export,
