@@ -19,7 +19,7 @@ use common::{
         },
         dbg::fetch_and_merge_debug_information,
         function::{
-            self, CompilerHint, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap,
+            self, CompilerInstruction, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap,
             UnparsedFunctionDefinition, parse_fn_generics, parse_function_call_args,
             parse_signature_argument_tokens,
         },

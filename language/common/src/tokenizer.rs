@@ -1,6 +1,6 @@
 use crate::{
     error::{SpanInfo, Spanned},
-    parser::{common::ItemVisibility, function::CompilerHint},
+    parser::{common::ItemVisibility, function::CompilerInstruction},
     ty::{Type, Value},
 };
 use strum::{EnumDiscriminants, EnumTryAs};
@@ -93,7 +93,7 @@ pub enum Token
     ItemVisibility(ItemVisibility),
 
     CompilerHintSymbol, // @
-    CompilerHint(CompilerHint),
+    CompilerInstruction(CompilerInstruction),
 
     /// Used to expose functions from a module into another one.
     Export,
@@ -124,7 +124,7 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::Identifier(_) => other == &TokenDiscriminants::Identifier,
             Token::DocComment(_) => other == &TokenDiscriminants::DocComment,
             Token::TypeDefinition(_) => other == &TokenDiscriminants::TypeDefinition,
-            Token::CompilerHint(_) => other == &TokenDiscriminants::CompilerHint,
+            Token::CompilerInstruction(_) => other == &TokenDiscriminants::CompilerInstruction,
             Token::ItemVisibility(_) => other == &TokenDiscriminants::ItemVisibility,
             Token::As => other == &TokenDiscriminants::As,
             Token::Const => other == &TokenDiscriminants::Const,

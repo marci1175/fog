@@ -53,7 +53,7 @@ pub struct FunctionSignature
     /// Module path does NOT contain function name.
     pub module_path: Vec<String>,
     pub visibility: ItemVisibility,
-    pub compiler_hints: OrdSet<CompilerHint>,
+    pub compiler_hints: OrdSet<CompilerInstruction>,
     pub enabling_features: OrdSet<String>,
 }
 
@@ -111,7 +111,7 @@ impl FunctionArguments
 }
 
 #[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
-pub enum CompilerHint
+pub enum CompilerInstruction
 {
     /// See llvm function attributes
     Cold,

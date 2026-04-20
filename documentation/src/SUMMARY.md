@@ -19,6 +19,7 @@
   - [Control Flow Statements](./concepts/5_control_flow_statements.md)
   - [Traits and Implementations](./concepts/6_traits_impls.md)
   - [Hello World](./concepts/8_hello_world.md)
+  - [Compiler instructions](./concepts/9_compiler_instructions.md)
 
 ## Project Management
 

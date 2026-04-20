@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    parser::{common::ParsedToken, function::CompilerHint, variable::UniqueId},
+    parser::{common::ParsedToken, function::CompilerInstruction, variable::UniqueId},
     ty::Type,
 };
 
@@ -88,7 +88,7 @@ pub enum CodeGenError
     #[error(
         "CompilerHint `{0}` should be handled elsewhere. (If this a feature, then it should've been handled at the `CompilerHint` list creation.)"
     )]
-    InternalFunctionCompilerHintParsingError(CompilerHint),
+    InternalFunctionCompilerHintParsingError(CompilerInstruction),
     #[error("Could not retrieve reference to `{0}`. Pointers can only be returned from values.")]
     GetReferenceToFailed(ParsedToken),
     #[error("Cannot dereference value `{0}`, only a reference can be dereferenced.")]

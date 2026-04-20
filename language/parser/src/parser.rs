@@ -14,8 +14,7 @@ use common::{
     parser::{
         common::{ItemVisibility, TokenStream},
         function::{
-            FunctionArguments, FunctionDefinition, FunctionSignature, PathMap,
-            UnparsedFunctionDefinition, parse_signature_argument_tokens,
+            CompilerInstruction, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap, UnparsedFunctionDefinition, parse_signature_argument_tokens
         },
     },
     tokenizer::{Token, TokenDiscriminants},
@@ -87,9 +86,15 @@ impl Settings
         // Im gonna first parse the entire main file and then work out/parse all the other files which were linked.
         let mut ctx = Context::new();
 
+        // Collect the compiler instructions in a list and we can move the instructions to the next item we are parsing.
+        let mut item_compiler_instruction: OrdSet<CompilerInstruction> = OrdSet::new();
+
         // Parse the actual tokens
         while let Some(tkn) = tokens.consume().cloned() {
             match tkn.inner() {
+                Token::CompilerHintSymbol => {
+                    parse_compiler_instruction(&mut item_compiler_instruction, tokens)?;
+                }
                 Token::ItemVisibility(vis) => {
                     // Type of the item
                     let item_tkn = tokens.try_consume_match(
@@ -160,16 +165,18 @@ pub fn parse_function(
         ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidFunctionName),
         &TokenDiscriminants::Identifier,
     )?;
+
     // Parse function name, its safe to unwrap here
     let function_name = function_name_tkn.try_as_identifier_ref().unwrap();
 
+    // This will hold the function's arguments. This variable will get modified later.
     let mut arguments = FunctionArguments::new();
 
     //Parse the arguments of the function
     // If the first token is a '|' that means the function has generics defined
     // If the first token is a '(' that means that its just a normal function
-    if let Some(first_token) = tokens.consume() {
-        match first_token.inner() {
+    if let Some(tkn) = tokens.consume() {
+        match tkn.inner() {
             // Parse generics before arguments
             Token::BitOr => {
                 parse_fn_generics(ctx, &mut arguments, tokens)?;
@@ -181,6 +188,23 @@ pub fn parse_function(
         }
     }
 
+    // The TokenStream should now point to `Token::OpenBraces`
+    tokens.try_consume_match(
+        ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidFunctionBodyStart),
+        &TokenDiscriminants::OpenBraces,
+    )?;
+
+    // Fetch the function body and increment the tokenstream accordingly.
+    let fn_body = fetch_fn_body(tokens)?;
+
+    // This should never return an error since we are already checking the closing brace when fetching the fn body.
+    tokens.try_consume_match(
+        ParserError::SyntaxError(common::error::syntax::SyntaxError::LeftOpenBraces),
+        &TokenDiscriminants::CloseBraces,
+    )?;
+
+
+    
     Ok(())
 }
 
@@ -192,7 +216,7 @@ pub fn parse_fn_generics(
 ) -> anyhow::Result<()>
 {
     let mut generics: OrdMap<String, OrdSet<Vec<String>>> = OrdMap::new();
-    
+
     /*
         Syntax definition:
 
@@ -226,6 +250,66 @@ pub fn parse_fn_arguments(
     tokens: &mut TokenStream<Spanned<Token>>,
 ) -> anyhow::Result<()>
 {
+    Ok(())
+}
+
+/// This function will not parse the tokens present in the function body. It will only fetch them but not evaluate them further.
+pub fn fetch_fn_body<'a>(
+    tokens: &'a mut TokenStream<Spanned<Token>>,
+) -> anyhow::Result<&'a [Spanned<Token>]>
+{
+    // Get the index of the closing brace token
+    let body_closing_tkn = find_closing_braces(&*tokens).ok_or(ParserError::SyntaxError(common::error::syntax::SyntaxError::LeftOpenBraces))?;
+
+    // It is safe to unwrap here, since we have already checked if the closing braces would be in the TokenStream
+    Ok(tokens.consume_bulk(body_closing_tkn).unwrap())
+}
+
+pub fn find_closing_braces(tokens: &TokenStream<Spanned<Token>>) -> Option<usize>
+{
+    tokens
+        .peek_remainder()
+        .map(|tkns| {
+            let mut braces_counter: usize = 1;
+
+            for (idx, token) in tkns.iter().enumerate() {
+                if token.inner() == &Token::OpenBraces {
+                    braces_counter += 1;
+                }
+                else if token.inner() == &Token::CloseBraces {
+                    braces_counter -= 1;
+                }
+
+                if braces_counter == 0 {
+                    return Some(idx);
+                }
+            }
+
+            None
+        })
+        .flatten()
+}
+
+pub fn parse_compiler_instruction(instr_buf: &mut OrdSet<CompilerInstruction>, tokens: &mut TokenStream<Spanned<Token>>) -> anyhow::Result<()> {
+    if let Some(tkn) = tokens.consume() {
+        match tkn.inner() {
+            Token::CompilerInstruction(instr) => {
+                // If this is a feature that means the next token should be a string referencing the feature name.
+                if instr == CompilerInstruction::Feature {
+
+                }
+                // If its not a feature we can just store the instruction as is.
+                else {
+
+                }
+            }
+            _ => {}
+        }
+    }
+    else {
+        return Err(ParserError::SyntaxError(common::error::syntax::SyntaxError::CompilerInstructionRequiredAfterSymbol).into());
+    }
+
     Ok(())
 }
 

@@ -19,7 +19,7 @@ use common::{
     },
     parser::{
         common::{ParsedToken, ParsedTokenInstance},
-        function::{CompilerHint, FunctionDefinition},
+        function::{CompilerInstruction, FunctionDefinition},
         value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId},
     },
@@ -2394,37 +2394,37 @@ fn create_function_with_ir<'ctx>(
 
 pub fn add_compiler_hints_to_fn(
     context: &Context,
-    compiler_hints: &OrdSet<CompilerHint>,
+    compiler_hints: &OrdSet<CompilerInstruction>,
     function: FunctionValue<'_>,
 ) -> anyhow::Result<()>
 {
     for hint in compiler_hints.iter() {
         match hint {
-            CompilerHint::Cold => {
+            CompilerInstruction::Cold => {
                 let attr =
                     context.create_enum_attribute(Attribute::get_named_enum_kind_id("cold"), 0);
 
                 function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
             },
-            CompilerHint::NoFree => {
+            CompilerInstruction::NoFree => {
                 let attr =
                     context.create_enum_attribute(Attribute::get_named_enum_kind_id("nofree"), 0);
 
                 function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
             },
-            CompilerHint::Inline => {
+            CompilerInstruction::Inline => {
                 let attr = context
                     .create_enum_attribute(Attribute::get_named_enum_kind_id("inlinehint"), 0);
 
                 function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
             },
-            CompilerHint::NoUnWind => {
+            CompilerInstruction::NoUnWind => {
                 let attr =
                     context.create_enum_attribute(Attribute::get_named_enum_kind_id("nounwind"), 0);
 
                 function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
             },
-            CompilerHint::Feature => {
+            CompilerInstruction::Feature => {
                 return Err(
                     CodeGenError::InternalFunctionCompilerHintParsingError(hint.clone()).into(),
                 );

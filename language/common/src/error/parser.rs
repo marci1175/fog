@@ -15,8 +15,6 @@ pub enum ParserError
         "When defining a function, after the function name the generics or arguments must follow in the following order. <vis> function <name> [|[<generic name>: [<trait name>]]|] ([<argument name>: <type>])"
     )]
     InvalidFunctionArgumentDefinition,
-    #[error("Unexpected token placement.")]
-    UnexpectedToken,
     #[error("Type `{0}` does not implement the following required traits: {1:?}.")]
     TraitMismatch(Type, Vec<Vec<String>>),
     #[error(
@@ -159,7 +157,7 @@ pub enum ParserError
         "Type `{0}` does not contain any fields and may not be accessed via any field. (Only structs have fields)"
     )]
     TypeWithoutFields(Type),
-    #[error("Parser has encountered invalid END OF FILE.")]
+    #[error("Parser has encountered an unexpected END OF FILE.")]
     EOF,
     #[error("Variable `{0}` must have a default value of type `{1}`.")]
     MissingVariableValue(String, Type),

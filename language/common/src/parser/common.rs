@@ -90,6 +90,7 @@ impl<T> TokenStream<T>
 
     /// This does not remove the token from the list, therefor it is O(1).
     /// The function only increments an internal index.
+    /// The fetching is non-inclusive.
     pub fn consume_bulk(&mut self, nth: usize) -> Option<&[T]>
     {
         let query = self.buffer.get(self.idx..self.idx + nth);
@@ -101,6 +102,12 @@ impl<T> TokenStream<T>
     pub fn decrement_cursor(&mut self, num: usize)
     {
         self.idx = self.idx.checked_sub(num).unwrap_or(0);
+    }
+
+    /// Peeks the rest of the [`TokenStream`].
+    pub fn peek_remainder(&self) -> Option<&[T]>
+    {
+        self.buffer.get(self.idx..)
     }
 
     pub fn get_last_consumed(&self) -> Option<&T>

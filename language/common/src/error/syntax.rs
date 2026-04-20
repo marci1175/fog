@@ -5,6 +5,10 @@ use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
 #[derive(Clone, Debug, Error)]
 pub enum SyntaxError
 {
+    #[error("A sepcific compiler instruction is required after the compiler instruction symbol (`@`). Check manual for compiler instruction list. Example: @cold")]
+    CompilerInstructionRequiredAfterSymbol,
+    #[error(r#"The function's body is indicated by the braces. Example: <vis> "function" <name> "{{" "}}" "#)]
+    InvalidFunctionBodyStart,
     #[error("The namespace's body was defined incorrectly. (Check brackets and keyword order.)")]
     InvalidNamespaceDefinition,
     #[error(
