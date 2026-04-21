@@ -18,7 +18,7 @@ pub enum ParserError
     #[error("[INTERNAL ERROR] A compiler instruction was expected in the TokenStream.")]
     InternalCompilerInstructionExpected,
     #[error(
-        "When defining a function, after the function name the generics or arguments must follow in the following order. <vis> function <name> [|[<generic name>: [<trait name>]]|] ([<argument name>: <type>])"
+        r#"When defining a function signature the function's name should be followed by the generics or arguments in the following order. ```<vis> function <name> ["|" {{<generic>: <trait>,}} "|"] "(" [{{<arg>: <type>,}}] ")" ":" <type>```."#
     )]
     InvalidFunctionArgumentDefinition,
     #[error("Type `{0}` does not implement the following required traits: {1:?}.")]

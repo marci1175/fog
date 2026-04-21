@@ -7,13 +7,13 @@ pub enum SyntaxError
 {
     #[error("An Array's length can only be indicated by a `uint`(u32).")]
     InvalidArrayLenType,
-    #[error(r#"A type's generic parameters must be defined like so: <type> "<" <parameter> [{{, <parameter>}}] ">" "#)]
+    #[error(r#"A type's generic parameters must be defined like so: ```<type> "<" <parameter> [{{, <parameter>}}] ">"```."#)]
     InvalidTypeGenericDefinition,
     #[error(
         "A sepcific compiler instruction is required after the compiler instruction symbol (`@`). Check manual for compiler instruction list. Example: @cold"
     )]
     CompilerInstructionRequiredAfterSymbol,
-    #[error(r#"The function's body is indicated by the braces. Example: <vis> "function" <name> "{{" "}}" "#)]
+    #[error(r#"The function's body is indicated by the braces. Example: ```<vis> "function" <name> "{{" "}}"```."#)]
     InvalidFunctionBodyStart,
     #[error("The namespace's body was defined incorrectly. (Check brackets and keyword order.)")]
     InvalidNamespaceDefinition,
@@ -30,7 +30,7 @@ pub enum SyntaxError
     #[error("There is a missing comma in the function's call arguments.")]
     MissingCommaInFnCall,
     #[error(
-        "An invalid trait definition has been found. Trait definitions should look like this: `trait <name> {{ <function signatures> }}`"
+        "An invalid trait definition has been found. Trait definitions should look like this: ```trait <name> {{ <function signatures> }}```"
     )]
     InvalidTraitDefinition,
     #[error(r#"An open '{{' has been left in the code."#)]

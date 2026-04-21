@@ -145,7 +145,7 @@ impl CompilerState
             },
             Err(error) => {
                 let spanned_err = tokens
-                    .peek(1)
+                    .get_last_consumed()
                     .map(|tkn| tkn.raise_error(parser_settings.root_path, error))
                     .unwrap();
 

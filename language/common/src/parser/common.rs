@@ -43,6 +43,7 @@ pub trait Streamable<T>
     /// Peeks the nth next token from the stream.
     /// Since nth is an [`isize`] it can peek both backwards and forwards.
     fn peek(&self, nth: isize) -> Option<&T>;
+    fn peek_next(&self) -> Option<&T>;
 
     /// Returns the next item from the stream.
     fn consume(&mut self) -> Option<&T>;
@@ -133,6 +134,13 @@ impl<T> Streamable<T> for TokenStream<T>
             .and_then(|idx| self.buffer.get(idx))
     }
 
+    fn peek_next(&self) -> Option<&T>
+    {
+        self.idx
+            .checked_add_signed(1)
+            .and_then(|idx| self.buffer.get(idx))
+    }
+
     /// This does not remove the token from the list, therefor it is O(1).
     /// The function only increments an internal index.
     fn consume(&mut self) -> Option<&T>
@@ -203,6 +211,13 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
     {
         self.idx
             .checked_add_signed(nth)
+            .and_then(|idx| self.buffer.get(idx))
+    }
+
+    fn peek_next(&self) -> Option<&T>
+    {
+        self.idx
+            .checked_add_signed(1)
             .and_then(|idx| self.buffer.get(idx))
     }
 

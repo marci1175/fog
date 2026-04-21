@@ -121,7 +121,7 @@ fn parse_single_text(
         else if let Some(tkn) = try_match_token(text[idx..].trim_ascii()) {
             token_list.push(Spanned::new(
                 tkn,
-                create_span_info(line_number, span_offset, idx, span_offset),
+                create_span_info(line_number, span_offset, idx, idx + text[idx..].trim_ascii().len()),
             ));
 
             return;
