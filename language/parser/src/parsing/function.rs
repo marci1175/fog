@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{collections::HashMap, rc::Rc};
 
 use common::{
     anyhow::{self, Result},
@@ -9,12 +6,9 @@ use common::{
     error::{parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        common::{
-            ItemVisibility, ParsedTokenInstance,
-        },
+        common::{ItemVisibility, ParsedTokenInstance},
         function::{
-            FunctionDefinition, FunctionSignature,
-            PathMap, UnparsedFunctionDefinition,
+            FunctionDefinition, FunctionSignature, PathMap, UnparsedFunctionDefinition,
             parse_signature_argument_tokens,
         },
     },

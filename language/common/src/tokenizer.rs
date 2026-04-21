@@ -1,9 +1,6 @@
 use crate::{
     error::{Spanned, parser::ParserError},
-    parser::{
-        common::ItemVisibility,
-        function::CompilerInstructionDiscriminants,
-    },
+    parser::{common::ItemVisibility, function::CompilerInstructionDiscriminants},
     ty::{Type, Value},
 };
 use strum::{EnumDiscriminants, EnumTryAs};

@@ -133,7 +133,8 @@ pub fn get_unique_id(source: &mut usize) -> usize
     *source
 }
 
-pub fn combine_path(mut path: Vec<String>, item: String) -> Vec<String> {
+pub fn combine_path(mut path: Vec<String>, item: String) -> Vec<String>
+{
     path.push(item);
     path
 }

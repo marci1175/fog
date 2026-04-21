@@ -2,15 +2,17 @@ use anyhow::Result;
 use strum_macros::Display;
 
 use crate::{
-    codegen::{DerefMode, FunctionArgumentIdentifier, If, Order},
-    error::{SpanInfo, parser::ParserError, syntax::SyntaxError},
+    codegen::{CustomItem, DerefMode, FunctionArgumentIdentifier, If, Order},
+    error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        function::FunctionSignature,
+        function::{
+            CompilerInstruction, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap,
+        },
         value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId, VariableReference},
     },
     tokenizer::Token,
-    ty::{OrdMap, Type, Value},
+    ty::{OrdMap, OrdSet, Type, Value},
 };
 
 #[derive(Debug, Clone, Eq, Hash)]
@@ -363,6 +365,51 @@ pub enum ItemVisibility
     Branch,
 }
 
+#[derive(Clone, Debug)]
+pub struct Context
+{
+    pub functions: PathMap<Vec<String>, String, FunctionDefinition>,
+    pub items: PathMap<Vec<String>, String, CustomItem>,
+    pub external_decls: PathMap<Vec<String>, String, FunctionSignature>,
+    pub path: Vec<String>,
+}
+
+impl Context
+{
+    pub fn new(path: Vec<String>) -> Self
+    {
+        Self {
+            functions: PathMap::new(),
+            items: PathMap::new(),
+            external_decls: PathMap::new(),
+            path,
+        }
+    }
+
+    pub fn create_function(
+        &self,
+        vis: ItemVisibility,
+        name: String,
+        arguments: FunctionArguments,
+        return_type: Type,
+        compiler_instructions: OrdSet<CompilerInstruction>,
+        body: Vec<Spanned<ParsedToken>>,
+    ) -> FunctionDefinition
+    {
+        FunctionDefinition {
+            signature: FunctionSignature {
+                name,
+                args: arguments,
+                return_type,
+                module_path: self.path.clone(),
+                visibility: vis,
+                compiler_instructions,
+            },
+            body,
+        }
+    }
+}
+
 /// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.
 pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) -> Result<usize>
 {
@@ -400,28 +447,26 @@ pub fn find_next_bitor(bitor_start_slice: &[Token]) -> Result<usize>
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
-/// Pass in 0 for the `open_braces_count` if you're searching for the very next closing token on the same nestedness.
-/// The index this will return will point to the closing `}`.
-pub fn find_closing_braces(braces_start_slice: &[Token], open_braces_count: usize)
--> Result<usize>
+pub fn find_closing_braces(tokens: &TokenStream<Spanned<Token>>) -> Option<usize>
 {
-    let mut braces_layer_counter = 1;
-    let iter = braces_start_slice.iter().enumerate();
+    tokens.peek_remainder().and_then(|tkns| {
+        let mut braces_counter: usize = 1;
 
-    for (idx, token) in iter {
-        match token {
-            Token::OpenBraces => braces_layer_counter += 1,
-            Token::CloseBraces => {
-                braces_layer_counter -= 1;
-                if braces_layer_counter == open_braces_count {
-                    return Ok(idx);
-                }
-            },
-            _ => continue,
+        for (idx, token) in tkns.iter().enumerate() {
+            if token.inner() == &Token::OpenBraces {
+                braces_counter += 1;
+            }
+            else if token.inner() == &Token::CloseBraces {
+                braces_counter -= 1;
+            }
+
+            if braces_counter == 0 {
+                return Some(idx);
+            }
         }
-    }
 
-    Err(ParserError::SyntaxError(SyntaxError::LeftOpenBraces).into())
+        None
+    })
 }
 
 pub fn find_closing_comma(slice: &[Token]) -> Result<usize>

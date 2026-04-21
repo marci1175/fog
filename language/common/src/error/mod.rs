@@ -1,6 +1,5 @@
 use std::{fmt::Display, fs, ops::Deref, path::PathBuf};
 
-use anyhow::Error;
 
 pub mod application;
 pub mod cliparser;

@@ -1,10 +1,4 @@
-use std::{
-    collections::HashMap,
-    fmt::Display,
-    hash::Hash,
-    ops::Add,
-    rc::Rc,
-};
+use std::{collections::HashMap, fmt::Display, hash::Hash, ops::Add, rc::Rc};
 
 use bimap::BiMap;
 use strum::EnumDiscriminants;
@@ -16,13 +10,14 @@ use crate::{
     indexmap::IndexMap,
     parser::{
         common::{
-            ItemVisibility, ParsedToken, ParsedTokenInstance, find_closing_comma,
-            find_closing_paren, find_next_bitor,
+            Context, ItemVisibility, ParsedToken, ParsedTokenInstance, Streamable, TokenStream,
+            find_closing_braces, find_closing_comma, find_closing_paren,
         },
+        ty::parse_type,
         value::parse_value,
         variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
     },
-    tokenizer::Token,
+    tokenizer::{Token, TokenDiscriminants},
     ty::{OrdMap, OrdSet, Type},
 };
 
@@ -678,138 +673,283 @@ pub fn parse_signature_argument_tokens(
 /// The first token of the provided slice should be the first token after the opening `|`.
 /// Only traits can be implmeneted / required for a generic for now, all of the trait names are looked up to verify them.
 /// The function returns the amount of indexes we have incremented
-pub fn parse_fn_generics(
-    // Parsed tokens
-    tokens: &[Token],
-    // Curerently available custom types / items
-    custom_types: &IndexMap<String, CustomItem>,
-    // The list of function generics
-    function_generics: &mut OrdMap<String, OrdSet<Vec<String>>>,
-) -> anyhow::Result<usize>
+// pub fn parse_fn_generics(
+//     // Parsed tokens
+//     tokens: &[Token],
+//     // Curerently available custom types / items
+//     custom_types: &IndexMap<String, CustomItem>,
+//     // The list of function generics
+//     function_generics: &mut OrdMap<String, OrdSet<Vec<String>>>,
+// ) -> anyhow::Result<usize>
+// {
+//     let function_g_closing_idx = find_next_bitor(tokens)
+//         .map_err(|_| ParserError::SyntaxError(crate::error::syntax::SyntaxError::LeftOpenBitOr))?;
+
+//     let traits_slice = &tokens[..function_g_closing_idx];
+
+//     let mut idx = 0;
+
+//     'generics_loop: while idx < traits_slice.len() {
+//         if let Some(Token::Identifier(generic_name)) = traits_slice.get(idx) {
+//             // Insert a new field into the function's generics
+//             let insertion_result = function_generics.insert(generic_name.clone(), OrdSet::new());
+
+//             // If there has already been a generic with this name inserted, return an error
+//             if insertion_result.is_some() {
+//                 return Err(ParserError::DuplicateGenerics(generic_name.clone()).into());
+//             }
+
+//             // Return a mutable reference to the newly inserted generic's trait impls
+//             let trait_list = function_generics.get_mut(generic_name).unwrap();
+
+//             // Match syntax
+//             if let Some(Token::LeftArrow) = traits_slice.get(idx + 1) {
+//                 // Move index to the beginning of the Traits list
+//                 idx += 2;
+
+//                 // In this loop we increment the index until the comma, which closes the traits list
+//                 'traits_loop: while idx < traits_slice.len() {
+//                     if let Some(Token::Identifier(trait_name)) = traits_slice.get(idx) {
+//                         idx += 1;
+
+//                         // Check if its a valid trait
+//                         match custom_types
+//                             .get(trait_name)
+//                             .ok_or(ParserError::CustomItemNotFound(trait_name.clone()))?
+//                         {
+//                             CustomItem::Enum(_) | CustomItem::Struct(_) => {
+//                                 return Err(ParserError::CustomItemUnavailableForGenerics(
+//                                     trait_name.clone(),
+//                                 )
+//                                 .into());
+//                             },
+//                             // We just have to check if its a trait or not
+//                             CustomItem::Trait { access_path, .. } => {
+//                                 // Store trait name, into the mutable reference
+//                                 // Check if the trait is already required
+//                                 if !trait_list.insert(access_path.clone()) {
+//                                     return Err(ParserError::TraitAlreadyRequiredForGeneric(
+//                                         generic_name.clone(),
+//                                         trait_name.clone(),
+//                                     )
+//                                     .into());
+//                                 }
+
+//                                 // Check syntax
+//                                 match traits_slice.get(idx) {
+//                                     // If there is an addition token that means that there are more traits for this generic to implement
+//                                     Some(&Token::Addition) => {
+//                                         // Consume plus sign
+//                                         idx += 1;
+
+//                                         // Check if there are more tokens to parse after the `+`, if not we should raise an error
+//                                         if idx >= traits_slice.len() {
+//                                             return Err(ParserError::SyntaxError(
+//                                                 SyntaxError::InvalidFunctionGenericsDefinition, // Token::Addition,
+//                                             )
+//                                             .into());
+//                                         }
+
+//                                         continue 'traits_loop;
+//                                     },
+//                                     // If there was a comma, we should stop parsing the traits for this generic, and parse the next generic
+//                                     Some(&Token::Comma) => {
+//                                         // Consume comma
+//                                         idx += 1;
+
+//                                         continue 'generics_loop;
+//                                     },
+//                                     // If there is a different token that means that the syntax doesnt match
+//                                     Some(_tkn) => {
+//                                         return Err(SyntaxError::InvalidFunctionGenericsDefinition
+//                                             // tkn.clone(),
+//                                             .into());
+//                                     },
+//                                     _ => break 'traits_loop,
+//                                 }
+//                             },
+//                         }
+//                     }
+
+//                     // Check if we have mentioned atleast one trait to implement for the last generic
+//                     // If not we should raise an error
+//                     if trait_list.is_empty() {
+//                         return Err(ParserError::GenericMustHaveAtleastOneTrait(
+//                             generic_name.clone(),
+//                         )
+//                         .into());
+//                     }
+
+//                     // Check syntax validity
+//                     match traits_slice.get(idx) {
+//                         Some(_tkn) => {
+//                             return Err(SyntaxError::InvalidFunctionGenericsDefinition
+//                                 // tkn.clone(),
+//                                 .into());
+//                         },
+//                         _ => break 'traits_loop,
+//                     }
+//                 }
+//             }
+
+//             idx += 1;
+//         }
+
+//         match traits_slice.get(idx) {
+//             Some(_) => {
+//                 return Err(ParserError::SyntaxError(
+//                     SyntaxError::MissingCommaAtGenericsDefinition,
+//                 )
+//                 .into());
+//             },
+//             _ => break,
+//         }
+//     }
+
+//     Ok(idx)
+// }
+
+/// The function parses the entire function, but does not validate the function's body.
+/// Syntax of a function:
+/// ```
+/// <vis> "function" <name> "(" [{<arg>: <type>}] ")" ":" <return type> "{" [{<expr>}] "}"
+/// ```
+pub fn parse_function(
+    ctx: &Context,
+    vis: &ItemVisibility,
+    tokens: &mut TokenStream<Spanned<Token>>,
+    compiler_instructions: OrdSet<CompilerInstruction>,
+) -> anyhow::Result<FunctionDefinition>
 {
-    let function_g_closing_idx = find_next_bitor(tokens)
-        .map_err(|_| ParserError::SyntaxError(crate::error::syntax::SyntaxError::LeftOpenBitOr))?;
+    // Get the function name token
+    let function_name_tkn = tokens.try_consume_match(
+        ParserError::SyntaxError(SyntaxError::InvalidFunctionName),
+        &TokenDiscriminants::Identifier,
+    )?;
 
-    let traits_slice = &tokens[..function_g_closing_idx];
+    // Parse function name, its safe to unwrap here
+    let function_name = function_name_tkn
+        .try_as_identifier_ref()
+        .unwrap()
+        .to_owned();
 
-    let mut idx = 0;
+    // This will hold the function's arguments. This variable will get modified later.
+    let mut arguments = FunctionArguments::new();
 
-    'generics_loop: while idx < traits_slice.len() {
-        if let Some(Token::Identifier(generic_name)) = traits_slice.get(idx) {
-            // Insert a new field into the function's generics
-            let insertion_result = function_generics.insert(generic_name.clone(), OrdSet::new());
-
-            // If there has already been a generic with this name inserted, return an error
-            if insertion_result.is_some() {
-                return Err(ParserError::DuplicateGenerics(generic_name.clone()).into());
-            }
-
-            // Return a mutable reference to the newly inserted generic's trait impls
-            let trait_list = function_generics.get_mut(generic_name).unwrap();
-
-            // Match syntax
-            if let Some(Token::LeftArrow) = traits_slice.get(idx + 1) {
-                // Move index to the beginning of the Traits list
-                idx += 2;
-
-                // In this loop we increment the index until the comma, which closes the traits list
-                'traits_loop: while idx < traits_slice.len() {
-                    if let Some(Token::Identifier(trait_name)) = traits_slice.get(idx) {
-                        idx += 1;
-
-                        // Check if its a valid trait
-                        match custom_types
-                            .get(trait_name)
-                            .ok_or(ParserError::CustomItemNotFound(trait_name.clone()))?
-                        {
-                            CustomItem::Enum(_) | CustomItem::Struct(_) => {
-                                return Err(ParserError::CustomItemUnavailableForGenerics(
-                                    trait_name.clone(),
-                                )
-                                .into());
-                            },
-                            // We just have to check if its a trait or not
-                            CustomItem::Trait { access_path, .. } => {
-                                // Store trait name, into the mutable reference
-                                // Check if the trait is already required
-                                if !trait_list.insert(access_path.clone()) {
-                                    return Err(ParserError::TraitAlreadyRequiredForGeneric(
-                                        generic_name.clone(),
-                                        trait_name.clone(),
-                                    )
-                                    .into());
-                                }
-
-                                // Check syntax
-                                match traits_slice.get(idx) {
-                                    // If there is an addition token that means that there are more traits for this generic to implement
-                                    Some(&Token::Addition) => {
-                                        // Consume plus sign
-                                        idx += 1;
-
-                                        // Check if there are more tokens to parse after the `+`, if not we should raise an error
-                                        if idx >= traits_slice.len() {
-                                            return Err(ParserError::SyntaxError(
-                                                SyntaxError::InvalidFunctionGenericsDefinition, // Token::Addition,
-                                            )
-                                            .into());
-                                        }
-
-                                        continue 'traits_loop;
-                                    },
-                                    // If there was a comma, we should stop parsing the traits for this generic, and parse the next generic
-                                    Some(&Token::Comma) => {
-                                        // Consume comma
-                                        idx += 1;
-
-                                        continue 'generics_loop;
-                                    },
-                                    // If there is a different token that means that the syntax doesnt match
-                                    Some(_tkn) => {
-                                        return Err(SyntaxError::InvalidFunctionGenericsDefinition
-                                            // tkn.clone(),
-                                            .into());
-                                    },
-                                    _ => break 'traits_loop,
-                                }
-                            },
-                        }
-                    }
-
-                    // Check if we have mentioned atleast one trait to implement for the last generic
-                    // If not we should raise an error
-                    if trait_list.is_empty() {
-                        return Err(ParserError::GenericMustHaveAtleastOneTrait(
-                            generic_name.clone(),
-                        )
-                        .into());
-                    }
-
-                    // Check syntax validity
-                    match traits_slice.get(idx) {
-                        Some(_tkn) => {
-                            return Err(SyntaxError::InvalidFunctionGenericsDefinition
-                                // tkn.clone(),
-                                .into());
-                        },
-                        _ => break 'traits_loop,
-                    }
-                }
-            }
-
-            idx += 1;
-        }
-
-        match traits_slice.get(idx) {
-            Some(_) => {
-                return Err(ParserError::SyntaxError(
-                    SyntaxError::MissingCommaAtGenericsDefinition,
-                )
-                .into());
+    //Parse the arguments of the function
+    // If the first token is a '|' that means the function has generics defined
+    // If the first token is a '(' that means that its just a normal function
+    if let Some(tkn) = tokens.consume() {
+        match tkn.inner() {
+            // Parse generics before arguments
+            Token::BitOr => {
+                parse_fn_generics(ctx, &mut arguments, tokens)?;
+                parse_fn_arguments(ctx, &mut arguments, tokens)?;
             },
-            _ => break,
+            // Parse arguments
+            Token::OpenParentheses => parse_fn_arguments(ctx, &mut arguments, tokens)?,
+            _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
 
-    Ok(idx)
+    // This should be the ":" character singaling the return type
+    tokens.try_consume_match(
+        ParserError::SyntaxError(SyntaxError::FunctionRequiresReturn),
+        &TokenDiscriminants::Colon,
+    )?;
+
+    // Parse the return type of the function
+    let return_type = parse_type(tokens)?;
+
+    // The TokenStream should now point to `Token::OpenBraces`
+    tokens.try_consume_match(
+        ParserError::SyntaxError(SyntaxError::InvalidFunctionBodyStart),
+        &TokenDiscriminants::OpenBraces,
+    )?;
+
+    // Fetch the function body and increment the tokenstream accordingly.
+    let fn_body = parse_fn_body(tokens)?;
+
+    // This should never return an error since we are already checking the closing brace when fetching the fn body.
+    tokens.try_consume_match(
+        ParserError::SyntaxError(SyntaxError::LeftOpenBraces),
+        &TokenDiscriminants::CloseBraces,
+    )?;
+
+    Ok(ctx.create_function(
+        vis.clone(),
+        function_name,
+        arguments,
+        return_type,
+        compiler_instructions,
+        fn_body,
+    ))
+}
+
+/// The function assumes the first token to be the first token in the `|`s.
+pub fn parse_fn_generics(
+    _ctx: &Context,
+    _arguments: &mut FunctionArguments,
+    tokens: &mut TokenStream<Spanned<Token>>,
+) -> anyhow::Result<()>
+{
+    let _generics: OrdMap<String, OrdSet<Vec<String>>> = OrdMap::new();
+
+    /*
+        Syntax definition:
+
+        {
+            <generic> ":" { { <trait> ["+"] } [","] } [","]
+        }
+    */
+    // Lets loop through all the generics
+    while let Some(tkn) = tokens.consume() {
+        match tkn.inner() {
+            Token::Identifier(_generic_name) => {},
+            // If we encounter the closing `|` break the loop
+            Token::BitOr => break,
+
+            _ => {
+                return Err(ParserError::SyntaxError(
+                    SyntaxError::InvalidFunctionGenericsDefinition,
+                )
+                .into());
+            },
+        }
+    }
+
+    Ok(())
+}
+
+/// The function assumes the first token to be the first token in the parentheses.
+pub fn parse_fn_arguments(
+    _ctx: &Context,
+    _arguments: &mut FunctionArguments,
+    tokens: &mut TokenStream<Spanned<Token>>,
+) -> anyhow::Result<()>
+{
+    tokens.consume();
+    Ok(())
+}
+
+/// This function will parse the tokens in the body of the function, but it will not check the validness of the tokens themselves.
+///
+/// The function parses the tokens but does not evaluate them.
+pub fn parse_fn_body(
+    tokens: &mut TokenStream<Spanned<Token>>,
+) -> anyhow::Result<Vec<Spanned<ParsedToken>>>
+{
+    // Get the index of the closing brace token
+    let body_closing_tkn = find_closing_braces(&*tokens)
+        .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?;
+
+    // It is safe to unwrap here, since we have already checked if the closing braces would be in the TokenStream
+    let mut _fn_body = tokens.child_iterator_bulk(body_closing_tkn).unwrap();
+
+    // Store the parsed tokens somewhere
+    let parsed_tokens = Vec::new();
+
+    // parse_tokens(&mut fn_body, &mut parsed_tokens)?;
+
+    Ok(parsed_tokens)
 }

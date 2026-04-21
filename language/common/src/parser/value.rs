@@ -1,8 +1,4 @@
-use crate::{
-    error::parser::ParserError,
-    parser::function::PathMap,
-    tokenizer::Token,
-};
+use crate::{error::parser::ParserError, parser::function::PathMap, tokenizer::Token};
 use anyhow::Result;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

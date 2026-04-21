@@ -3,10 +3,7 @@ use std::sync::atomic::AtomicUsize;
 use crate::{
     codegen::{FunctionArgumentIdentifier, StructAttributes},
     error::{parser::ParserError, syntax::SyntaxError},
-    parser::{
-        common::ParsedTokenInstance,
-        function::PathMap,
-    },
+    parser::{common::ParsedTokenInstance, function::PathMap},
     tokenizer::Token,
     ty::{OrdMap, Type},
 };
