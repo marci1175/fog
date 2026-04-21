@@ -525,6 +525,7 @@ where
                                 access_path: _,
                             } => todo!(),
                             Type::TraitObject(_) => todo!(),
+                            Type::Unresolved(_) => todo!(),
                         }
                     },
                     Type::F64 | Type::F32 | Type::F16 => {
@@ -678,6 +679,7 @@ where
                                 access_path: _,
                             } => todo!(),
                             Type::TraitObject(_) => todo!(),
+                            Type::Unresolved(_) => todo!(),
                         }
                     },
                     Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
@@ -853,6 +855,7 @@ where
                                 access_path: _,
                             } => todo!(),
                             Type::TraitObject(_) => todo!(),
+                            Type::Unresolved(_) => todo!(),
                         }
                     },
                     Type::String => {
@@ -1040,6 +1043,7 @@ where
                             Type::Enum(_) => unreachable!(),
                             Type::Trait { .. } => todo!(),
                             Type::TraitObject(_) => todo!(),
+                            Type::Unresolved(_) => todo!(),
                         }
                     },
                     Type::Void => {
@@ -1059,6 +1063,7 @@ where
                         return Err(CodeGenError::InvalidTypeCast(ty_disc, desired_type).into());
                     },
                     Type::TraitObject(_) => todo!(),
+                    Type::Unresolved(_) => todo!(),
                 }
 
                 if variable_reference.is_none() {
@@ -1645,6 +1650,7 @@ where
                     access_path: _,
                 } => todo!(),
                 Type::TraitObject(_) => todo!(),
+                Type::Unresolved(_) => todo!(),
             };
 
             if let Some((_, (var_ptr, _), ref_var_ty_disc)) = variable_reference {
@@ -1842,13 +1848,10 @@ where
                             // If the pointer's inner type has been defined run the type check
                             // If not ignore the type check
                             if let Type::Pointer(Some(inner_token)) = var_ty_disc {
-                                let reference_inner_ty =
-                                    ty_from_token(&inner_token, &custom_types)?;
-
                                 // Check the type of the value, check for a type mismatch inside the pointer
-                                if reference_inner_ty != ty_disc {
+                                if *inner_token != ty_disc {
                                     return Err(CodeGenError::VariableTypeMismatch(
-                                        reference_inner_ty,
+                                        *inner_token,
                                         ty_disc,
                                     )
                                     .into());
@@ -1860,11 +1863,12 @@ where
                             return Ok(None);
                         },
                         None => {
-                            return Ok(Some((
-                                ptr,
-                                ty,
-                                Type::Pointer(Some(Box::new(Token::TypeDefinition(todo!())))),
-                            )));
+                            // return Ok(Some((
+                            //     ptr,
+                            //     ty,
+                            //     Type::Pointer(Some(Box::new(Token::TypeDefinition(todo!())))),
+                            // )));
+                            return Ok(todo!());
                         },
                     }
                 },
@@ -1912,7 +1916,7 @@ where
 
                             // If the inner value does not have a pre-determined inner type of the value the pointer is pointing to, assume the type we want to dereference to is the variable's type
                             let deref_ty: Type = if let Some(pointer_inner) = ptr_variant {
-                                ty_from_token(&pointer_inner, &custom_types)?
+                                *pointer_inner
                             }
                             else {
                                 var_ref_ty_disc.clone()
@@ -1965,9 +1969,7 @@ where
                         None => {
                             Some((ptr, ty, {
                                 match ty_disc.try_as_pointer().unwrap() {
-                                    Some(pointer_inner) => {
-                                        ty_from_token(&pointer_inner, &custom_types)?
-                                    },
+                                    Some(pointer_inner) => *pointer_inner,
                                     None => {
                                         return Err(CodeGenError::VagueDereference.into());
                                     },
@@ -2318,7 +2320,7 @@ fn create_function_with_ir<'ctx>(
 
     add_compiler_hints_to_fn(
         context,
-        &function_definition.signature.compiler_hints,
+        &function_definition.signature.compiler_instructions,
         function,
     )?;
 
@@ -2380,7 +2382,8 @@ fn create_function_with_ir<'ctx>(
         module,
         builder,
         context,
-        function_definition.inner.clone(),
+        // function_definition.body.clone(),
+        todo!(),
         arguments,
         function_definition.signature.return_type.clone(),
         basic_block,

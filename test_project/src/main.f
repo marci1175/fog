@@ -1,1 +1,1 @@
-pub function main()
+pub function main(): int {}

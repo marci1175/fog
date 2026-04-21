@@ -4,8 +4,8 @@ use crate::{
     codegen::{FunctionArgumentIdentifier, StructAttributes},
     error::{parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{ParsedTokenInstance, find_closing_paren},
-        function::{PathMap, parse_function_call_args},
+        common::ParsedTokenInstance,
+        function::PathMap,
     },
     tokenizer::Token,
     ty::{OrdMap, Type},
@@ -248,30 +248,28 @@ use crate::{
         function::{FunctionSignature, UnparsedFunctionDefinition},
         value::MathematicalSymbol,
     },
-    tracing,
-    ty::ty_from_token,
 };
 
-use crate::parser::value::{parse_token_as_value, parse_value};
+use crate::parser::value::parse_token_as_value;
 
 /// This function parses the tokens after a variable.
 /// This function parses actions related to variables. Such as: `var + 5` and `var =% 3`, etc.
 /// TODO: Make this fn have a side effect on `var_ref` and just wrap the value into a parsed token instance at the end
 pub fn resolve_variable_expression(
-    tokens: &[Token],
+    _tokens: &[Token],
     // Token slice offset, this allows us to keep the correct slice indexing (without ruining token_idx)
-    function_token_offset: usize,
-    debug_infos: &[SpanInfo],
-    token_idx: &mut usize,
-    function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
-    function_imports: Rc<HashMap<String, FunctionSignature>>,
-    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
-    (variable_type, variable_id): (Type, UniqueId),
-    custom_items: Rc<IndexMap<String, CustomItem>>,
-    variable_ref: &mut ParsedTokenInstance,
-    parsed_tokens: &mut Vec<ParsedTokenInstance>,
-    variable_name: &str,
-    module_path: Vec<String>,
+    _function_token_offset: usize,
+    _debug_infos: &[SpanInfo],
+    _token_idx: &mut usize,
+    _function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
+    _function_imports: Rc<HashMap<String, FunctionSignature>>,
+    _variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
+    (_variable_type, _variable_id): (Type, UniqueId),
+    _custom_items: Rc<IndexMap<String, CustomItem>>,
+    _variable_ref: &mut ParsedTokenInstance,
+    _parsed_tokens: &mut Vec<ParsedTokenInstance>,
+    _variable_name: &str,
+    _module_path: Vec<String>,
 ) -> Result<Type>
 {
     Ok(todo!())

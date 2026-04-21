@@ -5,7 +5,13 @@ use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
 #[derive(Clone, Debug, Error)]
 pub enum SyntaxError
 {
-    #[error("A sepcific compiler instruction is required after the compiler instruction symbol (`@`). Check manual for compiler instruction list. Example: @cold")]
+    #[error("An Array's length can only be indicated by a `uint`(u32).")]
+    InvalidArrayLenType,
+    #[error(r#"A type's generic parameters must be defined like so: <type> "<" <parameter> [{{, <parameter>}}] ">" "#)]
+    InvalidTypeGenericDefinition,
+    #[error(
+        "A sepcific compiler instruction is required after the compiler instruction symbol (`@`). Check manual for compiler instruction list. Example: @cold"
+    )]
     CompilerInstructionRequiredAfterSymbol,
     #[error(r#"The function's body is indicated by the braces. Example: <vis> "function" <name> "{{" "}}" "#)]
     InvalidFunctionBodyStart,
@@ -53,7 +59,7 @@ pub enum SyntaxError
     InvalidValue(Token),
     #[error("Casting to a type requires a `TypeDefinition` after the `As` keyword.")]
     AsRequiresTypeDef,
-    #[error("Function requires a returned value.")]
+    #[error("All functions' signature must explicitly indicate the return type of the function.")]
     FunctionRequiresReturn,
     #[error(
         "Duplicate function definitions have been found with function `{0}`. Signature: `{1}`. Functions with matching names are only available when they are allowed under different features."

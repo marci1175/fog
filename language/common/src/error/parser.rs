@@ -11,6 +11,10 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("[INTERNAL ERROR] A token is required inorder to parse something into a type.")]
+    InternalTypeParsingTokenMissing,
+    #[error("[INTERNAL ERROR] TypeToken cannot be automatically converted into a `Type`.")]
+    InternalTypetokenNotConvertable,
     #[error("[INTERNAL ERROR] A compiler instruction was expected in the TokenStream.")]
     InternalCompilerInstructionExpected,
     #[error(
@@ -117,8 +121,8 @@ pub enum ParserError
     LinkedSourceFileError(PathBuf),
     #[error(r#"Type `{1}` cannot be constructed from '{0}'."#)]
     InvalidTypeCast(String, Type),
-    #[error("`{0:?}` cannot be parsed as a valid type.")]
-    InvalidType(Vec<Token>),
+    #[error("Token is not a valid type.")]
+    InvalidType,
     #[error("The type of literal `{0}` could not be guessed.")]
     ValueTypeUnknown(String),
     #[error("Floats cannot be created with a value of NaN.")]

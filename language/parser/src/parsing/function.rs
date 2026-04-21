@@ -1,42 +1,28 @@
 use std::{
-    collections::{HashMap, HashSet},
-    fs, mem,
-    path::PathBuf,
+    collections::HashMap,
     rc::Rc,
 };
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomItem, FunctionArgumentIdentifier, If, ParsedState, StructAttributes},
-    compiler::ProjectConfig,
-    dashmap::DashMap,
-    error::{SpanInfo, parser::ParserError, syntax::SyntaxError},
+    codegen::CustomItem,
+    error::{parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         common::{
-            ItemVisibility, ParsedToken, ParsedTokenInstance, find_closing_braces,
-            find_closing_paren,
+            ItemVisibility, ParsedTokenInstance,
         },
-        dbg::fetch_and_merge_debug_information,
         function::{
-            self, CompilerInstruction, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap,
-            UnparsedFunctionDefinition, parse_fn_generics, parse_function_call_args,
+            FunctionDefinition, FunctionSignature,
+            PathMap, UnparsedFunctionDefinition,
             parse_signature_argument_tokens,
         },
-        import::parse_import_path,
-        value::parse_value,
-        variable::{
-            ControlFlowType, UniqueId, VARIABLE_ID_SOURCE, VariableReference,
-            resolve_variable_expression,
-        },
     },
-    strum::IntoDiscriminant,
     tokenizer::Token,
-    tracing::{info, warn},
-    ty::{OrdMap, OrdSet, Type, Value, ty_from_token},
+    ty::{OrdMap, OrdSet, Type, ty_from_token},
 };
 
-use crate::{parser::Settings, tokenizer::tokenize};
+use crate::parser::Settings;
 
 // /// This function parses all of the functions found in the Token slice.
 // /// The returned functions still need to be parsed.
@@ -230,12 +216,12 @@ impl Settings
 {
     pub fn parse_functions(
         &self,
-        unparsed_functions: &mut PathMap<Vec<String>, String, UnparsedFunctionDefinition>,
-        function_imports: Rc<HashMap<String, FunctionSignature>>,
-        custom_items: &mut IndexMap<String, CustomItem>,
+        _unparsed_functions: &mut PathMap<Vec<String>, String, UnparsedFunctionDefinition>,
+        _function_imports: Rc<HashMap<String, FunctionSignature>>,
+        _custom_items: &mut IndexMap<String, CustomItem>,
     ) -> Result<IndexMap<String, FunctionDefinition>>
     {
-        return Ok(IndexMap::new());
+        Ok(IndexMap::new())
     }
 
     pub fn parse_function_block(
@@ -252,7 +238,7 @@ impl Settings
         // receiver_type: Option<(Type, usize)>,
     ) -> Result<Vec<ParsedTokenInstance>>
     {
-        return Ok(vec![]);
+        Ok(vec![])
     }
 }
 
@@ -296,8 +282,7 @@ pub fn parse_function_signature(
             // Imported functions can only be accessed at the source file they were imported at
             // I might change this later to smth like pub import similar to pub mod in rust
             visibility: ItemVisibility::Private,
-            compiler_hints: OrdSet::new(),
-            enabling_features: OrdSet::new(),
+            compiler_instructions: OrdSet::new(),
         })
     }
     else {
@@ -332,5 +317,6 @@ pub fn get_type_traits(ty: &Type) -> &OrdSet<Vec<String>>
             functions: _,
         } => todo!(),
         Type::TraitObject(_ord_set) => todo!(),
+        Type::Unresolved(_) => todo!(),
     }
 }

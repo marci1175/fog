@@ -22,7 +22,7 @@ use num::Float;
 use strum::{EnumDiscriminants, EnumTryAs};
 use strum_macros::Display;
 
-#[derive(Debug, Clone, Display, Default, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, Display, Default, Eq, Hash, PartialEq, EnumTryAs)]
 pub enum Value
 {
     I64(i64),
@@ -56,9 +56,9 @@ pub enum Value
 
     /// First item is the type of the array
     /// Second item is the length
-    Array((Box<Token>, usize)),
+    Array((Box<Type>, usize)),
     Enum((Type, OrdMap<String, ParsedTokenInstance>, String)),
-    Pointer((usize, Option<Box<Token>>)),
+    Pointer((usize, Option<Box<Type>>)),
 }
 
 #[derive(Debug, Clone)]
@@ -238,8 +238,8 @@ pub enum Type
     Enum((Box<Type>, OrdMap<String, ParsedTokenInstance>)),
 
     Struct((String, OrdMap<String, Type>, StructAttributes)),
-    Array((Box<Token>, usize)),
-    Pointer(Option<Box<Token>>),
+    Array((Box<Type>, usize)),
+    Pointer(Option<Box<Type>>),
 
     Trait
     {
@@ -250,16 +250,9 @@ pub enum Type
         functions: OrdMap<String, FunctionSignature>,
     },
 
-    // /// A TraitObject is basically a set of traits, I may remove them later and adopt traits better
-    // TraitObject {
-    //     /// Traits implemented for a trait object
-    //     implemented_traits: OrdSet<String>,
-    //     // The trait object type is a wrapper around a concrete types. These types are determined at compile time.
-    //     // If the inner type is unknown this field is None. For instnace it is none when used in defining a function's signature.
-    //     // However, it is Some when used inside the body of the function (after being passed into a function).
-    //     // There are checks in the code that throw an internal error if this is None.
-    //     // inner_type: Option<Box<Type>>,
-    // }
+    /// An unresolved type can be any of the custom types.
+    Unresolved(String),
+
     /// A TraitObject is basically a set of traits, I may remove them later and adopt traits better
     TraitObject(OrdSet<Vec<String>>),
 }
@@ -271,8 +264,16 @@ impl From<CustomItem> for Type
         match value {
             CustomItem::Struct(inner) => Self::Struct(inner),
             CustomItem::Enum((ty, variants)) => Self::Enum((Box::new(ty), variants)),
-            CustomItem::Trait { .. } => {
-                unimplemented!()
+            CustomItem::Trait {
+                name,
+                access_path,
+                functions,
+            } => {
+                Self::Trait {
+                    name,
+                    access_path,
+                    functions,
+                }
             },
         }
     }
@@ -384,14 +385,11 @@ impl Type
                     .sum()
             },
             Self::Enum((inner_ty, _)) => inner_ty.sizeof(custom_types.clone()),
-            Self::Array((inner, _)) => {
-                ty_from_token(inner, &custom_types)
-                    .unwrap()
-                    .sizeof(custom_types.clone())
-            },
+            Self::Array((inner, _)) => inner.sizeof(custom_types.clone()),
             Self::Pointer(_) => std::mem::size_of::<usize>(),
             Self::Trait { .. } => 0,
             Self::TraitObject { .. } => 0,
+            Self::Unresolved(_) => panic!("[INTERNAL ERROR] Unresolved types do not have a size."),
         }
     }
 
@@ -427,7 +425,7 @@ impl Type
             },
             Type::Array((array_ty, len)) => {
                 BasicTypeEnum::ArrayType(
-                    ty_from_token(array_ty, &custom_types)?
+                    array_ty
                         .to_basic_type_enum(ctx, custom_types.clone())?
                         .array_type(*len as u32),
                 )
@@ -438,6 +436,7 @@ impl Type
             },
             Type::Trait { .. } => return Err(CodeGenError::TraitIsNotType.into()),
             Type::TraitObject { .. } => todo!(),
+            Type::Unresolved(_) => todo!(),
         };
 
         Ok(basic_ty)
@@ -488,6 +487,9 @@ impl Type
             Self::TraitObject { .. } => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
+            Self::Unresolved(_) => {
+                unimplemented!("Unresolved types must be modified before codegen.")
+            },
         }
     }
 }
@@ -524,6 +526,7 @@ impl Display for Type
             Type::TraitObject(implemented_traits) => {
                 format!("TraitObject({implemented_traits:#?})")
             },
+            Type::Unresolved(ident) => format!("Unresolved({ident})"),
         })
     }
 }
@@ -642,6 +645,12 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
                 Type::TraitObject(implemented_traits),
+            ));
+        },
+        Some(Type::Unresolved(_ident)) => {
+            return Err(ParserError::InvalidTypeCast(
+                raw_string.to_string(),
+                dest_type.unwrap(),
             ));
         },
         None => {
@@ -867,11 +876,11 @@ pub fn ty_from_token(
                 }
             }
             else {
-                Err(ParserError::InvalidType(vec![token.clone()]).into())
+                Err(ParserError::InvalidType.into())
             }
         },
-        Token::TypeDefinition(type_def) => Ok(todo!()),
+        Token::TypeDefinition(_type_def) => Ok(todo!()),
         // Token::TypeDefinition(type_def) => Ok(type_def.clone()),
-        _ => Err(ParserError::InvalidType(vec![token.clone()]).into()),
+        _ => Err(ParserError::InvalidType.into()),
     }
 }

@@ -1,29 +1,20 @@
 use std::{
-    fs::{self, create_dir_all},
+    fs::{self},
     path::PathBuf,
     rc::Rc,
 };
 
-use codegen::llvm_codegen;
 use common::{
     anyhow::{self, Result},
     compiler::ProjectConfig,
-    error::{application::ApplicationError, codegen::CodeGenError},
-    inkwell::{
-        context::Context,
-        llvm_sys::target::{
-            LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters,
-            LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets,
-        },
-        targets::{TargetMachine, TargetTriple},
-    },
+    error::application::ApplicationError,
+    inkwell::targets::{TargetMachine, TargetTriple},
     linker::BuildManifest,
-    parser::common::TokenStream,
+    parser::common::{Streamable, TokenStream},
     toml,
     tracing::info,
-    ty::{OrdSet, Type},
+    ty::OrdSet,
 };
-use imports::list_manager::create_dependency_functions_list;
 use parser::{parser::Settings, tokenizer::tokenize};
 
 pub struct CompilerState
@@ -54,19 +45,19 @@ impl CompilerState
     pub fn compilation_process(
         &self,
         file_contents: &str,
-        target_ir_path: PathBuf,
-        target_o_path: PathBuf,
-        build_path: PathBuf,
-        optimization: bool,
-        is_lib: bool,
+        _target_ir_path: PathBuf,
+        _target_o_path: PathBuf,
+        _build_path: PathBuf,
+        _optimization: bool,
+        _is_lib: bool,
         path_to_src: &str,
-        flags_passed_in: &str,
+        _flags_passed_in: &str,
         target_triple_name: Option<String>,
-        cpu_name: Option<String>,
-        cpu_features: Option<String>,
+        _cpu_name: Option<String>,
+        _cpu_features: Option<String>,
     ) -> Result<BuildManifest>
     {
-        let target_triple = Rc::new(
+        let _target_triple = Rc::new(
             if let Some(target_triple_name) = target_triple_name {
                 TargetTriple::create(&target_triple_name)
             }
@@ -149,10 +140,12 @@ impl CompilerState
         );
 
         match parser_settings.parse(&mut tokens) {
-            Ok(ret) => {},
+            Ok(_ret) => {
+                dbg!(&_ret);
+            },
             Err(error) => {
                 let spanned_err = tokens
-                    .get_last_consumed()
+                    .peek(1)
                     .map(|tkn| tkn.raise_error(parser_settings.root_path, error))
                     .unwrap();
 
@@ -224,7 +217,7 @@ impl CompilerState
         //     // Localize path for later use
         //     output_path: build_path,
         // })
-
+        
         Ok(todo!())
     }
 }

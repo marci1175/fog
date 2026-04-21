@@ -63,11 +63,11 @@ impl CharPosition
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Spanned<T>
 {
-    inner: T,
-    span: SpanInfo,
+    pub inner: T,
+    pub span: SpanInfo,
 }
 
 impl<T> Spanned<T>
@@ -89,11 +89,11 @@ impl<T> Spanned<T>
 
     pub fn raise_error<E>(&self, file: PathBuf, error: E) -> SpannedError<E>
     {
-        return SpannedError {
+        SpannedError {
             error,
             file,
             span: self.span,
-        };
+        }
     }
 }
 
@@ -115,11 +115,12 @@ pub struct SpannedError<E>
     span: SpanInfo,
 }
 
-impl<E: ToString> Into<anyhow::Error> for SpannedError<E>
+impl<E: ToString + Into<anyhow::Error>> From<SpannedError<E>> for anyhow::Error
 {
-    fn into(self) -> anyhow::Error
+    fn from(val: SpannedError<E>) -> Self
     {
-        Error::msg(self.to_string())
+        let span = val.to_string();
+        val.error.into().context(span)
     }
 }
 
@@ -136,9 +137,6 @@ impl<E: ToString> Display for SpannedError<E>
             self.file.display(),
             self.span.char_start.line
         ));
-
-        // Lets display the whole error next
-        message.push_str(&self.error.to_string());
 
         // Separate the error location from the error
         message.push('\n');

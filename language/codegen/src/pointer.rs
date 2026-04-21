@@ -534,7 +534,7 @@ where
         };
 
         let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
-        let inner_ty = ty_from_token(&inner_ty_token, custom_types)?;
+        let inner_ty = *inner_ty_token;
 
         Ok((
             gep_ptr,

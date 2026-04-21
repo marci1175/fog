@@ -1,7 +1,7 @@
 use common::{
     anyhow,
     error::{CharPosition, SpanInfo, Spanned},
-    parser::function::{CompilerInstruction, CompilerInstructionDiscriminants},
+    parser::function::CompilerInstructionDiscriminants,
     tokenizer::{Token, TypeToken},
     ty::Value,
 };
@@ -118,7 +118,7 @@ fn parse_single_text(
                 create_span_info(line_number, span_offset, iter_start_idx, span_offset),
             ));
         }
-        else if let Some(tkn) = try_match_token(&text[idx..].trim_ascii()) {
+        else if let Some(tkn) = try_match_token(text[idx..].trim_ascii()) {
             token_list.push(Spanned::new(
                 tkn,
                 create_span_info(line_number, span_offset, idx, span_offset),
@@ -264,8 +264,9 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"string" => Token::TypeDefinition(TypeToken::String),
         b"array" => Token::TypeDefinition(TypeToken::Array),
         b"enum" => Token::TypeDefinition(TypeToken::Enum),
-        b"ref" => Token::TypeDefinition(TypeToken::Reference),
-        b"deref" => Token::TypeDefinition(TypeToken::Dereference),
+        b"ref" => Token::Reference,
+        b"deref" => Token::Dereference,
+        b"ptr" => Token::TypeDefinition(TypeToken::Pointer),
         b"struct" => Token::TypeDefinition(TypeToken::Struct),
 
         b"==" => Token::Equal,

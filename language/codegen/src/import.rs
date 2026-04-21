@@ -114,11 +114,7 @@ pub fn import_user_lib_functions<'a>(
                 return_type.fn_type(&args, import_sig.args.ellipsis_present)
             },
             Type::Array((inner_ty, len)) => {
-                let array_ty = ty_to_llvm_ty(
-                    ctx,
-                    &ty_from_token(inner_ty, &custom_types)?,
-                    custom_types.clone(),
-                )?;
+                let array_ty = ty_to_llvm_ty(ctx, &inner_ty, custom_types.clone())?;
 
                 let return_type = array_ty.array_type(*len as u32);
 
@@ -139,6 +135,7 @@ pub fn import_user_lib_functions<'a>(
             Type::TraitObject(_) => {
                 unimplemented!()
             },
+            Type::Unresolved(_) => todo!(),
         };
 
         module.add_function(import_name, function_type, None);

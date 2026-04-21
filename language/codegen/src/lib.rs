@@ -66,7 +66,7 @@ pub fn llvm_codegen_main<'ctx>(
             .open(format!("{}/compiler-ir", env!("CARGO_MANIFEST_DIR")))
         {
             for (_, def) in parsed_functions.iter() {
-                o_opt.write_all(format!("------------------- FUNCTION DEFINITION START-------------------\n{:#?}\n------------------- FUNCTION DEFINITION END-------------------\n------------------- FUNCTION BODY START-------------------{:#?}------------------- FUNCTION BODY END-------------------\n", def.signature, def.inner.clone()).as_bytes())?;
+                o_opt.write_all(format!("------------------- FUNCTION DEFINITION START-------------------\n{:#?}\n------------------- FUNCTION DEFINITION END-------------------\n------------------- FUNCTION BODY START-------------------{:#?}------------------- FUNCTION BODY END-------------------\n", def.signature, def.body.clone()).as_bytes())?;
             }
         }
     }

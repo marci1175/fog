@@ -1,6 +1,9 @@
 use crate::{
-    error::{SpanInfo, Spanned},
-    parser::{common::ItemVisibility, function::{CompilerInstruction, CompilerInstructionDiscriminants}},
+    error::{Spanned, parser::ParserError},
+    parser::{
+        common::ItemVisibility,
+        function::CompilerInstructionDiscriminants,
+    },
     ty::{Type, Value},
 };
 use strum::{EnumDiscriminants, EnumTryAs};
@@ -104,6 +107,8 @@ pub enum Token
     Returns,
 
     Namespace,
+    Reference,
+    Dereference,
 }
 
 impl PartialEq<TokenDiscriminants> for Spanned<Token>
@@ -187,6 +192,8 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::RightArrow => other == &TokenDiscriminants::RightArrow,
             Token::Returns => other == &TokenDiscriminants::Returns,
             Token::Namespace => other == &TokenDiscriminants::Namespace,
+            Token::Reference => other == &TokenDiscriminants::Reference,
+            Token::Dereference => other == &TokenDiscriminants::Dereference,
         }
     }
 }
@@ -218,12 +225,34 @@ pub enum TypeToken
     Array,
     Struct,
 
-    /// ref
-    /// Example: ```ptr foo = ref bar;```
-    Reference,
-    /// deref
-    /// Example: ```int foo = deref bar;```
-    Dereference,
-
+    Pointer,
     Function,
+}
+
+impl TryInto<Type> for TypeToken
+{
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<Type, Self::Error>
+    {
+        Ok(match self {
+            TypeToken::I64 => Type::I64,
+            TypeToken::F64 => Type::F64,
+            TypeToken::U64 => Type::U64,
+            TypeToken::I32 => Type::I32,
+            TypeToken::F32 => Type::F32,
+            TypeToken::U32 => Type::U32,
+            TypeToken::I16 => Type::I16,
+            TypeToken::F16 => Type::F16,
+            TypeToken::U16 => Type::U16,
+            TypeToken::U8 => Type::U8,
+            TypeToken::String => Type::String,
+            TypeToken::Boolean => Type::Boolean,
+            TypeToken::Void => Type::Void,
+            TypeToken::Pointer => Type::Pointer(None),
+            TypeToken::Enum | TypeToken::Array | TypeToken::Struct | TypeToken::Function => {
+                return Err(ParserError::InternalTypetokenNotConvertable.into());
+            },
+        })
+    }
 }

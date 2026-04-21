@@ -1,10 +1,6 @@
 use crate::{
-    codegen::DerefMode,
     error::parser::ParserError,
-    parser::{
-        function::{PathMap, parse_function_call_args},
-        variable::resolve_variable_expression,
-    },
+    parser::function::PathMap,
     tokenizer::Token,
 };
 use anyhow::Result;
@@ -44,30 +40,30 @@ use std::{collections::HashMap, rc::Rc};
 use crate::{codegen::StructAttributes, indexmap::IndexMap};
 
 use crate::{
-    codegen::{CustomItem, Order},
+    codegen::CustomItem,
     error::{SpanInfo, syntax::SyntaxError},
     parser::{
-        common::{ParsedToken, ParsedTokenInstance, find_closing_braces, find_closing_paren},
+        common::{ParsedToken, ParsedTokenInstance},
         dbg::fetch_and_merge_debug_information,
         function::{FunctionSignature, UnparsedFunctionDefinition},
-        variable::{UniqueId, VariableReference},
+        variable::UniqueId,
     },
-    ty::{Type, Value, ty_from_token, unparsed_const_to_typed_literal_unsafe},
+    ty::Type,
 };
 
 /// This is a top level implementation for `parse_token_as_value`
 pub fn parse_value(
-    tokens: &[Token],
-    function_tokens_offset: usize,
-    debug_infos: &[SpanInfo],
-    origin_token_idx: usize,
-    function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
-    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
+    _tokens: &[Token],
+    _function_tokens_offset: usize,
+    _debug_infos: &[SpanInfo],
+    _origin_token_idx: usize,
+    _function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
+    _variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     // Always pass in the desired variable type, you can only leave this `None` if you dont know the type by design
-    mut desired_variable_type: Option<Type>,
-    function_imports: Rc<HashMap<String, FunctionSignature>>,
-    custom_types: Rc<IndexMap<String, CustomItem>>,
-    module_path: Vec<String>,
+    _desired_variable_type: Option<Type>,
+    _function_imports: Rc<HashMap<String, FunctionSignature>>,
+    _custom_types: Rc<IndexMap<String, CustomItem>>,
+    _module_path: Vec<String>,
 ) -> Result<(ParsedTokenInstance, usize, Type)>
 {
     Ok(todo!())
@@ -77,23 +73,23 @@ pub fn parse_value(
 /// Like: FunctionCall, Literal, UnparsedLiteral
 pub fn parse_token_as_value(
     // This is used to parse the function call's arguments
-    tokens: &[Token],
-    function_token_offset: usize,
-    debug_infos: &[SpanInfo],
-    origin_token_idx: usize,
+    _tokens: &[Token],
+    _function_token_offset: usize,
+    _debug_infos: &[SpanInfo],
+    _origin_token_idx: usize,
     // Functions available
-    function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
+    _function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
     // Variables available
-    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
+    _variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
     // The variable's type which we are parsing for
-    desired_variable_type: Option<Type>,
+    _desired_variable_type: Option<Type>,
     // Universal token_idx, this sets which token we are currently parsing
-    token_idx: &mut usize,
+    _token_idx: &mut usize,
     // The token we want to evaluate, this is the first token of the slice most of the time
-    eval_token: &Token,
-    function_imports: Rc<HashMap<String, FunctionSignature>>,
-    custom_types: Rc<IndexMap<String, CustomItem>>,
-    module_path: Vec<String>,
+    _eval_token: &Token,
+    _function_imports: Rc<HashMap<String, FunctionSignature>>,
+    _custom_types: Rc<IndexMap<String, CustomItem>>,
+    _module_path: Vec<String>,
 ) -> Result<(ParsedTokenInstance, Type)>
 {
     Ok(todo!())

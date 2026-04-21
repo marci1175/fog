@@ -13,7 +13,7 @@ use crate::{
         function::{FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition},
     },
     tokenizer::Token,
-    ty::{OrdMap, OrdSet, Type, ty_from_token},
+    ty::{OrdMap, OrdSet, Type},
 };
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -295,11 +295,7 @@ pub fn ty_to_llvm_ty<'a>(
         Type::F16 => BasicTypeEnum::FloatType(f16_type),
         Type::U16 => BasicTypeEnum::IntType(i16_type),
         Type::Array((token_ty, len)) => {
-            let llvm_ty = ty_to_llvm_ty(
-                ctx,
-                &ty_from_token(&(*token_ty).clone(), &custom_types)?,
-                custom_types.clone(),
-            )?;
+            let llvm_ty = ty_to_llvm_ty(ctx, token_ty, custom_types.clone())?;
 
             let array_ty = llvm_ty.array_type(*len as u32);
 
@@ -312,6 +308,7 @@ pub fn ty_to_llvm_ty<'a>(
         Type::TraitObject { .. } => {
             return Err(CodeGenError::TraitIsNotType.into());
         },
+        Type::Unresolved(_) => todo!(),
     };
 
     Ok(field_ty)
@@ -427,12 +424,7 @@ pub fn fetch_nested_pointer_ty(
     match pointer_ty.clone().try_as_pointer() {
         Some(pointer_inner) => {
             match pointer_inner {
-                Some(inner_token) => {
-                    Ok(fetch_nested_pointer_ty(
-                        custom_types,
-                        ty_from_token(&inner_token, custom_types)?,
-                    )?)
-                },
+                Some(inner_token) => Ok(fetch_nested_pointer_ty(custom_types, *inner_token)?),
                 None => Ok(pointer_ty),
             }
         },

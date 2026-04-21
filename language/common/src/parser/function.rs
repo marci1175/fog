@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::Display,
     hash::Hash,
     ops::Add,
@@ -12,7 +12,7 @@ use strum::EnumDiscriminants;
 use crate::{
     anyhow::{self, Result},
     codegen::{CustomItem, FunctionArgumentIdentifier},
-    error::{SpanInfo, parser::ParserError, syntax::SyntaxError},
+    error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         common::{
@@ -23,7 +23,7 @@ use crate::{
         variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
     },
     tokenizer::Token,
-    ty::{OrdMap, OrdSet, Type, ty_from_token},
+    ty::{OrdMap, OrdSet, Type},
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Hash)]
@@ -40,9 +40,7 @@ pub struct UnparsedFunctionDefinition
 pub struct FunctionDefinition
 {
     pub signature: FunctionSignature,
-    pub inner: Vec<ParsedTokenInstance>,
-    /// This is used to offset the index when fetching [`DebugInformation`] about [`ParsedToken`]s inside the function.
-    pub token_offset: usize,
+    pub body: Vec<Spanned<ParsedToken>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
@@ -54,8 +52,8 @@ pub struct FunctionSignature
     /// Module path does NOT contain function name.
     pub module_path: Vec<String>,
     pub visibility: ItemVisibility,
-    pub compiler_hints: OrdSet<CompilerInstruction>,
-    pub enabling_features: OrdSet<String>,
+    pub compiler_instructions: OrdSet<CompilerInstruction>,
+    // pub enabling_features: OrdSet<String>,
 }
 
 impl Display for FunctionSignature
@@ -125,14 +123,18 @@ pub enum CompilerInstruction
     Feature(String),
 }
 
-impl Into<CompilerInstruction> for CompilerInstructionDiscriminants {
-    fn into(self) -> CompilerInstruction {
-        match self {
+impl From<CompilerInstructionDiscriminants> for CompilerInstruction
+{
+    fn from(val: CompilerInstructionDiscriminants) -> Self
+    {
+        match val {
             CompilerInstructionDiscriminants::Cold => CompilerInstruction::Cold,
             CompilerInstructionDiscriminants::NoFree => CompilerInstruction::NoFree,
             CompilerInstructionDiscriminants::Inline => CompilerInstruction::Inline,
             CompilerInstructionDiscriminants::NoUnWind => CompilerInstruction::NoUnWind,
-            CompilerInstructionDiscriminants::Feature => CompilerInstruction::Feature(String::new()),
+            CompilerInstructionDiscriminants::Feature => {
+                CompilerInstruction::Feature(String::new())
+            },
         }
     }
 }
@@ -258,7 +260,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
     /// The returned value is the overwritten value of the map.
     /// If the function returns [`None`], it means that the key we inserted was not present in the map.
     /// The function also increment the function's counter in the namespace map.
-    pub fn insert(&mut self, key: PATH, value: ITEM, name: Rc<NAME>) -> Option<(ID, ITEM)>
+    pub fn insert(&mut self, key: PATH, name: Rc<NAME>, value: ITEM) -> Option<(ID, ITEM)>
     {
         let id = self._interner.insert_or_get_association(name.clone());
 
@@ -637,10 +639,10 @@ pub fn parse_function_call_args(
 }
 
 pub fn parse_signature_args(
-    tokens: &[Token],
-    custom_types: &IndexMap<String, CustomItem>,
-    is_struct_implementation: bool,
-    function_generics: &OrdMap<String, OrdSet<Vec<String>>>,
+    _tokens: &[Token],
+    _custom_types: &IndexMap<String, CustomItem>,
+    _is_struct_implementation: bool,
+    _function_generics: &OrdMap<String, OrdSet<Vec<String>>>,
 ) -> Result<FunctionArguments>
 {
     Ok(todo!())
@@ -763,7 +765,7 @@ pub fn parse_fn_generics(
                                         continue 'generics_loop;
                                     },
                                     // If there is a different token that means that the syntax doesnt match
-                                    Some(tkn) => {
+                                    Some(_tkn) => {
                                         return Err(SyntaxError::InvalidFunctionGenericsDefinition
                                             // tkn.clone(),
                                             .into());
@@ -785,7 +787,7 @@ pub fn parse_fn_generics(
 
                     // Check syntax validity
                     match traits_slice.get(idx) {
-                        Some(tkn) => {
+                        Some(_tkn) => {
                             return Err(SyntaxError::InvalidFunctionGenericsDefinition
                                 // tkn.clone(),
                                 .into());
