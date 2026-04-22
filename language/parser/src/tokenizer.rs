@@ -18,7 +18,7 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
         let mut column_idx = 0;
 
         for raw_text in line.split_inclusive(char::is_whitespace) {
-            let trimmed_text = raw_text;
+            let trimmed_text = raw_text.trim();
 
             let column_idx_begin = column_idx;
 

@@ -69,7 +69,7 @@ impl CompilerState
         info!("Tokenizing...");
 
         let mut tokens = TokenStream::new(tokenize(file_contents)?);
-
+        dbg!(&tokens);
         // info!("Creating LLVM context...");
         // let context = Context::create();
         // let builder = context.create_builder();
