@@ -9,19 +9,19 @@ use crate::{
 };
 
 pub fn parse_enum(
-    _ctx: &mut Context,
-    _vis: &ItemVisibility,
-    _tokens: &mut TokenStream<Spanned<Token>>,
-    _compiler_instructions: OrdSet<CompilerInstruction>,
+    ctx: &mut Context,
+    vis: &ItemVisibility,
+    tokens: &mut TokenStream<Spanned<Token>>,
+    compiler_instructions: OrdSet<CompilerInstruction>,
 )
 {
 }
 
 pub fn parse_struct(
-    _ctx: &mut Context,
-    _vis: &ItemVisibility,
-    _tokens: &mut TokenStream<Spanned<Token>>,
-    _compiler_instructions: OrdSet<CompilerInstruction>,
+    ctx: &mut Context,
+    vis: &ItemVisibility,
+    tokens: &mut TokenStream<Spanned<Token>>,
+    compiler_instructions: OrdSet<CompilerInstruction>,
 )
 {
 }
@@ -133,5 +133,5 @@ pub fn parse_type(tokens: &mut TokenStream<Spanned<Token>>) -> anyhow::Result<Ty
         };
     }
 
-    Err(ParserError::InternalTypeParsingTokenMissing.into())
+    Err(ParserError::ExpectedTypeReference.into())
 }

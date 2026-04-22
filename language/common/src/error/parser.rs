@@ -11,8 +11,8 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
-    #[error("[INTERNAL ERROR] A token is required inorder to parse something into a type.")]
-    InternalTypeParsingTokenMissing,
+    #[error("A type was expected at the location of the error. Ensure correct spelling, types are case sensitive.")]
+    ExpectedTypeReference,
     #[error("[INTERNAL ERROR] TypeToken cannot be automatically converted into a `Type`.")]
     InternalTypetokenNotConvertable,
     #[error("[INTERNAL ERROR] A compiler instruction was expected in the TokenStream.")]

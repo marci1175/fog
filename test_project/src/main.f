@@ -1,2 +1,3 @@
-@cold
-pub function main(): int {}
+pub function main(): int {
+    
+}
