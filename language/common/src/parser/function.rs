@@ -67,7 +67,7 @@ pub struct FunctionArguments
     pub ellipsis_present: bool,
     /// The map consists of the generic types and their traits.
     /// ie: { "T": {"trait1", "trait2"} }
-    pub generics: OrdMap<String, OrdSet<Vec<String>>>,
+    pub generics: OrdMap<String, OrdSet<String>>,
     /// This is true if the function references the struct its implemented for ie. using the this keyword.
     /// Obviously this shouldnt be true for an ordinary function since the `this` keyword cannot be used there.
     pub receiver_referenced: bool,
@@ -664,7 +664,7 @@ pub fn parse_signature_argument_tokens(
         )?;
     }
 
-    args.generics = function_generics;
+    // args.generics = function_generics;
 
     Ok((bracket_closing_idx, args))
 }
@@ -843,7 +843,9 @@ pub fn parse_function(
         match tkn.inner() {
             // Parse generics before arguments
             Token::BitOr => {
-                parse_fn_generics(ctx, &mut arguments, tokens)?;
+                arguments.generics = dbg!(parse_fn_generics(ctx, &mut arguments, tokens)?);
+
+                tokens.consume();
                 parse_fn_arguments(ctx, &mut arguments, tokens)?;
             },
             // Parse arguments
@@ -888,12 +890,12 @@ pub fn parse_function(
 
 /// The function assumes the first token to be the first token in the `|`s.
 pub fn parse_fn_generics(
-    _ctx: &Context,
-    _arguments: &mut FunctionArguments,
+    ctx: &Context,
+    arguments: &mut FunctionArguments,
     tokens: &mut TokenStream<Spanned<Token>>,
-) -> anyhow::Result<()>
+) -> anyhow::Result<OrdMap<String, OrdSet<String>>>
 {
-    let _generics: OrdMap<String, OrdSet<Vec<String>>> = OrdMap::new();
+    let mut generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
 
     /*
         Syntax definition:
@@ -903,9 +905,56 @@ pub fn parse_fn_generics(
         }
     */
     // Lets loop through all the generics
-    while let Some(tkn) = tokens.consume() {
+    'main_loop: while let Some(tkn) = tokens.consume() {
         match tkn.inner() {
-            Token::Identifier(_generic_name) => {},
+            Token::Identifier(generic_name) => {
+                let generic_name = generic_name.clone();
+
+                // Store a checkpoint of the stream so we can load it back later if we need to
+                let generic_name_checkpoint = tokens.create_checkpoint();
+
+                // The next token should be a ":" due to syntax
+                tokens.try_consume_match(ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition), &TokenDiscriminants::Colon)?;
+
+                // Create a new entry for the current generic
+                generics.insert(dbg!(generic_name.clone()), OrdSet::new());
+                // We can safely unwrap here because the field is present in the map and return a mutable handle
+                let generic_handle = generics.get_mut(&generic_name).unwrap();
+
+                // Loop over the traits
+                'trait_loop: while let Some(tkn) = tokens.consume() {
+                    if let Token::Identifier(trait_name) = tkn.inner() {
+                        // Store the trait's name which the user entered for the generic
+                        // The ordset for the generic should already be present in the map.
+                        generic_handle.insert(trait_name.clone());
+
+                        // Check the next token
+                        let next = tokens.consume().ok_or(ParserError::EOF)?;
+                        
+                        // Match the next token
+                        match next.inner() {
+                            Token::BitOr => {
+                                break 'main_loop
+                            },
+                            Token::Addition => continue 'trait_loop,
+                            // If we have reached the comma that means that the current trait bound has ended.
+                            Token::Comma => break 'trait_loop,
+                            _ => return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition).into())
+                        }
+                    }
+                    else {
+                        return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition).into());
+                    }
+                }
+
+                // Ensure that the trait bound is not empty (although i dont think its possible, but code may change later)
+                // If this returned an error load the checkpoint back so that the error will point at the correct generic
+                if generic_handle.is_empty() {
+                    // Load the position of the cursor at the generic name
+                    tokens.load_checkpoint(generic_name_checkpoint);
+                    return Err(ParserError::GenericMustHaveAtleastOneTrait.into());
+                }
+            },
             // If we encounter the closing `|` break the loop
             Token::BitOr => break,
 
@@ -918,7 +967,7 @@ pub fn parse_fn_generics(
         }
     }
 
-    Ok(())
+    Ok(generics)
 }
 
 /// The function assumes the first token to be the first token in the parentheses.

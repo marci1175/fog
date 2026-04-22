@@ -38,9 +38,9 @@ pub enum ParserError
     )]
     DuplicateGenerics(String),
     #[error(
-        "Generic {0} must have atleast one trait implemented to be a valid function generic type."
+        "Generic must have atleast one trait implemented to be a valid function generic type."
     )]
-    GenericMustHaveAtleastOneTrait(String),
+    GenericMustHaveAtleastOneTrait,
     #[error(
         "[INTERNAL ERROR] Function with a receiver (`this`) argument has not been passed it's receiver type."
     )]

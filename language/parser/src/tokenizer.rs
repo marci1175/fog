@@ -254,6 +254,10 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"(" => Token::OpenParentheses,
         b"[" => Token::OpenSquareBrackets,
 
+        b"," => Token::Comma,
+        b"." => Token::Dot,
+        b":" => Token::Colon,
+
         b"int" => Token::TypeDefinition(TypeToken::I32),
         b"uint" => Token::TypeDefinition(TypeToken::U32),
         b"float" => Token::TypeDefinition(TypeToken::F32),
@@ -306,8 +310,7 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"nounwind" => Token::CompilerInstruction(CompilerInstructionDiscriminants::NoUnWind),
         b"inline" => Token::CompilerInstruction(CompilerInstructionDiscriminants::Inline),
         b"feature" => Token::CompilerInstruction(CompilerInstructionDiscriminants::Feature),
-        b"." => Token::Dot,
-        b":" => Token::Colon,
+       
         b"::" => Token::DoubleColon,
         b"<-" => Token::LeftArrow,
         b"->" => Token::RightArrow,

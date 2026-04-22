@@ -64,8 +64,13 @@ pub trait Streamable<T>
     /// Peeks the rest of the stream.
     fn peek_remainder(&self) -> Option<&[T]>;
 
-    /// REturns the last consumed item of the stream.
+    /// Returns the last consumed item of the stream.
     fn get_last_consumed(&self) -> Option<&T>;
+}
+
+/// Stores the index of the cursor in the time this checkpoint was captured.
+pub struct StreamCheckpoint {
+    idx: usize,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -99,6 +104,14 @@ impl<T> TokenStream<T>
                 owner_idx_ref: &mut self.idx,
             }
         })
+    }
+
+    pub fn create_checkpoint(&self) -> StreamCheckpoint {
+        StreamCheckpoint { idx: self.idx }
+    }
+
+    pub fn load_checkpoint(&mut self, checkpoint: StreamCheckpoint) {
+        self.idx = checkpoint.idx;
     }
 
     pub fn idx_mut(&mut self) -> &mut usize
@@ -138,9 +151,7 @@ impl<T> Streamable<T> for TokenStream<T>
 
     fn peek_next(&self) -> Option<&T>
     {
-        self.idx
-            .checked_add_signed(1)
-            .and_then(|idx| self.buffer.get(idx))
+        self.buffer.get(self.idx)
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
