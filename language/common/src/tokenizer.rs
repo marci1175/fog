@@ -112,7 +112,7 @@ impl PartialEq<TokenDiscriminants> for Spanned<Token>
 {
     fn eq(&self, other: &TokenDiscriminants) -> bool
     {
-        self.inner() == other
+        self.get_inner() == other
     }
 }
 

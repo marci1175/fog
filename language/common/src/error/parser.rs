@@ -11,6 +11,8 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("Argument `{0}` is present in the function's arguments more than once.")]
+    DuplicateArguments(String),
     #[error("A type was expected at the location of the error. Ensure correct spelling, types are case sensitive.")]
     ExpectedTypeReference,
     #[error("[INTERNAL ERROR] TypeToken cannot be automatically converted into a `Type`.")]
@@ -100,7 +102,9 @@ pub enum ParserError
     #[error("The variable named `{0}` has not been found in the current scope.")]
     VariableNotFound(String),
     #[error("The following argument was not found in the argument list: `{0}`.")]
-    ArgumentError(String),
+    ArgumentMissing(String),
+    #[error("The function's argument should only be of a concrete and explicit type. Example: ```foo(bar: int)```")]
+    InvalidArgumentType,
     #[error(
         "[INTERNAL ERROR] A variable was not found in the scope when it should've been. This is not the same as `VariableNotFound`!"
     )]
@@ -163,7 +167,7 @@ pub enum ParserError
         "Type `{0}` does not contain any fields and may not be accessed via any field. (Only structs have fields)"
     )]
     TypeWithoutFields(Type),
-    #[error("Parser has encountered an unexpected END OF FILE.")]
+    #[error("Parser has encountered an unexpected END OF FILE. This usually means that the source code was discontinued inside of a language item.")]
     EOF,
     #[error("Variable `{0}` must have a default value of type `{1}`.")]
     MissingVariableValue(String, Type),

@@ -29,7 +29,7 @@ pub fn parse_struct(
 pub fn parse_type(tokens: &mut TokenStream<Spanned<Token>>) -> anyhow::Result<Type>
 {
     if let Some(tkn) = tokens.consume() {
-        return match tkn.inner() {
+        return match tkn.get_inner() {
             Token::TypeDefinition(ty) => {
                 match ty {
                     tokenizer::TypeToken::String

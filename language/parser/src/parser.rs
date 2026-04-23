@@ -68,7 +68,7 @@ impl Settings
 
         // Parse the actual tokens
         while let Some(tkn) = tokens.consume().cloned() {
-            match tkn.inner() {
+            match tkn.get_inner() {
                 Token::CompilerHintSymbol => {
                     parse_compiler_instruction(&mut item_compiler_instruction, tokens)?;
                 },
@@ -80,7 +80,7 @@ impl Settings
                     )?;
 
                     // Match the type of the item
-                    match item_tkn.inner() {
+                    match item_tkn.get_inner() {
                         Token::TypeDefinition(item_type) => {
                             match item_type {
                                 common::tokenizer::TypeToken::Enum => {
@@ -160,7 +160,7 @@ pub fn parse_compiler_instruction(
 ) -> anyhow::Result<()>
 {
     if let Some(tkn) = tokens.consume() {
-        match tkn.inner() {
+        match tkn.get_inner() {
             Token::CompilerInstruction(instr) => {
                 // If this is a feature that means the next token should be a string referencing the feature name.
                 if instr == &CompilerInstructionDiscriminants::Feature {

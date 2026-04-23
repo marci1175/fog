@@ -464,10 +464,10 @@ pub fn find_closing_braces(tokens: &TokenStream<Spanned<Token>>) -> Option<usize
         let mut braces_counter: usize = 1;
 
         for (idx, token) in tkns.iter().enumerate() {
-            if token.inner() == &Token::OpenBraces {
+            if token.get_inner() == &Token::OpenBraces {
                 braces_counter += 1;
             }
-            else if token.inner() == &Token::CloseBraces {
+            else if token.get_inner() == &Token::CloseBraces {
                 braces_counter -= 1;
             }
 

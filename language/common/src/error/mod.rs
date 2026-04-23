@@ -81,7 +81,7 @@ impl<T> Spanned<T>
         &self.span
     }
 
-    pub fn inner(&self) -> &T
+    pub fn get_inner(&self) -> &T
     {
         &self.inner
     }
@@ -102,7 +102,7 @@ impl<T> Deref for Spanned<T>
 
     fn deref(&self) -> &Self::Target
     {
-        self.inner()
+        self.get_inner()
     }
 }
 

@@ -62,7 +62,7 @@ impl Display for FunctionSignature
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionArguments
 {
-    /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are quniue in this context.
+    /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are unique in this context.
     pub arguments: OrdMap<String, (Type, UniqueId)>,
     pub ellipsis_present: bool,
     /// The map consists of the generic types and their traits.
@@ -490,7 +490,7 @@ pub fn parse_function_call_args(
                 let (argument_type, argument_variable_id) = this_function_args
                     .arguments
                     .get(&arg_name)
-                    .ok_or(ParserError::ArgumentError(arg_name.clone()))?;
+                    .ok_or(ParserError::ArgumentMissing(arg_name.clone()))?;
 
                 tokens_idx += 2;
 
@@ -840,16 +840,20 @@ pub fn parse_function(
     // If the first token is a '|' that means the function has generics defined
     // If the first token is a '(' that means that its just a normal function
     if let Some(tkn) = tokens.consume() {
-        match tkn.inner() {
+        match tkn.get_inner() {
             // Parse generics before arguments
             Token::BitOr => {
-                arguments.generics = dbg!(parse_fn_generics(ctx, &mut arguments, tokens)?);
+                // Fetch the generics of the function
+                arguments.generics = parse_fn_generics(tokens)?;
 
-                tokens.consume();
-                parse_fn_arguments(ctx, &mut arguments, tokens)?;
+                // The next token should be a "(" due to the syntax.
+                tokens.try_consume_match(ParserError::InvalidSignatureDefinition, &TokenDiscriminants::OpenParentheses)?;
+                
+                // Parse the arguments of the function
+                arguments.arguments = parse_fn_arguments(tokens)?;
             },
             // Parse arguments
-            Token::OpenParentheses => parse_fn_arguments(ctx, &mut arguments, tokens)?,
+            Token::OpenParentheses =>{ arguments.arguments = parse_fn_arguments(tokens)? },
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
@@ -889,9 +893,8 @@ pub fn parse_function(
 }
 
 /// The function assumes the first token to be the first token in the `|`s.
+/// The function does not check or evaluate anything it parses besides syntax checking.
 pub fn parse_fn_generics(
-    ctx: &Context,
-    arguments: &mut FunctionArguments,
     tokens: &mut TokenStream<Spanned<Token>>,
 ) -> anyhow::Result<OrdMap<String, OrdSet<String>>>
 {
@@ -906,7 +909,7 @@ pub fn parse_fn_generics(
     */
     // Lets loop through all the generics
     'main_loop: while let Some(tkn) = tokens.consume() {
-        match tkn.inner() {
+        match tkn.get_inner() {
             Token::Identifier(generic_name) => {
                 let generic_name = generic_name.clone();
 
@@ -917,13 +920,13 @@ pub fn parse_fn_generics(
                 tokens.try_consume_match(ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition), &TokenDiscriminants::Colon)?;
 
                 // Create a new entry for the current generic
-                generics.insert(dbg!(generic_name.clone()), OrdSet::new());
+                generics.insert(generic_name.clone(), OrdSet::new());
                 // We can safely unwrap here because the field is present in the map and return a mutable handle
                 let generic_handle = generics.get_mut(&generic_name).unwrap();
 
                 // Loop over the traits
                 'trait_loop: while let Some(tkn) = tokens.consume() {
-                    if let Token::Identifier(trait_name) = tkn.inner() {
+                    if let Token::Identifier(trait_name) = tkn.get_inner() {
                         // Store the trait's name which the user entered for the generic
                         // The ordset for the generic should already be present in the map.
                         generic_handle.insert(trait_name.clone());
@@ -932,7 +935,7 @@ pub fn parse_fn_generics(
                         let next = tokens.consume().ok_or(ParserError::EOF)?;
                         
                         // Match the next token
-                        match next.inner() {
+                        match next.get_inner() {
                             Token::BitOr => {
                                 break 'main_loop
                             },
@@ -971,14 +974,72 @@ pub fn parse_fn_generics(
 }
 
 /// The function assumes the first token to be the first token in the parentheses.
+/// Please note that the function does not evaluate anything it parses.
 pub fn parse_fn_arguments(
-    _ctx: &Context,
-    _arguments: &mut FunctionArguments,
     tokens: &mut TokenStream<Spanned<Token>>,
-) -> anyhow::Result<()>
+) -> anyhow::Result<OrdMap<String, (Type, UniqueId)>>
 {
-    tokens.consume();
-    Ok(())
+    /*
+        Arguments are defined like so:
+        "(" [{<arg_name> ":" <type>, }] ")"
+        The function will be called after the first "(" therefor the function should start parsing from the first arguments name or the closing ")".
+    */
+    // Create the map of arguments
+    let mut arguments: OrdMap<String, (Type, UniqueId)> = OrdMap::new();
+
+    // Loop thorugh all the arguments
+    'main_loop: while let Some(tkn) = tokens.consume() {
+        // Get the name of the variable
+        match tkn.get_inner() {
+            Token::Identifier(arg_name) => {
+                let arg_name = arg_name.clone();
+
+                // The next token should be a ":" due to syntax
+                tokens.try_consume_match(ParserError::InvalidFunctionArgumentDefinition, &TokenDiscriminants::Colon)?;
+
+                // The next token should be a concrete type or an identifier.
+                if let Some(ty) = tokens.consume() {
+                    // Get the function argument's type
+                    let arg_ty = match ty.get_inner() {
+                        Token::Identifier(ty_name) => {
+                            Type::Unresolved(ty_name.clone())
+                        }
+                        Token::TypeDefinition(ty) => {
+                            (ty.clone()).try_into()?
+                        }
+
+                        _ => return Err(ParserError::InvalidArgumentType.into())
+                    };
+
+                    // Store the argument
+                    let insertion_result = arguments.insert(arg_name.clone(), (arg_ty, VARIABLE_ID_SOURCE.get_unique_id()));
+                    
+                    // Check if there are duplicate argument names
+                    if insertion_result.is_some() {
+                        return Err(ParserError::DuplicateArguments(arg_name.clone()).into());
+                    }
+
+                    // Check the next token
+                    // If it is a "," that means that there are more arguments or the user just left it in.
+                    // If it s a ")" that shows that the all the function arguments have been parsed
+                    if let Some(tkn) = tokens.consume() {
+                        match tkn.get_inner() {
+                            Token::Comma => continue 'main_loop,
+                            Token::CloseParentheses => break 'main_loop,
+                            _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
+                        }
+                    }
+                }
+
+                // If we didnt break continue or return an error that means that there werent any more tokens left in the stream therefor we can do an EOF.
+                return Err(ParserError::EOF.into());
+            }
+            Token::CloseParentheses => break 'main_loop,
+            _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
+        }
+    }
+
+    Ok(arguments)
 }
 
 /// This function will parse the tokens in the body of the function, but it will not check the validness of the tokens themselves.
