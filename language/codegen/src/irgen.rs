@@ -24,7 +24,7 @@ use common::{
         variable::{ControlFlowType, UniqueId},
     },
     tokenizer::Token,
-    ty::{OrdMap, OrdSet, Type, ty_from_token},
+    ty::{OrdMap, OrdSet, Type},
 };
 use std::{collections::HashMap, rc::Rc};
 

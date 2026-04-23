@@ -1,19 +1,14 @@
 use std::{collections::HashMap, rc::Rc};
 
 use common::{
-    anyhow::{self, Result},
+    anyhow::Result,
     codegen::CustomItem,
-    error::{parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
-        common::{ItemVisibility, ParsedTokenInstance},
-        function::{
-            FunctionDefinition, FunctionSignature, PathMap, UnparsedFunctionDefinition,
-            parse_signature_argument_tokens,
-        },
+        common::ParsedTokenInstance,
+        function::{FunctionDefinition, FunctionSignature, PathMap, UnparsedFunctionDefinition},
     },
-    tokenizer::Token,
-    ty::{OrdMap, OrdSet, Type, ty_from_token},
+    ty::{OrdSet, Type},
 };
 
 use crate::parser::Settings;
@@ -233,54 +228,6 @@ impl Settings
     ) -> Result<Vec<ParsedTokenInstance>>
     {
         Ok(vec![])
-    }
-}
-
-/// This function is only used to parse function signatures for imports.
-pub fn parse_function_signature(
-    tokens: &[Token],
-    token_idx: &mut usize,
-    custom_types: &IndexMap<String, CustomItem>,
-    module_path: Vec<String>,
-    function_name: String,
-    is_struct_implementation: bool,
-    function_generics: OrdMap<String, OrdSet<Vec<String>>>,
-) -> anyhow::Result<FunctionSignature>
-{
-    let (bracket_close_idx, args) = parse_signature_argument_tokens(
-        &tokens[*token_idx..],
-        custom_types,
-        is_struct_implementation,
-        function_generics,
-    )?;
-
-    *token_idx += bracket_close_idx;
-
-    if tokens[*token_idx + 1] == Token::Colon {
-        // Check for SemiColon for shits and giggles
-        if tokens[*token_idx + 3] != Token::SemiColon {
-            return Err(ParserError::SyntaxError(SyntaxError::MissingSemiColon).into());
-        }
-
-        // Get return type for function
-        let return_ty = ty_from_token(&tokens[*token_idx + 2], custom_types)?;
-
-        // Increment idx
-        *token_idx += 3;
-
-        Ok(FunctionSignature {
-            name: function_name,
-            args,
-            return_type: return_ty,
-            module_path,
-            // Imported functions can only be accessed at the source file they were imported at
-            // I might change this later to smth like pub import similar to pub mod in rust
-            visibility: ItemVisibility::Private,
-            compiler_instructions: OrdSet::new(),
-        })
-    }
-    else {
-        Err(SyntaxError::FunctionSignatureReturnTypeRequired.into())
     }
 }
 

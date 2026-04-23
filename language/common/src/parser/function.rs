@@ -1,21 +1,18 @@
-use std::{collections::HashMap, fmt::Display, hash::Hash, ops::Add, rc::Rc};
+use std::{collections::HashMap, fmt::Display, hash::Hash, rc::Rc};
 
 use bimap::BiMap;
 use strum::EnumDiscriminants;
 
 use crate::{
-    anyhow::{self, Result},
-    codegen::{CustomItem, FunctionArgumentIdentifier},
-    error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
+    anyhow::{self},
+    error::{Spanned, parser::ParserError, syntax::SyntaxError},
     indexmap::IndexMap,
     parser::{
         common::{
-            Context, ItemVisibility, ParsedToken, ParsedTokenInstance, Streamable, TokenStream,
-            find_closing_braces, find_closing_comma, find_closing_paren,
+            Context, ItemVisibility, ParsedToken, Streamable, TokenStream, find_closing_braces,
         },
         ty::parse_type,
-        value::parse_value,
-        variable::{UniqueId, VARIABLE_ID_SOURCE, VariableReference},
+        variable::{UniqueId, VARIABLE_ID_SOURCE},
     },
     tokenizer::{Token, TokenDiscriminants},
     ty::{OrdMap, OrdSet, Type},
@@ -416,399 +413,6 @@ impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator for PathMapIterator<'a
     }
 }
 
-/// The slice should startwith the first token from inside the Parentheses.
-/// This function quits at the ")".
-pub fn parse_function_call_args(
-    tokens: &[Token],
-    function_tokens_offset: usize,
-    mut origin_token_idx: usize,
-    debug_infos: &[SpanInfo],
-    variable_scope: &mut IndexMap<String, (Type, UniqueId)>,
-    mut this_function_args: FunctionArguments,
-    function_signatures: Rc<PathMap<Vec<String>, String, UnparsedFunctionDefinition>>,
-    imported_functions: Rc<HashMap<String, FunctionSignature>>,
-    custom_items: Rc<IndexMap<String, CustomItem>>,
-    receiver: Option<(&VariableReference, Type, usize)>,
-    module_path: Vec<String>,
-) -> anyhow::Result<(
-    OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, (Type, UniqueId))>,
-    usize,
-)>
-{
-    let mut tokens_idx = 0;
-
-    let args_list_len = tokens[tokens_idx..].len() + tokens_idx;
-
-    // Arguments which will passed in to the function
-    let mut arguments: OrdMap<
-        FunctionArgumentIdentifier<String, usize>,
-        (
-            // The parsed token of the argument
-            ParsedTokenInstance,
-            (
-                // Parsed argument value type
-                Type,
-                // Unique ID of the type itself
-                UniqueId,
-            ),
-        ),
-    > = OrdMap::new();
-
-    if this_function_args.receiver_referenced {
-        // Check if the receiver is a Some
-        // It must be since there is a receiver referenced in the args `this`
-        let (receiver, recv_type, recv_id) =
-            receiver.ok_or(ParserError::VariableNotFound(String::from("this")))?;
-
-        // Manually insert a reference of the original struct into the the function call
-        arguments.insert(
-            FunctionArgumentIdentifier::Identifier(String::from("this")),
-            (
-                ParsedTokenInstance {
-                    inner: ParsedToken::VariableReference(receiver.clone()),
-                    debug_information: SpanInfo::default(),
-                },
-                (recv_type, recv_id),
-            ),
-        );
-    }
-
-    // If there are no arguments just return everything as is
-    if tokens.is_empty() {
-        if !this_function_args.arguments.is_empty() {
-            return Err(ParserError::InvalidFunctionArgumentCount.into());
-        }
-
-        return Ok((arguments, tokens_idx));
-    }
-
-    while tokens_idx < tokens.len() {
-        let current_token = tokens[tokens_idx].clone();
-
-        if let Token::Identifier(arg_name) = current_token.clone() {
-            if let Some(Token::SetValue) = tokens.get(tokens_idx + 1) {
-                let (argument_type, argument_variable_id) = this_function_args
-                    .arguments
-                    .get(&arg_name)
-                    .ok_or(ParserError::ArgumentMissing(arg_name.clone()))?;
-
-                tokens_idx += 2;
-
-                let closing_idx = find_closing_comma(&tokens[tokens_idx..])? + tokens_idx;
-
-                let (parsed_argument, jump_idx, arg_ty) = parse_value(
-                    &tokens[tokens_idx..closing_idx],
-                    function_tokens_offset,
-                    debug_infos,
-                    origin_token_idx + tokens_idx,
-                    function_signatures.clone(),
-                    variable_scope,
-                    Some(argument_type.clone()),
-                    imported_functions.clone(),
-                    custom_items.clone(),
-                    module_path.clone(),
-                )?;
-
-                tokens_idx += jump_idx;
-
-                let argmuent_id = *argument_variable_id;
-
-                // Remove tha argument from the argument list so we can parse unnamed arguments easier
-                this_function_args.arguments.shift_remove(&arg_name);
-
-                arguments.insert(
-                    FunctionArgumentIdentifier::Identifier(arg_name.clone()),
-                    (parsed_argument, (arg_ty, argmuent_id)),
-                );
-
-                continue;
-            }
-        }
-        else if Token::CloseParentheses == current_token {
-            break;
-        }
-        else if Token::Comma == current_token {
-            tokens_idx += 1;
-
-            continue;
-        }
-
-        let mut token_buf = Vec::new();
-        let mut bracket_counter: i32 = 0;
-
-        // Update the value of the origin_token_idx
-        origin_token_idx += tokens_idx;
-
-        // We should start by finding the comma and parsing the tokens in between the current idx and the comma
-        while tokens_idx < args_list_len {
-            let token = &tokens[tokens_idx];
-
-            if *token == Token::OpenParentheses {
-                bracket_counter += 1;
-            }
-            else if *token == Token::CloseParentheses {
-                bracket_counter -= 1;
-            }
-
-            // If a comma is found parse the tokens from the slice
-            if (*token == Token::Comma && bracket_counter == 0) || tokens_idx == args_list_len - 1 {
-                if tokens_idx == args_list_len - 1 {
-                    token_buf.push(token.clone());
-                }
-
-                let fn_argument = this_function_args.arguments.first_entry();
-
-                if let Some(fn_argument) = fn_argument {
-                    let (arg_ty, arg_id) = fn_argument.get();
-                    let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                        &token_buf,
-                        function_tokens_offset,
-                        debug_infos,
-                        tokens_idx,
-                        function_signatures.clone(),
-                        variable_scope,
-                        Some(arg_ty.clone()),
-                        imported_functions.clone(),
-                        custom_items.clone(),
-                        module_path.clone(),
-                    )?;
-
-                    tokens_idx += 1;
-
-                    token_buf.clear();
-
-                    arguments.insert(
-                        FunctionArgumentIdentifier::Identifier(fn_argument.key().clone()),
-                        (parsed_argument, (arg_ty, *arg_id)),
-                    );
-
-                    // Remove the argument from the argument list
-                    fn_argument.shift_remove();
-                }
-                // If an argument is passed into a function which takes a variable amount of arguments, it wont be found in the fn argument list
-                // We can allocate a new variable id to the argument passed in this way
-                else {
-                    let (parsed_argument, _jump_idx, arg_ty) = parse_value(
-                        &token_buf,
-                        function_tokens_offset + tokens_idx,
-                        debug_infos,
-                        origin_token_idx,
-                        function_signatures.clone(),
-                        variable_scope,
-                        None,
-                        imported_functions.clone(),
-                        custom_items.clone(),
-                        module_path.clone(),
-                    )?;
-
-                    tokens_idx += 1;
-
-                    token_buf.clear();
-
-                    let nth_argument = arguments.len();
-
-                    arguments.insert(
-                        FunctionArgumentIdentifier::Index(nth_argument),
-                        (
-                            parsed_argument,
-                            (arg_ty, VARIABLE_ID_SOURCE.get_unique_id()),
-                        ),
-                    );
-                }
-
-                continue;
-            }
-            else {
-                token_buf.push(token.clone());
-            }
-
-            tokens_idx += 1;
-        }
-    }
-
-    if !this_function_args.arguments.is_empty() {
-        return Err(ParserError::InvalidFunctionArgumentCount.into());
-    }
-
-    Ok((arguments, tokens_idx))
-}
-
-pub fn parse_signature_args(
-    _tokens: &[Token],
-    _custom_types: &IndexMap<String, CustomItem>,
-    _is_struct_implementation: bool,
-    _function_generics: &OrdMap<String, OrdSet<Vec<String>>>,
-) -> Result<FunctionArguments>
-{
-    Ok(todo!())
-}
-
-pub fn parse_signature_argument_tokens(
-    tokens: &[Token],
-    custom_types: &IndexMap<String, CustomItem>,
-    is_struct_implementation: bool,
-    function_generics: OrdMap<String, OrdSet<Vec<String>>>,
-) -> Result<(usize, FunctionArguments)>
-{
-    let bracket_closing_idx =
-        find_closing_paren(tokens, 0).map_err(|_| ParserError::InvalidSignatureDefinition)?;
-
-    let mut args = FunctionArguments::new();
-
-    if bracket_closing_idx != 0 {
-        args = parse_signature_args(
-            &tokens[..bracket_closing_idx],
-            custom_types,
-            is_struct_implementation,
-            &function_generics,
-        )?;
-    }
-
-    // args.generics = function_generics;
-
-    Ok((bracket_closing_idx, args))
-}
-
-/// Parses the function generics definitions and modifies the provided [`OrdMap`].
-/// The first token of the provided slice should be the first token after the opening `|`.
-/// Only traits can be implmeneted / required for a generic for now, all of the trait names are looked up to verify them.
-/// The function returns the amount of indexes we have incremented
-// pub fn parse_fn_generics(
-//     // Parsed tokens
-//     tokens: &[Token],
-//     // Curerently available custom types / items
-//     custom_types: &IndexMap<String, CustomItem>,
-//     // The list of function generics
-//     function_generics: &mut OrdMap<String, OrdSet<Vec<String>>>,
-// ) -> anyhow::Result<usize>
-// {
-//     let function_g_closing_idx = find_next_bitor(tokens)
-//         .map_err(|_| ParserError::SyntaxError(crate::error::syntax::SyntaxError::LeftOpenBitOr))?;
-
-//     let traits_slice = &tokens[..function_g_closing_idx];
-
-//     let mut idx = 0;
-
-//     'generics_loop: while idx < traits_slice.len() {
-//         if let Some(Token::Identifier(generic_name)) = traits_slice.get(idx) {
-//             // Insert a new field into the function's generics
-//             let insertion_result = function_generics.insert(generic_name.clone(), OrdSet::new());
-
-//             // If there has already been a generic with this name inserted, return an error
-//             if insertion_result.is_some() {
-//                 return Err(ParserError::DuplicateGenerics(generic_name.clone()).into());
-//             }
-
-//             // Return a mutable reference to the newly inserted generic's trait impls
-//             let trait_list = function_generics.get_mut(generic_name).unwrap();
-
-//             // Match syntax
-//             if let Some(Token::LeftArrow) = traits_slice.get(idx + 1) {
-//                 // Move index to the beginning of the Traits list
-//                 idx += 2;
-
-//                 // In this loop we increment the index until the comma, which closes the traits list
-//                 'traits_loop: while idx < traits_slice.len() {
-//                     if let Some(Token::Identifier(trait_name)) = traits_slice.get(idx) {
-//                         idx += 1;
-
-//                         // Check if its a valid trait
-//                         match custom_types
-//                             .get(trait_name)
-//                             .ok_or(ParserError::CustomItemNotFound(trait_name.clone()))?
-//                         {
-//                             CustomItem::Enum(_) | CustomItem::Struct(_) => {
-//                                 return Err(ParserError::CustomItemUnavailableForGenerics(
-//                                     trait_name.clone(),
-//                                 )
-//                                 .into());
-//                             },
-//                             // We just have to check if its a trait or not
-//                             CustomItem::Trait { access_path, .. } => {
-//                                 // Store trait name, into the mutable reference
-//                                 // Check if the trait is already required
-//                                 if !trait_list.insert(access_path.clone()) {
-//                                     return Err(ParserError::TraitAlreadyRequiredForGeneric(
-//                                         generic_name.clone(),
-//                                         trait_name.clone(),
-//                                     )
-//                                     .into());
-//                                 }
-
-//                                 // Check syntax
-//                                 match traits_slice.get(idx) {
-//                                     // If there is an addition token that means that there are more traits for this generic to implement
-//                                     Some(&Token::Addition) => {
-//                                         // Consume plus sign
-//                                         idx += 1;
-
-//                                         // Check if there are more tokens to parse after the `+`, if not we should raise an error
-//                                         if idx >= traits_slice.len() {
-//                                             return Err(ParserError::SyntaxError(
-//                                                 SyntaxError::InvalidFunctionGenericsDefinition, // Token::Addition,
-//                                             )
-//                                             .into());
-//                                         }
-
-//                                         continue 'traits_loop;
-//                                     },
-//                                     // If there was a comma, we should stop parsing the traits for this generic, and parse the next generic
-//                                     Some(&Token::Comma) => {
-//                                         // Consume comma
-//                                         idx += 1;
-
-//                                         continue 'generics_loop;
-//                                     },
-//                                     // If there is a different token that means that the syntax doesnt match
-//                                     Some(_tkn) => {
-//                                         return Err(SyntaxError::InvalidFunctionGenericsDefinition
-//                                             // tkn.clone(),
-//                                             .into());
-//                                     },
-//                                     _ => break 'traits_loop,
-//                                 }
-//                             },
-//                         }
-//                     }
-
-//                     // Check if we have mentioned atleast one trait to implement for the last generic
-//                     // If not we should raise an error
-//                     if trait_list.is_empty() {
-//                         return Err(ParserError::GenericMustHaveAtleastOneTrait(
-//                             generic_name.clone(),
-//                         )
-//                         .into());
-//                     }
-
-//                     // Check syntax validity
-//                     match traits_slice.get(idx) {
-//                         Some(_tkn) => {
-//                             return Err(SyntaxError::InvalidFunctionGenericsDefinition
-//                                 // tkn.clone(),
-//                                 .into());
-//                         },
-//                         _ => break 'traits_loop,
-//                     }
-//                 }
-//             }
-
-//             idx += 1;
-//         }
-
-//         match traits_slice.get(idx) {
-//             Some(_) => {
-//                 return Err(ParserError::SyntaxError(
-//                     SyntaxError::MissingCommaAtGenericsDefinition,
-//                 )
-//                 .into());
-//             },
-//             _ => break,
-//         }
-//     }
-
-//     Ok(idx)
-// }
-
 /// The function parses the entire function, but does not validate the function's body.
 /// Syntax of a function:
 /// ```
@@ -847,13 +451,16 @@ pub fn parse_function(
                 arguments.generics = parse_fn_generics(tokens)?;
 
                 // The next token should be a "(" due to the syntax.
-                tokens.try_consume_match(ParserError::InvalidSignatureDefinition, &TokenDiscriminants::OpenParentheses)?;
-                
+                tokens.try_consume_match(
+                    ParserError::InvalidSignatureDefinition,
+                    &TokenDiscriminants::OpenParentheses,
+                )?;
+
                 // Parse the arguments of the function
                 arguments.arguments = parse_fn_arguments(tokens)?;
             },
             // Parse arguments
-            Token::OpenParentheses =>{ arguments.arguments = parse_fn_arguments(tokens)? },
+            Token::OpenParentheses => arguments.arguments = parse_fn_arguments(tokens)?,
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
@@ -917,7 +524,10 @@ pub fn parse_fn_generics(
                 let generic_name_checkpoint = tokens.create_checkpoint();
 
                 // The next token should be a ":" due to syntax
-                tokens.try_consume_match(ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition), &TokenDiscriminants::Colon)?;
+                tokens.try_consume_match(
+                    ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition),
+                    &TokenDiscriminants::Colon,
+                )?;
 
                 // Create a new entry for the current generic
                 generics.insert(generic_name.clone(), OrdSet::new());
@@ -933,20 +543,26 @@ pub fn parse_fn_generics(
 
                         // Check the next token
                         let next = tokens.consume().ok_or(ParserError::EOF)?;
-                        
+
                         // Match the next token
                         match next.get_inner() {
-                            Token::BitOr => {
-                                break 'main_loop
-                            },
+                            Token::BitOr => break 'main_loop,
                             Token::Addition => continue 'trait_loop,
                             // If we have reached the comma that means that the current trait bound has ended.
                             Token::Comma => break 'trait_loop,
-                            _ => return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition).into())
+                            _ => {
+                                return Err(ParserError::SyntaxError(
+                                    SyntaxError::InvalidFunctionGenericsDefinition,
+                                )
+                                .into());
+                            },
                         }
                     }
                     else {
-                        return Err(ParserError::SyntaxError(SyntaxError::InvalidFunctionGenericsDefinition).into());
+                        return Err(ParserError::SyntaxError(
+                            SyntaxError::InvalidFunctionGenericsDefinition,
+                        )
+                        .into());
                     }
                 }
 
@@ -995,25 +611,34 @@ pub fn parse_fn_arguments(
                 let arg_name = arg_name.clone();
 
                 // The next token should be a ":" due to syntax
-                tokens.try_consume_match(ParserError::InvalidFunctionArgumentDefinition, &TokenDiscriminants::Colon)?;
+                tokens.try_consume_match(
+                    ParserError::InvalidFunctionArgumentDefinition,
+                    &TokenDiscriminants::Colon,
+                )?;
 
                 // The next token should be a concrete type or an identifier.
                 if let Some(ty) = tokens.consume() {
                     // Get the function argument's type
                     let arg_ty = match ty.get_inner() {
                         Token::Identifier(ty_name) => {
+                            // Store the type as unresolved, this will be resolved later at the semantic checking process
                             Type::Unresolved(ty_name.clone())
-                        }
+                        },
                         Token::TypeDefinition(ty) => {
+                            // Turn the concrete typetoken into a type
                             (ty.clone()).try_into()?
-                        }
+                        },
 
-                        _ => return Err(ParserError::InvalidArgumentType.into())
+                        // Invalid syntax, return an error
+                        _ => return Err(ParserError::InvalidArgumentType.into()),
                     };
 
                     // Store the argument
-                    let insertion_result = arguments.insert(arg_name.clone(), (arg_ty, VARIABLE_ID_SOURCE.get_unique_id()));
-                    
+                    let insertion_result = arguments.insert(
+                        arg_name.clone(),
+                        (arg_ty, VARIABLE_ID_SOURCE.get_unique_id()),
+                    );
+
                     // Check if there are duplicate argument names
                     if insertion_result.is_some() {
                         return Err(ParserError::DuplicateArguments(arg_name.clone()).into());
@@ -1033,7 +658,7 @@ pub fn parse_fn_arguments(
 
                 // If we didnt break continue or return an error that means that there werent any more tokens left in the stream therefor we can do an EOF.
                 return Err(ParserError::EOF.into());
-            }
+            },
             Token::CloseParentheses => break 'main_loop,
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }

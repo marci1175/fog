@@ -18,7 +18,7 @@ use common::{
         function::FunctionDefinition,
         variable::{UniqueId, VariableReference},
     },
-    ty::{Type, Value, ty_from_token},
+    ty::{Type, Value},
 };
 use std::{collections::HashMap, rc::Rc};
 

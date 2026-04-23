@@ -9,19 +9,19 @@ use crate::{
 };
 
 pub fn parse_enum(
-    ctx: &mut Context,
-    vis: &ItemVisibility,
-    tokens: &mut TokenStream<Spanned<Token>>,
-    compiler_instructions: OrdSet<CompilerInstruction>,
+    _ctx: &mut Context,
+    _vis: &ItemVisibility,
+    _tokens: &mut TokenStream<Spanned<Token>>,
+    _compiler_instructions: OrdSet<CompilerInstruction>,
 )
 {
 }
 
 pub fn parse_struct(
-    ctx: &mut Context,
-    vis: &ItemVisibility,
-    tokens: &mut TokenStream<Spanned<Token>>,
-    compiler_instructions: OrdSet<CompilerInstruction>,
+    _ctx: &mut Context,
+    _vis: &ItemVisibility,
+    _tokens: &mut TokenStream<Spanned<Token>>,
+    _compiler_instructions: OrdSet<CompilerInstruction>,
 )
 {
 }

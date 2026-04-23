@@ -22,7 +22,7 @@ use common::{
         types::AsTypeRef,
     },
     parser::function::FunctionDefinition,
-    ty::{Type, ty_from_token},
+    ty::Type,
 };
 use std::{
     ffi::{CStr, CString},

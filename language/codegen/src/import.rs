@@ -6,7 +6,7 @@ use common::{
     indexmap::IndexMap,
     inkwell::{AddressSpace, context::Context, module::Module, types::BasicType},
     parser::function::{FunctionDefinition, FunctionSignature},
-    ty::{Type, ty_from_token},
+    ty::Type,
 };
 use std::{collections::HashMap, rc::Rc};
 

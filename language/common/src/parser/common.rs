@@ -69,7 +69,8 @@ pub trait Streamable<T>
 }
 
 /// Stores the index of the cursor in the time this checkpoint was captured.
-pub struct StreamCheckpoint {
+pub struct StreamCheckpoint
+{
     idx: usize,
 }
 
@@ -106,11 +107,13 @@ impl<T> TokenStream<T>
         })
     }
 
-    pub fn create_checkpoint(&self) -> StreamCheckpoint {
+    pub fn create_checkpoint(&self) -> StreamCheckpoint
+    {
         StreamCheckpoint { idx: self.idx }
     }
 
-    pub fn load_checkpoint(&mut self, checkpoint: StreamCheckpoint) {
+    pub fn load_checkpoint(&mut self, checkpoint: StreamCheckpoint)
+    {
         self.idx = checkpoint.idx;
     }
 

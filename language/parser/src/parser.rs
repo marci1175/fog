@@ -6,12 +6,8 @@ use common::{
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{
-            Context, Streamable, TokenStream,
-        },
-        function::{
-            CompilerInstruction, CompilerInstructionDiscriminants, parse_function,
-        },
+        common::{Context, Streamable, TokenStream},
+        function::{CompilerInstruction, CompilerInstructionDiscriminants, parse_function},
         ty::{parse_enum, parse_struct},
     },
     tokenizer::{Token, TokenDiscriminants},

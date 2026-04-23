@@ -10,7 +10,6 @@ use crate::{
     codegen::{CustomItem, StructAttributes, struct_field_to_ty_list},
     error::{codegen::CodeGenError, parser::ParserError},
     parser::{common::ParsedTokenInstance, function::FunctionSignature},
-    tokenizer::Token,
 };
 use indexmap::{IndexMap, IndexSet};
 use inkwell::{
@@ -846,41 +845,5 @@ impl<T: Hash + Eq + Clone> OrdSet<T>
         });
 
         set
-    }
-}
-
-pub fn ty_from_token(
-    token: &Token,
-    custom_types: &IndexMap<String, CustomItem>,
-) -> anyhow::Result<Type>
-{
-    match &token {
-        Token::Identifier(ident) => {
-            if let Some(custom_type) = custom_types.get(ident) {
-                match custom_type.clone() {
-                    CustomItem::Struct(struct_def) => Ok(Type::Struct(struct_def)),
-                    CustomItem::Enum((ty, body)) => Ok(Type::Enum((Box::new(ty), body))),
-                    // TODO: Make it so that Trait types exist. It will basically mean that any struct can be passed in to this arg which implements this trait
-                    // This is a type interface, this isnt a concrete type
-                    CustomItem::Trait {
-                        name,
-                        functions,
-                        access_path,
-                    } => {
-                        Ok(Type::Trait {
-                            name,
-                            functions,
-                            access_path,
-                        })
-                    },
-                }
-            }
-            else {
-                Err(ParserError::InvalidType.into())
-            }
-        },
-        Token::TypeDefinition(_type_def) => Ok(todo!()),
-        // Token::TypeDefinition(type_def) => Ok(type_def.clone()),
-        _ => Err(ParserError::InvalidType.into()),
     }
 }

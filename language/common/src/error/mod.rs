@@ -1,6 +1,5 @@
 use std::{fmt::Display, fs, ops::Deref, path::PathBuf};
 
-
 pub mod application;
 pub mod cliparser;
 pub mod codegen;

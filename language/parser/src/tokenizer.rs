@@ -310,7 +310,7 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"nounwind" => Token::CompilerInstruction(CompilerInstructionDiscriminants::NoUnWind),
         b"inline" => Token::CompilerInstruction(CompilerInstructionDiscriminants::Inline),
         b"feature" => Token::CompilerInstruction(CompilerInstructionDiscriminants::Feature),
-       
+
         b"::" => Token::DoubleColon,
         b"<-" => Token::LeftArrow,
         b"->" => Token::RightArrow,
