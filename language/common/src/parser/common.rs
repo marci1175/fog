@@ -11,7 +11,7 @@ use crate::{
         value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId, VariableReference},
     },
-    tokenizer::Token,
+    tokenizer::{Token, TokenDiscriminants},
     ty::{OrdMap, OrdSet, Type, Value},
 };
 
@@ -54,6 +54,10 @@ pub trait Streamable<T>
     fn try_consume_match<E: Clone, D>(&mut self, error: E, discriminant: &D) -> Result<&T, E>
     where
         T: PartialEq<D>;
+
+    /// Returns true if the pattern matches the next `n` tokens in the stream.
+    fn try_match_pattern<D>(&mut self, pattern: &[D]) -> bool
+        where T: PartialEq<D>;
 
     /// The fetching should be non-inclusive.
     /// The function should return the `nth` next tokens.
@@ -183,6 +187,17 @@ impl<T> Streamable<T> for TokenStream<T>
         Ok(query)
     }
 
+    /// Returns true if the pattern matches the next `n` tokens in the stream.
+    fn try_match_pattern<D>(&mut self, pattern: &[D]) -> bool
+    where T: PartialEq<D>,
+    {
+        pattern.iter().enumerate().all(|(idx, tkn)| {
+            self.buffer
+                .get(self.idx + idx)
+                .is_some_and(|x| x == tkn)
+        })
+    }
+
     /// This does not remove the token from the list, therefor it is O(1).
     /// The function only increments an internal index.
     /// The fetching is non-inclusive.
@@ -263,6 +278,17 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
         *self.owner_idx_ref += 1;
         self.idx += 1;
         Ok(query)
+    }
+
+    /// Returns true if the pattern matches the next `n` tokens in the stream.
+    fn try_match_pattern<D>(&mut self, pattern: &[D]) -> bool
+    where T: PartialEq<D>,
+    {
+        pattern.iter().enumerate().all(|(idx, tkn)| {
+            self.buffer
+                .get(self.idx + idx)
+                .is_some_and(|x| x == tkn)
+        })
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
