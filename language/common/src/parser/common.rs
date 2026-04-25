@@ -57,7 +57,7 @@ pub trait Streamable<T>
 
     /// Returns true if the pattern matches the next `n` tokens in the stream.
     fn try_match_pattern<D>(&mut self, pattern: &[D]) -> bool
-        where T: PartialEq<D>;
+        where for<'a> std::option::Option<&'a [T]>: PartialEq<std::option::Option<&'a [D]>>;
 
     /// The fetching should be non-inclusive.
     /// The function should return the `nth` next tokens.
@@ -189,13 +189,9 @@ impl<T> Streamable<T> for TokenStream<T>
 
     /// Returns true if the pattern matches the next `n` tokens in the stream.
     fn try_match_pattern<D>(&mut self, pattern: &[D]) -> bool
-    where T: PartialEq<D>,
+    where for<'a> std::option::Option<&'a [T]>: PartialEq<std::option::Option<&'a [D]>>,
     {
-        pattern.iter().enumerate().all(|(idx, tkn)| {
-            self.buffer
-                .get(self.idx + idx)
-                .is_some_and(|x| x == tkn)
-        })
+        self.buffer.get(self.idx..self.idx + pattern.len()) == Some(pattern)
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
@@ -282,13 +278,9 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
 
     /// Returns true if the pattern matches the next `n` tokens in the stream.
     fn try_match_pattern<D>(&mut self, pattern: &[D]) -> bool
-    where T: PartialEq<D>,
+    where for<'a> std::option::Option<&'a [T]>: PartialEq<std::option::Option<&'a [D]>>,
     {
-        pattern.iter().enumerate().all(|(idx, tkn)| {
-            self.buffer
-                .get(self.idx + idx)
-                .is_some_and(|x| x == tkn)
-        })
+        self.buffer.get(self.idx..self.idx + pattern.len()) == Some(pattern)
     }
 
     /// This does not remove the token from the list, therefor it is O(1).

@@ -104,6 +104,8 @@ pub enum Token
     Returns,
 
     Namespace,
+    Use,
+
     Reference,
     Dereference,
 }
@@ -191,6 +193,7 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::Namespace => other == &TokenDiscriminants::Namespace,
             Token::Reference => other == &TokenDiscriminants::Reference,
             Token::Dereference => other == &TokenDiscriminants::Dereference,
+            Token::Use => other == &TokenDiscriminants::Use,
         }
     }
 }

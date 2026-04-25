@@ -679,12 +679,16 @@ pub fn parse_fn_body(
         .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?;
 
     // It is safe to unwrap here, since we have already checked if the closing braces would be in the TokenStream
-    let mut _fn_body = tokens.child_iterator_bulk(body_closing_tkn).unwrap();
+    let mut fn_body = tokens.child_iterator_bulk(body_closing_tkn).unwrap();
 
     // Store the parsed tokens somewhere
     let parsed_tokens = Vec::new();
 
-    // parse_tokens(&mut fn_body, &mut parsed_tokens)?;
+    // Iterate over the whole body matching "chunks" of tokens.
+    // I dont want to consume the token from the token stream every iteration, since i want to match "patterns" of tokens. 
+    while let Some(_tkn) = fn_body.peek_next() {
+        
+    }
 
     Ok(parsed_tokens)
 }
