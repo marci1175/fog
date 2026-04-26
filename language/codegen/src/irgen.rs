@@ -18,7 +18,7 @@ use common::{
         values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     },
     parser::{
-        common::{StatementVariant, ParsedTokenInstance},
+        common::{ParsedTokenInstance, StatementVariant},
         function::{CompilerInstruction, FunctionDefinition},
         value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId},

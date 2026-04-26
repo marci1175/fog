@@ -9,7 +9,7 @@ use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{StatementVariant, ParsedTokenInstance},
+        common::{ParsedTokenInstance, StatementVariant},
         function::{FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition},
     },
     tokenizer::Token,

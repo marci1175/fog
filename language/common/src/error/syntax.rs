@@ -5,6 +5,8 @@ use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
 #[derive(Clone, Debug, Error)]
 pub enum SyntaxError
 {
+    #[error("All variables must be initialized with a value before use.")]
+    VariableRequiresInitialization,
     #[error("An Array's length can only be indicated by a `uint`(u32).")]
     InvalidArrayLenType,
     #[error(r#"A type's generic parameters must be defined like so: ```<type> "<" <parameter> [{{, <parameter>}}] ">"```."#)]

@@ -11,7 +11,7 @@ use common::{
         values::{IntValue, PointerValue},
     },
     parser::{
-        common::{StatementVariant, ParsedTokenInstance},
+        common::{ParsedTokenInstance, StatementVariant},
         variable::UniqueId,
     },
     ty::Type,

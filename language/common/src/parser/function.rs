@@ -11,6 +11,7 @@ use crate::{
         common::{
             Context, ItemVisibility, StatementVariant, Streamable, TokenStream, find_closing_braces,
         },
+        statement::parse_statement,
         ty::parse_type,
         variable::{UniqueId, VARIABLE_ID_SOURCE},
     },
@@ -685,9 +686,9 @@ pub fn parse_fn_body(
     let parsed_tokens = Vec::new();
 
     // Iterate over the whole body matching "chunks" of tokens.
-    // I dont want to consume the token from the token stream every iteration, since i want to match "patterns" of tokens. 
-    while let Some(_tkn) = fn_body.peek_next() {
-
+    // I dont want to consume the token from the token stream every iteration, since i want to match "patterns" of tokens.
+    while fn_body.peek_next().is_some() {
+        let stmt = parse_statement(&mut fn_body)?;
     }
 
     Ok(parsed_tokens)

@@ -22,9 +22,7 @@ use common::{
 };
 use std::{collections::HashMap, rc::Rc};
 
-use crate::{
-    allocate::create_new_variable, irgen::create_function_call_args,
-};
+use crate::{allocate::create_new_variable, irgen::create_function_call_args};
 
 /// This function takes in the variable pointer which is dereferenced to set the variable's value.
 /// Ensure that we are setting variable type `T` with value `T`

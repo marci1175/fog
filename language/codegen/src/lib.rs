@@ -27,10 +27,7 @@ use common::{
 use parser::parser::Settings;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, rc::Rc};
 
-use crate::{
-    import::import_user_lib_functions,
-    irgen::generate_ir,
-};
+use crate::{import::import_user_lib_functions, irgen::generate_ir};
 
 /// Main function to the codegen module.
 /// This function handles everything IR generation related.

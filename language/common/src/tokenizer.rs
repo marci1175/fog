@@ -108,6 +108,9 @@ pub enum Token
 
     Reference,
     Dereference,
+
+    /* These tokens are syntax sugar */
+    In,
 }
 
 impl PartialEq<TokenDiscriminants> for Spanned<Token>
@@ -194,6 +197,7 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::Reference => other == &TokenDiscriminants::Reference,
             Token::Dereference => other == &TokenDiscriminants::Dereference,
             Token::Use => other == &TokenDiscriminants::Use,
+            Token::In => other == &TokenDiscriminants::In,
         }
     }
 }

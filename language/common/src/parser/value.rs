@@ -39,7 +39,7 @@ use crate::{
     codegen::CustomItem,
     error::{SpanInfo, syntax::SyntaxError},
     parser::{
-        common::{StatementVariant, ParsedTokenInstance},
+        common::{ParsedTokenInstance, StatementVariant},
         dbg::fetch_and_merge_debug_information,
         function::{FunctionSignature, UnparsedFunctionDefinition},
         variable::UniqueId,
