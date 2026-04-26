@@ -73,7 +73,7 @@ pub enum SyntaxError
     InvalidFunctionName,
     #[error("A valid struct has not been found with the name of `{0}`")]
     InvalidStructName(String),
-    #[error("Invalid Struct Definition.")]
+    #[error(r#"Invalid struct definition, struct should be defined like so: ```<vis> "struct" <name> ["|" [{{<generic> ":" {{<trait> ["+"]}} [","] }}] "|"] "{{" [{{ <field>: <ty>, }}] "}}"```"#)]
     InvalidStructDefinition,
     #[error("Invalid Dot placement, variable cannot have fields.")]
     InvalidDotPlacement,

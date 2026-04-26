@@ -170,7 +170,7 @@ pub enum ParserError
     )]
     TypeWithoutFields(Type),
     #[error(
-        "Parser has encountered an unexpected END OF FILE. This usually means that the source code was discontinued inside of a language item."
+        "Parser has encountered an unexpected END OF FILE. This usually means that the source code was discontinued while matching a language item pattern."
     )]
     EOF,
     #[error("Variable `{0}` must have a default value of type `{1}`.")]

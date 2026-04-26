@@ -12,7 +12,7 @@ use crate::{
             Context, ItemVisibility, StatementVariant, Streamable, TokenStream, find_closing_braces,
         },
         statement::parse_statement,
-        ty::parse_type,
+        ty::{create_ty_token, parse_type},
         variable::{UniqueId, VARIABLE_ID_SOURCE},
     },
     tokenizer::{Token, TokenDiscriminants},
@@ -449,7 +449,7 @@ pub fn parse_function(
             // Parse generics before arguments
             Token::BitOr => {
                 // Fetch the generics of the function
-                arguments.generics = parse_fn_generics(tokens)?;
+                arguments.generics = parse_generics(tokens)?;
 
                 // The next token should be a "(" due to the syntax.
                 tokens.try_consume_match(
@@ -502,7 +502,7 @@ pub fn parse_function(
 
 /// The function assumes the first token to be the first token in the `|`s.
 /// The function does not check or evaluate anything it parses besides syntax checking.
-pub fn parse_fn_generics(
+pub fn parse_generics(
     tokens: &mut TokenStream<Spanned<Token>>,
 ) -> anyhow::Result<OrdMap<String, OrdSet<String>>>
 {
@@ -620,19 +620,7 @@ pub fn parse_fn_arguments(
                 // The next token should be a concrete type or an identifier.
                 if let Some(ty) = tokens.consume() {
                     // Get the function argument's type
-                    let arg_ty = match ty.get_inner() {
-                        Token::Identifier(ty_name) => {
-                            // Store the type as unresolved, this will be resolved later at the semantic checking process
-                            Type::Unresolved(ty_name.clone())
-                        },
-                        Token::TypeDefinition(ty) => {
-                            // Turn the concrete typetoken into a type
-                            (ty.clone()).try_into()?
-                        },
-
-                        // Invalid syntax, return an error
-                        _ => return Err(ParserError::InvalidArgumentType.into()),
-                    };
+                    let arg_ty = create_ty_token(ty)?;
 
                     // Store the argument
                     let insertion_result = arguments.insert(

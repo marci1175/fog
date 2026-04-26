@@ -2,7 +2,10 @@ use anyhow::Result;
 use strum_macros::Display;
 
 use crate::{
-    codegen::{CustomItem, DerefMode, FunctionArgumentIdentifier, If, Order},
+    codegen::{
+        CustomItem, DerefMode, FunctionArgumentIdentifier, If, Order, StructAttributes,
+        StructDefinition,
+    },
     error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         function::{
@@ -447,6 +450,24 @@ impl Context
                 compiler_instructions,
             },
             body,
+        }
+    }
+
+    pub fn create_struct(
+        &self,
+        vis: ItemVisibility,
+        name: String,
+        fields: OrdMap<String, Type>,
+        generics: OrdMap<String, OrdSet<String>>,
+        attributes: StructAttributes,
+    ) -> StructDefinition
+    {
+        StructDefinition {
+            visibility: vis,
+            name,
+            fields,
+            generics,
+            attributes,
         }
     }
 }

@@ -9,8 +9,10 @@ use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{ParsedTokenInstance, StatementVariant},
-        function::{FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition},
+        common::{ItemVisibility, ParsedTokenInstance, StatementVariant},
+        function::{
+            CompilerInstruction, FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition,
+        },
     },
     tokenizer::Token,
     ty::{OrdMap, OrdSet, Type},
@@ -30,6 +32,9 @@ use strum::Display;
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructAttributes
 {
+    /// Compiler instructions given as attributes to the struct.
+    compiler_instructions: OrdSet<CompilerInstruction>,
+
     /// The Set should consist of the full access path to the traits implemented.
     /// Example: {["dep1", "common", "trait1"], ["dep1", "common", "trait2"]}
     pub traits_implemented: OrdSet<Vec<String>>,
@@ -37,6 +42,22 @@ pub struct StructAttributes
     /// This field contains all the functions implemented for the struct.
     /// The function can be implemented through a trait or just normal impl statements.
     pub impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>,
+}
+
+impl StructAttributes
+{
+    pub fn new(
+        compiler_instructions: OrdSet<CompilerInstruction>,
+        traits_implemented: OrdSet<Vec<String>>,
+        impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>,
+    ) -> Self
+    {
+        Self {
+            compiler_instructions,
+            traits_implemented,
+            impl_fn_list,
+        }
+    }
 }
 
 /// Function implementation variant for a struct.
@@ -58,22 +79,21 @@ pub enum ParsedState<PARSED, UNPARSED>
     Unparsed(UNPARSED),
 }
 
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+pub struct StructDefinition
+{
+    pub visibility: ItemVisibility,
+    pub name: String,
+    pub fields: OrdMap<String, Type>,
+    pub generics: OrdMap<String, OrdSet<String>>,
+    pub attributes: StructAttributes,
+}
+
 /// All of the custom types implemented by the User are defined here
 #[derive(Debug, Clone, PartialEq, Display, Hash)]
 pub enum CustomItem
 {
-    Struct(
-        (
-            String,
-            OrdMap<
-                // Field name
-                String,
-                // Field type
-                Type,
-            >,
-            StructAttributes,
-        ),
-    ),
+    Struct(StructDefinition),
     Enum(
         (
             // Enum type

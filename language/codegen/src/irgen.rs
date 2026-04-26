@@ -277,35 +277,35 @@ pub fn generate_ir<'ctx>(
 
     let mut unique_id_source = 0;
 
-    for (_item_name, item) in custom_types.iter() {
-        if let CustomItem::Struct((_name, _fields, attr)) = item {
-            for (_, impl_fn) in attr.impl_fn_list.iter() {
-                // It is safe to unwrap this here since all the functions have been parsed.
-                let impl_fn = impl_fn.try_as_parsed_ref().unwrap();
+    // for (_item_name, item) in custom_types.iter() {
+    //     if let CustomItem::Struct((_name, _fields, attr)) = item {
+    //         for (_, impl_fn) in attr.impl_fn_list.iter() {
+    //             // It is safe to unwrap this here since all the functions have been parsed.
+    //             let impl_fn = impl_fn.try_as_parsed_ref().unwrap();
 
-                // If there are any generics present in the function arguments, the function should not be statically parsed and is generated after call during compile
-                if !impl_fn.signature.args.generics.is_empty() {
-                    continue;
-                }
+    //             // If there are any generics present in the function arguments, the function should not be statically parsed and is generated after call during compile
+    //             if !impl_fn.signature.args.generics.is_empty() {
+    //                 continue;
+    //             }
 
-                // Generate IR of the function
-                create_function_with_ir(
-                    &parsed_functions,
-                    context,
-                    module,
-                    builder,
-                    &custom_types,
-                    is_optimized,
-                    &debug_info_builder,
-                    debug_info_file,
-                    debug_scope,
-                    &mut unique_id_source,
-                    &format!("__internal_fn_{_name}_{}", impl_fn.signature.name),
-                    impl_fn,
-                )?;
-            }
-        }
-    }
+    //             // Generate IR of the function
+    //             create_function_with_ir(
+    //                 &parsed_functions,
+    //                 context,
+    //                 module,
+    //                 builder,
+    //                 &custom_types,
+    //                 is_optimized,
+    //                 &debug_info_builder,
+    //                 debug_info_file,
+    //                 debug_scope,
+    //                 &mut unique_id_source,
+    //                 &format!("__internal_fn_{_name}_{}", impl_fn.signature.name),
+    //                 impl_fn,
+    //             )?;
+    //         }
+    //     }
+    // }
 
     for (function_name, function_definition) in parsed_functions.iter() {
         // If there are any generics present in the function arguments, the function cannot be statically parsed and is generated after call during compile

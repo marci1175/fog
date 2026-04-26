@@ -88,12 +88,18 @@ impl Settings
                                     )
                                 },
                                 common::tokenizer::TypeToken::Struct => {
-                                    parse_struct(
+                                    let struct_def = parse_struct(
                                         &mut ctx,
                                         vis,
                                         tokens,
                                         std::mem::take(&mut item_compiler_instruction),
-                                    )
+                                    )?;
+
+                                    ctx.items.insert(
+                                        combine_path(ctx.path.clone(), struct_def.name.clone()),
+                                        struct_def.name.clone().into(),
+                                        common::codegen::CustomItem::Struct(struct_def),
+                                    );
                                 },
                                 common::tokenizer::TypeToken::Function => {
                                     let function = parse_function(
