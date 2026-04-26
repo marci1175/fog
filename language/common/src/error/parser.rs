@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::{
     error::syntax::SyntaxError,
-    parser::{common::ParsedToken, variable::VariableReference},
+    parser::{common::StatementVariant, variable::VariableReference},
     tokenizer::Token,
     ty::Type,
 };
@@ -162,7 +162,7 @@ pub enum ParserError
     #[error("Number cannot be represented in 64bits. Please truncate numbers which are too large.")]
     NumberTooLarge,
     #[error("Expected literal value with type `{0:?}`, found `{1}`.")]
-    InvalidValue(Option<Type>, ParsedToken),
+    InvalidValue(Option<Type>, StatementVariant),
     #[error("Enum variant `{0}` was not found in specified enum.")]
     EnumVariantNotFound(String),
     #[error(

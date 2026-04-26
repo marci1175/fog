@@ -9,7 +9,7 @@ use crate::{
     indexmap::IndexMap,
     parser::{
         common::{
-            Context, ItemVisibility, ParsedToken, Streamable, TokenStream, find_closing_braces,
+            Context, ItemVisibility, StatementVariant, Streamable, TokenStream, find_closing_braces,
         },
         ty::parse_type,
         variable::{UniqueId, VARIABLE_ID_SOURCE},
@@ -32,7 +32,7 @@ pub struct UnparsedFunctionDefinition
 pub struct FunctionDefinition
 {
     pub signature: FunctionSignature,
-    pub body: Vec<Spanned<ParsedToken>>,
+    pub body: Vec<Spanned<StatementVariant>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
@@ -672,7 +672,7 @@ pub fn parse_fn_arguments(
 /// The function parses the tokens but does not evaluate them.
 pub fn parse_fn_body(
     tokens: &mut TokenStream<Spanned<Token>>,
-) -> anyhow::Result<Vec<Spanned<ParsedToken>>>
+) -> anyhow::Result<Vec<Spanned<StatementVariant>>>
 {
     // Get the index of the closing brace token
     let body_closing_tkn = find_closing_braces(&*tokens)
@@ -687,7 +687,7 @@ pub fn parse_fn_body(
     // Iterate over the whole body matching "chunks" of tokens.
     // I dont want to consume the token from the token stream every iteration, since i want to match "patterns" of tokens. 
     while let Some(_tkn) = fn_body.peek_next() {
-        
+
     }
 
     Ok(parsed_tokens)

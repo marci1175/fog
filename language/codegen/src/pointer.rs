@@ -23,193 +23,8 @@ use common::{
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    allocate::create_new_variable, create_ir_from_parsed_token, irgen::create_function_call_args,
+    allocate::create_new_variable, irgen::create_function_call_args,
 };
-
-pub fn access_variable_ptr<'ctx>(
-    ctx: &'ctx Context,
-    module: &Module<'ctx>,
-    fn_ret_ty: &Type,
-    this_fn_block: BasicBlock<'ctx>,
-    this_fn: FunctionValue<'ctx>,
-    allocation_list: &HashMap<UniqueId, PointerValue<'ctx>>,
-    is_loop_body: &Option<LoopBodyBlocks<'_>>,
-    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-    builder: &'ctx Builder,
-    variable_reference: Box<VariableReference>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            (Type, UniqueId),
-        ),
-    >,
-    custom_types: Rc<IndexMap<String, CustomItem>>,
-) -> Result<(PointerValue<'ctx>, BasicTypeEnum<'ctx>, Type)>
-{
-    match &*variable_reference {
-        VariableReference::StructFieldReference(struct_field_ref) => {
-            match &struct_field_ref.field {
-                common::parser::variable::StructFieldType::Field(field) => {
-                    if let Some((idx, _, field_ty)) = struct_field_ref.struct_fields.get_full(field)
-                    {
-                        // Get the ptr to the struct
-                        let (ptr, ptr_ty, _ty) = access_variable_ptr(
-                            ctx,
-                            module,
-                            fn_ret_ty,
-                            this_fn_block,
-                            this_fn,
-                            allocation_list,
-                            is_loop_body,
-                            parsed_functions,
-                            builder,
-                            struct_field_ref.variable_ref.clone(),
-                            variable_map,
-                            custom_types.clone(),
-                        )?;
-
-                        // Get the ptr to the field of the struct
-                        let field_ptr = builder.build_struct_gep(
-                            ptr_ty,
-                            ptr,
-                            idx as u32,
-                            &format!("get_{}_from_{}", field, struct_field_ref.struct_name),
-                        )?;
-
-                        return Ok((
-                            field_ptr,
-                            ty_to_llvm_ty(ctx, field_ty, custom_types)?,
-                            field_ty.clone(),
-                        ));
-                    }
-                    else {
-                        // if the struct doesnt have this field return an error
-                        Err(CodeGenError::InternalStructFieldNotFound.into())
-                    }
-                },
-                common::parser::variable::StructFieldType::Function((fn_sig, call_args)) => {
-                    // Call internal function previously generated
-                    let call = builder.build_call(
-                        module
-                            .get_function(&format!(
-                                "__internal_fn_{}_{}",
-                                struct_field_ref.struct_name,
-                                fn_sig.name.clone()
-                            ))
-                            .ok_or_else(|| {
-                                CodeGenError::InternalFunctionNotFound(format!(
-                                    "__internal_fn_{}_{}",
-                                    struct_field_ref.struct_name,
-                                    fn_sig.name.clone()
-                                ))
-                            })?,
-                        &create_function_call_args(
-                            ctx,
-                            module,
-                            builder,
-                            variable_map,
-                            fn_ret_ty,
-                            this_fn_block,
-                            this_fn,
-                            allocation_list,
-                            is_loop_body,
-                            &parsed_functions,
-                            &custom_types,
-                            fn_sig.name.clone(),
-                            call_args,
-                        )?,
-                        &format!(
-                            "__internal_fn_{}_{}_call",
-                            struct_field_ref.struct_name,
-                            fn_sig.name.clone()
-                        ),
-                    )?;
-
-                    let returned_value = call.try_as_basic_value().basic();
-
-                    let ptr_ty =
-                        ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
-
-                    match returned_value {
-                        Some(value) => {
-                            // Allocate a place for the value
-                            let alloca = builder.build_alloca(
-                                value.get_type(),
-                                &format!(
-                                    "__internal_fn_{}_{}_returned",
-                                    struct_field_ref.struct_name, fn_sig.name
-                                ),
-                            )?;
-
-                            // Store the returned value
-                            builder.build_store(alloca, value)?;
-
-                            Ok((alloca, value.get_type(), fn_sig.return_type.clone()))
-                        },
-                        // TODO: Think of a way to improve this (how can we label a value to be void (current impl might be enough))
-                        None => {
-                            Ok((
-                                ptr_ty.const_null(),
-                                BasicTypeEnum::IntType(ctx.i32_type()),
-                                Type::Void,
-                            ))
-                        },
-                    }
-                },
-            }
-        },
-        VariableReference::BasicReference(variable_name, _variable_id) => {
-            let ((ptr, _ptr_ty), (variable_type, _)) =
-                variable_map
-                    .get(variable_name)
-                    .ok_or(CodeGenError::InternalVariableNotFound(
-                        variable_name.to_string(),
-                    ))?;
-
-            return Ok((
-                *ptr,
-                ty_to_llvm_ty(ctx, variable_type, custom_types)?,
-                variable_type.clone(),
-            ));
-        },
-        VariableReference::ArrayReference(array_indexing) => {
-            // Get the underlying variable we are trying to index into
-            let (ptr, ptr_ty, ty) = access_variable_ptr(
-                ctx,
-                module,
-                fn_ret_ty,
-                this_fn_block,
-                this_fn,
-                allocation_list,
-                is_loop_body,
-                parsed_functions.clone(),
-                builder,
-                array_indexing.variable_reference.clone(),
-                variable_map,
-                custom_types.clone(),
-            )?;
-
-            let (elem_ptr, _elem_ty, ty) = access_array_index(
-                ctx,
-                module,
-                builder,
-                variable_map,
-                fn_ret_ty,
-                this_fn_block,
-                this_fn,
-                allocation_list,
-                is_loop_body,
-                &parsed_functions,
-                &custom_types,
-                ((ptr, ptr_ty.into()), ty),
-                array_indexing.idx.clone(),
-            )?;
-
-            return Ok((elem_ptr, ty_to_llvm_ty(ctx, &ty, custom_types)?, ty));
-        },
-    }
-}
 
 /// This function takes in the variable pointer which is dereferenced to set the variable's value.
 /// Ensure that we are setting variable type `T` with value `T`
@@ -391,21 +206,21 @@ pub fn set_value_of_ptr<'ctx>(
                 )?;
 
                 // Parse the value for the temp var
-                create_ir_from_parsed_token(
-                    ctx,
-                    module,
-                    builder,
-                    *(struct_values.get(field_name).unwrap().clone()),
-                    variable_map,
-                    Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
-                    fn_ret_ty.clone(),
-                    this_fn_block,
-                    this_fn,
-                    allocation_table,
-                    is_loop_body.clone(),
-                    parsed_functions.clone(),
-                    custom_types.clone(),
-                )?;
+                // create_ir_from_parsed_token(
+                //     ctx,
+                //     module,
+                //     builder,
+                //     *(struct_values.get(field_name).unwrap().clone()),
+                //     variable_map,
+                //     Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
+                //     fn_ret_ty.clone(),
+                //     this_fn_block,
+                //     this_fn,
+                //     allocation_table,
+                //     is_loop_body.clone(),
+                //     parsed_functions.clone(),
+                //     custom_types.clone(),
+                // )?;
 
                 // Load the temp value to memory and store it
                 let temp_val = builder.build_load(llvm_ty, ptr, field_name)?;
@@ -473,79 +288,79 @@ pub fn set_value_of_ptr<'ctx>(
     Ok(())
 }
 
-pub fn access_array_index<'main, 'ctx>(
-    ctx: &'main Context,
-    module: &Module<'ctx>,
-    builder: &'ctx Builder<'ctx>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            (Type, UniqueId),
-        ),
-    >,
-    fn_ret_ty: &Type,
-    this_fn_block: BasicBlock<'ctx>,
-    this_fn: FunctionValue<'ctx>,
-    allocation_list: &HashMap<UniqueId, PointerValue<'ctx>>,
-    is_loop_body: &Option<LoopBodyBlocks<'_>>,
-    parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
-    custom_types: &Rc<IndexMap<String, CustomItem>>,
-    ((array_ptr, _ptr_ty), ty_disc): ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type),
-    index: Box<ParsedTokenInstance>,
-) -> Result<(PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, Type)>
-where
-    'main: 'ctx,
-{
-    let index_val = create_ir_from_parsed_token(
-        ctx,
-        module,
-        builder,
-        *index.clone(),
-        variable_map,
-        None,
-        fn_ret_ty.clone(),
-        this_fn_block,
-        this_fn,
-        allocation_list,
-        is_loop_body.clone(),
-        parsed_functions.clone(),
-        custom_types.clone(),
-    )?;
+// pub fn access_array_index<'main, 'ctx>(
+//     ctx: &'main Context,
+//     module: &Module<'ctx>,
+//     builder: &'ctx Builder<'ctx>,
+//     variable_map: &mut HashMap<
+//         String,
+//         (
+//             (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+//             (Type, UniqueId),
+//         ),
+//     >,
+//     fn_ret_ty: &Type,
+//     this_fn_block: BasicBlock<'ctx>,
+//     this_fn: FunctionValue<'ctx>,
+//     allocation_list: &HashMap<UniqueId, PointerValue<'ctx>>,
+//     is_loop_body: &Option<LoopBodyBlocks<'_>>,
+//     parsed_functions: &Rc<IndexMap<String, FunctionDefinition>>,
+//     custom_types: &Rc<IndexMap<String, CustomItem>>,
+//     ((array_ptr, _ptr_ty), ty_disc): ((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>), Type),
+//     index: Box<ParsedTokenInstance>,
+// ) -> Result<(PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, Type)>
+// where
+//     'main: 'ctx,
+// {
+//     let index_val = create_ir_from_parsed_token(
+//         ctx,
+//         module,
+//         builder,
+//         *index.clone(),
+//         variable_map,
+//         None,
+//         fn_ret_ty.clone(),
+//         this_fn_block,
+//         this_fn,
+//         allocation_list,
+//         is_loop_body.clone(),
+//         parsed_functions.clone(),
+//         custom_types.clone(),
+//     )?;
 
-    if let Some((idx_ptr, _ptr_ty, idx_ty_disc)) = index_val {
-        let idx = builder.build_load(
-            ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
-            idx_ptr,
-            "array_idx_val",
-        )?;
+//     if let Some((idx_ptr, _ptr_ty, idx_ty_disc)) = index_val {
+//         let idx = builder.build_load(
+//             ty_to_llvm_ty(ctx, &idx_ty_disc, custom_types.clone())?,
+//             idx_ptr,
+//             "array_idx_val",
+//         )?;
 
-        let pointee_ty = ty_disc
-            .clone()
-            .to_basic_type_enum(ctx, custom_types.clone())?;
+//         let pointee_ty = ty_disc
+//             .clone()
+//             .to_basic_type_enum(ctx, custom_types.clone())?;
 
-        let gep_ptr = unsafe {
-            builder.build_gep(
-                pointee_ty,
-                array_ptr,
-                &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
-                "array_idx_elem_ptr",
-            )?
-        };
+//         let gep_ptr = unsafe {
+//             builder.build_gep(
+//                 pointee_ty,
+//                 array_ptr,
+//                 &[ctx.i32_type().const_int(0, false), idx.into_int_value()],
+//                 "array_idx_elem_ptr",
+//             )?
+//         };
 
-        let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
-        let inner_ty = *inner_ty_token;
+//         let (inner_ty_token, _len) = ty_disc.try_as_array().unwrap();
+//         let inner_ty = *inner_ty_token;
 
-        Ok((
-            gep_ptr,
-            inner_ty
-                .clone()
-                .to_basic_type_enum(ctx, custom_types.clone())?
-                .into(),
-            inner_ty.clone(),
-        ))
-    }
-    else {
-        Err(CodeGenError::InvalidIndexValue(index.inner.clone()).into())
-    }
-}
+//         Ok((
+//             gep_ptr,
+//             inner_ty
+//                 .clone()
+//                 .to_basic_type_enum(ctx, custom_types.clone())?
+//                 .into(),
+//             inner_ty.clone(),
+//         ))
+//     }
+//     else {
+//         Err(CodeGenError::InvalidIndexValue(index.inner.clone()).into())
+//     }
+// }

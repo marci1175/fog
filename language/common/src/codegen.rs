@@ -9,7 +9,7 @@ use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{ParsedToken, ParsedTokenInstance},
+        common::{StatementVariant, ParsedTokenInstance},
         function::{FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition},
     },
     tokenizer::Token,
@@ -202,7 +202,7 @@ impl Order
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PreAllocationEntry<'ctx>
 {
-    AllocationMap(HashMap<ParsedToken, PreAllocationEntry<'ctx>>),
+    AllocationMap(HashMap<StatementVariant, PreAllocationEntry<'ctx>>),
     PreAllocationPtr((PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>, Type)),
 }
 

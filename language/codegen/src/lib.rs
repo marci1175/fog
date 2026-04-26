@@ -29,7 +29,7 @@ use std::{collections::HashMap, io::ErrorKind, path::PathBuf, rc::Rc};
 
 use crate::{
     import::import_user_lib_functions,
-    irgen::{create_ir_from_parsed_token, generate_ir},
+    irgen::generate_ir,
 };
 
 /// Main function to the codegen module.

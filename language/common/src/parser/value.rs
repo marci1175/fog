@@ -39,7 +39,7 @@ use crate::{
     codegen::CustomItem,
     error::{SpanInfo, syntax::SyntaxError},
     parser::{
-        common::{ParsedToken, ParsedTokenInstance},
+        common::{StatementVariant, ParsedTokenInstance},
         dbg::fetch_and_merge_debug_information,
         function::{FunctionSignature, UnparsedFunctionDefinition},
         variable::UniqueId,
@@ -160,7 +160,7 @@ pub fn init_struct(
     Ok((
         idx,
         ParsedTokenInstance {
-            inner: ParsedToken::Literal(crate::ty::Value::Struct((
+            inner: StatementVariant::Literal(crate::ty::Value::Struct((
                 this_struct_name,
                 this_struct_field.clone().into(),
                 struct_field_init_map.into(),

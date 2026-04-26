@@ -19,7 +19,7 @@ use crate::{
 /// A ParsedTokenInstance is ParsedToken with additional information. DebugInformation will not affect comparisons. (Check PartialEq trait implementation)
 pub struct ParsedTokenInstance
 {
-    pub inner: ParsedToken,
+    pub inner: StatementVariant,
     pub debug_information: SpanInfo,
 }
 
@@ -31,9 +31,9 @@ impl PartialEq for ParsedTokenInstance
     }
 }
 
-impl PartialEq<ParsedToken> for ParsedTokenInstance
+impl PartialEq<StatementVariant> for ParsedTokenInstance
 {
-    fn eq(&self, other: &ParsedToken) -> bool
+    fn eq(&self, other: &StatementVariant) -> bool
     {
         &self.inner == other
     }
@@ -316,7 +316,7 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
 }
 
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
-pub enum ParsedToken
+pub enum StatementVariant
 {
     NewVariable
     {
@@ -341,7 +341,7 @@ pub enum ParsedToken
         Box<ParsedTokenInstance>,
     ),
 
-    Brackets(Vec<ParsedToken>, Type),
+    Brackets(Vec<StatementVariant>, Type),
 
     FunctionCall(
         (FunctionSignature, String),
@@ -365,7 +365,7 @@ pub enum ParsedToken
 
     If(If),
 
-    CodeBlock(Vec<ParsedToken>),
+    CodeBlock(Vec<StatementVariant>),
 
     Loop(Vec<ParsedTokenInstance>),
 
@@ -425,7 +425,7 @@ impl Context
         arguments: FunctionArguments,
         return_type: Type,
         compiler_instructions: OrdSet<CompilerInstruction>,
-        body: Vec<Spanned<ParsedToken>>,
+        body: Vec<Spanned<StatementVariant>>,
     ) -> FunctionDefinition
     {
         FunctionDefinition {

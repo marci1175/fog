@@ -198,7 +198,7 @@ impl PartialEq<TokenDiscriminants> for Token
     }
 }
 
-/// This are only the tpye indicating tokens, not the actual types themselves.
+/// This are only the type indicating tokens, not the actual types themselves.
 /// This is just for organizing the tokens basically.
 #[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash)]
 pub enum TypeToken

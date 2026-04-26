@@ -240,7 +240,7 @@ use crate::{
     error::SpanInfo,
     indexmap::IndexMap,
     parser::{
-        common::ParsedToken,
+        common::StatementVariant,
         dbg::fetch_and_merge_debug_information,
         function::{FunctionSignature, UnparsedFunctionDefinition},
         value::MathematicalSymbol,
@@ -311,10 +311,10 @@ pub fn set_value_math_expr(
     )?;
 
     *variable_reference = ParsedTokenInstance {
-        inner: ParsedToken::SetValue(
+        inner: StatementVariant::SetValue(
             Box::new(variable_reference.clone()),
             Box::new(ParsedTokenInstance {
-                inner: ParsedToken::MathematicalExpression(
+                inner: StatementVariant::MathematicalExpression(
                     Box::new(variable_reference.clone()),
                     math_symbol,
                     Box::new(next_token),

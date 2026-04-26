@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    parser::{common::ParsedToken, function::CompilerInstruction, variable::UniqueId},
+    parser::{common::StatementVariant, function::CompilerInstruction, variable::UniqueId},
     ty::Type,
 };
 
@@ -77,9 +77,9 @@ pub enum CodeGenError
     #[error("Cannot index into a list with type `{0}`.")]
     NonIndexType(Type),
     #[error("Value `{0}` cannot be indexed with.")]
-    InvalidIndexValue(ParsedToken),
+    InvalidIndexValue(StatementVariant),
     #[error("ParsedToken `{0}` is not a valid variable reference.")]
-    InvalidVariableReference(ParsedToken),
+    InvalidVariableReference(StatementVariant),
 
     /// This error can only be returned when an error occured thorugh LLVM-SYS itself.
     #[error("An error has occured while generating LLVM-IR: `{0}`.")]
@@ -90,9 +90,9 @@ pub enum CodeGenError
     )]
     InternalFunctionCompilerHintParsingError(CompilerInstruction),
     #[error("Could not retrieve reference to `{0}`. Pointers can only be returned from values.")]
-    GetReferenceToFailed(ParsedToken),
+    GetReferenceToFailed(StatementVariant),
     #[error("Cannot dereference value `{0}`, only a reference can be dereferenced.")]
-    InvalidValueDereference(ParsedToken),
+    InvalidValueDereference(StatementVariant),
     #[error("A dereferencing must have a desired type to dereference to.")]
     VagueDereference,
     #[error("Cannot cast inner value of enum with inner type of `{0}` to `{1}`.")]

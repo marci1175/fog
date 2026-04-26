@@ -11,7 +11,7 @@ use common::{
         values::{IntValue, PointerValue},
     },
     parser::{
-        common::{ParsedToken, ParsedTokenInstance},
+        common::{StatementVariant, ParsedTokenInstance},
         variable::UniqueId,
     },
     ty::Type,
@@ -103,7 +103,7 @@ pub fn create_allocation_table<'ctx>(
 
         // If a NewVariable was created in the loop pre-allocate it
         // We dont need to preallocate variabled for functions called by this since they get deallocated automaticly.
-        if let ParsedToken::NewVariable {
+        if let StatementVariant::NewVariable {
             variable_name,
             variable_type,
             variable_value: _,
