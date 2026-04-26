@@ -2,5 +2,4 @@
 #![feature(f16)]
 
 pub mod parser;
-pub mod parsing;
 pub mod tokenizer;
