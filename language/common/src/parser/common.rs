@@ -9,7 +9,7 @@ use crate::{
     error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         function::{
-            CompilerInstruction, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap,
+            CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap
         },
         value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId, VariableReference},
@@ -560,4 +560,48 @@ pub fn find_next_comma(slice: &[Token]) -> Result<usize>
     }
 
     Err(ParserError::SyntaxError(SyntaxError::CommaNotFound).into())
+}
+
+pub fn parse_compiler_instruction(
+    instr_buf: &mut OrdSet<CompilerInstruction>,
+    tokens: &mut TokenStream<Spanned<Token>>,
+) -> anyhow::Result<()>
+{
+    if let Some(tkn) = tokens.consume() {
+        match tkn.get_inner() {
+            Token::CompilerInstruction(instr) => {
+                // If this is a feature that means the next token should be a string referencing the feature name.
+                if instr == &CompilerInstructionDiscriminants::Feature {
+                    // Its safe to unwrap since we are already checking inside the try consume
+                    let feature_name = tokens
+                        .try_consume_match(
+                            ParserError::InvalidFunctionFeature,
+                            &TokenDiscriminants::Identifier,
+                        )?
+                        .try_as_identifier_ref()
+                        .unwrap();
+
+                    instr_buf.insert(CompilerInstruction::Feature(feature_name.clone()));
+                }
+                // If its not a feature we can just store the instruction as is.
+                else {
+                    instr_buf.insert((*instr).into());
+                }
+            },
+            _ => {
+                return Err(ParserError::SyntaxError(
+                    SyntaxError::CompilerInstructionRequiredAfterSymbol,
+                )
+                .into());
+            },
+        }
+    }
+    else {
+        return Err(ParserError::SyntaxError(
+            SyntaxError::CompilerInstructionRequiredAfterSymbol,
+        )
+        .into());
+    }
+
+    Ok(())
 }

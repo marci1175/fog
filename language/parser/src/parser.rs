@@ -6,7 +6,7 @@ use common::{
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{Context, Streamable, TokenStream},
+        common::{Context, Streamable, TokenStream, parse_compiler_instruction},
         function::{CompilerInstruction, CompilerInstructionDiscriminants, parse_function},
         ty::{parse_enum, parse_struct},
     },
@@ -148,54 +148,4 @@ impl Settings
             root_path,
         }
     }
-}
-
-/*
-
-    All of these functions should be moved to the `common` library.
-
-*/
-
-pub fn parse_compiler_instruction(
-    instr_buf: &mut OrdSet<CompilerInstruction>,
-    tokens: &mut TokenStream<Spanned<Token>>,
-) -> anyhow::Result<()>
-{
-    if let Some(tkn) = tokens.consume() {
-        match tkn.get_inner() {
-            Token::CompilerInstruction(instr) => {
-                // If this is a feature that means the next token should be a string referencing the feature name.
-                if instr == &CompilerInstructionDiscriminants::Feature {
-                    // Its safe to unwrap since we are already checking inside the try consume
-                    let feature_name = tokens
-                        .try_consume_match(
-                            ParserError::InvalidFunctionFeature,
-                            &TokenDiscriminants::Identifier,
-                        )?
-                        .try_as_identifier_ref()
-                        .unwrap();
-
-                    instr_buf.insert(CompilerInstruction::Feature(feature_name.clone()));
-                }
-                // If its not a feature we can just store the instruction as is.
-                else {
-                    instr_buf.insert((*instr).into());
-                }
-            },
-            _ => {
-                return Err(ParserError::SyntaxError(
-                    common::error::syntax::SyntaxError::CompilerInstructionRequiredAfterSymbol,
-                )
-                .into());
-            },
-        }
-    }
-    else {
-        return Err(ParserError::SyntaxError(
-            common::error::syntax::SyntaxError::CompilerInstructionRequiredAfterSymbol,
-        )
-        .into());
-    }
-
-    Ok(())
 }
