@@ -417,7 +417,7 @@ impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator for PathMapIterator<'a
 /// The function parses the entire function, but does not validate the function's body.
 /// Syntax of a function:
 /// ```
-/// <vis> "function" <name> "(" [{<arg>: <type>}] ")" ":" <return type> "{" [{<expr>}] "}"
+/// <vis> "function" <name> ["|" {<generic>: <trait> [{+ <trait>]}} "|"] "(" [{<arg>: <type>}] ")" ":" <return type> "{" [{<expr>}] "}"
 /// ```
 pub fn parse_function(
     ctx: &Context,

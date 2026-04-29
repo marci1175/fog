@@ -18,6 +18,11 @@ pub fn parse_enum(
 {
 }
 
+/// The function parses the entire struct, but does not validate the fields of the struct.
+/// Syntax of a function:
+/// ```
+/// <vis> "struct" <name> ["|" {<generic>: {<trait> [+ <trait>]} [","]} "|"] "{" [{<field>: <type>,}] "}"
+/// ```
 pub fn parse_struct(
     ctx: &mut Context,
     vis: &ItemVisibility,
