@@ -1,3 +1,4 @@
+use crate::ty::Value;
 use crate::{error::parser::ParserError, parser::function::PathMap, tokenizer::Token};
 use anyhow::Result;
 
@@ -46,6 +47,11 @@ use crate::{
     },
     ty::Type,
 };
+
+pub fn parse_literal(str: &str) -> anyhow::Result<Value> {
+    
+    Ok(Value::Void)
+}
 
 /// This is a top level implementation for `parse_token_as_value`
 pub fn parse_value(

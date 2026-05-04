@@ -150,6 +150,20 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
                 TokenDiscriminants::Identifier,
                 TokenDiscriminants::SetValue,
             ],
+            // const <ty> <name> "=" <val>
+            &[
+                TokenDiscriminants::Const,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
+            // const <ident (for custom types)> <name> "=" <val>
+            &[
+                TokenDiscriminants::Const,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
         ],
         Ok(Expr::VariableDeclaration),
     ),
@@ -272,17 +286,30 @@ pub fn parse_statement(
         }?;
 
         // Return the expression matched by the fastpaths
-        return Ok(todo!());
+        return Ok(/*stmt*/todo!());
     }
 
     // If we couldnt parse it by the fastpath try parsing the lhs of the statement
     // Saying "lhs" is kinda inaccurate cuz it implies we have a "rhs" but we dont know yet so....
     // Consume the first token
+    // The only input that can take this part is ```Ident, Dot, ....``` or if its just a value.
     if let Some(tkn) = tkns.consume() {
         match tkn.get_inner() {
-            Token::Identifier(ident) => {},
+            Token::Identifier(ident) => {
+                let ident = ident.to_owned();
+
+                if let Some(tkn) = tkns.consume() {
+
+                }
+            },
+            Token::Literal(val) => {
+                // StatementVariant::Literal(val.clone())
+            },
+            Token::UnparsedLiteral(unparsed_lit) => {
+                
+            },
             _ => todo!(),
-        }
+        };
     }
 
     Ok(todo!())

@@ -11,8 +11,12 @@ use strum::{EnumDiscriminants, EnumTryAs};
 )]
 pub enum Token
 {
+    // A literal is a concrete value.
+    // A literal may be created at the tokenization stage for concrete values.
+    // Numbers are not concrete as they could have different sizes or types depending on the length or accuracy of the number.
     Literal(Value),
 
+    // All numbers are first tokenized as an unparsed literal, since their type is not concrete at the tokenization stage.
     UnparsedLiteral(String),
 
     Identifier(String),

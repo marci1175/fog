@@ -458,10 +458,10 @@ pub fn parse_function(
                 )?;
 
                 // Parse the arguments of the function
-                arguments.arguments = parse_fn_arguments(tokens)?;
+                arguments.arguments = parse_fn_sig_arguments(tokens)?;
             },
             // Parse arguments
-            Token::OpenParentheses => arguments.arguments = parse_fn_arguments(tokens)?,
+            Token::OpenParentheses => arguments.arguments = parse_fn_sig_arguments(tokens)?,
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
@@ -592,7 +592,7 @@ pub fn parse_generics(
 
 /// The function assumes the first token to be the first token in the parentheses.
 /// Please note that the function does not evaluate anything it parses.
-pub fn parse_fn_arguments(
+pub fn parse_fn_sig_arguments(
     tokens: &mut TokenStream<Spanned<Token>>,
 ) -> anyhow::Result<OrdMap<String, (Type, UniqueId)>>
 {
