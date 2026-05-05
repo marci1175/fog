@@ -105,17 +105,38 @@ fn parse_single_text(
         let iter_start_idx = idx;
 
         if text[idx].is_ascii_digit() {
-            // Collect the characters until its not a number anymore
-            while (idx < text.len()) && text[idx].is_ascii_digit() {
+            // Collect the integer part
+            while idx < text.len() && text[idx].is_ascii_digit() {
                 buffer.push(text[idx]);
                 idx += 1;
             }
 
-            // Store the number we have parsed
+            // Check for a decimal point followed by more digits (or just a trailing dot)
+            // e.g. "3.14" or "343."
+            // We do NOT consume if it looks like "355.3.asd" — we only take the first decimal
+            if idx < text.len() && text[idx] == b'.' {
+                // Peek ahead — only consume the dot if what follows is a digit OR end of number
+                // "343." is valid, "343.asd" is NOT a float (dot belongs to chain)
+                let after_dot = idx + 1;
+                let next_is_digit_or_end = after_dot >= text.len()
+                    || text[after_dot].is_ascii_digit()
+                    || !text[after_dot].is_ascii_alphanumeric();
+
+                if next_is_digit_or_end {
+                    buffer.push(b'.');
+                    idx += 1; // consume the dot
+
+                    // consume fractional digits
+                    while idx < text.len() && text[idx].is_ascii_digit() {
+                        buffer.push(text[idx]);
+                        idx += 1;
+                    }
+                }
+            }
+
             token_list.push(Spanned::new(
-                // Empty the buffer when making the literal
                 Token::UnparsedLiteral(String::from_utf8(std::mem::take(&mut buffer)).unwrap()),
-                create_span_info(line_number, span_offset, iter_start_idx, span_offset),
+                create_span_info(line_number, span_offset, iter_start_idx, idx),
             ));
         }
         else if let Some(tkn) = try_match_token(text[idx..].trim_ascii()) {

@@ -1,4 +1,6 @@
+#![feature(trim_prefix_suffix)]
 #![feature(f16)]
+
 pub const DEFAULT_COMPILER_ADDRESS_SPACE_SIZE: u16 = 0;
 
 /// LLVM-IR generation code with inkwell

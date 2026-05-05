@@ -24,267 +24,267 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{allocate::create_new_variable, irgen::create_function_call_args};
 
-/// This function takes in the variable pointer which is dereferenced to set the variable's value.
-/// Ensure that we are setting variable type `T` with value `T`
-pub fn set_value_of_ptr<'ctx>(
-    ctx: &'ctx Context,
-    builder: &'ctx Builder,
-    module: &Module<'ctx>,
-    value: Value,
-    v_ptr: PointerValue<'_>,
-    custom_types: Rc<IndexMap<String, CustomItem>>,
-    variable_map: &mut HashMap<
-        String,
-        (
-            (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
-            (Type, UniqueId),
-        ),
-    >,
-    fn_ret_ty: &Type,
-    this_fn_block: BasicBlock<'ctx>,
-    this_fn: FunctionValue<'ctx>,
-    allocation_table: &HashMap<UniqueId, PointerValue<'ctx>>,
-    is_loop_body: &Option<LoopBodyBlocks<'_>>,
-    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
-) -> Result<()>
-{
-    let bool_type = ctx.bool_type();
-    let i8_type = ctx.i8_type();
-    let i32_type = ctx.i32_type();
-    let f32_type = ctx.f32_type();
-    let f64_type = ctx.f64_type();
-    let i64_type = ctx.i64_type();
-    let i16_type = ctx.i16_type();
-    let f16_type = ctx.f16_type();
-    let ptr_type = ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
+// This function takes in the variable pointer which is dereferenced to set the variable's value.
+// Ensure that we are setting variable type `T` with value `T`
+// pub fn set_value_of_ptr<'ctx>(
+//     ctx: &'ctx Context,
+//     builder: &'ctx Builder,
+//     module: &Module<'ctx>,
+//     value: Value,
+//     v_ptr: PointerValue<'_>,
+//     custom_types: Rc<IndexMap<String, CustomItem>>,
+//     variable_map: &mut HashMap<
+//         String,
+//         (
+//             (PointerValue<'ctx>, BasicMetadataTypeEnum<'ctx>),
+//             (Type, UniqueId),
+//         ),
+//     >,
+//     fn_ret_ty: &Type,
+//     this_fn_block: BasicBlock<'ctx>,
+//     this_fn: FunctionValue<'ctx>,
+//     allocation_table: &HashMap<UniqueId, PointerValue<'ctx>>,
+//     is_loop_body: &Option<LoopBodyBlocks<'_>>,
+//     parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
+// ) -> Result<()>
+// {
+//     let bool_type = ctx.bool_type();
+//     let i8_type = ctx.i8_type();
+//     let i32_type = ctx.i32_type();
+//     let f32_type = ctx.f32_type();
+//     let f64_type = ctx.f64_type();
+//     let i64_type = ctx.i64_type();
+//     let i16_type = ctx.i16_type();
+//     let f16_type = ctx.f16_type();
+//     let ptr_type = ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE));
 
-    match value {
-        Value::I64(inner) => {
-            // Initialize const value
-            let init_val = i64_type.const_int(inner as u64, true);
+//     match value {
+//         Value::I64(inner) => {
+//             // Initialize const value
+//             let init_val = i64_type.const_int(inner as u64, true);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::F64(inner) => {
-            // Initialize const value
-            let init_val = f64_type.const_float(*inner);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::F64(inner) => {
+//             // Initialize const value
+//             let init_val = f64_type.const_float(*inner);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::U64(inner) => {
-            // Initialize const value
-            let init_val = i64_type.const_int(inner, false);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::U64(inner) => {
+//             // Initialize const value
+//             let init_val = i64_type.const_int(inner, false);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::I16(inner) => {
-            // Initialize const value
-            let init_val = i16_type.const_int(inner as u64, true);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::I16(inner) => {
+//             // Initialize const value
+//             let init_val = i16_type.const_int(inner as u64, true);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::F16(inner) => {
-            // Initialize const value
-            let init_val = f16_type.const_float(*inner as f64);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::F16(inner) => {
+//             // Initialize const value
+//             let init_val = f16_type.const_float(*inner as f64);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::U16(inner) => {
-            // Initialize const value
-            let init_val = i16_type.const_int(inner as u64, false);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::U16(inner) => {
+//             // Initialize const value
+//             let init_val = i16_type.const_int(inner as u64, false);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::I32(inner) => {
-            // Initialize const value
-            let init_val = i32_type.const_int(inner as u64, true);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::I32(inner) => {
+//             // Initialize const value
+//             let init_val = i32_type.const_int(inner as u64, true);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::F32(inner) => {
-            // Initialize const value
-            let init_val = f32_type.const_float(*inner as f64);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::F32(inner) => {
+//             // Initialize const value
+//             let init_val = f32_type.const_float(*inner as f64);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::U32(inner) => {
-            // Initialize const value
-            let init_val = i32_type.const_int(inner as u64, false);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::U32(inner) => {
+//             // Initialize const value
+//             let init_val = i32_type.const_int(inner as u64, false);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::U8(inner) => {
-            // Initialize const value
-            let init_val = i8_type.const_int(inner as u64, false);
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::U8(inner) => {
+//             // Initialize const value
+//             let init_val = i8_type.const_int(inner as u64, false);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::String(inner) => {
-            let string_bytes = inner.as_bytes();
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::String(inner) => {
+//             let string_bytes = inner.as_bytes();
 
-            let char_array =
-                ctx.const_string(string_bytes, Some(0) != string_bytes.last().copied());
+//             let char_array =
+//                 ctx.const_string(string_bytes, Some(0) != string_bytes.last().copied());
 
-            let global_string_handle = if let Some(global_string) = module.get_global(&inner) {
-                global_string
-            }
-            else {
-                let handle = module.add_global(
-                    char_array.get_type(),
-                    Some(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE)),
-                    &inner,
-                );
+//             let global_string_handle = if let Some(global_string) = module.get_global(&inner) {
+//                 global_string
+//             }
+//             else {
+//                 let handle = module.add_global(
+//                     char_array.get_type(),
+//                     Some(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE)),
+//                     &inner,
+//                 );
 
-                handle.set_initializer(&char_array);
-                handle.set_constant(true);
+//                 handle.set_initializer(&char_array);
+//                 handle.set_constant(true);
 
-                handle
-            };
+//                 handle
+//             };
 
-            let buffer_ptr = global_string_handle.as_pointer_value();
+//             let buffer_ptr = global_string_handle.as_pointer_value();
 
-            let input_ptr = unsafe {
-                builder.build_gep(
-                    char_array.get_type(),
-                    buffer_ptr,
-                    &[ctx.i32_type().const_zero(), ctx.i32_type().const_zero()],
-                    "buf_ptr",
-                )
-            }?;
+//             let input_ptr = unsafe {
+//                 builder.build_gep(
+//                     char_array.get_type(),
+//                     buffer_ptr,
+//                     &[ctx.i32_type().const_zero(), ctx.i32_type().const_zero()],
+//                     "buf_ptr",
+//                 )
+//             }?;
 
-            // Store const
-            builder.build_store(v_ptr, input_ptr)?;
-        },
-        Value::Boolean(inner) => {
-            // Initialize const value
-            let init_val = bool_type.const_int(inner as u64, false);
+//             // Store const
+//             builder.build_store(v_ptr, input_ptr)?;
+//         },
+//         Value::Boolean(inner) => {
+//             // Initialize const value
+//             let init_val = bool_type.const_int(inner as u64, false);
 
-            // Store const
-            builder.build_store(v_ptr, init_val)?;
-        },
-        Value::Void => {
-            unreachable!()
-        },
-        Value::Struct((struct_name, struct_fields, struct_values, attr)) => {
-            // Get the struct pointer's ty
-            let pointee_struct_ty = ty_to_llvm_ty(
-                ctx,
-                &Type::Struct((struct_name, struct_fields.clone(), attr)),
-                custom_types.clone(),
-            )?
-            .into_struct_type();
+//             // Store const
+//             builder.build_store(v_ptr, init_val)?;
+//         },
+//         Value::Void => {
+//             unreachable!()
+//         },
+//         Value::Struct((struct_name, struct_fields, struct_values, attr)) => {
+//             // Get the struct pointer's ty
+//             let pointee_struct_ty = ty_to_llvm_ty(
+//                 ctx,
+//                 &Type::Struct((struct_name, struct_fields.clone(), attr)),
+//                 custom_types.clone(),
+//             )?
+//             .into_struct_type();
 
-            // Pre-Allocate a struct so that it can be accessed later
-            let allocate_struct = builder.build_alloca(pointee_struct_ty, "strct_init")?;
+//             // Pre-Allocate a struct so that it can be accessed later
+//             let allocate_struct = builder.build_alloca(pointee_struct_ty, "strct_init")?;
 
-            // Iterate over the struct's fields
-            for (field_idx, (field_name, field_ty)) in struct_fields.iter().enumerate() {
-                // Convert to llvm type
-                let llvm_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
+//             // Iterate over the struct's fields
+//             for (field_idx, (field_name, field_ty)) in struct_fields.iter().enumerate() {
+//                 // Convert to llvm type
+//                 let llvm_ty = ty_to_llvm_ty(ctx, field_ty, custom_types.clone())?;
 
-                // Create a new temp variable according to the struct's field type
-                let (ptr, ty) = create_new_variable(
-                    ctx,
-                    builder,
-                    field_name,
-                    field_ty,
-                    None,
-                    allocation_table,
-                    custom_types.clone(),
-                )?;
+//                 // Create a new temp variable according to the struct's field type
+//                 let (ptr, ty) = create_new_variable(
+//                     ctx,
+//                     builder,
+//                     field_name,
+//                     field_ty,
+//                     None,
+//                     allocation_table,
+//                     custom_types.clone(),
+//                 )?;
 
-                // Parse the value for the temp var
-                // create_ir_from_parsed_token(
-                //     ctx,
-                //     module,
-                //     builder,
-                //     *(struct_values.get(field_name).unwrap().clone()),
-                //     variable_map,
-                //     Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
-                //     fn_ret_ty.clone(),
-                //     this_fn_block,
-                //     this_fn,
-                //     allocation_table,
-                //     is_loop_body.clone(),
-                //     parsed_functions.clone(),
-                //     custom_types.clone(),
-                // )?;
+//                 // Parse the value for the temp var
+//                 // create_ir_from_parsed_token(
+//                 //     ctx,
+//                 //     module,
+//                 //     builder,
+//                 //     *(struct_values.get(field_name).unwrap().clone()),
+//                 //     variable_map,
+//                 //     Some((field_name.to_string(), (ptr, ty), field_ty.clone())),
+//                 //     fn_ret_ty.clone(),
+//                 //     this_fn_block,
+//                 //     this_fn,
+//                 //     allocation_table,
+//                 //     is_loop_body.clone(),
+//                 //     parsed_functions.clone(),
+//                 //     custom_types.clone(),
+//                 // )?;
 
-                // Load the temp value to memory and store it
-                let temp_val = builder.build_load(llvm_ty, ptr, field_name)?;
+//                 // Load the temp value to memory and store it
+//                 let temp_val = builder.build_load(llvm_ty, ptr, field_name)?;
 
-                // Get the struct's field gep
-                let struct_field_ptr = builder.build_struct_gep(
-                    pointee_struct_ty,
-                    allocate_struct,
-                    field_idx as u32,
-                    "field_gep",
-                )?;
+//                 // Get the struct's field gep
+//                 let struct_field_ptr = builder.build_struct_gep(
+//                     pointee_struct_ty,
+//                     allocate_struct,
+//                     field_idx as u32,
+//                     "field_gep",
+//                 )?;
 
-                // Store the temp value in the struct through the struct's field gep
-                builder.build_store(struct_field_ptr, temp_val)?;
-            }
+//                 // Store the temp value in the struct through the struct's field gep
+//                 builder.build_store(struct_field_ptr, temp_val)?;
+//             }
 
-            // Load the allocated struct into memory
-            let constructed_struct = builder
-                .build_load(pointee_struct_ty, allocate_struct, "constructed_struct")?
-                .into_struct_value();
+//             // Load the allocated struct into memory
+//             let constructed_struct = builder
+//                 .build_load(pointee_struct_ty, allocate_struct, "constructed_struct")?
+//                 .into_struct_value();
 
-            // Store the struct in the main variable
-            builder.build_store(v_ptr, constructed_struct)?;
-        },
-        Value::Array(_inner_ty) => unimplemented!(),
-        Value::Pointer((inner, _)) => {
-            // Cast the integer to be a pointer since we cannot inherently create a pointer with a pre-determined destination
-            let ptr = builder.build_int_to_ptr(
-                i64_type.const_int(inner as u64, false),
-                ptr_type,
-                "raw_address_pointer",
-            )?;
+//             // Store the struct in the main variable
+//             builder.build_store(v_ptr, constructed_struct)?;
+//         },
+//         Value::Array(_inner_ty) => unimplemented!(),
+//         Value::Pointer((inner, _)) => {
+//             // Cast the integer to be a pointer since we cannot inherently create a pointer with a pre-determined destination
+//             let ptr = builder.build_int_to_ptr(
+//                 i64_type.const_int(inner as u64, false),
+//                 ptr_type,
+//                 "raw_address_pointer",
+//             )?;
 
-            // LLVM does let us initalize a pointer type with a pre-determined address
-            let _store = builder.build_store(v_ptr, ptr)?;
+//             // LLVM does let us initalize a pointer type with a pre-determined address
+//             let _store = builder.build_store(v_ptr, ptr)?;
 
-            // Do not let llvm optimize it, cuz it can optimize out writes / reads
-            // store.set_volatile(true)?;
-        },
-        Value::Enum((_ty, body, val)) => {
-            set_value_of_ptr(
-                ctx,
-                builder,
-                module,
-                body.get(&val)
-                    .ok_or(ParserError::EnumVariantNotFound(val))?
-                    .inner
-                    .clone()
-                    .try_as_literal()
-                    .unwrap()
-                    .clone(),
-                v_ptr,
-                custom_types.clone(),
-                variable_map,
-                fn_ret_ty,
-                this_fn_block,
-                this_fn,
-                allocation_table,
-                is_loop_body,
-                parsed_functions,
-            )?;
-        },
-    }
+//             // Do not let llvm optimize it, cuz it can optimize out writes / reads
+//             // store.set_volatile(true)?;
+//         },
+//         Value::Enum((_ty, body, val)) => {
+//             set_value_of_ptr(
+//                 ctx,
+//                 builder,
+//                 module,
+//                 body.get(&val)
+//                     .ok_or(ParserError::EnumVariantNotFound(val))?
+//                     .inner
+//                     .clone()
+//                     .try_as_literal()
+//                     .unwrap()
+//                     .clone(),
+//                 v_ptr,
+//                 custom_types.clone(),
+//                 variable_map,
+//                 fn_ret_ty,
+//                 this_fn_block,
+//                 this_fn,
+//                 allocation_table,
+//                 is_loop_body,
+//                 parsed_functions,
+//             )?;
+//         },
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 // pub fn access_array_index<'main, 'ctx>(
 //     ctx: &'main Context,

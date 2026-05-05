@@ -11,6 +11,12 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("Token is not a valid mathematical symbol.")]
+    InvalidMathematicalSymbol,
+    #[error("Literal `{0}` is out of range for any 64bit primitive datatype.")]
+    LiteralOutOfRange(String),
+    #[error("A floating-point number cannot be NaN.")]
+    LiteralIsNan,
     #[error("Argument `{0}` is present in the function's arguments more than once.")]
     DuplicateArguments(String),
     #[error(

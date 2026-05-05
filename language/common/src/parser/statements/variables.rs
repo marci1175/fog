@@ -1,11 +1,15 @@
-use crate::{error::Spanned, parser::common::StreamChild, tokenizer::Token};
+use crate::{
+    error::Spanned,
+    parser::common::{StreamChild, Streamable},
+    tokenizer::Token,
+};
 
-pub fn var_decl(tkns: &mut StreamChild<'_, Spanned<Token>>) -> anyhow::Result<()>
+pub fn var_decl<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> anyhow::Result<()>
 {
     Ok(())
 }
 
-pub fn mod_variable(tkns: &mut StreamChild<'_, Spanned<Token>>) -> anyhow::Result<()>
+pub fn mod_variable<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> anyhow::Result<()>
 {
     Ok(())
 }

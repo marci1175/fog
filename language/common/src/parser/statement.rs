@@ -2,6 +2,7 @@ use crate::{
     error::{Spanned, syntax::SyntaxError},
     parser::{
         common::{StatementVariant, StreamChild, Streamable},
+        numeric_value::parse_numeric_literal,
         statements::{
             conditionals::{conditional_else, conditional_elseif, conditional_if},
             function_call::function_call,
@@ -252,8 +253,8 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
 );
 
 /// Matches and returns the first match of the EXPR_PAT list from a given tokenstream.
-fn match_expr_pattern<'a>(
-    tkns: &'a StreamChild<'_, Spanned<Token>>,
+fn match_expr_pattern<'a, S: Streamable<Spanned<Token>>>(
+    tkns: &mut S,
 ) -> Option<&'a Result<Expr, SyntaxError>>
 {
     let matched_pattern = EXPR_PAT
@@ -264,9 +265,9 @@ fn match_expr_pattern<'a>(
     matched_pattern
 }
 
-pub fn parse_statement(
-    tkns: &mut StreamChild<'_, Spanned<Token>>,
-) -> anyhow::Result<StatementVariant>
+pub fn parse_statement<S: Streamable<Spanned<Token>>>(
+    tkns: &mut S,
+) -> anyhow::Result<Spanned<StatementVariant>>
 {
     // Try matching with the pre-defined expression patterns
     // If the pattern starts with a variable reference or and identifier which is not a function we will parse that manually.
@@ -286,27 +287,39 @@ pub fn parse_statement(
         }?;
 
         // Return the expression matched by the fastpaths
-        return Ok(/*stmt*/todo!());
+        return Ok(/*stmt*/ todo!());
     }
 
     // If we couldnt parse it by the fastpath try parsing the lhs of the statement
     // Saying "lhs" is kinda inaccurate cuz it implies we have a "rhs" but we dont know yet so....
     // Consume the first token
     // The only input that can take this part is ```Ident, Dot, ....``` or if its just a value.
-    if let Some(tkn) = tkns.consume() {
+    if let Some(tkn) = tkns.peek_next().cloned() {
         match tkn.get_inner() {
             Token::Identifier(ident) => {
+                // Consume the token from the stream after peeking it.
+                tkns.consume();
+
+                // Own the first identifier
                 let ident = ident.to_owned();
 
-                if let Some(tkn) = tkns.consume() {
+                if let Some(tkn) = tkns.consume() {}
 
-                }
+                todo!()
             },
             Token::Literal(val) => {
-                // StatementVariant::Literal(val.clone())
+                // Consume the token from the stream after peeking it.
+                tkns.consume();
+
+                // Return the span with the statement
+                Spanned {
+                    inner: StatementVariant::Value(val.clone()),
+                    span: *tkn.get_span(),
+                }
             },
-            Token::UnparsedLiteral(unparsed_lit) => {
-                
+            // Parse the numeric value
+            Token::Addition | Token::Subtraction | Token::UnparsedLiteral(_) => {
+                parse_numeric_literal(tkns)?
             },
             _ => todo!(),
         };

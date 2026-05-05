@@ -5,6 +5,10 @@ use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
 #[derive(Clone, Debug, Error)]
 pub enum SyntaxError
 {
+    #[error("A literal value was expected.")]
+    ValueExpected,
+    // #[error("Invalid ")]
+    // InvalidValueNegation,
     #[error("All variables must be initialized with a value before use.")]
     VariableRequiresInitialization,
     #[error("An Array's length can only be indicated by a `uint`(u32).")]

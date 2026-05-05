@@ -9,9 +9,10 @@ use crate::{
     error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         function::{
-            CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments, FunctionDefinition, FunctionSignature, PathMap
+            CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
+            FunctionDefinition, FunctionSignature, PathMap,
         },
-        value::MathematicalSymbol,
+        numeric_value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId, VariableReference},
     },
     tokenizer::{Token, TokenDiscriminants},
@@ -64,8 +65,12 @@ pub trait Streamable<T>
         T: PartialEq<D>;
 
     /// The fetching should be non-inclusive.
-    /// The function should return the `nth` next tokens.
+    /// The function should consume the `nth` next tokens.
     fn consume_bulk(&mut self, nth: usize) -> Option<&[T]>;
+
+    /// The fetching should be non-inclusive.
+    /// The function should return the `nth` next tokens, but shouldnt increment the internal index.
+    fn peek_bulk(&self, nth: usize) -> Option<&[T]>;
 
     fn decrement_cursor(&mut self, num: usize);
 
@@ -212,6 +217,12 @@ impl<T> Streamable<T> for TokenStream<T>
         Some(query)
     }
 
+    fn peek_bulk(&self, nth: usize) -> Option<&[T]>
+    {
+        let query = self.buffer.get(self.idx..self.idx + nth)?;
+        Some(query)
+    }
+
     /// Decrement the cursor by `num`. If `num > self.idx` the internal index is zeroed.
     fn decrement_cursor(&mut self, num: usize)
     {
@@ -306,6 +317,12 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
         Some(query)
     }
 
+    fn peek_bulk(&self, nth: usize) -> Option<&[T]>
+    {
+        let query = self.buffer.get(self.idx..self.idx + nth)?;
+        Some(query)
+    }
+
     /// Decrement the cursor by `num`. If `num > self.idx` the internal index is zeroed.
     fn decrement_cursor(&mut self, num: usize)
     {
@@ -343,15 +360,17 @@ pub enum StatementVariant
     /// Other tokens might wrap it like an `ArrayIndexing`. This is the last token which points to the variable.
     VariableReference(VariableReference),
 
-    Literal(Value),
+    Value(Value),
 
     TypeCast(Box<ParsedTokenInstance>, Type),
 
     MathematicalExpression(
-        Box<ParsedTokenInstance>,
+        Box<Spanned<StatementVariant>>,
         MathematicalSymbol,
-        Box<ParsedTokenInstance>,
+        Box<Spanned<StatementVariant>>,
     ),
+
+    NegateValue(Box<Spanned<StatementVariant>>),
 
     Brackets(Vec<StatementVariant>, Type),
 
@@ -363,8 +382,6 @@ pub enum StatementVariant
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
     /// The second is the value we are setting this variable.
     SetValue(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
-
-    MathematicalBlock(Box<ParsedTokenInstance>),
 
     ReturnValue(Box<ParsedTokenInstance>),
 
@@ -597,10 +614,9 @@ pub fn parse_compiler_instruction(
         }
     }
     else {
-        return Err(ParserError::SyntaxError(
-            SyntaxError::CompilerInstructionRequiredAfterSymbol,
-        )
-        .into());
+        return Err(
+            ParserError::SyntaxError(SyntaxError::CompilerInstructionRequiredAfterSymbol).into(),
+        );
     }
 
     Ok(())

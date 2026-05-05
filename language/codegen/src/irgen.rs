@@ -20,7 +20,7 @@ use common::{
     parser::{
         common::{ParsedTokenInstance, StatementVariant},
         function::{CompilerInstruction, FunctionDefinition},
-        value::MathematicalSymbol,
+        numeric_value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId},
     },
     tokenizer::Token,
@@ -31,7 +31,7 @@ use std::{collections::HashMap, rc::Rc};
 use crate::{
     allocate::{allocate_string, create_allocation_table, create_new_variable},
     debug::create_subprogram_debug_information,
-    pointer::set_value_of_ptr,
+    // pointer::set_value_of_ptr,
 };
 
 pub fn create_ir<'main, 'ctx>(

@@ -37,6 +37,8 @@ pub enum Token
     Addition,
     Subtraction,
     Modulo,
+    Power,
+
     SetValueMultiplication,
     SetValueDivision,
     SetValueAddition,
@@ -147,6 +149,7 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::Addition => other == &TokenDiscriminants::Addition,
             Token::Subtraction => other == &TokenDiscriminants::Subtraction,
             Token::Modulo => other == &TokenDiscriminants::Modulo,
+            Token::Power => other == &TokenDiscriminants::Power,
             Token::SetValueMultiplication => other == &TokenDiscriminants::SetValueMultiplication,
             Token::SetValueDivision => other == &TokenDiscriminants::SetValueDivision,
             Token::SetValueAddition => other == &TokenDiscriminants::SetValueAddition,

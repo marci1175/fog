@@ -1,0 +1,286 @@
+use crate::{
+    error::{Spanned, parser::ParserError},
+    parser::{
+        common::{Streamable, TokenStream}, dbg::combine_span_info, function::PathMap, statement::parse_statement
+    },
+    tokenizer::{Token, TokenDiscriminants},
+    ty::{NotNan, TypeDiscriminants, Value},
+};
+use anyhow::Result;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum MathematicalSymbol
+{
+    Addition,
+    Subtraction,
+    Division,
+    Multiplication,
+    Modulo,
+    Power,
+}
+
+impl TryInto<MathematicalSymbol> for Token
+{
+    type Error = ParserError;
+
+    fn try_into(self) -> Result<MathematicalSymbol, Self::Error>
+    {
+        let expr = match self {
+            Self::Addition => MathematicalSymbol::Addition,
+            Self::Subtraction => MathematicalSymbol::Subtraction,
+            Self::Division => MathematicalSymbol::Division,
+            Self::Multiplication => MathematicalSymbol::Multiplication,
+            Self::Modulo => MathematicalSymbol::Modulo,
+            Self::Power => MathematicalSymbol::Power,
+
+            _ => return Err(ParserError::InvalidMathematicalSymbol),
+        };
+
+        Ok(expr)
+    }
+}
+
+use std::{collections::HashMap, mem::MaybeUninit, rc::Rc};
+
+use crate::{codegen::StructAttributes, indexmap::IndexMap};
+
+use crate::{
+    codegen::CustomItem,
+    error::{SpanInfo, syntax::SyntaxError},
+    parser::{
+        common::{ParsedTokenInstance, StatementVariant},
+        function::{FunctionSignature, UnparsedFunctionDefinition},
+        variable::UniqueId,
+    },
+    ty::Type,
+};
+
+///
+/// Bits	Signed	Unsigned	Float
+/// 8-bit	-	    uintsmall	-
+/// 16-bit	inthalf	uinthalf	floathalf
+/// 32-bit	int	    uint	    float
+/// 64-bit	intlong	uintlong	floatlong
+///
+/// Numeric suffixes will also be supported
+/// The list of suffixes are found here:
+///
+
+// The list of the numeric suffiexes
+pub const NUMERIC_SUFFIX: &[(&str, TypeDiscriminants)] = &[
+    ("uintsmall", TypeDiscriminants::U8),
+    ("uinthalf", TypeDiscriminants::U16),
+    ("uint", TypeDiscriminants::U32),
+    ("uintlong", TypeDiscriminants::U64),
+    ("inthalf", TypeDiscriminants::I16),
+    ("int", TypeDiscriminants::I32),
+    ("intlong", TypeDiscriminants::I64),
+    ("floathalf", TypeDiscriminants::F16),
+    ("float", TypeDiscriminants::F32),
+    ("floatlong", TypeDiscriminants::F64),
+];
+
+// Matches the suffix of a number and returns the unparsed literal without the suffix.
+fn try_match_suffix(str: &str) -> Option<(&str, TypeDiscriminants)>
+{
+    for (suf, ty) in NUMERIC_SUFFIX {
+        if str.ends_with(*suf) {
+            return Some((str.trim_suffix(*suf), *ty));
+        }
+    }
+
+    None
+}
+
+fn fit_unsigned(digits: &str) -> Result<Value, ParserError>
+{
+    let n = digits
+        .parse::<u64>()
+        .map_err(|_| ParserError::LiteralOutOfRange(digits.to_string()))?;
+
+    if n <= u8::MAX as u64 {
+        return Ok(Value::U8(n as u8));
+    }
+    if n <= u16::MAX as u64 {
+        return Ok(Value::U16(n as u16));
+    }
+    if n <= u32::MAX as u64 {
+        return Ok(Value::U32(n as u32));
+    }
+    Ok(Value::U64(n))
+}
+
+fn fit_signed(digits: &str) -> Result<Value, ParserError>
+{
+    let n = digits
+        .parse::<i64>()
+        .map_err(|_| ParserError::LiteralOutOfRange(digits.to_string()))?;
+
+    if n >= i16::MIN as i64 && n <= i16::MAX as i64 {
+        return Ok(Value::I16(n as i16));
+    }
+    if n >= i32::MIN as i64 && n <= i32::MAX as i64 {
+        return Ok(Value::I32(n as i32));
+    }
+    Ok(Value::I64(n))
+}
+
+fn fit_float(digits: &str) -> Result<Value, ParserError>
+{
+    // Parse once into f64 as the widest type
+    let n = digits
+        .parse::<f64>()
+        .map_err(|_| ParserError::LiteralOutOfRange(digits.to_string()))?;
+
+    if n.is_nan() {
+        return Err(ParserError::LiteralIsNan);
+    }
+
+    // Try f16 first — check if it round-trips without significant precision loss
+    let as_f16 = n as f32;
+    if (as_f16 as f64 - n).abs() < f64::EPSILON {
+        return NotNan::new(as_f16)
+            .map(Value::F32)
+            .map_err(|_| ParserError::LiteralIsNan);
+    }
+
+    // Try f32
+    let as_f32 = n as f32;
+    if (as_f32 as f64 - n).abs() < f64::EPSILON {
+        return NotNan::new(as_f32)
+            .map(Value::F32)
+            .map_err(|_| ParserError::LiteralIsNan);
+    }
+
+    // Fall back to f64
+    NotNan::new(n)
+        .map(Value::F64)
+        .map_err(|_| ParserError::LiteralIsNan)
+}
+
+pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
+    tkns: &mut S,
+) -> anyhow::Result<Spanned<StatementVariant>>
+{
+    let tkn = tkns
+        .consume()
+        .ok_or(ParserError::SyntaxError(SyntaxError::ValueExpected))?;
+
+    // Fetch the span of the token consumed
+    let current_token_span = *tkn.get_span();
+
+    // Fetch the lhs of the expression
+    let lhs = match tkn.get_inner() {
+        // Check if the first token is a negation/subtraction sign.
+        Token::Subtraction => {
+            Spanned {
+                inner: StatementVariant::NegateValue(Box::new(parse_statement(tkns)?)),
+                span: current_token_span,
+            }
+        },
+        // I defined this so its a bit easier to read since subtraction is a different path too
+        Token::Addition => parse_statement(tkns)?,
+        // Parse the number present
+        Token::UnparsedLiteral(unparsed_literal) => {
+            Spanned {
+                inner: {
+                    if let Some((lit, ty)) = try_match_suffix(unparsed_literal) {
+                        match ty {
+                            TypeDiscriminants::I64 => {
+                                StatementVariant::Value(Value::I64(lit.parse::<i64>()?))
+                            },
+                            TypeDiscriminants::F64 => {
+                                StatementVariant::Value(Value::F64(NotNan::new(
+                                    lit.parse::<f64>()?,
+                                )?))
+                            },
+                            TypeDiscriminants::U64 => {
+                                StatementVariant::Value(Value::U64(lit.parse::<u64>()?))
+                            },
+                            TypeDiscriminants::I32 => {
+                                StatementVariant::Value(Value::I32(lit.parse::<i32>()?))
+                            },
+                            TypeDiscriminants::F32 => {
+                                StatementVariant::Value(Value::F32(NotNan::new(
+                                    lit.parse::<f32>()?,
+                                )?))
+                            },
+                            TypeDiscriminants::U32 => {
+                                StatementVariant::Value(Value::U32(lit.parse::<u32>()?))
+                            },
+                            TypeDiscriminants::I16 => {
+                                StatementVariant::Value(Value::I16(lit.parse::<i16>()?))
+                            },
+                            TypeDiscriminants::F16 => {
+                                StatementVariant::Value(Value::F32(NotNan::new(
+                                    lit.parse::<f16>()? as f32,
+                                )?))
+                            },
+                            TypeDiscriminants::U16 => {
+                                StatementVariant::Value(Value::U16(lit.parse::<u16>()?))
+                            },
+                            TypeDiscriminants::U8 => {
+                                StatementVariant::Value(Value::U8(lit.parse::<u8>()?))
+                            },
+
+                            _ => {
+                                unreachable!(
+                                    "An unreachable type suffix was implemented. Check numerical suffix match."
+                                )
+                            },
+                        }
+                    }
+                    else {
+                        // If the literal contains a '.' then its a float, the automatic sizing is inside the function
+                        // If it doesnt, then it is an unsigned since subtractions are handled elsewhere. (Semantic analysis)
+                        StatementVariant::Value({
+                            if unparsed_literal.contains('.') {
+                                fit_float(&unparsed_literal)?
+                            }
+                            else {
+                                fit_unsigned(&unparsed_literal)?
+                            }
+                        })
+                    }
+                },
+                span: current_token_span,
+            }
+        },
+        // Try to parse the expression regardless
+        _ => parse_statement(tkns)?,
+    };
+
+    // We should accept any of these:
+    // -(foo)
+    // -200
+    // -foo
+    // -bar()
+
+    // I dont think im going to keep this part too strict im prolly gonna use the statement parser to get the next part of the expression.
+    // Try peeking the next token
+    // <lhs> { <math expr> <rhs> }
+    // If it is none we can return the parsed number we consumed (lhs otherwise)
+    if let Some(tkn) = tkns.consume() {
+        // Try to match one of the mathematical expression
+        let m_sym = TryInto::<MathematicalSymbol>::try_into(tkn.inner.clone())?;
+
+        // Fetch the rhs of the statement
+        let rhs = parse_statement(tkns)?;
+
+        // Combine spans of the sides
+        let combined_span = combine_span_info(&[*lhs.get_span(), *rhs.get_span()], true);
+        
+        Ok(Spanned {
+            inner: StatementVariant::MathematicalExpression(
+                Box::new(lhs),
+                m_sym,
+                Box::new(rhs),
+            ),
+            span: combined_span,
+        })
+    }
+    // No more tokens left in the stream
+    else {
+        return Ok(lhs);
+    }
+}
