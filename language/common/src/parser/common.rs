@@ -79,6 +79,16 @@ pub trait Streamable<T>
 
     /// Returns the last consumed item of the stream.
     fn get_last_consumed(&self) -> Option<&T>;
+    
+    /// Calls the closure passed in, if that closure returns true, the stream will return the index of the item the closure returned true to.
+    /// The function does not consume tokens.
+    fn map_next_pos<'a, F: Fn(&'a T) -> bool>(&'a self, check: F) -> Option<usize>
+    where
+        T: 'a;
+
+    /// Create a child iterator, which has its own internal index and holds a reference for their owner's index.
+    /// When incrementing the child's index it also increments the parent's index. However, the child only holds the amount of tokens it was provided with.
+    fn child_iterator_bulk<'child>(&'child mut self, nth: usize) -> Option<StreamChild<'child, T>>;
 }
 
 /// Stores the index of the cursor in the time this checkpoint was captured.
@@ -102,22 +112,6 @@ impl<T> TokenStream<T>
             buffer: tokens,
             idx: 0,
         }
-    }
-
-    /// Create a child iterator, which has its own internal index and holds a reference for their owner's index.
-    /// When incrementing the child's index it also increments the parent's index. However, the child only holds the amount of tokens it was provided with.
-    pub fn child_iterator_bulk<'child>(
-        &'child mut self,
-        nth: usize,
-    ) -> Option<StreamChild<'child, T>>
-    {
-        self.buffer.get(self.idx..self.idx + nth).map(|buffer| {
-            StreamChild {
-                buffer,
-                idx: 0,
-                owner_idx_ref: &mut self.idx,
-            }
-        })
     }
 
     pub fn create_checkpoint(&self) -> StreamCheckpoint
@@ -241,6 +235,32 @@ impl<T> Streamable<T> for TokenStream<T>
         let idx = self.idx.checked_sub(1)?;
         self.buffer.get(idx)
     }
+
+    /// Calls the closure passed in, if that closure returns true, the stream will return the index of the item the closure returned true to.
+    /// The function does not consume tokens.
+    fn map_next_pos<'a, F: Fn(&'a T) -> bool>(&'a self, check: F) -> Option<usize>
+    {
+        for (idx, e) in self.buffer.iter().skip(self.idx).enumerate() {
+            if (check)(e) {
+                return Some(idx);
+            }
+        }
+
+        None
+    }
+
+    /// Create a child iterator, which has its own internal index and holds a reference for their owner's index.
+    /// When incrementing the child's index it also increments the parent's index. However, the child only holds the amount of tokens it was provided with.
+    fn child_iterator_bulk<'child>(&'child mut self, nth: usize) -> Option<StreamChild<'child, T>>
+    {
+        self.buffer.get(self.idx..self.idx + nth).map(|buffer| {
+            StreamChild {
+                buffer,
+                idx: 0,
+                owner_idx_ref: &mut self.idx,
+            }
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -341,6 +361,32 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
     {
         let idx = self.idx.checked_sub(1)?;
         self.buffer.get(idx)
+    }
+
+    /// Calls the closure passed in, if that closure returns true, the stream will return the index of the item the closure returned true to.
+    /// The function does not consume tokens.
+    fn map_next_pos<'a, F: Fn(&'a T) -> bool>(&'a self, check: F) -> Option<usize>
+    {
+        for (idx, e) in self.buffer.iter().skip(self.idx).enumerate() {
+            if (check)(e) {
+                return Some(idx);
+            }
+        }
+
+        None
+    }
+
+    /// Create a child iterator, which has its own internal index and holds a reference for their owner's index.
+    /// When incrementing the child's index it also increments the parent's index. However, the child only holds the amount of tokens it was provided with.
+    fn child_iterator_bulk<'child>(&'child mut self, nth: usize) -> Option<StreamChild<'child, T>>
+    {
+        self.buffer.get(self.idx..self.idx + nth).map(|buffer| {
+            StreamChild {
+                buffer,
+                idx: 0,
+                owner_idx_ref: &mut self.idx,
+            }
+        })
     }
 }
 

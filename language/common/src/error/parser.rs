@@ -11,6 +11,8 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("A semicolon is missing from the end of this expression.")]
+    ExpressionSemicolonMissing,
     #[error("Token is not a valid mathematical symbol.")]
     InvalidMathematicalSymbol,
     #[error("Literal `{0}` is out of range for any 64bit primitive datatype.")]

@@ -1,7 +1,10 @@
 use crate::{
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{Streamable, TokenStream}, dbg::combine_span_info, function::PathMap, statement::parse_statement
+        common::{Streamable, TokenStream},
+        dbg::combine_span_info,
+        function::PathMap,
+        statement::parse_statement,
     },
     tokenizer::{Token, TokenDiscriminants},
     ty::{NotNan, TypeDiscriminants, Value},
@@ -251,6 +254,8 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
     };
 
     // We should accept any of these:
+    // 200 + 100
+    // foo;
     // -(foo)
     // -200
     // -foo
@@ -269,13 +274,9 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
 
         // Combine spans of the sides
         let combined_span = combine_span_info(&[*lhs.get_span(), *rhs.get_span()], true);
-        
+
         Ok(Spanned {
-            inner: StatementVariant::MathematicalExpression(
-                Box::new(lhs),
-                m_sym,
-                Box::new(rhs),
-            ),
+            inner: StatementVariant::MathematicalExpression(Box::new(lhs), m_sym, Box::new(rhs)),
             span: combined_span,
         })
     }

@@ -1,5 +1,5 @@
 use crate::{
-    error::{Spanned, syntax::SyntaxError},
+    error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{StatementVariant, StreamChild, Streamable},
         numeric_value::parse_numeric_literal,
@@ -16,7 +16,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub enum Expr
 {
-    FunctionCall,
+    // FunctionCall,
     VariableDeclaration,
     ModifyVariable,
     If,
@@ -125,13 +125,13 @@ macro_rules! expr_pat {
 pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = expr_pat!(
     // Function calls should look more or less like this.
     // <name> "(" [{<args>}] ")"
-    (
-        &[&[
-            TokenDiscriminants::Identifier,
-            TokenDiscriminants::OpenParentheses,
-        ]],
-        Ok(Expr::FunctionCall),
-    ),
+    // (
+    //     &[&[
+    //         TokenDiscriminants::Identifier,
+    //         TokenDiscriminants::OpenParentheses,
+    //     ]],
+    //     Ok(Expr::FunctionCall),
+    // ),
     // Varaible declarations should look like this:
     //
     // <ty> <name> "=" <val>
@@ -274,26 +274,67 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
     if let Some(matched) = match_expr_pattern(tkns).cloned() {
         let expr = matched?;
 
+        // These are complete statements that do not create a new value. These statements introduce loop and logic to the language, but these do not create new values.
         let stmt = match expr {
-            Expr::FunctionCall => function_call(tkns),
-            Expr::VariableDeclaration => var_decl(tkns),
-            // Please note that this is not only for the simple ```<ident> "="``` statement but rather any expression that directly modifies the value of the variable. ("/=", "+=", ....)
-            Expr::ModifyVariable => mod_variable(tkns),
+            // These are complete expressions, these do not need the ';' terminator.
             Expr::If => conditional_if(tkns),
             Expr::Elseif => conditional_elseif(tkns),
             Expr::Else => conditional_else(tkns),
             Expr::While => loop_while(tkns),
             Expr::For => loop_for(tkns),
+
+            // TODO! Rethink where the function call handling should go, act on comment above
+            // Expr::FunctionCall => function_call(tkns),
+
+            // These expression should end at the `;` terminator since they are set size expressions.
+            Expr::VariableDeclaration => {
+                var_decl(
+                    &mut tkns
+                        .child_iterator_bulk(
+                            tkns.map_next_pos(|element| {
+                                element.get_inner() == &TokenDiscriminants::SemiColon
+                            })
+                            .ok_or(ParserError::ExpressionSemicolonMissing)?,
+                        )
+                        .ok_or(ParserError::EOF)?,
+                )
+            },
+            // Please note that this is not only for the simple ```<ident> "="``` statement but rather any expression that directly modifies the value of the variable. ("/=", "+=", ....)
+            Expr::ModifyVariable => {
+                mod_variable(
+                    &mut tkns
+                        .child_iterator_bulk(
+                            tkns.map_next_pos(|element| {
+                                element.get_inner() == &TokenDiscriminants::SemiColon
+                            })
+                            .ok_or(ParserError::ExpressionSemicolonMissing)?,
+                        )
+                        .ok_or(ParserError::EOF)?,
+                )
+            },
         }?;
 
         // Return the expression matched by the fastpaths
         return Ok(/*stmt*/ todo!());
     }
 
-    // If we couldnt parse it by the fastpath try parsing the lhs of the statement
-    // Saying "lhs" is kinda inaccurate cuz it implies we have a "rhs" but we dont know yet so....
-    // Consume the first token
-    // The only input that can take this part is ```Ident, Dot, ....``` or if its just a value.
+    // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
+    // Even though we separate expression based on semicolons, if the user leaves out a semicolon the code is stil going to break so we have to add eadditional checks later.
+    let value = parse_value(
+        &mut tkns
+            .child_iterator_bulk(
+                tkns.map_next_pos(|element| element.get_inner() == &TokenDiscriminants::SemiColon)
+                    .ok_or(ParserError::ExpressionSemicolonMissing)?,
+            )
+            .ok_or(ParserError::EOF)?,
+    )?;
+
+    Ok(todo!())
+}
+
+/// This function should already be receiving a slice of tokens until the next semicolon.
+fn parse_value<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<(), anyhow::Error>
+{
     if let Some(tkn) = tkns.peek_next().cloned() {
         match tkn.get_inner() {
             Token::Identifier(ident) => {
@@ -303,7 +344,13 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
                 // Own the first identifier
                 let ident = ident.to_owned();
 
-                if let Some(tkn) = tkns.consume() {}
+                // Conume the next token
+                if let Some(tkn) = tkns.consume() {
+                    match tkn.get_inner() {
+                        Token::OpenParentheses => function_call(&*ident, tkns)?,
+                        _ => unimplemented!(),
+                    }
+                }
 
                 todo!()
             },
@@ -325,5 +372,5 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
         };
     }
 
-    Ok(todo!())
+    Ok(())
 }

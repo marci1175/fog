@@ -4,7 +4,10 @@ use crate::{
     tokenizer::Token,
 };
 
-pub fn function_call<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> anyhow::Result<()>
+pub fn function_call<S: Streamable<Spanned<Token>>>(
+    function_name: &str,
+    tkns: &mut S,
+) -> anyhow::Result<()>
 {
     Ok(())
 }
