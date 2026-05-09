@@ -91,6 +91,18 @@ pub trait Streamable<T>
     fn child_iterator_bulk<'child>(&'child mut self, nth: usize) -> Option<StreamChild<'child, T>>;
 }
 
+/// Creates a child iterator until the entered [`TokenDiscriminants`] matches.
+pub fn child_iterator_until<'child, T: Streamable<Spanned<Token>>>(s: &'child mut T, until: &TokenDiscriminants, err: ParserError) -> Result<StreamChild<'child, Spanned<Token>>> {
+    Ok(
+        s
+            .child_iterator_bulk(
+                s.map_next_pos(|element| element.get_inner() == until)
+                    .ok_or(err)?,
+            )
+            .ok_or(ParserError::EOF)?
+    )
+}
+
 /// Stores the index of the cursor in the time this checkpoint was captured.
 pub struct StreamCheckpoint
 {
@@ -98,13 +110,13 @@ pub struct StreamCheckpoint
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct TokenStream<T>
+pub struct Stream<T>
 {
     buffer: Vec<T>,
     idx: usize,
 }
 
-impl<T> TokenStream<T>
+impl<T> Stream<T>
 {
     pub fn new(tokens: Vec<T>) -> Self
     {
@@ -150,7 +162,7 @@ impl<T> TokenStream<T>
     }
 }
 
-impl<T> Streamable<T> for TokenStream<T>
+impl<T> Streamable<T> for Stream<T>
 {
     fn peek(&self, nth: isize) -> Option<&T>
     {
@@ -572,7 +584,7 @@ pub fn find_next_bitor(bitor_start_slice: &[Token]) -> Result<usize>
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
-pub fn find_closing_braces(tokens: &TokenStream<Spanned<Token>>) -> Option<usize>
+pub fn find_closing_braces(tokens: &Stream<Spanned<Token>>) -> Option<usize>
 {
     tokens.peek_remainder().and_then(|tkns| {
         let mut braces_counter: usize = 1;
@@ -627,7 +639,7 @@ pub fn find_next_comma(slice: &[Token]) -> Result<usize>
 
 pub fn parse_compiler_instruction(
     instr_buf: &mut OrdSet<CompilerInstruction>,
-    tokens: &mut TokenStream<Spanned<Token>>,
+    tokens: &mut Stream<Spanned<Token>>,
 ) -> anyhow::Result<()>
 {
     if let Some(tkn) = tokens.consume() {

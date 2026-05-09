@@ -1,7 +1,7 @@
 use crate::{
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{Streamable, TokenStream},
+        common::{Streamable, Stream},
         dbg::combine_span_info,
         function::PathMap,
         statement::parse_statement,

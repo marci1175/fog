@@ -10,7 +10,7 @@ use common::{
     error::application::ApplicationError,
     inkwell::targets::{TargetMachine, TargetTriple},
     linker::BuildManifest,
-    parser::common::{Streamable, TokenStream},
+    parser::common::{Streamable, Stream},
     toml,
     tracing::info,
     ty::OrdSet,
@@ -68,7 +68,7 @@ impl CompilerState
 
         info!("Tokenizing...");
 
-        let mut tokens = TokenStream::new(tokenize(file_contents)?);
+        let mut tokens = Stream::new(tokenize(file_contents)?);
         dbg!(&tokens);
         // info!("Creating LLVM context...");
         // let context = Context::create();

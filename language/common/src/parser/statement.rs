@@ -1,7 +1,7 @@
 use crate::{
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{StatementVariant, StreamChild, Streamable},
+        common::{StatementVariant, StreamChild, Streamable, child_iterator_until},
         numeric_value::parse_numeric_literal,
         statements::{
             conditionals::{conditional_else, conditional_elseif, conditional_if},
@@ -289,27 +289,13 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
             // These expression should end at the `;` terminator since they are set size expressions.
             Expr::VariableDeclaration => {
                 var_decl(
-                    &mut tkns
-                        .child_iterator_bulk(
-                            tkns.map_next_pos(|element| {
-                                element.get_inner() == &TokenDiscriminants::SemiColon
-                            })
-                            .ok_or(ParserError::ExpressionSemicolonMissing)?,
-                        )
-                        .ok_or(ParserError::EOF)?,
+                    &mut child_iterator_until(tkns, &TokenDiscriminants::SemiColon, ParserError::SyntaxError(SyntaxError::MissingSemiColon))?
                 )
             },
             // Please note that this is not only for the simple ```<ident> "="``` statement but rather any expression that directly modifies the value of the variable. ("/=", "+=", ....)
             Expr::ModifyVariable => {
                 mod_variable(
-                    &mut tkns
-                        .child_iterator_bulk(
-                            tkns.map_next_pos(|element| {
-                                element.get_inner() == &TokenDiscriminants::SemiColon
-                            })
-                            .ok_or(ParserError::ExpressionSemicolonMissing)?,
-                        )
-                        .ok_or(ParserError::EOF)?,
+                    &mut child_iterator_until(tkns, &TokenDiscriminants::SemiColon, ParserError::SyntaxError(SyntaxError::MissingSemiColon))?
                 )
             },
         }?;
@@ -321,12 +307,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
     // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
     // Even though we separate expression based on semicolons, if the user leaves out a semicolon the code is stil going to break so we have to add eadditional checks later.
     let value = parse_value(
-        &mut tkns
-            .child_iterator_bulk(
-                tkns.map_next_pos(|element| element.get_inner() == &TokenDiscriminants::SemiColon)
-                    .ok_or(ParserError::ExpressionSemicolonMissing)?,
-            )
-            .ok_or(ParserError::EOF)?,
+        &mut child_iterator_until(tkns, &TokenDiscriminants::SemiColon, ParserError::SyntaxError(SyntaxError::MissingSemiColon))?,
     )?;
 
     Ok(todo!())
@@ -348,6 +329,9 @@ fn parse_value<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<(), anyhow
                 if let Some(tkn) = tkns.consume() {
                     match tkn.get_inner() {
                         Token::OpenParentheses => function_call(&*ident, tkns)?,
+                        Token::OpenSquareBrackets => {
+                            
+                        },
                         _ => unimplemented!(),
                     }
                 }

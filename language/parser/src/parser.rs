@@ -6,7 +6,7 @@ use common::{
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{Context, Streamable, TokenStream, parse_compiler_instruction},
+        common::{Context, Streamable, Stream, parse_compiler_instruction},
         function::{CompilerInstruction, CompilerInstructionDiscriminants, parse_function},
         ty::{parse_enum, parse_struct},
     },
@@ -51,7 +51,7 @@ impl Settings
         imma change some of the syntax for example imma make it so that i can do `pub import "blabla.f", so that i can bring path into scope.`
     */
 
-    pub fn parse(&self, tokens: &mut TokenStream<Spanned<Token>>) -> Result<Context>
+    pub fn parse(&self, tokens: &mut Stream<Spanned<Token>>) -> Result<Context>
     {
         // The first step should be parsing the top level items, such as structs, functions, enums.
         // We will store all the items present, and parse the inner contents of the function later.

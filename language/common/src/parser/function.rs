@@ -9,7 +9,7 @@ use crate::{
     indexmap::IndexMap,
     parser::{
         common::{
-            Context, ItemVisibility, StatementVariant, Streamable, TokenStream, find_closing_braces,
+            Context, ItemVisibility, StatementVariant, Streamable, Stream, find_closing_braces,
         },
         statement::parse_statement,
         ty::{create_ty_token, parse_type},
@@ -422,7 +422,7 @@ impl<'a, PATH: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator for PathMapIterator<'a
 pub fn parse_function(
     ctx: &Context,
     vis: &ItemVisibility,
-    tokens: &mut TokenStream<Spanned<Token>>,
+    tokens: &mut Stream<Spanned<Token>>,
     compiler_instructions: OrdSet<CompilerInstruction>,
 ) -> anyhow::Result<FunctionDefinition>
 {
@@ -503,7 +503,7 @@ pub fn parse_function(
 /// The function assumes the first token to be the first token in the `|`s.
 /// The function does not check or evaluate anything it parses besides syntax checking.
 pub fn parse_generics(
-    tokens: &mut TokenStream<Spanned<Token>>,
+    tokens: &mut Stream<Spanned<Token>>,
 ) -> anyhow::Result<OrdMap<String, OrdSet<String>>>
 {
     let mut generics: OrdMap<String, OrdSet<String>> = OrdMap::new();
@@ -593,7 +593,7 @@ pub fn parse_generics(
 /// The function assumes the first token to be the first token in the parentheses.
 /// Please note that the function does not evaluate anything it parses.
 pub fn parse_fn_sig_arguments(
-    tokens: &mut TokenStream<Spanned<Token>>,
+    tokens: &mut Stream<Spanned<Token>>,
 ) -> anyhow::Result<OrdMap<String, (Type, UniqueId)>>
 {
     /*
@@ -660,7 +660,7 @@ pub fn parse_fn_sig_arguments(
 ///
 /// The function parses the tokens but does not evaluate them.
 pub fn parse_fn_body(
-    tokens: &mut TokenStream<Spanned<Token>>,
+    tokens: &mut Stream<Spanned<Token>>,
 ) -> anyhow::Result<Vec<Spanned<StatementVariant>>>
 {
     // Get the index of the closing brace token

@@ -2,7 +2,7 @@ use crate::{
     codegen::{StructAttributes, StructDefinition},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{Context, ItemVisibility, Streamable, TokenStream},
+        common::{Context, ItemVisibility, Streamable, Stream},
         function::{CompilerInstruction, parse_generics},
     },
     tokenizer::{self, Token, TokenDiscriminants},
@@ -12,7 +12,7 @@ use crate::{
 pub fn parse_enum(
     _ctx: &mut Context,
     _vis: &ItemVisibility,
-    _tokens: &mut TokenStream<Spanned<Token>>,
+    _tokens: &mut Stream<Spanned<Token>>,
     _compiler_instructions: OrdSet<CompilerInstruction>,
 )
 {
@@ -26,7 +26,7 @@ pub fn parse_enum(
 pub fn parse_struct(
     ctx: &mut Context,
     vis: &ItemVisibility,
-    tokens: &mut TokenStream<Spanned<Token>>,
+    tokens: &mut Stream<Spanned<Token>>,
     compiler_instructions: OrdSet<CompilerInstruction>,
 ) -> anyhow::Result<StructDefinition>
 {
@@ -122,7 +122,7 @@ pub fn parse_struct(
     ))
 }
 
-pub fn parse_type(tokens: &mut TokenStream<Spanned<Token>>) -> anyhow::Result<Type>
+pub fn parse_type(tokens: &mut Stream<Spanned<Token>>) -> anyhow::Result<Type>
 {
     if let Some(tkn) = tokens.consume() {
         return match tkn.get_inner() {
