@@ -11,6 +11,8 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("Unknown value could not be matched with any valid value patterns.")]
+    UnknownValueExpression,
     #[error("A semicolon is missing from the end of this expression.")]
     ExpressionSemicolonMissing,
     #[error("Token is not a valid mathematical symbol.")]

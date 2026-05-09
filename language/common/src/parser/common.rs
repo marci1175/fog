@@ -393,14 +393,19 @@ pub enum StatementVariant
     },
 
     /// This is the token for referencing a basic variable (by name only). This is the lowest layer of referencing a variable.
-    BasicReference {
-        variable_name: String
+    BasicReference
+    {
+        variable_name: String,
     },
-    ArrayReference {
-        variable_reference: Box<Spanned<StatementVariant>>, index: Box<Spanned<StatementVariant>>
+    ArrayReference
+    {
+        variable_reference: Box<Spanned<StatementVariant>>,
+        index: Box<Spanned<StatementVariant>>,
     },
-    StructFieldReference {
-        variable_reference: Box<Spanned<StatementVariant>>, field_name: String,
+    StructFieldReference
+    {
+        variable_reference: Box<Spanned<StatementVariant>>,
+        field_name: String,
     },
 
     Value(Value),

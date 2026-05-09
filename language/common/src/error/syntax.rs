@@ -5,7 +5,9 @@ use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
 #[derive(Clone, Debug, Error)]
 pub enum SyntaxError
 {
-    #[error("An unknown expression follows a variable reference. Check manual to see valid variable reference uses.")]
+    #[error(
+        "An unknown expression follows a variable reference. Check manual to see valid variable reference uses."
+    )]
     InvalidVariableExpression,
     #[error("A literal value was expected.")]
     ValueExpected,

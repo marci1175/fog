@@ -331,23 +331,89 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
             Some(tkn) => {
                 match tkn.get_inner() {
                     // Match a function call
-                    Token::OpenParentheses => {todo!()},
+                    Token::OpenParentheses => {
+                        todo!()
+                    },
                     // Indexing
                     Token::OpenSquareBrackets => {
-                        // The next few tokens should be the index referencing the position of the value in the array 
+                        // The next few tokens should be the index referencing the position of the value in the array
+                        // Capture the tokens until the closing "]"
+                        let closing_pos = tkns
+                            .map_next_pos({
+                                let mut currently_open = 1;
 
-                        todo!()
+                                move |tkn| {
+                                    match tkn.get_inner() {
+                                        Token::OpenSquareBrackets => currently_open += 1,
+                                        Token::CloseSquareBrackets => currently_open -= 1,
+                                        _ => {},
+                                    }
+
+                                    currently_open == 0
+                                }
+                            })
+                            .ok_or(ParserError::SyntaxError(
+                                SyntaxError::LeftOpenSquareBrackets,
+                            ))?;
+
+                        let mut index_value_tkns = tkns
+                            .child_iterator_bulk(closing_pos)
+                            .ok_or(ParserError::EOF)?;
+
+                        let index_value = parse_value(&mut index_value_tkns)?;
+
+                        // The next token should be the closing "]", consume it for syntax purposes
+                        let closing_bracket_span = *tkns.try_consume_match(
+                            ParserError::SyntaxError(SyntaxError::InvalidVariableExpression),
+                            &TokenDiscriminants::CloseSquareBrackets,
+                        )?.get_span();
+
+                        parse_variable_expression(
+                            tkns,
+                            Spanned {
+                                inner: StatementVariant::ArrayReference {
+                                    variable_reference: Box::new(stmt),
+                                    index: Box::new(index_value),
+                                },
+                                // Combine the spans of the opening and the closing brackets so that the span will contain the whole array reference.
+                                span: combine_span_info(
+                                    &[*tkn.get_span(), closing_bracket_span],
+                                    true,
+                                ),
+                            },
+                        )?
                     },
                     // Struct access
                     Token::Dot => {
                         // The next item should be an identifer referencing the struct name
-                        let field_name = tkns.try_consume_match(ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference), &TokenDiscriminants::Identifier)?.try_as_identifier_ref().unwrap().clone();
+                        let field_name = tkns
+                            .try_consume_match(
+                                ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference),
+                                &TokenDiscriminants::Identifier,
+                            )?
+                            .try_as_identifier_ref()
+                            .unwrap()
+                            .clone();
 
                         // Call the function recursively to see if there are any more tokens left in the stream
-                        parse_variable_expression(tkns, Spanned { inner: StatementVariant::StructFieldReference { variable_reference: Box::new(stmt), field_name: field_name }, span: *tkn.get_span() })?
+                        parse_variable_expression(
+                            tkns,
+                            Spanned {
+                                inner: StatementVariant::StructFieldReference {
+                                    variable_reference: Box::new(stmt),
+                                    field_name: field_name,
+                                },
+                                span: *tkn.get_span(),
+                            },
+                        )?
                     },
 
-                    _ => return Err(ParserError::SyntaxError(SyntaxError::InvalidVariableExpression).into()),
+                    _ => {
+                        return Err(ParserError::SyntaxError(
+                            SyntaxError::InvalidVariableExpression,
+                        )
+                        .into());
+                    },
                 }
             },
             None => stmt,
@@ -356,10 +422,10 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
 }
 
 /// This function should already be receiving a slice of tokens until the next semicolon.
-fn parse_value<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<(), anyhow::Error>
+fn parse_value<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
     if let Some(tkn) = tkns.peek_next().cloned() {
-        match tkn.get_inner() {
+        let value = match tkn.get_inner() {
             Token::Identifier(ident) => {
                 // Consume the token from the stream after peeking it.
                 tkns.consume();
@@ -372,7 +438,12 @@ fn parse_value<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<(), anyhow
                 // This function is the legacy eq of "fetch_variable_expr", parsing the statement after an identifier - such as foo[0] | foo.asd
                 let stmt = parse_variable_expression(
                     tkns,
-                    Spanned { inner: StatementVariant::BasicReference { variable_name: ident }, span: *tkn.get_span() },
+                    Spanned {
+                        inner: StatementVariant::BasicReference {
+                            variable_name: ident,
+                        },
+                        span: *tkn.get_span(),
+                    },
                 )?;
 
                 stmt
@@ -393,7 +464,9 @@ fn parse_value<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<(), anyhow
             },
             _ => todo!(),
         };
+
+        return Ok(value);
     }
 
-    Ok(())
+    Err(ParserError::UnknownValueExpression.into())
 }
