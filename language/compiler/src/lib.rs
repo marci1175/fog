@@ -10,7 +10,7 @@ use common::{
     error::application::ApplicationError,
     inkwell::targets::{TargetMachine, TargetTriple},
     linker::BuildManifest,
-    parser::common::{Streamable, Stream},
+    parser::common::{Stream, Streamable},
     toml,
     tracing::info,
     ty::OrdSet,

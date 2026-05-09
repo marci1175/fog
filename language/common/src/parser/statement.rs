@@ -2,6 +2,7 @@ use crate::{
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{StatementVariant, StreamChild, Streamable, child_iterator_until},
+        dbg::combine_span_info,
         numeric_value::parse_numeric_literal,
         statements::{
             conditionals::{conditional_else, conditional_elseif, conditional_if},
@@ -288,15 +289,19 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
 
             // These expression should end at the `;` terminator since they are set size expressions.
             Expr::VariableDeclaration => {
-                var_decl(
-                    &mut child_iterator_until(tkns, &TokenDiscriminants::SemiColon, ParserError::SyntaxError(SyntaxError::MissingSemiColon))?
-                )
+                var_decl(&mut child_iterator_until(
+                    tkns,
+                    &TokenDiscriminants::SemiColon,
+                    ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+                )?)
             },
             // Please note that this is not only for the simple ```<ident> "="``` statement but rather any expression that directly modifies the value of the variable. ("/=", "+=", ....)
             Expr::ModifyVariable => {
-                mod_variable(
-                    &mut child_iterator_until(tkns, &TokenDiscriminants::SemiColon, ParserError::SyntaxError(SyntaxError::MissingSemiColon))?
-                )
+                mod_variable(&mut child_iterator_until(
+                    tkns,
+                    &TokenDiscriminants::SemiColon,
+                    ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+                )?)
             },
         }?;
 
@@ -306,11 +311,48 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
 
     // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
     // Even though we separate expression based on semicolons, if the user leaves out a semicolon the code is stil going to break so we have to add eadditional checks later.
-    let value = parse_value(
-        &mut child_iterator_until(tkns, &TokenDiscriminants::SemiColon, ParserError::SyntaxError(SyntaxError::MissingSemiColon))?,
-    )?;
+    let value = parse_value(&mut child_iterator_until(
+        tkns,
+        &TokenDiscriminants::SemiColon,
+        ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+    )?)?;
 
     Ok(todo!())
+}
+
+fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+) -> anyhow::Result<Spanned<StatementVariant>>
+{
+    Ok(
+        // Consume the next token in the stream
+        match tkns.consume().cloned() {
+            Some(tkn) => {
+                match tkn.get_inner() {
+                    // Match a function call
+                    Token::OpenParentheses => {todo!()},
+                    // Indexing
+                    Token::OpenSquareBrackets => {
+                        // The next few tokens should be the index referencing the position of the value in the array 
+
+                        todo!()
+                    },
+                    // Struct access
+                    Token::Dot => {
+                        // The next item should be an identifer referencing the struct name
+                        let field_name = tkns.try_consume_match(ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference), &TokenDiscriminants::Identifier)?.try_as_identifier_ref().unwrap().clone();
+
+                        // Call the function recursively to see if there are any more tokens left in the stream
+                        parse_variable_expression(tkns, Spanned { inner: StatementVariant::StructFieldReference { variable_reference: Box::new(stmt), field_name: field_name }, span: *tkn.get_span() })?
+                    },
+
+                    _ => return Err(ParserError::SyntaxError(SyntaxError::InvalidVariableExpression).into()),
+                }
+            },
+            None => stmt,
+        },
+    )
 }
 
 /// This function should already be receiving a slice of tokens until the next semicolon.
@@ -326,17 +368,14 @@ fn parse_value<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<(), anyhow
                 let ident = ident.to_owned();
 
                 // Conume the next token
-                if let Some(tkn) = tkns.consume() {
-                    match tkn.get_inner() {
-                        Token::OpenParentheses => function_call(&*ident, tkns)?,
-                        Token::OpenSquareBrackets => {
-                            
-                        },
-                        _ => unimplemented!(),
-                    }
-                }
+                // Call a recursive function here which will resolve the expression after the variable's name.
+                // This function is the legacy eq of "fetch_variable_expr", parsing the statement after an identifier - such as foo[0] | foo.asd
+                let stmt = parse_variable_expression(
+                    tkns,
+                    Spanned { inner: StatementVariant::BasicReference { variable_name: ident }, span: *tkn.get_span() },
+                )?;
 
-                todo!()
+                stmt
             },
             Token::Literal(val) => {
                 // Consume the token from the stream after peeking it.

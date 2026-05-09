@@ -1,7 +1,7 @@
 use crate::{
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{Streamable, Stream},
+        common::{Stream, Streamable},
         dbg::combine_span_info,
         function::PathMap,
         statement::parse_statement,
@@ -51,7 +51,7 @@ use crate::{
     codegen::CustomItem,
     error::{SpanInfo, syntax::SyntaxError},
     parser::{
-        common::{ParsedTokenInstance, StatementVariant},
+        common::StatementVariant,
         function::{FunctionSignature, UnparsedFunctionDefinition},
         variable::UniqueId,
     },

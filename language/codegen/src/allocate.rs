@@ -3,6 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use common::{
     anyhow::{self, Result},
     codegen::{CustomItem, ty_to_llvm_ty},
+    error::Spanned,
     indexmap::IndexMap,
     inkwell::{
         builder::Builder,
@@ -10,10 +11,7 @@ use common::{
         types::{ArrayType, BasicMetadataTypeEnum},
         values::{IntValue, PointerValue},
     },
-    parser::{
-        common::{ParsedTokenInstance, StatementVariant},
-        variable::UniqueId,
-    },
+    parser::{common::StatementVariant, variable::UniqueId},
     ty::Type,
 };
 
@@ -90,7 +88,7 @@ pub fn create_new_variable<'a, 'b>(
 pub fn create_allocation_table<'ctx>(
     ctx: &'ctx Context,
     builder: &'ctx Builder<'_>,
-    parsed_tokens: &[ParsedTokenInstance],
+    parsed_tokens: &[Spanned<StatementVariant>],
     custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> anyhow::Result<HashMap<UniqueId, PointerValue<'ctx>>>
 {

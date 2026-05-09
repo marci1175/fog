@@ -8,8 +8,8 @@ use std::{
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     codegen::{CustomItem, StructAttributes, struct_field_to_ty_list},
-    error::{codegen::CodeGenError, parser::ParserError},
-    parser::{common::ParsedTokenInstance, function::FunctionSignature},
+    error::{Spanned, codegen::CodeGenError, parser::ParserError},
+    parser::{common::StatementVariant, function::FunctionSignature},
 };
 use indexmap::{IndexMap, IndexSet};
 use inkwell::{
@@ -48,7 +48,7 @@ pub enum Value
         (
             String,
             OrdMap<String, Type>,
-            OrdMap<String, Box<ParsedTokenInstance>>,
+            OrdMap<String, Box<Spanned<StatementVariant>>>,
             StructAttributes,
         ),
     ),
@@ -56,7 +56,7 @@ pub enum Value
     /// First item is the type of the array
     /// Second item is the length
     Array((Box<Type>, usize)),
-    Enum((Type, OrdMap<String, ParsedTokenInstance>, String)),
+    Enum((Type, OrdMap<String, Spanned<StatementVariant>>, String)),
     Pointer((usize, Option<Box<Type>>)),
 }
 
@@ -234,7 +234,7 @@ pub enum Type
     Void,
 
     /// Automatic type casting is not implemented for enum variants due to it being ineffecient and difficult with the current codebase. (aka im too lazy)
-    Enum((Box<Type>, OrdMap<String, ParsedTokenInstance>)),
+    Enum((Box<Type>, OrdMap<String, Spanned<StatementVariant>>)),
 
     Struct((String, OrdMap<String, Type>, StructAttributes)),
     Array((Box<Type>, usize)),

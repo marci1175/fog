@@ -4,7 +4,7 @@ use common::{
         CustomItem, FunctionArgumentIdentifier, LoopBodyBlocks, create_fn_type_from_ty_disc,
         fn_arg_to_string, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty,
     },
-    error::codegen::CodeGenError,
+    error::{Spanned, codegen::CodeGenError},
     indexmap::IndexMap,
     inkwell::{
         AddressSpace,
@@ -18,7 +18,7 @@ use common::{
         values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     },
     parser::{
-        common::{ParsedTokenInstance, StatementVariant},
+        common::StatementVariant,
         function::{CompilerInstruction, FunctionDefinition},
         numeric_value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId},
@@ -41,7 +41,7 @@ pub fn create_ir<'main, 'ctx>(
     // Inkwell Context
     ctx: &'main Context,
     // The list of ParsedToken-s
-    parsed_tokens: Vec<ParsedTokenInstance>,
+    parsed_tokens: Vec<Spanned<StatementVariant>>,
     // This argument is initialized with the HashMap of the arguments
     available_arguments: HashMap<String, (BasicValueEnum<'ctx>, (Type, UniqueId))>,
     // Type returned type of the Function
@@ -137,7 +137,7 @@ pub fn create_function_call_args<'ctx>(
     fn_name: String,
     fn_argument_list: &OrdMap<
         FunctionArgumentIdentifier<String, usize>,
-        (ParsedTokenInstance, (Type, usize)),
+        (Spanned<StatementVariant>, (Type, usize)),
     >,
 ) -> Result<Vec<BasicMetadataValueEnum<'ctx>>, anyhow::Error>
 {

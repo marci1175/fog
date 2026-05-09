@@ -7,9 +7,9 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    error::{codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
+    error::{Spanned, codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{ItemVisibility, ParsedTokenInstance, StatementVariant},
+        common::{ItemVisibility, StatementVariant},
         function::{
             CompilerInstruction, FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition,
         },
@@ -99,7 +99,7 @@ pub enum CustomItem
             // Enum type
             Type,
             // Enum variant values
-            OrdMap<String, ParsedTokenInstance>,
+            OrdMap<String, Spanned<StatementVariant>>,
         ),
     ),
     Trait
@@ -143,10 +143,10 @@ impl Deref for Imports
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct If
 {
-    pub condition: Box<ParsedTokenInstance>,
+    pub condition: Box<Spanned<StatementVariant>>,
 
-    pub true_branch: Vec<ParsedTokenInstance>,
-    pub false_branch: Vec<ParsedTokenInstance>,
+    pub true_branch: Vec<Spanned<StatementVariant>>,
+    pub false_branch: Vec<Spanned<StatementVariant>>,
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]

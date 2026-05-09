@@ -2,7 +2,7 @@ use crate::{
     codegen::{StructAttributes, StructDefinition},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{Context, ItemVisibility, Streamable, Stream},
+        common::{Context, ItemVisibility, Stream, Streamable},
         function::{CompilerInstruction, parse_generics},
     },
     tokenizer::{self, Token, TokenDiscriminants},

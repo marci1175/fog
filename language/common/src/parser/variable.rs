@@ -2,9 +2,9 @@ use std::sync::atomic::AtomicUsize;
 
 use crate::{
     codegen::{FunctionArgumentIdentifier, StructAttributes},
-    error::{parser::ParserError, syntax::SyntaxError},
+    error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::ParsedTokenInstance,
+        common::StatementVariant,
         function::{FunctionSignature, PathMap},
     },
     tokenizer::Token,
@@ -64,16 +64,33 @@ impl IdSource
 pub static VARIABLE_ID_SOURCE: IdSource = IdSource::new(0);
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Hash, strum_macros::EnumTryAs)]
-/// VariableReferences are the lowest layer of referencing a variable. This is enum wrapped in a ParsedToken, consult the documentation of that enum variant for more information.ű
+/// VariableReferences are the lowest layer of referencing a variable. This enum wrapped in a ParsedToken, consult the documentation of that enum variant for more information.
 /// VariableReferences should not contain themselves as they are only for referencing a variable, there is not much more to it.
 pub enum VariableReference
 {
-    /// Struct field reference
-    StructFieldReference(StructFieldRef),
-    /// Variable name and custom identifier number (in current scope)
-    BasicReference(String, usize),
-    /// Variable name, array index
-    ArrayReference(ArrayIndexing),
+    /// Variable name and custom identifier number (id for global scope)
+    BasicReference
+    {
+        /// The referred variable's name
+        variable_name: String,
+        // The referred variables global id
+        // id: usize
+    },
+    ///
+    StructField
+    {
+        /// Inner reference for the underlying variable
+        inner_reference: Box<Spanned<VariableReference>>,
+        /// The field name we are trying to access
+        field_name: String,
+    },
+    ArrayIndex
+    {
+        /// Inner reference for the underlying variable
+        inner_reference: Box<Spanned<VariableReference>>,
+        /// The index we are trying to access through the variable
+        index: Box<Spanned<StatementVariant>>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -93,7 +110,7 @@ pub struct StructFieldRef
             FunctionSignature,
             OrdMap<
                 FunctionArgumentIdentifier<String, usize>,
-                (ParsedTokenInstance, (Type, UniqueId)),
+                (Spanned<StatementVariant>, (Type, UniqueId)),
             >,
         ),
     >,
@@ -110,7 +127,7 @@ pub enum StructFieldType<F, FN>
 pub struct ArrayIndexing
 {
     pub variable_reference: Box<VariableReference>,
-    pub idx: Box<ParsedTokenInstance>,
+    pub idx: Box<Spanned<StatementVariant>>,
 }
 
 /// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.

@@ -6,7 +6,7 @@ use common::{
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{Context, Streamable, Stream, parse_compiler_instruction},
+        common::{Context, Stream, Streamable, parse_compiler_instruction},
         function::{CompilerInstruction, CompilerInstructionDiscriminants, parse_function},
         ty::{parse_enum, parse_struct},
     },

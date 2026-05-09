@@ -14,7 +14,6 @@ use common::{
         values::{FunctionValue, PointerValue},
     },
     parser::{
-        common::ParsedTokenInstance,
         function::FunctionDefinition,
         variable::{UniqueId, VariableReference},
     },

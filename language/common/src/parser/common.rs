@@ -19,30 +19,6 @@ use crate::{
     ty::{OrdMap, OrdSet, Type, Value},
 };
 
-#[derive(Debug, Clone, Eq, Hash)]
-/// A ParsedTokenInstance is ParsedToken with additional information. DebugInformation will not affect comparisons. (Check PartialEq trait implementation)
-pub struct ParsedTokenInstance
-{
-    pub inner: StatementVariant,
-    pub debug_information: SpanInfo,
-}
-
-impl PartialEq for ParsedTokenInstance
-{
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.inner == other.inner
-    }
-}
-
-impl PartialEq<StatementVariant> for ParsedTokenInstance
-{
-    fn eq(&self, other: &StatementVariant) -> bool
-    {
-        &self.inner == other
-    }
-}
-
 /// Helper trait for types lookingto implement a buffer-like stream.
 pub trait Streamable<T>
 {
@@ -79,10 +55,10 @@ pub trait Streamable<T>
 
     /// Returns the last consumed item of the stream.
     fn get_last_consumed(&self) -> Option<&T>;
-    
+
     /// Calls the closure passed in, if that closure returns true, the stream will return the index of the item the closure returned true to.
     /// The function does not consume tokens.
-    fn map_next_pos<'a, F: Fn(&'a T) -> bool>(&'a self, check: F) -> Option<usize>
+    fn map_next_pos<'a, F: FnMut(&'a T) -> bool>(&'a self, check: F) -> Option<usize>
     where
         T: 'a;
 
@@ -92,15 +68,17 @@ pub trait Streamable<T>
 }
 
 /// Creates a child iterator until the entered [`TokenDiscriminants`] matches.
-pub fn child_iterator_until<'child, T: Streamable<Spanned<Token>>>(s: &'child mut T, until: &TokenDiscriminants, err: ParserError) -> Result<StreamChild<'child, Spanned<Token>>> {
-    Ok(
-        s
-            .child_iterator_bulk(
-                s.map_next_pos(|element| element.get_inner() == until)
-                    .ok_or(err)?,
-            )
-            .ok_or(ParserError::EOF)?
+pub fn child_iterator_until<'child, T: Streamable<Spanned<Token>>>(
+    s: &'child mut T,
+    until: &TokenDiscriminants,
+    err: ParserError,
+) -> Result<StreamChild<'child, Spanned<Token>>>
+{
+    Ok(s.child_iterator_bulk(
+        s.map_next_pos(|element| element.get_inner() == until)
+            .ok_or(err)?,
     )
+    .ok_or(ParserError::EOF)?)
 }
 
 /// Stores the index of the cursor in the time this checkpoint was captured.
@@ -250,7 +228,7 @@ impl<T> Streamable<T> for Stream<T>
 
     /// Calls the closure passed in, if that closure returns true, the stream will return the index of the item the closure returned true to.
     /// The function does not consume tokens.
-    fn map_next_pos<'a, F: Fn(&'a T) -> bool>(&'a self, check: F) -> Option<usize>
+    fn map_next_pos<'a, F: FnMut(&'a T) -> bool>(&'a self, mut check: F) -> Option<usize>
     {
         for (idx, e) in self.buffer.iter().skip(self.idx).enumerate() {
             if (check)(e) {
@@ -377,7 +355,7 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
 
     /// Calls the closure passed in, if that closure returns true, the stream will return the index of the item the closure returned true to.
     /// The function does not consume tokens.
-    fn map_next_pos<'a, F: Fn(&'a T) -> bool>(&'a self, check: F) -> Option<usize>
+    fn map_next_pos<'a, F: FnMut(&'a T) -> bool>(&'a self, mut check: F) -> Option<usize>
     {
         for (idx, e) in self.buffer.iter().skip(self.idx).enumerate() {
             if (check)(e) {
@@ -409,18 +387,25 @@ pub enum StatementVariant
     {
         variable_name: String,
         variable_type: Type,
-        variable_value: Box<ParsedTokenInstance>,
+        variable_value: Box<Spanned<StatementVariant>>,
         variable_id: UniqueId,
         is_mutable: bool,
     },
 
-    /// This is the token for referencing a variable. This is the lowest layer of referencing a variable.
-    /// Other tokens might wrap it like an `ArrayIndexing`. This is the last token which points to the variable.
-    VariableReference(VariableReference),
+    /// This is the token for referencing a basic variable (by name only). This is the lowest layer of referencing a variable.
+    BasicReference {
+        variable_name: String
+    },
+    ArrayReference {
+        variable_reference: Box<Spanned<StatementVariant>>, index: Box<Spanned<StatementVariant>>
+    },
+    StructFieldReference {
+        variable_reference: Box<Spanned<StatementVariant>>, field_name: String,
+    },
 
     Value(Value),
 
-    TypeCast(Box<ParsedTokenInstance>, Type),
+    TypeCast(Box<Spanned<StatementVariant>>, Type),
 
     MathematicalExpression(
         Box<Spanned<StatementVariant>>,
@@ -430,23 +415,29 @@ pub enum StatementVariant
 
     NegateValue(Box<Spanned<StatementVariant>>),
 
-    Brackets(Vec<StatementVariant>, Type),
+    Brackets(Vec<Spanned<StatementVariant>>, Type),
 
     FunctionCall(
         (FunctionSignature, String),
-        OrdMap<FunctionArgumentIdentifier<String, usize>, (ParsedTokenInstance, (Type, UniqueId))>,
+        OrdMap<
+            FunctionArgumentIdentifier<String, usize>,
+            (Spanned<StatementVariant>, (Type, UniqueId)),
+        >,
     ),
 
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
     /// The second is the value we are setting this variable.
-    SetValue(Box<ParsedTokenInstance>, Box<ParsedTokenInstance>),
+    SetValue(
+        Box<Spanned<StatementVariant>>,
+        Box<Spanned<StatementVariant>>,
+    ),
 
-    ReturnValue(Box<ParsedTokenInstance>),
+    ReturnValue(Box<Spanned<StatementVariant>>),
 
     Comparison(
-        Box<ParsedTokenInstance>,
+        Box<Spanned<StatementVariant>>,
         Order,
-        Box<ParsedTokenInstance>,
+        Box<Spanned<StatementVariant>>,
         Type,
     ),
 
@@ -454,17 +445,17 @@ pub enum StatementVariant
 
     CodeBlock(Vec<StatementVariant>),
 
-    Loop(Vec<ParsedTokenInstance>),
+    Loop(Vec<Spanned<StatementVariant>>),
 
     ControlFlow(ControlFlowType),
 
-    ArrayInitialization(Vec<ParsedTokenInstance>, Type),
+    ArrayInitialization(Vec<Spanned<StatementVariant>>, Type),
 
-    GetPointerTo(Box<ParsedTokenInstance>),
+    GetPointerTo(Box<Spanned<StatementVariant>>),
 
     DerefPointer
     {
-        inner_expr: Box<ParsedTokenInstance>,
+        inner_expr: Box<Spanned<StatementVariant>>,
         mode: DerefMode,
     },
 }

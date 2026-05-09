@@ -9,7 +9,7 @@ use crate::{
     indexmap::IndexMap,
     parser::{
         common::{
-            Context, ItemVisibility, StatementVariant, Streamable, Stream, find_closing_braces,
+            Context, ItemVisibility, StatementVariant, Stream, Streamable, find_closing_braces,
         },
         statement::parse_statement,
         ty::{create_ty_token, parse_type},
