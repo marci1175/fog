@@ -1,12 +1,12 @@
 use crate::{
     error::Spanned,
-    parser::common::{StreamChild, Streamable},
+    parser::common::Streamable,
     tokenizer::Token,
 };
 
 pub fn function_call<S: Streamable<Spanned<Token>>>(
-    function_name: &str,
-    tkns: &mut S,
+    _function_name: &str,
+    _tkns: &mut S,
 ) -> anyhow::Result<()>
 {
     Ok(())

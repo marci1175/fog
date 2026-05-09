@@ -261,7 +261,7 @@ impl From<CustomItem> for Type
     fn from(value: CustomItem) -> Self
     {
         match value {
-            CustomItem::Struct(inner) => Self::Struct(todo!()),
+            CustomItem::Struct(_inner) => Self::Struct(todo!()),
             // CustomItem::Struct(inner) => Self::Struct(inner),
             CustomItem::Enum((ty, variants)) => Self::Enum((Box::new(ty), variants)),
             CustomItem::Trait {

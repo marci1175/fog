@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
 use common::{
-    anyhow::{self, Result},
+    anyhow::Result,
     combine_path,
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError},
     parser::{
         common::{Context, Stream, Streamable, parse_compiler_instruction},
-        function::{CompilerInstruction, CompilerInstructionDiscriminants, parse_function},
+        function::{CompilerInstruction, parse_function},
         ty::{parse_enum, parse_struct},
     },
     tokenizer::{Token, TokenDiscriminants},

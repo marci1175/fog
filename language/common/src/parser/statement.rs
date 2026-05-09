@@ -1,12 +1,11 @@
 use crate::{
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{StatementVariant, StreamChild, Streamable, child_iterator_until},
+        common::{StatementVariant, Streamable, child_iterator_until},
         dbg::combine_span_info,
         numeric_value::parse_numeric_literal,
         statements::{
             conditionals::{conditional_else, conditional_elseif, conditional_if},
-            function_call::function_call,
             loops::{loop_for, loop_while},
             variables::{mod_variable, var_decl},
         },
@@ -258,12 +257,12 @@ fn match_expr_pattern<'a, S: Streamable<Spanned<Token>>>(
     tkns: &mut S,
 ) -> Option<&'a Result<Expr, SyntaxError>>
 {
-    let matched_pattern = EXPR_PAT
-        .iter()
-        .find(|(patterns, _)| patterns.iter().any(|pat| tkns.try_match_pattern(*pat)))
-        .map(|(_, expr_res)| expr_res);
+    
 
-    matched_pattern
+    EXPR_PAT
+        .iter()
+        .find(|(patterns, _)| patterns.iter().any(|pat| tkns.try_match_pattern(pat)))
+        .map(|(_, expr_res)| expr_res)
 }
 
 pub fn parse_statement<S: Streamable<Spanned<Token>>>(
@@ -276,7 +275,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
         let expr = matched?;
 
         // These are complete statements that do not create a new value. These statements introduce loop and logic to the language, but these do not create new values.
-        let stmt = match expr {
+        match expr {
             // These are complete expressions, these do not need the ';' terminator.
             Expr::If => conditional_if(tkns),
             Expr::Elseif => conditional_elseif(tkns),
@@ -405,7 +404,7 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
                             Spanned {
                                 inner: StatementVariant::StructFieldReference {
                                     variable_reference: Box::new(stmt),
-                                    field_name: field_name,
+                                    field_name,
                                 },
                                 span: *tkn.get_span(),
                             },
@@ -445,7 +444,9 @@ fn parse_value<S: Streamable<Spanned<Token>>>(
                 // Conume the next token
                 // Call a recursive function here which will resolve the expression after the variable's name.
                 // This function is the legacy eq of "fetch_variable_expr", parsing the statement after an identifier - such as foo[0] | foo.asd
-                let stmt = parse_variable_expression(
+                
+
+                parse_variable_expression(
                     tkns,
                     Spanned {
                         inner: StatementVariant::BasicReference {
@@ -453,9 +454,7 @@ fn parse_value<S: Streamable<Spanned<Token>>>(
                         },
                         span: *tkn.get_span(),
                     },
-                )?;
-
-                stmt
+                )?
             },
             Token::Literal(val) => {
                 // Consume the token from the stream after peeking it.

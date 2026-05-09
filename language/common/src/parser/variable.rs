@@ -1,13 +1,12 @@
 use std::sync::atomic::AtomicUsize;
 
 use crate::{
-    codegen::{FunctionArgumentIdentifier, StructAttributes},
-    error::{Spanned, parser::ParserError, syntax::SyntaxError},
+    codegen::FunctionArgumentIdentifier,
+    error::Spanned,
     parser::{
         common::StatementVariant,
-        function::{FunctionSignature, PathMap},
+        function::FunctionSignature,
     },
-    tokenizer::Token,
     ty::{OrdMap, Type},
 };
 use strum_macros::Display;

@@ -1,12 +1,11 @@
 use crate::{
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{Stream, Streamable},
+        common::Streamable,
         dbg::combine_span_info,
-        function::PathMap,
         statement::parse_statement,
     },
-    tokenizer::{Token, TokenDiscriminants},
+    tokenizer::Token,
     ty::{NotNan, TypeDiscriminants, Value},
 };
 use anyhow::Result;
@@ -43,19 +42,11 @@ impl TryInto<MathematicalSymbol> for Token
     }
 }
 
-use std::{collections::HashMap, mem::MaybeUninit, rc::Rc};
 
-use crate::{codegen::StructAttributes, indexmap::IndexMap};
 
 use crate::{
-    codegen::CustomItem,
-    error::{SpanInfo, syntax::SyntaxError},
-    parser::{
-        common::StatementVariant,
-        function::{FunctionSignature, UnparsedFunctionDefinition},
-        variable::UniqueId,
-    },
-    ty::Type,
+    error::syntax::SyntaxError,
+    parser::common::StatementVariant,
 };
 
 ///
@@ -238,10 +229,10 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
                         // If it doesnt, then it is an unsigned since subtractions are handled elsewhere. (Semantic analysis)
                         StatementVariant::Value({
                             if unparsed_literal.contains('.') {
-                                fit_float(&unparsed_literal)?
+                                fit_float(unparsed_literal)?
                             }
                             else {
-                                fit_unsigned(&unparsed_literal)?
+                                fit_unsigned(unparsed_literal)?
                             }
                         })
                     }
@@ -282,6 +273,6 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
     }
     // No more tokens left in the stream
     else {
-        return Ok(lhs);
+        Ok(lhs)
     }
 }

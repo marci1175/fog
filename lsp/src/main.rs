@@ -223,7 +223,7 @@ impl LanguageServer for Backend
         let semantic_tokens = || -> Option<Vec<SemanticToken>> {
             let mut im_complete_tokens = self.semantic_token_map.get_mut(&uri)?;
             let rope = self.document_map.get(&uri)?;
-            im_complete_tokens.sort_by(|a, b| a.start.cmp(&b.start));
+            im_complete_tokens.sort_by_key(|a| a.start);
             let mut pre_line = 0;
             let mut pre_start = 0;
             let semantic_tokens = im_complete_tokens
@@ -566,8 +566,7 @@ impl Backend
                     let span = err.span();
                     let start_position = offset_to_position(span.start, &rope);
                     let end_position = offset_to_position(span.end, &rope);
-                    let diag = start_position
-                        .and_then(|start| end_position.map(|end| (start, end)))
+                    let diag = start_position.zip(end_position)
                         .map(|(start, end)| {
                             Diagnostic::new_simple(Range::new(start, end), format!("{err:?}"))
                         });

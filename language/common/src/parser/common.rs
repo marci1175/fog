@@ -1,4 +1,4 @@
-use std::{cell::{Cell, RefCell}, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 use strum_macros::Display;
@@ -8,14 +8,14 @@ use crate::{
         CustomItem, DerefMode, FunctionArgumentIdentifier, If, Order, StructAttributes,
         StructDefinition,
     },
-    error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
+    error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         function::{
             CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
             FunctionDefinition, FunctionSignature, PathMap,
         },
         numeric_value::MathematicalSymbol,
-        variable::{ControlFlowType, UniqueId, VariableReference},
+        variable::{ControlFlowType, UniqueId},
     },
     tokenizer::{Token, TokenDiscriminants},
     ty::{OrdMap, OrdSet, Type, Value},
@@ -148,7 +148,7 @@ impl<T> Stream<T>
     fn decrement(&self, amount: usize)
     {
         let mut stack = self.idx_stack.borrow_mut();
-        stack[0] = stack[0].checked_sub(amount).unwrap_or(0);
+        stack[0] = stack[0].saturating_sub(amount);
     }
 }
 
@@ -313,7 +313,7 @@ impl<'owner, T> StreamChild<'owner, T>
     {
         let mut stack = self.idx_stack.borrow_mut();
         for i in 0..=self.depth {
-            stack[i] = stack[i].checked_sub(amount).unwrap_or(0);
+            stack[i] = stack[i].saturating_sub(amount);
         }
     }
 
