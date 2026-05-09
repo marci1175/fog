@@ -671,12 +671,21 @@ pub fn parse_fn_body(
     let mut fn_body = tokens.child_iterator_bulk(body_closing_tkn).unwrap();
 
     // Store the parsed tokens somewhere
-    let parsed_tokens = Vec::new();
+    let mut parsed_tokens = Vec::new();
 
     // Iterate over the whole body matching "chunks" of tokens.
     // I dont want to consume the token from the token stream every iteration, since i want to match "patterns" of tokens.
     while fn_body.peek_next().is_some() {
+        // The line expression closing semi colon is not consumed so it must be matched here.
         let stmt = parse_statement(&mut fn_body)?;
+
+        // Consume however many semicolons there are after the expression
+        while let Ok(_) = fn_body.try_consume_match(
+            ParserError::ExpressionSemicolonMissing,
+            &TokenDiscriminants::SemiColon,
+        ) {};
+
+        parsed_tokens.push(stmt);
     }
 
     Ok(parsed_tokens)

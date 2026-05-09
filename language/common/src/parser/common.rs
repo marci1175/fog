@@ -1,3 +1,5 @@
+use std::{cell::{Cell, RefCell}, rc::Rc};
+
 use anyhow::Result;
 use strum_macros::Display;
 
@@ -26,6 +28,8 @@ pub trait Streamable<T>
     /// Since nth is an [`isize`] it can peek both backwards and forwards.
     fn peek(&self, nth: isize) -> Option<&T>;
     fn peek_next(&self) -> Option<&T>;
+    fn len(&self) -> usize;
+    fn stream_idx(&self) -> usize;
 
     /// Returns the next item from the stream.
     fn consume(&mut self) -> Option<&T>;
@@ -91,7 +95,7 @@ pub struct StreamCheckpoint
 pub struct Stream<T>
 {
     buffer: Vec<T>,
-    idx: usize,
+    idx_stack: Rc<RefCell<Vec<usize>>>,
 }
 
 impl<T> Stream<T>
@@ -100,23 +104,20 @@ impl<T> Stream<T>
     {
         Self {
             buffer: tokens,
-            idx: 0,
+            idx_stack: Rc::new(RefCell::new(vec![0])),
         }
     }
 
     pub fn create_checkpoint(&self) -> StreamCheckpoint
     {
-        StreamCheckpoint { idx: self.idx }
+        StreamCheckpoint {
+            idx: self.idx_stack.borrow()[0],
+        }
     }
 
     pub fn load_checkpoint(&mut self, checkpoint: StreamCheckpoint)
     {
-        self.idx = checkpoint.idx;
-    }
-
-    pub fn idx_mut(&mut self) -> &mut usize
-    {
-        &mut self.idx
+        self.idx_stack.borrow_mut()[0] = checkpoint.idx;
     }
 
     pub fn tokens_mut(&mut self) -> &mut Vec<T>
@@ -129,37 +130,64 @@ impl<T> Stream<T>
         self.buffer.len()
     }
 
-    pub fn idx(&self) -> usize
-    {
-        self.idx
-    }
-
     pub const fn is_empty(&self) -> bool
     {
         self.buffer.is_empty()
+    }
+
+    fn idx(&self) -> usize
+    {
+        self.idx_stack.borrow()[0]
+    }
+
+    fn increment(&self, amount: usize)
+    {
+        self.idx_stack.borrow_mut()[0] += amount;
+    }
+
+    fn decrement(&self, amount: usize)
+    {
+        let mut stack = self.idx_stack.borrow_mut();
+        stack[0] = stack[0].checked_sub(amount).unwrap_or(0);
     }
 }
 
 impl<T> Streamable<T> for Stream<T>
 {
+    fn len(&self) -> usize
+    {
+        self.buffer.len()
+    }
+
+    fn stream_idx(&self) -> usize
+    {
+        self.idx()
+    }
+
+    /// Decrements iternal cursor, if the result would be a negative the index is zeroed.
+    fn decrement_cursor(&mut self, num: usize)
+    {
+        self.decrement(num);
+    }
+
     fn peek(&self, nth: isize) -> Option<&T>
     {
-        self.idx
+        self.idx()
             .checked_add_signed(nth)
             .and_then(|idx| self.buffer.get(idx))
     }
 
     fn peek_next(&self) -> Option<&T>
     {
-        self.buffer.get(self.idx)
+        self.buffer.get(self.idx())
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
     /// The function only increments an internal index.
     fn consume(&mut self) -> Option<&T>
     {
-        let query = self.buffer.get(self.idx)?;
-        self.idx += 1;
+        let query = self.buffer.get(self.idx())?;
+        self.increment(1);
         Some(query)
     }
 
@@ -170,13 +198,14 @@ impl<T> Streamable<T> for Stream<T>
     where
         T: PartialEq<D>,
     {
-        let query = self.buffer.get(self.idx).ok_or(error.clone())?;
+        let query = self.buffer.get(self.idx()).ok_or(error.clone())?;
 
         if query != discriminant {
             return Err(error);
         }
 
-        self.idx += 1;
+        self.increment(1);
+
         Ok(query)
     }
 
@@ -185,10 +214,11 @@ impl<T> Streamable<T> for Stream<T>
     where
         T: PartialEq<D>,
     {
-        pattern
-            .iter()
-            .enumerate()
-            .all(|(idx, tkn)| self.buffer.get(self.idx + idx).is_some_and(|x| x == tkn))
+        pattern.iter().enumerate().all(|(idx, tkn)| {
+            self.buffer
+                .get(self.idx() + idx)
+                .is_some_and(|x| x == tkn)
+        })
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
@@ -196,33 +226,32 @@ impl<T> Streamable<T> for Stream<T>
     /// The fetching is non-inclusive.
     fn consume_bulk(&mut self, nth: usize) -> Option<&[T]>
     {
-        let query = self.buffer.get(self.idx..self.idx + nth)?;
-        self.idx += nth;
+        let query = self.buffer.get(self.idx()..self.idx() + nth)?;
+        self.increment(nth);
         Some(query)
     }
 
     fn peek_bulk(&self, nth: usize) -> Option<&[T]>
     {
-        let query = self.buffer.get(self.idx..self.idx + nth)?;
+        let query = self.buffer.get(self.idx()..self.idx() + nth)?;
         Some(query)
     }
 
     /// Decrement the cursor by `num`. If `num > self.idx` the internal index is zeroed.
-    fn decrement_cursor(&mut self, num: usize)
-    {
-        self.idx = self.idx.saturating_sub(num);
-    }
+    // fn decrement_cursor(&mut self, num: usize)
+    // {
+    //     self.idx = self.idx.saturating_sub(num);
+    // }
 
     /// Peeks the rest of the [`TokenStream`].
     fn peek_remainder(&self) -> Option<&[T]>
     {
-        self.buffer.get(self.idx..)
+        self.buffer.get(self.idx()..)
     }
-
     /// Returns None if none were consumed or if there arent any tokens left in the buffer.
     fn get_last_consumed(&self) -> Option<&T>
     {
-        let idx = self.idx.checked_sub(1)?;
+        let idx = self.idx().checked_sub(1)?;
         self.buffer.get(idx)
     }
 
@@ -230,7 +259,7 @@ impl<T> Streamable<T> for Stream<T>
     /// The function does not consume tokens.
     fn map_next_pos<'a, F: FnMut(&'a T) -> bool>(&'a self, mut check: F) -> Option<usize>
     {
-        for (idx, e) in self.buffer.iter().skip(self.idx).enumerate() {
+        for (idx, e) in self.buffer.iter().skip(self.idx()).enumerate() {
             if (check)(e) {
                 return Some(idx);
             }
@@ -243,11 +272,14 @@ impl<T> Streamable<T> for Stream<T>
     /// When incrementing the child's index it also increments the parent's index. However, the child only holds the amount of tokens it was provided with.
     fn child_iterator_bulk<'child>(&'child mut self, nth: usize) -> Option<StreamChild<'child, T>>
     {
-        self.buffer.get(self.idx..self.idx + nth).map(|buffer| {
+        let start = self.idx();
+        self.buffer.get(start..start + nth).map(|buffer| {
+            self.idx_stack.borrow_mut().push(0);
+            let depth = self.idx_stack.borrow().len() - 1;
             StreamChild {
                 buffer,
-                idx: 0,
-                owner_idx_ref: &mut self.idx,
+                depth,
+                idx_stack: Rc::clone(&self.idx_stack),
             }
         })
     }
@@ -257,33 +289,84 @@ impl<T> Streamable<T> for Stream<T>
 pub struct StreamChild<'owner, T>
 {
     buffer: &'owner [T],
-    idx: usize,
-    owner_idx_ref: &'owner mut usize,
+    depth: usize,
+    idx_stack: Rc<RefCell<Vec<usize>>>,
+}
+
+
+impl<'owner, T> StreamChild<'owner, T>
+{
+    fn local_idx(&self) -> usize
+    {
+        self.idx_stack.borrow()[self.depth]
+    }
+
+    fn increment_all(&self, amount: usize)
+    {
+        let mut stack = self.idx_stack.borrow_mut();
+        for i in 0..=self.depth {
+            stack[i] += amount;
+        }
+    }
+
+    fn decrement_all(&self, amount: usize)
+    {
+        let mut stack = self.idx_stack.borrow_mut();
+        for i in 0..=self.depth {
+            stack[i] = stack[i].checked_sub(amount).unwrap_or(0);
+        }
+    }
+
+    pub fn owner_idx(&self) -> usize
+    {
+        // depth - 1 is the immediate parent
+        if self.depth > 0 {
+            self.idx_stack.borrow()[self.depth - 1]
+        }
+        else {
+            self.idx_stack.borrow()[0]
+        }
+    }
+}
+
+impl<'owner, T> Drop for StreamChild<'owner, T>
+{
+    fn drop(&mut self)
+    {
+        self.idx_stack.borrow_mut().pop();
+    }
 }
 
 impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
 {
+    fn len(&self) -> usize
+    {
+        self.buffer.len()
+    }
+
+    fn stream_idx(&self) -> usize
+    {
+        self.local_idx()
+    }
+
     fn peek(&self, nth: isize) -> Option<&T>
     {
-        self.idx
+        self.local_idx()
             .checked_add_signed(nth)
             .and_then(|idx| self.buffer.get(idx))
     }
 
     fn peek_next(&self) -> Option<&T>
     {
-        self.idx
-            .checked_add_signed(1)
-            .and_then(|idx| self.buffer.get(idx))
+        self.buffer.get(self.local_idx())
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
     /// The function only increments an internal index.
     fn consume(&mut self) -> Option<&T>
     {
-        let query = self.buffer.get(self.idx)?;
-        self.idx += 1;
-        *self.owner_idx_ref += 1;
+        let query = self.buffer.get(self.local_idx())?;
+        self.increment_all(1);
         Some(query)
     }
 
@@ -294,14 +377,14 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
     where
         T: PartialEq<D>,
     {
-        let query = self.buffer.get(self.idx).ok_or(error.clone())?;
+        let query = self.buffer.get(self.local_idx()).ok_or(error.clone())?;
 
         if query != discriminant {
             return Err(error);
         }
 
-        *self.owner_idx_ref += 1;
-        self.idx += 1;
+        self.increment_all(1);
+
         Ok(query)
     }
 
@@ -310,10 +393,11 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
     where
         T: PartialEq<D>,
     {
+        let idx = self.local_idx();
         pattern
             .iter()
             .enumerate()
-            .all(|(idx, tkn)| self.buffer.get(self.idx + idx).is_some_and(|x| x == tkn))
+            .all(|(i, tkn)| self.buffer.get(idx + i).is_some_and(|x| x == tkn))
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
@@ -321,43 +405,44 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
     /// The fetching is non-inclusive.
     fn consume_bulk(&mut self, nth: usize) -> Option<&[T]>
     {
-        let query = self.buffer.get(self.idx..self.idx + nth)?;
-        *self.owner_idx_ref += nth;
-        self.idx += nth;
+        let idx = self.local_idx();
+        let query = self.buffer.get(idx..idx + nth)?;
+        self.increment_all(nth);
         Some(query)
     }
 
     fn peek_bulk(&self, nth: usize) -> Option<&[T]>
     {
-        let query = self.buffer.get(self.idx..self.idx + nth)?;
-        Some(query)
+        let idx = self.local_idx();
+        self.buffer.get(idx..idx + nth)
     }
 
     /// Decrement the cursor by `num`. If `num > self.idx` the internal index is zeroed.
     fn decrement_cursor(&mut self, num: usize)
     {
-        self.idx = self.idx.saturating_sub(num);
-        *self.owner_idx_ref = self.owner_idx_ref.checked_sub(num).unwrap_or(0);
+        self.decrement_all(num);
     }
 
     /// Peeks the rest of the [`TokenStream`].
     fn peek_remainder(&self) -> Option<&[T]>
     {
-        self.buffer.get(self.idx..)
+        self.buffer.get(self.local_idx()..)
     }
 
     /// Returns None if none were consumed or if there arent any tokens left in the buffer.
     fn get_last_consumed(&self) -> Option<&T>
     {
-        let idx = self.idx.checked_sub(1)?;
+        let idx = self.local_idx().checked_sub(1)?;
         self.buffer.get(idx)
     }
 
     /// Calls the closure passed in, if that closure returns true, the stream will return the index of the item the closure returned true to.
     /// The function does not consume tokens.
     fn map_next_pos<'a, F: FnMut(&'a T) -> bool>(&'a self, mut check: F) -> Option<usize>
+    where
+        T: 'a,
     {
-        for (idx, e) in self.buffer.iter().skip(self.idx).enumerate() {
+        for (idx, e) in self.buffer.iter().skip(self.local_idx()).enumerate() {
             if (check)(e) {
                 return Some(idx);
             }
@@ -370,11 +455,14 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
     /// When incrementing the child's index it also increments the parent's index. However, the child only holds the amount of tokens it was provided with.
     fn child_iterator_bulk<'child>(&'child mut self, nth: usize) -> Option<StreamChild<'child, T>>
     {
-        self.buffer.get(self.idx..self.idx + nth).map(|buffer| {
+        let start = self.local_idx();
+        self.buffer.get(start..start + nth).map(|buffer| {
+            self.idx_stack.borrow_mut().push(0);
+            let depth = self.idx_stack.borrow().len() - 1;
             StreamChild {
                 buffer,
-                idx: 0,
-                owner_idx_ref: &mut self.idx,
+                depth,
+                idx_stack: Rc::clone(&self.idx_stack),
             }
         })
     }

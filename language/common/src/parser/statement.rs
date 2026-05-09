@@ -284,9 +284,6 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
             Expr::While => loop_while(tkns),
             Expr::For => loop_for(tkns),
 
-            // TODO! Rethink where the function call handling should go, act on comment above
-            // Expr::FunctionCall => function_call(tkns),
-
             // These expression should end at the `;` terminator since they are set size expressions.
             Expr::VariableDeclaration => {
                 var_decl(&mut child_iterator_until(
@@ -311,13 +308,15 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
 
     // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
     // Even though we separate expression based on semicolons, if the user leaves out a semicolon the code is stil going to break so we have to add eadditional checks later.
-    let value = parse_value(&mut child_iterator_until(
+    let mut expr_tkns = child_iterator_until(
         tkns,
         &TokenDiscriminants::SemiColon,
         ParserError::SyntaxError(SyntaxError::MissingSemiColon),
-    )?)?;
+    )?;
 
-    Ok(todo!())
+    let value = parse_value(&mut expr_tkns)?;
+
+    Ok(value)
 }
 
 fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
@@ -361,12 +360,17 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
                             .ok_or(ParserError::EOF)?;
 
                         let index_value = parse_value(&mut index_value_tkns)?;
+                        
+                        // Drop the child buffer explicitly
+                        drop(index_value_tkns);
 
                         // The next token should be the closing "]", consume it for syntax purposes
-                        let closing_bracket_span = *tkns.try_consume_match(
-                            ParserError::SyntaxError(SyntaxError::InvalidVariableExpression),
-                            &TokenDiscriminants::CloseSquareBrackets,
-                        )?.get_span();
+                        let closing_bracket_span = *tkns
+                            .try_consume_match(
+                                ParserError::SyntaxError(SyntaxError::InvalidVariableExpression),
+                                &TokenDiscriminants::CloseSquareBrackets,
+                            )?
+                            .get_span();
 
                         parse_variable_expression(
                             tkns,
@@ -408,6 +412,9 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
                         )?
                     },
 
+                    // Implement math expressions here
+                    
+
                     _ => {
                         return Err(ParserError::SyntaxError(
                             SyntaxError::InvalidVariableExpression,
@@ -422,7 +429,9 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
 }
 
 /// This function should already be receiving a slice of tokens until the next semicolon.
-fn parse_value<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<Spanned<StatementVariant>, anyhow::Error>
+fn parse_value<S: Streamable<Spanned<Token>>>(
+    tkns: &mut S,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
     if let Some(tkn) = tkns.peek_next().cloned() {
         let value = match tkn.get_inner() {
