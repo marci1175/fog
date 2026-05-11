@@ -259,11 +259,11 @@ fn create_span_info(line: usize, offset: usize, start: usize, end: usize) -> Spa
 fn try_match_token(string_to_match: &[u8]) -> Option<Token>
 {
     Some(match string_to_match {
-        b"+" => Token::Addition,
-        b"-" => Token::Subtraction,
-        b"*" => Token::Multiplication,
-        b"/" => Token::Division,
-        b"%" => Token::Modulo,
+        b"+" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Addition),
+        b"-" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Subtraction),
+        b"*" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Multiplication),
+        b"/" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Division),
+        b"%" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Modulo),
 
         b"}" => Token::CloseBraces,
         b">" => Token::CloseAngledBrackets,
@@ -302,11 +302,23 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"==" => Token::Equal,
         b"&&" => Token::And,
         b"||" => Token::Or,
-        b"=+" => Token::SetValueAddition,
-        b"=-" => Token::SetValueSubtraction,
-        b"=*" => Token::SetValueMultiplication,
-        b"=/" => Token::SetValueDivision,
-        b"%=" => Token::SetValueModulo,
+
+        b"=+" => {
+            Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Addition)
+        },
+        b"=-" => {
+            Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Subtraction)
+        },
+        b"=*" => {
+            Token::SetValueMathSym(
+                common::parser::numeric_value::MathematicalSymbol::Multiplication,
+            )
+        },
+        b"=/" => {
+            Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Division)
+        },
+        b"%=" => Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Modulo),
+
         b"false" => Token::Literal(Value::Boolean(false)),
         b"true" => Token::Literal(Value::Boolean(true)),
         b"external" => Token::External,

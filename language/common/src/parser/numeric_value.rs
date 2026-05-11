@@ -1,16 +1,12 @@
 use crate::{
     error::{Spanned, parser::ParserError},
-    parser::{
-        common::Streamable,
-        dbg::combine_span_info,
-        statement::parse_statement,
-    },
+    parser::{common::Streamable, dbg::combine_span_info, statement::parse_statement},
     tokenizer::Token,
     ty::{NotNan, TypeDiscriminants, Value},
 };
 use anyhow::Result;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum MathematicalSymbol
 {
     Addition,
@@ -21,33 +17,7 @@ pub enum MathematicalSymbol
     Power,
 }
 
-impl TryInto<MathematicalSymbol> for Token
-{
-    type Error = ParserError;
-
-    fn try_into(self) -> Result<MathematicalSymbol, Self::Error>
-    {
-        let expr = match self {
-            Self::Addition => MathematicalSymbol::Addition,
-            Self::Subtraction => MathematicalSymbol::Subtraction,
-            Self::Division => MathematicalSymbol::Division,
-            Self::Multiplication => MathematicalSymbol::Multiplication,
-            Self::Modulo => MathematicalSymbol::Modulo,
-            Self::Power => MathematicalSymbol::Power,
-
-            _ => return Err(ParserError::InvalidMathematicalSymbol),
-        };
-
-        Ok(expr)
-    }
-}
-
-
-
-use crate::{
-    error::syntax::SyntaxError,
-    parser::common::StatementVariant,
-};
+use crate::{error::syntax::SyntaxError, parser::common::StatementVariant};
 
 ///
 /// Bits	Signed	Unsigned	Float
@@ -166,14 +136,14 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
     // Fetch the lhs of the expression
     let lhs = match tkn.get_inner() {
         // Check if the first token is a negation/subtraction sign.
-        Token::Subtraction => {
+        Token::MathSym(MathematicalSymbol::Subtraction) => {
             Spanned {
                 inner: StatementVariant::NegateValue(Box::new(parse_statement(tkns)?)),
                 span: current_token_span,
             }
         },
         // I defined this so its a bit easier to read since subtraction is a different path too
-        Token::Addition => parse_statement(tkns)?,
+        Token::MathSym(MathematicalSymbol::Addition) => parse_statement(tkns)?,
         // Parse the number present
         Token::UnparsedLiteral(unparsed_literal) => {
             Spanned {
@@ -258,7 +228,10 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
     // If it is none we can return the parsed number we consumed (lhs otherwise)
     if let Some(tkn) = tkns.consume() {
         // Try to match one of the mathematical expression
-        let m_sym = TryInto::<MathematicalSymbol>::try_into(tkn.inner.clone())?;
+        let m_sym = *tkn
+            .get_inner()
+            .try_as_math_sym_ref()
+            .ok_or(ParserError::InvalidMathematicalSymbol)?;
 
         // Fetch the rhs of the statement
         let rhs = parse_statement(tkns)?;

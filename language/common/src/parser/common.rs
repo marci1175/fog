@@ -71,7 +71,7 @@ pub trait Streamable<T>
     fn child_iterator_bulk<'child>(&'child mut self, nth: usize) -> Option<StreamChild<'child, T>>;
 }
 
-/// Creates a child iterator until the entered [`TokenDiscriminants`] matches.
+/// Creates a child iterator until the entered [`TokenDiscriminantsBase`] matches.
 pub fn child_iterator_until<'child, T: Streamable<Spanned<Token>>>(
     s: &'child mut T,
     until: &TokenDiscriminants,
@@ -214,11 +214,10 @@ impl<T> Streamable<T> for Stream<T>
     where
         T: PartialEq<D>,
     {
-        pattern.iter().enumerate().all(|(idx, tkn)| {
-            self.buffer
-                .get(self.idx() + idx)
-                .is_some_and(|x| x == tkn)
-        })
+        pattern
+            .iter()
+            .enumerate()
+            .all(|(idx, tkn)| self.buffer.get(self.idx() + idx).is_some_and(|x| x == tkn))
     }
 
     /// This does not remove the token from the list, therefor it is O(1).
@@ -292,7 +291,6 @@ pub struct StreamChild<'owner, T>
     depth: usize,
     idx_stack: Rc<RefCell<Vec<usize>>>,
 }
-
 
 impl<'owner, T> StreamChild<'owner, T>
 {

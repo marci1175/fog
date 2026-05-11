@@ -3,10 +3,7 @@ use std::sync::atomic::AtomicUsize;
 use crate::{
     codegen::FunctionArgumentIdentifier,
     error::Spanned,
-    parser::{
-        common::StatementVariant,
-        function::FunctionSignature,
-    },
+    parser::{common::StatementVariant, function::FunctionSignature},
     ty::{OrdMap, Type},
 };
 use strum_macros::Display;

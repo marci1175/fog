@@ -1,22 +1,23 @@
 use crate::{
     error::{Spanned, parser::ParserError},
-    parser::{common::ItemVisibility, function::CompilerInstructionDiscriminants},
+    parser::{
+        common::ItemVisibility, function::CompilerInstructionDiscriminants,
+        numeric_value::MathematicalSymbol,
+    },
     ty::{Type, Value},
 };
-use strum::{EnumDiscriminants, EnumTryAs};
+use strum::EnumTryAs;
 
 /// The basic output type of the tokenizer.
-#[derive(
-    Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumTryAs, EnumDiscriminants,
-)]
+#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumTryAs)]
 pub enum Token
 {
-    // A literal is a concrete value.
-    // A literal may be created at the tokenization stage for concrete values.
-    // Numbers are not concrete as they could have different sizes or types depending on the length or accuracy of the number.
+    /// A literal is a concrete value.
+    /// A literal may be created at the tokenization stage for concrete values.
+    /// Numbers are not concrete as they could have different sizes or types depending on the length or accuracy of the number.
     Literal(Value),
 
-    // All numbers are first tokenized as an unparsed literal, since their type is not concrete at the tokenization stage.
+    /// All numbers are first tokenized as an unparsed literal, since their type is not concrete at the tokenization stage.
     UnparsedLiteral(String),
 
     Identifier(String),
@@ -24,7 +25,8 @@ pub enum Token
 
     As,
 
-    Const, // Used to flag variables as non-mutable: `const int marci = 0;`
+    Const,
+    /// Used to flag variables as non-mutable: `const int marci = 0;`
     Variable,
 
     TypeDefinition(TypeToken),
@@ -32,18 +34,11 @@ pub enum Token
     Ellipsis,
     Return,
 
-    Multiplication,
-    Division,
-    Addition,
-    Subtraction,
-    Modulo,
-    Power,
+    /// This is for caluclating with mathematical symbols: ```<val> <math expr> <val>```
+    MathSym(MathematicalSymbol),
 
-    SetValueMultiplication,
-    SetValueDivision,
-    SetValueAddition,
-    SetValueSubtraction,
-    SetValueModulo,
+    /// This is for expressions directly modifying a variable: ```<val> <math expr>= <val>```
+    SetValueMathSym(MathematicalSymbol),
 
     And,
     Or,
@@ -75,6 +70,7 @@ pub enum Token
     Colon,
     Dot,
 
+    /// Othervise known as equals.
     SetValue,
 
     BitAnd,
@@ -98,7 +94,8 @@ pub enum Token
 
     ItemVisibility(ItemVisibility),
 
-    CompilerHintSymbol, // @
+    /// @
+    CompilerHintSymbol,
     CompilerInstruction(CompilerInstructionDiscriminants),
 
     /// Used to expose functions from a module into another one.
@@ -133,6 +130,26 @@ impl PartialEq<TokenDiscriminants> for Token
     {
         match self {
             Token::Literal(_) => other == &TokenDiscriminants::Literal,
+            Token::SetValueMathSym(sym) | Token::MathSym(sym) => {
+                match sym {
+                    MathematicalSymbol::Addition => {
+                        *other == TokenDiscriminants::SetValueMathSymAddition
+                    },
+                    MathematicalSymbol::Subtraction => {
+                        *other == TokenDiscriminants::SetValueMathSymSubtraction
+                    },
+                    MathematicalSymbol::Division => {
+                        *other == TokenDiscriminants::SetValueMathSymDivision
+                    },
+                    MathematicalSymbol::Multiplication => {
+                        *other == TokenDiscriminants::SetValueMathSymMultiplication
+                    },
+                    MathematicalSymbol::Modulo => {
+                        *other == TokenDiscriminants::SetValueMathSymModulo
+                    },
+                    MathematicalSymbol::Power => *other == TokenDiscriminants::SetValueMathSymPower,
+                }
+            },
             Token::UnparsedLiteral(_) => other == &TokenDiscriminants::UnparsedLiteral,
             Token::Identifier(_) => other == &TokenDiscriminants::Identifier,
             Token::DocComment(_) => other == &TokenDiscriminants::DocComment,
@@ -144,17 +161,6 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::Variable => other == &TokenDiscriminants::Variable,
             Token::Ellipsis => other == &TokenDiscriminants::Ellipsis,
             Token::Return => other == &TokenDiscriminants::Return,
-            Token::Multiplication => other == &TokenDiscriminants::Multiplication,
-            Token::Division => other == &TokenDiscriminants::Division,
-            Token::Addition => other == &TokenDiscriminants::Addition,
-            Token::Subtraction => other == &TokenDiscriminants::Subtraction,
-            Token::Modulo => other == &TokenDiscriminants::Modulo,
-            Token::Power => other == &TokenDiscriminants::Power,
-            Token::SetValueMultiplication => other == &TokenDiscriminants::SetValueMultiplication,
-            Token::SetValueDivision => other == &TokenDiscriminants::SetValueDivision,
-            Token::SetValueAddition => other == &TokenDiscriminants::SetValueAddition,
-            Token::SetValueSubtraction => other == &TokenDiscriminants::SetValueSubtraction,
-            Token::SetValueModulo => other == &TokenDiscriminants::SetValueModulo,
             Token::And => other == &TokenDiscriminants::And,
             Token::Or => other == &TokenDiscriminants::Or,
             Token::Not => other == &TokenDiscriminants::Not,
@@ -207,6 +213,126 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::In => other == &TokenDiscriminants::In,
         }
     }
+}
+
+/// The reason this enum is rich is because some fields have inner values.
+/// These does not work for the [`expr_pat!`] macro as it requires the enum to be u32 castable. A "base" discriminant is also available next to this enum for a few helper methods.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(u32)]
+pub enum TokenDiscriminants
+{
+    /// A literal is a concrete value.
+    /// A literal may be created at the tokenization stage for concrete values.
+    /// Numbers are not concrete as they could have different sizes or types depending on the length or accuracy of the number.
+    Literal,
+
+    /// All numbers are first tokenized as an unparsed literal, since their type is not concrete at the tokenization stage.
+    UnparsedLiteral,
+
+    Identifier,
+    DocComment,
+
+    As,
+
+    Const,
+    /// Used to flag variables as non-mutable: `const int marci = 0;`
+    Variable,
+
+    TypeDefinition,
+
+    Ellipsis,
+    Return,
+
+    /// Flattened MathSym variant.
+    MathSymAddition,
+    MathSymSubtraction,
+    MathSymDivision,
+    MathSymMultiplication,
+    MathSymModulo,
+    MathSymPower,
+
+    /// Flattened SetValueMathSym variant.
+    SetValueMathSymAddition,
+    SetValueMathSymSubtraction,
+    SetValueMathSymDivision,
+    SetValueMathSymMultiplication,
+    SetValueMathSymModulo,
+    SetValueMathSymPower,
+
+    And,
+    Or,
+    Not,
+
+    If,
+    Else,
+    ElseIf,
+
+    Equal,
+    NotEqual,
+    Bigger,
+    EqBigger,
+    Smaller,
+    EqSmaller,
+
+    OpenParentheses,
+    CloseParentheses,
+    OpenBraces,
+    CloseBraces,
+    OpenSquareBrackets,
+    CloseSquareBrackets,
+    OpenAngledBrackets,
+    CloseAngledBrackets,
+
+    SemiColon,
+    Comma,
+    DoubleColon,
+    Colon,
+    Dot,
+
+    /// Othervise known as equals.
+    SetValue,
+
+    BitAnd,
+    BitOr,
+    BitLeft,
+    BitRight,
+
+    External,
+    Import,
+
+    Loop,
+    While,
+    For,
+
+    Continue,
+    Break,
+
+    Implements,
+    Trait,
+    This,
+
+    ItemVisibility,
+
+    /// @
+    CompilerHintSymbol,
+    CompilerInstruction,
+
+    /// Used to expose functions from a module into another one.
+    Export,
+
+    LeftArrow,
+    RightArrow,
+    /// This can be used as a substitute in function definitions in place of the `:` indicating return type.
+    Returns,
+
+    Namespace,
+    Use,
+
+    Reference,
+    Dereference,
+
+    /* These tokens are syntax sugar */
+    In,
 }
 
 /// This are only the type indicating tokens, not the actual types themselves.

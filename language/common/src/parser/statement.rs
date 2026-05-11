@@ -3,7 +3,7 @@ use crate::{
     parser::{
         common::{StatementVariant, Streamable, child_iterator_until},
         dbg::combine_span_info,
-        numeric_value::parse_numeric_literal,
+        numeric_value::{MathematicalSymbol, parse_numeric_literal},
         statements::{
             conditionals::{conditional_else, conditional_elseif, conditional_if},
             loops::{loop_for, loop_while},
@@ -225,27 +225,27 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
             // <ident> "+="
             &[
                 TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueAddition,
+                TokenDiscriminants::SetValueMathSymAddition,
             ],
             // <ident> "/="
             &[
                 TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueDivision,
+                TokenDiscriminants::SetValueMathSymDivision,
             ],
             // <ident> "%="
             &[
                 TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueModulo,
+                TokenDiscriminants::SetValueMathSymModulo,
             ],
             // <ident> "*="
             &[
                 TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueMultiplication,
+                TokenDiscriminants::SetValueMathSymMultiplication,
             ],
             // <ident> "-="
             &[
                 TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueSubtraction,
+                TokenDiscriminants::SetValueMathSymSubtraction,
             ],
         ],
         Ok(Expr::ModifyVariable),
@@ -257,8 +257,6 @@ fn match_expr_pattern<'a, S: Streamable<Spanned<Token>>>(
     tkns: &mut S,
 ) -> Option<&'a Result<Expr, SyntaxError>>
 {
-    
-
     EXPR_PAT
         .iter()
         .find(|(patterns, _)| patterns.iter().any(|pat| tkns.try_match_pattern(pat)))
@@ -275,7 +273,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
         let expr = matched?;
 
         // These are complete statements that do not create a new value. These statements introduce loop and logic to the language, but these do not create new values.
-        match expr {
+        let stmt = match expr {
             // These are complete expressions, these do not need the ';' terminator.
             Expr::If => conditional_if(tkns),
             Expr::Elseif => conditional_elseif(tkns),
@@ -302,7 +300,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
         }?;
 
         // Return the expression matched by the fastpaths
-        return Ok(/*stmt*/ todo!());
+        return Ok(stmt);
     }
 
     // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
@@ -359,7 +357,7 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
                             .ok_or(ParserError::EOF)?;
 
                         let index_value = parse_value(&mut index_value_tkns)?;
-                        
+
                         // Drop the child buffer explicitly
                         drop(index_value_tkns);
 
@@ -412,7 +410,13 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
                     },
 
                     // Implement math expressions here
-                    
+                    Token::MathSym(_sym) => {
+                        todo!()
+                    },
+
+                    Token::SetValueMathSym(_sym) => {
+                        todo!()
+                    },
 
                     _ => {
                         return Err(ParserError::SyntaxError(
@@ -444,7 +448,6 @@ fn parse_value<S: Streamable<Spanned<Token>>>(
                 // Conume the next token
                 // Call a recursive function here which will resolve the expression after the variable's name.
                 // This function is the legacy eq of "fetch_variable_expr", parsing the statement after an identifier - such as foo[0] | foo.asd
-                
 
                 parse_variable_expression(
                     tkns,
@@ -467,9 +470,9 @@ fn parse_value<S: Streamable<Spanned<Token>>>(
                 }
             },
             // Parse the numeric value
-            Token::Addition | Token::Subtraction | Token::UnparsedLiteral(_) => {
-                parse_numeric_literal(tkns)?
-            },
+            Token::MathSym(MathematicalSymbol::Addition)
+            | Token::MathSym(MathematicalSymbol::Addition)
+            | Token::UnparsedLiteral(_) => parse_numeric_literal(tkns)?,
             _ => todo!(),
         };
 

@@ -566,10 +566,9 @@ impl Backend
                     let span = err.span();
                     let start_position = offset_to_position(span.start, &rope);
                     let end_position = offset_to_position(span.end, &rope);
-                    let diag = start_position.zip(end_position)
-                        .map(|(start, end)| {
-                            Diagnostic::new_simple(Range::new(start, end), format!("{err:?}"))
-                        });
+                    let diag = start_position.zip(end_position).map(|(start, end)| {
+                        Diagnostic::new_simple(Range::new(start, end), format!("{err:?}"))
+                    });
                     if let Some(diag) = diag {
                         diagnostics.push(diag);
                     }

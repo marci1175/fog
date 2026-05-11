@@ -11,6 +11,7 @@ use crate::{
         common::{
             Context, ItemVisibility, StatementVariant, Stream, Streamable, find_closing_braces,
         },
+        numeric_value::MathematicalSymbol,
         statement::parse_statement,
         ty::{create_ty_token, parse_type},
         variable::{UniqueId, VARIABLE_ID_SOURCE},
@@ -548,7 +549,7 @@ pub fn parse_generics(
                         // Match the next token
                         match next.get_inner() {
                             Token::BitOr => break 'main_loop,
-                            Token::Addition => continue 'trait_loop,
+                            Token::MathSym(MathematicalSymbol::Addition) => continue 'trait_loop,
                             // If we have reached the comma that means that the current trait bound has ended.
                             Token::Comma => break 'trait_loop,
                             _ => {
@@ -680,10 +681,13 @@ pub fn parse_fn_body(
         let stmt = parse_statement(&mut fn_body)?;
 
         // Consume however many semicolons there are after the expression
-        while fn_body.try_consume_match(
-            ParserError::ExpressionSemicolonMissing,
-            &TokenDiscriminants::SemiColon,
-        ).is_ok() {};
+        while fn_body
+            .try_consume_match(
+                ParserError::ExpressionSemicolonMissing,
+                &TokenDiscriminants::SemiColon,
+            )
+            .is_ok()
+        {}
 
         parsed_tokens.push(stmt);
     }

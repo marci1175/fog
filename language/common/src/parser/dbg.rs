@@ -1,4 +1,3 @@
-
 use crate::error::SpanInfo;
 
 /// This function ignores whether the ranges are joint.

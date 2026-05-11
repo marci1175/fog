@@ -1,15 +1,19 @@
 use crate::{
     error::Spanned,
-    parser::common::Streamable,
+    parser::common::{StatementVariant, Streamable},
     tokenizer::Token,
 };
 
-pub fn var_decl<S: Streamable<Spanned<Token>>>(_tkns: &mut S) -> anyhow::Result<()>
+pub fn var_decl<S: Streamable<Spanned<Token>>>(
+    _tkns: &mut S,
+) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    Ok(())
+    Ok(todo!())
 }
 
-pub fn mod_variable<S: Streamable<Spanned<Token>>>(_tkns: &mut S) -> anyhow::Result<()>
+pub fn mod_variable<S: Streamable<Spanned<Token>>>(
+    _tkns: &mut S,
+) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    Ok(())
+    Ok(todo!())
 }
