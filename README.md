@@ -49,5 +49,5 @@ pub function main() {
 }
 ```
 
-🚧Disclaimer🚧
-The project is being recoded and has been put on hold until 2026. 07. 01.
+## 🚧Disclaimer🚧
+**The project is being recoded and has been put on hold until 2026. 07. 01.**
