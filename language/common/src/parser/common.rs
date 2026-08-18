@@ -199,7 +199,7 @@ impl<T> Streamable<T> for Stream<T>
         T: PartialEq<D>,
     {
         let query = self.buffer.get(self.idx()).ok_or(error.clone())?;
-        
+
         self.increment(1);
 
         if query != discriminant {
@@ -508,13 +508,25 @@ pub enum StatementVariant
 
     Brackets(Vec<Spanned<StatementVariant>>, Type),
 
-    FunctionCall(
-        (FunctionSignature, String),
-        OrdMap<
+    // (
+    //     (FunctionSignature, String),
+    //     OrdMap<
+    //         FunctionArgumentIdentifier<String, usize>,
+    //         (Spanned<StatementVariant>, (Type, UniqueId)),
+    //     >,
+    // )
+    FunctionCall
+    {
+        // This will get resolved later
+        // signature: FunctionSignature,
+        identifier: Box<Spanned<StatementVariant>>,
+
+        arguments: OrdMap<
+            // A function's arguments can be identified by its position in the function call, or if the argument is named
             FunctionArgumentIdentifier<String, usize>,
             (Spanned<StatementVariant>, (Type, UniqueId)),
         >,
-    ),
+    },
 
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
     /// The second is the value we are setting this variable.

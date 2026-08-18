@@ -15,6 +15,5 @@ pub fn mod_variable<S: Streamable<Spanned<Token>>>(
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    
     Ok(todo!())
 }

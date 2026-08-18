@@ -11,6 +11,7 @@ use crate::{
         },
     },
     tokenizer::{Token, TokenDiscriminants},
+    ty::OrdMap,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -234,9 +235,11 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
+    let value = 
     // Try matching with the pre-defined expression patterns
     // If the pattern starts with a variable reference or and identifier which is not a function we will parse that manually.
     if let Some(matched) = match_expr_pattern(tkns).cloned() {
+        // The reason the matched expression could be an error is because common syntactical mistakes are also recognized, thus these can be returned through a fastpath
         let expr = matched?;
 
         // These are complete statements that do not create a new value. These statements introduce loop and logic to the language, but these do not create new values.
@@ -271,23 +274,24 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
         }?;
 
         // Return the expression matched by the fastpaths
-        return Ok(stmt);
+        stmt
     }
-
-    // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
-    // Even though we separate expression based on semicolons, if the user leaves out a semicolon the code is stil going to break so we have to add eadditional checks later.
-    let mut expr_tkns = child_iterator_until(
-        tkns,
-        &TokenDiscriminants::SemiColon,
-        ParserError::SyntaxError(SyntaxError::MissingSemiColon),
-    )?;
-
-    let value = parse_value(&mut expr_tkns)?;
+    else {
+        // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
+        // Even though we separate expression based on semicolons, if the user leaves out a semicolon the code is stil going to break so we have to add eadditional checks later.
+        let mut expr_tkns = child_iterator_until(
+            tkns,
+            &TokenDiscriminants::SemiColon,
+            ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+        )?;
+    
+        parse_value(&mut expr_tkns)?
+    };
 
     Ok(value)
 }
 
-fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
+fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
     stmt: Spanned<StatementVariant>,
 ) -> anyhow::Result<Spanned<StatementVariant>>
@@ -299,7 +303,32 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
                 match tkn.get_inner() {
                     // Match a function call
                     Token::OpenParentheses => {
-                        todo!()
+                        // After the opening parentheses if something other than the closing parentheses is following it means that the function has arguments
+                        let next_tkn = tkns.consume().cloned();
+
+                        // The function has no arguments
+                        if let Some(Spanned {
+                            inner: Token::CloseParentheses,
+                            span,
+                        }) = next_tkn
+                        {
+                            parse_variable_expression(
+                                tkns,
+                                Spanned {
+                                    inner: StatementVariant::FunctionCall {
+                                        identifier: Box::new(stmt),
+                                        arguments: OrdMap::new(),
+                                    },
+                                    span: combine_span_info(&[*tkn.get_span(), span], true),
+                                },
+                            )?
+                        }
+                        // Function has arguments
+                        else {
+                            // We can give the entire set of tokens to a
+                            // dbg!(&tkns);
+                            todo!()
+                        }
                     },
                     // Indexing
                     Token::OpenSquareBrackets => {
@@ -403,7 +432,7 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>>>(
 }
 
 /// This function should already be receiving a slice of tokens until the next semicolon.
-fn parse_value<S: Streamable<Spanned<Token>>>(
+fn parse_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
@@ -441,7 +470,7 @@ fn parse_value<S: Streamable<Spanned<Token>>>(
             },
             // Parse the numeric value
             Token::MathSym(MathematicalSymbol::Addition)
-            | Token::MathSym(MathematicalSymbol::Addition)
+            | Token::SetValueMathSym(MathematicalSymbol::Addition)
             | Token::UnparsedLiteral(_) => parse_numeric_literal(tkns)?,
             _ => todo!(),
         };
