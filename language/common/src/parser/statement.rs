@@ -18,7 +18,6 @@ pub enum Expr
 {
     // FunctionCall,
     VariableDeclaration,
-    ModifyVariable,
     If,
     Else,
     Elseif,
@@ -218,38 +217,6 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
         ]],
         Ok(Expr::While),
     ),
-    (
-        &[
-            // <ident> "="
-            &[TokenDiscriminants::Identifier, TokenDiscriminants::SetValue],
-            // <ident> "+="
-            &[
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueMathSymAddition,
-            ],
-            // <ident> "/="
-            &[
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueMathSymDivision,
-            ],
-            // <ident> "%="
-            &[
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueMathSymModulo,
-            ],
-            // <ident> "*="
-            &[
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueMathSymMultiplication,
-            ],
-            // <ident> "-="
-            &[
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValueMathSymSubtraction,
-            ],
-        ],
-        Ok(Expr::ModifyVariable),
-    ),
 );
 
 /// Matches and returns the first match of the EXPR_PAT list from a given tokenstream.
@@ -289,14 +256,18 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
                     ParserError::SyntaxError(SyntaxError::MissingSemiColon),
                 )?)
             },
+
+            // TODO: This should not be fixed as it would mean that id have to double the implementation of the variable parsing.
+            // (Just move it further down)
             // Please note that this is not only for the simple ```<ident> "="``` statement but rather any expression that directly modifies the value of the variable. ("/=", "+=", ....)
-            Expr::ModifyVariable => {
-                mod_variable(&mut child_iterator_until(
-                    tkns,
-                    &TokenDiscriminants::SemiColon,
-                    ParserError::SyntaxError(SyntaxError::MissingSemiColon),
-                )?)
-            },
+            // This path does not accept more complex uses of mathmeatical expressions, such as `foo() - 3 + var2`.
+            // Expr::ModifyVariable => {
+            //     mod_variable(&mut child_iterator_until(
+            //         tkns,
+            //         &TokenDiscriminants::SemiColon,
+            //         ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+            //     )?)
+            // },
         }?;
 
         // Return the expression matched by the fastpaths
@@ -448,7 +419,6 @@ fn parse_value<S: Streamable<Spanned<Token>>>(
                 // Conume the next token
                 // Call a recursive function here which will resolve the expression after the variable's name.
                 // This function is the legacy eq of "fetch_variable_expr", parsing the statement after an identifier - such as foo[0] | foo.asd
-
                 parse_variable_expression(
                     tkns,
                     Spanned {

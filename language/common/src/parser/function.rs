@@ -689,7 +689,7 @@ pub fn parse_fn_body(
             .is_ok()
         {}
 
-        parsed_tokens.push(stmt);
+        parsed_tokens.push(dbg!(stmt));
     }
 
     Ok(parsed_tokens)

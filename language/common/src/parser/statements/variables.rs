@@ -12,8 +12,9 @@ pub fn var_decl<S: Streamable<Spanned<Token>>>(
 }
 
 pub fn mod_variable<S: Streamable<Spanned<Token>>>(
-    _tkns: &mut S,
+    tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
+    
     Ok(todo!())
 }

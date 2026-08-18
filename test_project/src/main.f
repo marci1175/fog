@@ -1,3 +1,8 @@
+pub struct apple {
+    color: int,
+    name: string,
+}
+
 pub function main(x: int): int {
     200;
     marci[0];a-;

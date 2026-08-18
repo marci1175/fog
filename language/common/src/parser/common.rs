@@ -199,12 +199,12 @@ impl<T> Streamable<T> for Stream<T>
         T: PartialEq<D>,
     {
         let query = self.buffer.get(self.idx()).ok_or(error.clone())?;
+        
+        self.increment(1);
 
         if query != discriminant {
             return Err(error);
         }
-
-        self.increment(1);
 
         Ok(query)
     }
