@@ -122,7 +122,7 @@ pub fn parse_struct(
     ))
 }
 
-pub fn parse_type(tokens: &mut Stream<Spanned<Token>>) -> anyhow::Result<Type>
+pub fn parse_type<S: Streamable<Spanned<Token>>>(tokens: &mut S) -> anyhow::Result<Type>
 {
     if let Some(tkn) = tokens.consume() {
         return match tkn.get_inner() {
@@ -218,13 +218,13 @@ pub fn parse_type(tokens: &mut Stream<Spanned<Token>>) -> anyhow::Result<Type>
                     tokenizer::TypeToken::Enum
                     | tokenizer::TypeToken::Struct
                     | tokenizer::TypeToken::Function => {
-                        return Err(ParserError::InvalidType.into());
+                        return Err(ParserError::InvalidType(tkn.get_inner().clone()).into());
                     },
                 }
             },
             Token::Identifier(ident) => Ok(Type::Unresolved(ident.to_owned())),
             _ => {
-                return Err(ParserError::SyntaxError(SyntaxError::FunctionRequiresReturn).into());
+                return Err(ParserError::InvalidType(tkn.get_inner().clone()).into());
             },
         };
     }

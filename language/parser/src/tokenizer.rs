@@ -235,8 +235,7 @@ fn parse_single_text(
             let word = String::from_utf8(std::mem::take(&mut buffer)).unwrap();
 
             // If the ident can be parsed as a token then do so, if that fails fall back to using it as an ident
-            let token = try_match_token(word.as_bytes())
-                .unwrap_or_else(|| Token::Identifier(word));
+            let token = try_match_token(word.as_bytes()).unwrap_or_else(|| Token::Identifier(word));
 
             // Store the identifier
             token_list.push(Spanned::new(

@@ -498,11 +498,12 @@ pub enum StatementVariant
 
     TypeCast(Box<Spanned<StatementVariant>>, Type),
 
-    MathematicalExpression(
-        Box<Spanned<StatementVariant>>,
-        MathematicalSymbol,
-        Box<Spanned<StatementVariant>>,
-    ),
+    MathematicalExpression
+    {
+        lhs: Box<Spanned<StatementVariant>>,
+        symbol: MathematicalSymbol,
+        rhs: Box<Spanned<StatementVariant>>,
+    },
 
     NegateValue(Box<Spanned<StatementVariant>>),
 
@@ -530,10 +531,18 @@ pub enum StatementVariant
 
     /// The first ParsedToken is the parsedtoken referencing some kind of variable reference (Does not need to be a `VariableReference`), basicly anything.
     /// The second is the value we are setting this variable.
-    SetValue(
-        Box<Spanned<StatementVariant>>,
-        Box<Spanned<StatementVariant>>,
-    ),
+    SetValue
+    {
+        receiver: Box<Spanned<StatementVariant>>,
+        value: Box<Spanned<StatementVariant>>,
+    },
+
+    ModifyValueArithmetic
+    {
+        receiver: Box<Spanned<StatementVariant>>,
+        symbol: MathematicalSymbol,
+        value: Box<Spanned<StatementVariant>>,
+    },
 
     ReturnValue(Box<Spanned<StatementVariant>>),
 

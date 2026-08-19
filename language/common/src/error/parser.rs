@@ -137,8 +137,8 @@ pub enum ParserError
     LinkedSourceFileError(PathBuf),
     #[error(r#"Type `{1}` cannot be constructed from '{0}'."#)]
     InvalidTypeCast(String, Type),
-    #[error("Token is not a valid type.")]
-    InvalidType,
+    #[error("Token `{0}` is not a valid type.")]
+    InvalidType(Token),
     #[error("The type of literal `{0}` could not be guessed.")]
     ValueTypeUnknown(String),
     #[error("Floats cannot be created with a value of NaN.")]

@@ -9,4 +9,6 @@ pub function main(x: int): int {
     200;
     marci[0];a-3;
     a3.asdd.asd4[0];
+    int marci = 1;
+    marci = 42;
 }

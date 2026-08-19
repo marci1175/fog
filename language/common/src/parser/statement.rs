@@ -17,7 +17,6 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub enum Expr
 {
-    // FunctionCall,
     VariableDeclaration,
     If,
     Else,
@@ -374,7 +373,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                                             span: _
                                         },
                                         Spanned {
-                                            inner: Token::Equal,
+                                            inner: Token::SetValue,
                                             span: _
                                         }
                                     ])
@@ -523,11 +522,11 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                         parse_variable_expression(
                             tkns,
                             Spanned {
-                                inner: StatementVariant::MathematicalExpression(
-                                    Box::new(stmt),
-                                    *sym,
-                                    Box::new(rhs),
-                                ),
+                                inner: StatementVariant::MathematicalExpression {
+                                    lhs: Box::new(stmt),
+                                    symbol: *sym,
+                                    rhs: Box::new(rhs),
+                                },
                                 span: combine_span_info(
                                     &[
                                         *tkn.get_span(),
@@ -542,13 +541,43 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                         )?
                     },
 
-                    Token::SetValueMathSym(_sym) => {
-                        todo!()
-                    },
-
                     // If the next token after a statement is a comma, then we should assume that the comme is used as a separator of some sorts and return the original stmt.
                     // Example `fun(a, b)`, parse value returns a, since we are returning if a comma is present
                     Token::Comma => stmt,
+
+                    Token::SetValueMathSym(sym) => {
+                        // Parse the value we are setting whatever to
+                        let value = Box::new(parse_value(tkns)?);
+
+                        // Create a span for this statement
+                        let span = combine_span_info(&[*stmt.get_span(), *value.get_span()], true);
+
+                        Spanned {
+                            inner: StatementVariant::ModifyValueArithmetic {
+                                receiver: Box::new(stmt),
+                                value,
+                                symbol: *sym,
+                            },
+                            span,
+                        }
+                    },
+
+                    Token::SetValue => {
+                        // Parse the value we are setting whatever to
+                        let value = Box::new(parse_value(tkns)?);
+
+                        // Create a span for this statement
+                        let span = combine_span_info(&[*stmt.get_span(), *value.get_span()], true);
+
+                        // Return a valid statement
+                        Spanned {
+                            inner: StatementVariant::SetValue {
+                                receiver: Box::new(stmt),
+                                value,
+                            },
+                            span,
+                        }
+                    },
 
                     _ => {
                         return Err(ParserError::SyntaxError(
