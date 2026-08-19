@@ -291,7 +291,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
     Ok(value)
 }
 
-fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
     stmt: Spanned<StatementVariant>,
 ) -> anyhow::Result<Spanned<StatementVariant>>
@@ -304,7 +304,8 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                     // Match a function call
                     Token::OpenParentheses => {
                         // After the opening parentheses if something other than the closing parentheses is following it means that the function has arguments
-                        let next_tkn = tkns.consume().cloned();
+                        // We should consume the token straight away since if the function has an argument we wouldnt be able to provide athe whole token buffer for the arguments
+                        let next_tkn = tkns.peek_next().cloned();
 
                         // The function has no arguments
                         if let Some(Spanned {
@@ -312,6 +313,9 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                             span,
                         }) = next_tkn
                         {
+                            // Consume token here since we are sure what this is
+                            tkns.consume();
+
                             parse_variable_expression(
                                 tkns,
                                 Spanned {
@@ -325,9 +329,111 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                         }
                         // Function has arguments
                         else {
-                            // We can give the entire set of tokens to a
-                            // dbg!(&tkns);
-                            todo!()
+                            // Select everything until the closing brace
+                            let closing_paren_pos = tkns
+                                .map_next_pos({
+                                    let mut currently_open = 1;
+
+                                    move |tkn| {
+                                        match tkn.get_inner() {
+                                            Token::OpenParentheses => currently_open += 1,
+                                            Token::CloseParentheses => currently_open -= 1,
+                                            _ => {},
+                                        }
+
+                                        currently_open == 0
+                                    }
+                                })
+                                .ok_or(ParserError::SyntaxError(
+                                    SyntaxError::LeftOpenParentheses,
+                                ))?;
+
+                            // Tokens for the arguments inside the function call
+                            let mut argument_tkns = tkns
+                                .child_iterator_bulk(closing_paren_pos)
+                                .ok_or(ParserError::EOF)?;
+
+                            // Create a way to store the parsed arguments
+                            let mut arguments = OrdMap::new();
+
+                            // Create a variable for tracking the indexed arguments' index.
+                            let mut argument_idx: usize = 0;
+
+                            // Parse the values in the arguments buffer until the buffer is exhausted.
+                            while argument_tkns.peek_next().is_some() {
+                                // Try peeking the next two tokens to see if it is a named argument
+                                let next_tokens = argument_tkns.peek_bulk(2);
+
+                                // Check if the current arguments is a named argument
+                                // Pattern match the two next tokens
+                                if matches!(
+                                    next_tokens,
+                                    Some([
+                                        Spanned {
+                                            inner: Token::Identifier(_),
+                                            span: _
+                                        },
+                                        Spanned {
+                                            inner: Token::Equal,
+                                            span: _
+                                        }
+                                    ])
+                                ) {
+                                    // We can safely assume that the next token is an identifier due to the check above
+                                    let named_arg = argument_tkns
+                                        .consume()
+                                        .unwrap()
+                                        .try_as_identifier_ref()
+                                        .unwrap()
+                                        .clone();
+
+                                    // Consume the equals sign
+                                    argument_tkns.consume();
+
+                                    arguments.insert(
+                                        crate::codegen::FunctionArgumentIdentifier::Identifier(
+                                            named_arg,
+                                        ),
+                                        parse_value(&mut argument_tkns)?,
+                                    );
+                                }
+                                else {
+                                    arguments.insert(
+                                        crate::codegen::FunctionArgumentIdentifier::Index(
+                                            argument_idx,
+                                        ),
+                                        parse_value(&mut argument_tkns)?,
+                                    );
+
+                                    // Increment argument index, but only after other indexed arguments
+                                    argument_idx += 1;
+                                }
+                            }
+
+                            // Explicitly drop child iterator
+                            drop(argument_tkns);
+
+                            // The next token should be the function call's closing parentheses. Fetch the span of this token and create a span for the whole function call.
+                            let closing_paren_span = *tkns
+                                .try_consume_match(
+                                    ParserError::SyntaxError(SyntaxError::LeftOpenParentheses),
+                                    &TokenDiscriminants::CloseParentheses,
+                                )?
+                                .get_span();
+
+                            parse_variable_expression(
+                                tkns,
+                                Spanned {
+                                    inner: StatementVariant::FunctionCall {
+                                        identifier: Box::new(stmt),
+                                        arguments,
+                                    },
+                                    span: combine_span_info(
+                                        &[*tkn.get_span(), closing_paren_span],
+                                        true,
+                                    ),
+                                },
+                            )?
                         }
                     },
                     // Indexing
@@ -410,13 +516,39 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                     },
 
                     // Implement math expressions here
-                    Token::MathSym(_sym) => {
-                        todo!()
+                    Token::MathSym(sym) => {
+                        // THe right hand side of the mathematical operation
+                        let rhs = parse_value(tkns)?;
+
+                        parse_variable_expression(
+                            tkns,
+                            Spanned {
+                                inner: StatementVariant::MathematicalExpression(
+                                    Box::new(stmt),
+                                    *sym,
+                                    Box::new(rhs),
+                                ),
+                                span: combine_span_info(
+                                    &[
+                                        *tkn.get_span(),
+                                        *tkns
+                                            .get_last_consumed()
+                                            .ok_or(ParserError::EOF)?
+                                            .get_span(),
+                                    ],
+                                    true,
+                                ),
+                            },
+                        )?
                     },
 
                     Token::SetValueMathSym(_sym) => {
                         todo!()
                     },
+
+                    // If the next token after a statement is a comma, then we should assume that the comme is used as a separator of some sorts and return the original stmt.
+                    // Example `fun(a, b)`, parse value returns a, since we are returning if a comma is present
+                    Token::Comma => stmt,
 
                     _ => {
                         return Err(ParserError::SyntaxError(
@@ -432,7 +564,7 @@ fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 }
 
 /// This function should already be receiving a slice of tokens until the next semicolon.
-fn parse_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+pub fn parse_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
@@ -469,9 +601,10 @@ fn parse_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 }
             },
             // Parse the numeric value
-            Token::MathSym(MathematicalSymbol::Addition)
-            | Token::SetValueMathSym(MathematicalSymbol::Addition)
-            | Token::UnparsedLiteral(_) => parse_numeric_literal(tkns)?,
+            Token::UnparsedLiteral(_)
+            | Token::MathSym(MathematicalSymbol::Addition)
+            | Token::MathSym(MathematicalSymbol::Subtraction) => parse_numeric_literal(tkns)?,
+
             _ => todo!(),
         };
 

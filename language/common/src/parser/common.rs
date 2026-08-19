@@ -524,7 +524,7 @@ pub enum StatementVariant
         arguments: OrdMap<
             // A function's arguments can be identified by its position in the function call, or if the argument is named
             FunctionArgumentIdentifier<String, usize>,
-            (Spanned<StatementVariant>, (Type, UniqueId)),
+            Spanned<StatementVariant>,
         >,
     },
 

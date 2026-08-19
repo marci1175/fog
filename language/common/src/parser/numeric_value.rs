@@ -1,6 +1,10 @@
 use crate::{
     error::{Spanned, parser::ParserError},
-    parser::{common::Streamable, dbg::combine_span_info, statement::parse_statement},
+    parser::{
+        common::Streamable,
+        dbg::combine_span_info,
+        statement::{parse_statement, parse_value, parse_variable_expression},
+    },
     tokenizer::Token,
     ty::{NotNan, TypeDiscriminants, Value},
 };
@@ -122,7 +126,9 @@ fn fit_float(digits: &str) -> Result<Value, ParserError>
         .map_err(|_| ParserError::LiteralIsNan)
 }
 
-pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
+/// The name is a bit inaccurate, please check definition before use.
+/// This functions tries to parse a value related to a mathematical equation.
+pub fn parse_numeric_literal<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
@@ -134,16 +140,16 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
     let current_token_span = *tkn.get_span();
 
     // Fetch the lhs of the expression
-    let lhs = match tkn.get_inner() {
+    let val = match tkn.get_inner() {
         // Check if the first token is a negation/subtraction sign.
         Token::MathSym(MathematicalSymbol::Subtraction) => {
             Spanned {
-                inner: StatementVariant::NegateValue(Box::new(parse_statement(tkns)?)),
+                inner: StatementVariant::NegateValue(Box::new(parse_value(tkns)?)),
                 span: current_token_span,
             }
         },
         // I defined this so its a bit easier to read since subtraction is a different path too
-        Token::MathSym(MathematicalSymbol::Addition) => parse_statement(tkns)?,
+        Token::MathSym(MathematicalSymbol::Addition) => parse_value(tkns)?,
         // Parse the number present
         Token::UnparsedLiteral(unparsed_literal) => {
             Spanned {
@@ -210,8 +216,9 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
                 span: current_token_span,
             }
         },
-        // Try to parse the expression regardless
-        _ => parse_statement(tkns)?,
+
+        // Try to parse the value regardless
+        _ => parse_value(tkns)?,
     };
 
     // We should accept any of these:
@@ -222,30 +229,5 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>>>(
     // -foo
     // -bar()
 
-    // I dont think im going to keep this part too strict im prolly gonna use the statement parser to get the next part of the expression.
-    // Try peeking the next token
-    // <lhs> { <math expr> <rhs> }
-    // If it is none we can return the parsed number we consumed (lhs otherwise)
-    if let Some(tkn) = tkns.consume() {
-        // Try to match one of the mathematical expression
-        let m_sym = *tkn
-            .get_inner()
-            .try_as_math_sym_ref()
-            .ok_or(ParserError::InvalidMathematicalSymbol)?;
-
-        // Fetch the rhs of the statement
-        let rhs = parse_statement(tkns)?;
-
-        // Combine spans of the sides
-        let combined_span = combine_span_info(&[*lhs.get_span(), *rhs.get_span()], true);
-
-        Ok(Spanned {
-            inner: StatementVariant::MathematicalExpression(Box::new(lhs), m_sym, Box::new(rhs)),
-            span: combined_span,
-        })
-    }
-    // No more tokens left in the stream
-    else {
-        Ok(lhs)
-    }
+    return Ok(parse_variable_expression(tkns, val)?);
 }
