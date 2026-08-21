@@ -1,7 +1,7 @@
 use crate::{
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{StatementVariant, Streamable, child_iterator_until},
+        common::{StatementVariant, Streamable, child_iterator_until, find_closing_braces},
         dbg::combine_span_info,
         numeric_value::{MathematicalSymbol, parse_numeric_value},
         statements::{
@@ -193,7 +193,52 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
                 TokenDiscriminants::Identifier,
                 TokenDiscriminants::SetValue,
             ],
-
+            // "array" "<" <ty> "," <literal> ">" <ident> "=" <val>
+            &[
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::OpenAngledBrackets,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::Comma,
+                TokenDiscriminants::UnparsedLiteral,
+                TokenDiscriminants::CloseAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
+            // "const" "array" "<" <ty> "," <literal> ">" <ident> "=" <val>
+            &[
+                TokenDiscriminants::Const,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::OpenAngledBrackets,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::Comma,
+                TokenDiscriminants::UnparsedLiteral,
+                TokenDiscriminants::CloseAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
+            // "array" "<" <ident> "," <literal> ">" <ident> "=" <val>
+            &[
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::OpenAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::Comma,
+                TokenDiscriminants::UnparsedLiteral,
+                TokenDiscriminants::CloseAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
+            // "const" "array" "<" <ident> "," <literal> ">" <ident> "=" <val>
+            &[
+                TokenDiscriminants::Const,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::OpenAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::Comma,
+                TokenDiscriminants::UnparsedLiteral,
+                TokenDiscriminants::CloseAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
         ],
         Ok(Expr::VariableDeclaration),
     ),
@@ -653,11 +698,14 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 // Consume the token from the stream after peeking it.
                 tkns.consume();
 
-                // Return the span with the statement
-                Spanned {
-                    inner: StatementVariant::Value(val.clone()),
-                    span: *tkn.get_span(),
-                }
+                // Consume the tokens after that since this may be a math expression or anything like that.
+                parse_variable_expression(
+                    tkns,
+                    Spanned {
+                        inner: StatementVariant::Value(val.clone()),
+                        span: *tkn.get_span(),
+                    },
+                )?
             },
             Token::Reference => {
                 // Consume token after peeking it
@@ -682,8 +730,67 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             | Token::MathSym(MathematicalSymbol::Addition)
             | Token::MathSym(MathematicalSymbol::Subtraction) => parse_numeric_value(tkns)?,
 
-            _ => {dbg!(&tkn);
-                todo!()},
+            // Return token indicates the end of the function on that specific path
+            Token::Return => {
+                // Consume token after peeking it
+                tkns.consume();
+
+                // Get the returned value from the tokens
+                let returned_value = parse_expr(tkns)?;
+
+                // Create a new span for this return statement
+                let span = combine_span_info(&[*tkn.get_span(), *returned_value.get_span()], true);
+
+                Spanned {
+                    inner: StatementVariant::ReturnValue {
+                        value: Box::new(returned_value),
+                    },
+                    span,
+                }
+            },
+
+            // This must be an array definition
+            Token::OpenBraces => {
+                tkns.consume();
+
+                let mut values = Vec::new();
+
+                let mut array_init_tokens = tkns
+                    .child_iterator_bulk(
+                        find_closing_braces(&*tkns)
+                            .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?,
+                    )
+                    .ok_or(ParserError::EOF)?;
+
+                // Consume all the tokens in this buffer, and fetch all the values in the array value definition.
+                while array_init_tokens.peek_next().is_some() {
+                    // This function returns at the "," so all of the values can be parsed
+                    let value = parse_expr(&mut array_init_tokens)?;
+
+                    // Store value
+                    values.push(value);
+                }
+
+                // Drop child buffer explicitly
+                drop(array_init_tokens);
+
+                // Consume the closing brace (and fetch its span)
+                let closing_brace = tkns.try_consume_match(
+                    ParserError::SyntaxError(SyntaxError::LeftOpenBraces),
+                    &TokenDiscriminants::CloseBraces,
+                )?;
+
+                // Return the array init
+                Spanned {
+                    inner: StatementVariant::ArrayInitialization { values },
+                    span: combine_span_info(&[*tkn.get_span(), *closing_brace.get_span()], true),
+                }
+            },
+
+            _ => {
+                dbg!(&tkn);
+                todo!()
+            },
         };
 
         return Ok(value);

@@ -544,7 +544,10 @@ pub enum StatementVariant
         value: Box<Spanned<StatementVariant>>,
     },
 
-    ReturnValue(Box<Spanned<StatementVariant>>),
+    ReturnValue
+    {
+        value: Box<Spanned<StatementVariant>>,
+    },
 
     Comparison(
         Box<Spanned<StatementVariant>>,
@@ -561,7 +564,10 @@ pub enum StatementVariant
 
     ControlFlow(ControlFlowType),
 
-    ArrayInitialization(Vec<Spanned<StatementVariant>>, Type),
+    ArrayInitialization
+    {
+        values: Vec<Spanned<StatementVariant>>,
+    },
 
     GetPointerTo(Box<Spanned<StatementVariant>>),
 
@@ -683,7 +689,7 @@ pub fn find_next_bitor(bitor_start_slice: &[Token]) -> Result<usize>
     Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
-pub fn find_closing_braces(tokens: &Stream<Spanned<Token>>) -> Option<usize>
+pub fn find_closing_braces<S: Streamable<Spanned<Token>>>(tokens: &S) -> Option<usize>
 {
     tokens.peek_remainder().and_then(|tkns| {
         let mut braces_counter: usize = 1;

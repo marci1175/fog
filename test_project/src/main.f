@@ -1,15 +1,7 @@
-pub struct apple {
-    color: int,
-    name: string,
-}
-
-pub function main(x: int): int {
-    func(asd, 10, 15) + 60 + a;
-    hello[2].field2.field3(0);
-    200;
-    marci[0];a-3;
-    a3.asdd.asd4[0];
-    int marci = 1;
-    marci = 42;
-    ptr marci_ref = ref marci;
+@nofree
+pub function main(): int {
+    array<int, 4> marci = {1, 2, 3, 4};
+    ptr egy_ptr = ref marci[0];
+    int egy = deref egy_ptr;
+    return egy;
 }

@@ -165,16 +165,16 @@ pub fn parse_type<S: Streamable<Spanned<Token>>>(tokens: &mut S) -> anyhow::Resu
                         let len_val = tokens
                             .try_consume_match(
                                 ParserError::SyntaxError(SyntaxError::InvalidTypeGenericDefinition),
-                                &TokenDiscriminants::Literal,
+                                &TokenDiscriminants::UnparsedLiteral,
                             )?
-                            .try_as_literal_ref()
+                            .try_as_unparsed_literal_ref()
                             .unwrap()
                             .to_owned();
 
                         // Get the raw value of the array's length
-                        let len = len_val
-                            .try_as_u_32()
-                            .ok_or(ParserError::SyntaxError(SyntaxError::InvalidArrayLenType))?;
+                        let len = len_val.parse::<usize>().map_err(|_| {
+                            ParserError::SyntaxError(SyntaxError::InvalidArrayLenType)
+                        })?;
 
                         // Ensure syntax correctness
                         tokens.try_consume_match(
@@ -182,15 +182,13 @@ pub fn parse_type<S: Streamable<Spanned<Token>>>(tokens: &mut S) -> anyhow::Resu
                             &TokenDiscriminants::CloseAngledBrackets,
                         )?;
 
-                        Ok(Type::Array((Box::new(ty), len as usize)))
+                        Ok(Type::Array((Box::new(ty), len)))
                     },
                     tokenizer::TypeToken::Pointer => {
                         // Pointer syntax
                         // "ptr" [ "<" <type> ">" ]
                         // If the underlying type is not specified with the pointer, the underlying data can be transmuted.
                         // If the the underlying type is explicitly indicated the pointer can only be dereferenced to that specific type.
-                        // ptr<T> = ptr
-                        // ptr != ptr<T>
 
                         // Check if the next token matches the syntax for specifying the inner type.
                         if let Some(Spanned {

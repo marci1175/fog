@@ -3,7 +3,7 @@ use crate::{
     parser::{
         common::Streamable,
         dbg::combine_span_info,
-        statement::{parse_statement, parse_expr, parse_variable_expression},
+        statement::{parse_expr, parse_statement, parse_variable_expression},
     },
     tokenizer::Token,
     ty::{NotNan, TypeDiscriminants, Value},

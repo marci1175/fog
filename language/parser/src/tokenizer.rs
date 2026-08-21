@@ -301,11 +301,10 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"array" => Token::TypeDefinition(TypeToken::Array),
         b"struct" => Token::TypeDefinition(TypeToken::Struct),
         b"enum" => Token::TypeDefinition(TypeToken::Enum),
-        
+
         b"ptr" => Token::TypeDefinition(TypeToken::Pointer),
         b"ref" => Token::Reference,
         b"deref" => Token::Dereference,
-
 
         b"==" => Token::Equal,
         b"&&" => Token::And,
