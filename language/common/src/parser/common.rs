@@ -565,11 +565,7 @@ pub enum StatementVariant
 
     GetPointerTo(Box<Spanned<StatementVariant>>),
 
-    DerefPointer
-    {
-        inner_expr: Box<Spanned<StatementVariant>>,
-        mode: DerefMode,
-    },
+    DerefPointer(Box<Spanned<StatementVariant>>),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]

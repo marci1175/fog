@@ -3,11 +3,11 @@ use crate::{
     parser::{
         common::{StatementVariant, Streamable, child_iterator_until},
         dbg::combine_span_info,
-        numeric_value::{MathematicalSymbol, parse_numeric_literal},
+        numeric_value::{MathematicalSymbol, parse_numeric_value},
         statements::{
             conditionals::{conditional_else, conditional_elseif, conditional_if},
             loops::{loop_for, loop_while},
-            variables::{mod_variable, var_decl},
+            variables::var_decl,
         },
     },
     tokenizer::{Token, TokenDiscriminants},
@@ -122,15 +122,6 @@ macro_rules! expr_pat {
 /// **********************
 ///
 pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = expr_pat!(
-    // Function calls should look more or less like this.
-    // <name> "(" [{<args>}] ")"
-    // (
-    //     &[&[
-    //         TokenDiscriminants::Identifier,
-    //         TokenDiscriminants::OpenParentheses,
-    //     ]],
-    //     Ok(Expr::FunctionCall),
-    // ),
     // Varaible declarations should look like this:
     //
     // <ty> <name> "=" <val>
@@ -150,20 +141,59 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
                 TokenDiscriminants::Identifier,
                 TokenDiscriminants::SetValue,
             ],
-            // const <ty> <name> "=" <val>
+            // "const" <ty> <name> "=" <val>
             &[
                 TokenDiscriminants::Const,
                 TokenDiscriminants::TypeDefinition,
                 TokenDiscriminants::Identifier,
                 TokenDiscriminants::SetValue,
             ],
-            // const <ident (for custom types)> <name> "=" <val>
+            // "const" <ident (for custom types)> <name> "=" <val>
             &[
                 TokenDiscriminants::Const,
                 TokenDiscriminants::Identifier,
                 TokenDiscriminants::Identifier,
                 TokenDiscriminants::SetValue,
             ],
+            // const "ptr<" <ty> ">" <name> "=" <val>
+            &[
+                TokenDiscriminants::Const,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::OpenAngledBrackets,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::CloseAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
+            // "ptr<" <ty> ">" <name> "=" <val>
+            &[
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::OpenAngledBrackets,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::CloseAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
+            // const "ptr<" <ident> ">" <name> "=" <val>
+            &[
+                TokenDiscriminants::Const,
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::OpenAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::CloseAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
+            // "ptr<" <ident> ">" <name> "=" <val>
+            &[
+                TokenDiscriminants::TypeDefinition,
+                TokenDiscriminants::OpenAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::CloseAngledBrackets,
+                TokenDiscriminants::Identifier,
+                TokenDiscriminants::SetValue,
+            ],
+
         ],
         Ok(Expr::VariableDeclaration),
     ),
@@ -230,7 +260,7 @@ fn match_expr_pattern<'a, S: Streamable<Spanned<Token>>>(
         .map(|(_, expr_res)| expr_res)
 }
 
-pub fn parse_statement<S: Streamable<Spanned<Token>>>(
+pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
@@ -284,7 +314,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>>>(
             ParserError::SyntaxError(SyntaxError::MissingSemiColon),
         )?;
     
-        parse_value(&mut expr_tkns)?
+        parse_expr(&mut expr_tkns)?
     };
 
     Ok(value)
@@ -393,7 +423,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                                         crate::codegen::FunctionArgumentIdentifier::Identifier(
                                             named_arg,
                                         ),
-                                        parse_value(&mut argument_tkns)?,
+                                        parse_expr(&mut argument_tkns)?,
                                     );
                                 }
                                 else {
@@ -401,7 +431,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                                         crate::codegen::FunctionArgumentIdentifier::Index(
                                             argument_idx,
                                         ),
-                                        parse_value(&mut argument_tkns)?,
+                                        parse_expr(&mut argument_tkns)?,
                                     );
 
                                     // Increment argument index, but only after other indexed arguments
@@ -461,7 +491,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                             .child_iterator_bulk(closing_pos)
                             .ok_or(ParserError::EOF)?;
 
-                        let index_value = parse_value(&mut index_value_tkns)?;
+                        let index_value = parse_expr(&mut index_value_tkns)?;
 
                         // Drop the child buffer explicitly
                         drop(index_value_tkns);
@@ -517,7 +547,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                     // Implement math expressions here
                     Token::MathSym(sym) => {
                         // THe right hand side of the mathematical operation
-                        let rhs = parse_value(tkns)?;
+                        let rhs = parse_expr(tkns)?;
 
                         parse_variable_expression(
                             tkns,
@@ -547,7 +577,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
 
                     Token::SetValueMathSym(sym) => {
                         // Parse the value we are setting whatever to
-                        let value = Box::new(parse_value(tkns)?);
+                        let value = Box::new(parse_expr(tkns)?);
 
                         // Create a span for this statement
                         let span = combine_span_info(&[*stmt.get_span(), *value.get_span()], true);
@@ -564,7 +594,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
 
                     Token::SetValue => {
                         // Parse the value we are setting whatever to
-                        let value = Box::new(parse_value(tkns)?);
+                        let value = Box::new(parse_expr(tkns)?);
 
                         // Create a span for this statement
                         let span = combine_span_info(&[*stmt.get_span(), *value.get_span()], true);
@@ -593,7 +623,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
 }
 
 /// This function should already be receiving a slice of tokens until the next semicolon.
-pub fn parse_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
@@ -629,12 +659,31 @@ pub fn parse_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                     span: *tkn.get_span(),
                 }
             },
+            Token::Reference => {
+                // Consume token after peeking it
+                tkns.consume();
+
+                Spanned {
+                    inner: StatementVariant::GetPointerTo(Box::new(parse_expr(tkns)?)),
+                    span: *tkn.get_span(),
+                }
+            },
+            Token::Dereference => {
+                // Consume token after peeking it
+                tkns.consume();
+
+                Spanned {
+                    inner: StatementVariant::DerefPointer(Box::new(parse_expr(tkns)?)),
+                    span: *tkn.get_span(),
+                }
+            },
             // Parse the numeric value
             Token::UnparsedLiteral(_)
             | Token::MathSym(MathematicalSymbol::Addition)
-            | Token::MathSym(MathematicalSymbol::Subtraction) => parse_numeric_literal(tkns)?,
+            | Token::MathSym(MathematicalSymbol::Subtraction) => parse_numeric_value(tkns)?,
 
-            _ => todo!(),
+            _ => {dbg!(&tkn);
+                todo!()},
         };
 
         return Ok(value);

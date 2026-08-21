@@ -25,8 +25,9 @@ pub enum Token
 
     As,
 
-    Const,
     /// Used to flag variables as non-mutable: `const int marci = 0;`
+    Const,
+    
     Variable,
 
     TypeDefinition(TypeToken),

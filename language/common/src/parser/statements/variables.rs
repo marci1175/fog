@@ -3,7 +3,7 @@ use crate::{
     parser::{
         common::{StatementVariant, Streamable},
         dbg::combine_span_info,
-        statement::parse_value,
+        statement::parse_expr,
         ty::parse_type,
         variable::VARIABLE_ID_SOURCE,
     },
@@ -29,7 +29,7 @@ pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         })
     );
 
-    // If the variable is a constant we should consume the constant token 
+    // If the variable is a constant we should consume the constant token
     if is_constant {
         tkns.consume();
     }
@@ -54,7 +54,7 @@ pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     )?;
 
     // Get the value this variable was initalized with
-    let variable_value = Box::new(parse_value(tkns)?);
+    let variable_value = Box::new(parse_expr(tkns)?);
     let span_end = *variable_value.get_span();
 
     // Return a valid variable decleration statement
@@ -68,11 +68,4 @@ pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         },
         span: combine_span_info(&[span_start, span_end], true),
     })
-}
-
-pub fn mod_variable<S: Streamable<Spanned<Token>>>(
-    tkns: &mut S,
-) -> anyhow::Result<Spanned<StatementVariant>>
-{
-    Ok(todo!())
 }

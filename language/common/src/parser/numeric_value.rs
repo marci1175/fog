@@ -3,7 +3,7 @@ use crate::{
     parser::{
         common::Streamable,
         dbg::combine_span_info,
-        statement::{parse_statement, parse_value, parse_variable_expression},
+        statement::{parse_statement, parse_expr, parse_variable_expression},
     },
     tokenizer::Token,
     ty::{NotNan, TypeDiscriminants, Value},
@@ -128,7 +128,7 @@ fn fit_float(digits: &str) -> Result<Value, ParserError>
 
 /// The name is a bit inaccurate, please check definition before use.
 /// This functions tries to parse a value related to a mathematical equation.
-pub fn parse_numeric_literal<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
@@ -144,12 +144,12 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         // Check if the first token is a negation/subtraction sign.
         Token::MathSym(MathematicalSymbol::Subtraction) => {
             Spanned {
-                inner: StatementVariant::NegateValue(Box::new(parse_value(tkns)?)),
+                inner: StatementVariant::NegateValue(Box::new(parse_expr(tkns)?)),
                 span: current_token_span,
             }
         },
         // I defined this so its a bit easier to read since subtraction is a different path too
-        Token::MathSym(MathematicalSymbol::Addition) => parse_value(tkns)?,
+        Token::MathSym(MathematicalSymbol::Addition) => parse_expr(tkns)?,
         // Parse the number present
         Token::UnparsedLiteral(unparsed_literal) => {
             Spanned {
@@ -218,7 +218,7 @@ pub fn parse_numeric_literal<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         },
 
         // Try to parse the value regardless
-        _ => parse_value(tkns)?,
+        _ => parse_expr(tkns)?,
     };
 
     // We should accept any of these:
