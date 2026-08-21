@@ -752,7 +752,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             // This must be an array definition
             Token::OpenBraces => {
                 tkns.consume();
-
+                
                 let mut values = Vec::new();
 
                 let mut array_init_tokens = tkns
