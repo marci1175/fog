@@ -11,5 +11,5 @@ pub function main(x: int): int {
     a3.asdd.asd4[0];
     int marci = 1;
     marci = 42;
-    ptr<int> marci_ref = ref marci;
+    ptr marci_ref = ref marci;
 }

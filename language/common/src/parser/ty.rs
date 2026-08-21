@@ -196,8 +196,13 @@ pub fn parse_type<S: Streamable<Spanned<Token>>>(tokens: &mut S) -> anyhow::Resu
                         if let Some(Spanned {
                             inner: Token::OpenAngledBrackets,
                             ..
-                        }) = tokens.consume()
+                        })
+                        // Peek the next token but do not actually consume it since we are not a 100% sure this is the token that we are searching for (since a ptr's inner type does not have to be defined) 
+                        = tokens.peek_next()
                         {
+                            // Consume token after check
+                            tokens.consume();
+
                             // Resolve the base type of the pointer
                             let ty = parse_type(tokens)?;
 
