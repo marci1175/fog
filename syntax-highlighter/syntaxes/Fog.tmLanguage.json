@@ -1,0 +1,161 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Fog Programming Language",
+	"patterns": [
+		{
+			"include": "#multiline_comments"
+		},
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#fmt_variables"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#pointer_reference"
+		},
+		{
+			"include": "#types"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#function_names"
+		},
+		{
+			"include": "#variables"
+		},
+		{
+			"include": "#literals"
+		},
+		{
+			"include": "#numeric_literals"
+		},
+		{
+			"include": "#math_operators"
+		},
+		{
+			"include": "#declarations"
+		},
+		{
+			"include": "#type_casts"
+		},
+		{
+			"include": "#compiler_hints"
+		},
+		{
+			"include": "#identifiers"
+		}
+	],
+	"repository": {
+		"multiline_comments": {
+			"name": "comment.block",
+			"begin": "#->",
+			"end": "<-#",
+			"patterns": [
+				{
+					"match": ".",
+					"name": "comment.block"
+				}
+			]
+		},
+		"comments": {
+			"name": "comment.line",
+			"begin": "#",
+			"end": "\n",
+			"patterns": [
+				{
+					"name": "constant.character.escape",
+					"match": "\\\\."
+				}
+			]
+		},
+		"fmt_variables": {
+			"name": "keyword.other",
+			"match": "%(?:[a-zA-Z_][a-zA-Z0-9_]*|)"
+		},
+		"pointer_reference": {
+			"name": "keyword.other",
+			"match": "\\$"
+		},
+		"strings": {
+			"name": "string.quoted.double",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"include": "#fmt_variables"
+				},
+				{
+					"name": "constant.character.escape",
+					"match": "\\\\."
+				}
+			]
+		},
+		"type_casts": {
+			"patterns": [{
+				"name": "keyword.other",
+				"match": "\\b(as)\\b"
+			}]
+		},
+		"types": {
+			"patterns": [{
+				"name": "support.type",
+				"match": "\\b(int|float|uint|inthalf|floathalf|uinthalf|intlong|floatlong|uintlong|uintsmall|string|void|bool|array|vector|ptr)\\b"
+			}]
+		},
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control",
+				"match": "\\b(import|if|else|elseif|while|for|return|loop|break|continue|external)\\b"
+			}]
+		},
+		"function_names": {
+			"patterns": [{
+				"name": "support.function",
+				"match": "\\b(\\w+)\\s*(?=\\()"
+			}]
+		},
+		"numeric_literals": {
+			"name": "constant.numeric",
+			"match": "\\b\\d+(\\.\\d+)?\\b"
+		},
+		"declarations": {
+			"patterns": [{
+			"name": "keyword.other",
+			"match": "\\b(deref|ref|const|struct|function|impl|trait|enum|pub|publib|priv|exp)\\b"
+			}]
+		},
+		"compiler_hints": {
+		"patterns": [
+				{
+				"name": "keyword.other.annotation",
+				"begin": "@[A-Za-z_][A-Za-z0-9_]*",
+				"end": "(?=$|\\n|@|#|\\s+\\w)",
+				"patterns": [
+					{
+					"include": "#strings"
+					},
+					{
+					"name": "comment.line.annotation-hash",
+					"match": "#[A-Za-z0-9_]+"
+					}
+				]
+				}
+			]
+		},
+		"identifiers": {
+			"patterns": [
+				{
+					"name": "variable.name",
+					"match": "\\b[A-Za-z0-9_]+\\b"
+				}
+			]	
+		}
+	},
+	"scopeName": "source.f"
+}

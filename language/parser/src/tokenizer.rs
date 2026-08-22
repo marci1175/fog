@@ -10,12 +10,43 @@ use std::u8;
 pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
 {
     let mut token_list: Vec<Spanned<Token>> = Vec::new();
-
+    let mut in_multiline_comment = false;
     let mut capture_string: Option<CaptureString> = None;
 
-    'line_loop: for (line_idx, line) in input.lines().enumerate() {
+    'line_loop: for (line_idx, mut line) in input.lines().enumerate() {
         let line_number = line_idx + 1;
         let mut column_idx = 0;
+
+        if in_multiline_comment {
+            let closing_tkn = "<-#";
+
+            // Find the indicator for closing the multiline comment
+            if let Some(multiline_comm_end) = line.find(closing_tkn) {
+                // Restore the line we are working with.
+                let line_start = multiline_comm_end + closing_tkn.len();
+                line = &line[line_start..];
+
+                // Set the column index to the correct position
+                column_idx = line_start;
+
+                // Set the multiline comment to false
+                in_multiline_comment = false;
+            }
+        }
+
+        // Skip the line if we are in a multiline comment
+        if in_multiline_comment {
+            continue 'line_loop;
+        }
+
+        // We only check if there is a multiline opening token after the actual line skipping check, so that the remainder of this line will still get parsed
+        if let Some(multiline_comm_start) = line.find("#->") {
+            // Restore the the line before the multiline comment's start
+            line = &line[..multiline_comm_start];
+
+            // Set the state to true
+            in_multiline_comment = true;
+        }
 
         for raw_text in line.split_inclusive(char::is_whitespace) {
             let trimmed_text = raw_text.trim();
@@ -92,13 +123,13 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
 fn parse_single_text(
     token_list: &mut Vec<Spanned<Token>>,
     line_number: usize,
-    text: &str,
+    raw_text: &str,
     span_offset: usize,
     capture_string: &mut Option<CaptureString>,
 )
 {
     let mut buffer: Vec<u8> = Vec::new();
-    let text = text.as_bytes();
+    let text = raw_text.as_bytes();
     let mut idx = 0;
 
     while idx < text.len() {

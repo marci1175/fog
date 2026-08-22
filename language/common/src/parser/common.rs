@@ -772,10 +772,12 @@ pub fn parse_compiler_instruction(
                     let feature_name = tokens
                         .try_consume_match(
                             ParserError::InvalidFunctionFeature,
-                            &TokenDiscriminants::Identifier,
+                            &TokenDiscriminants::Literal,
                         )?
-                        .try_as_identifier_ref()
-                        .unwrap();
+                        .try_as_literal_ref()
+                        .map(|val| val.try_as_string_ref())
+                        .flatten()
+                        .ok_or(ParserError::InvalidFunctionFeature)?;
 
                     instr_buf.insert(CompilerInstruction::Feature(feature_name.clone()));
                 }

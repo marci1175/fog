@@ -48,7 +48,7 @@ pub struct FunctionDefinition
 
     /// Compiler instructions for this specific function.
     pub compiler_instructions: OrdSet<CompilerInstruction>,
-    
+
     /// Features required to be enabled for this function.
     pub enabling_features: OrdSet<String>,
 }

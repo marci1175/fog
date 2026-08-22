@@ -18,7 +18,7 @@ pub enum SyntaxError
     #[error(r#"A type's generic parameters must be defined like so: ```<type> "<" <parameter> [{{, <parameter>}}] ">"```."#)]
     InvalidTypeGenericDefinition,
     #[error(
-        "A sepcific compiler instruction is required after the compiler instruction symbol (`@`). Check manual for compiler instruction list. Example: @cold"
+        "A specific compiler instruction is required after the compiler instruction symbol (`@`). Check documentation for a list of valid compiler instructions. Example: @cold"
     )]
     CompilerInstructionRequiredAfterSymbol,
     #[error(r#"The function's body is indicated by the braces. Example: ```<vis> "function" <name> "{{" "}}"```."#)]

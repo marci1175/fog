@@ -48,9 +48,10 @@ impl Settings
 
     /*
         Internal notes:
-        imma change some of the syntax for example imma make it so that i can do `pub import "blabla.f", so that i can bring path into scope.`
+        imma change some of the syntax for example imma make it so that i can do `import "blabla.f", so that i can bring path into scope.`
     */
 
+    /// Creates a [`Context`] instance by parsing the passed in tokens with the settings provided.
     pub fn parse(&self, tokens: &mut Stream<Spanned<Token>>) -> Result<Context>
     {
         // The first step should be parsing the top level items, such as structs, functions, enums.
@@ -132,7 +133,46 @@ impl Settings
                         unreachable!("The token matched here is asserted to be a TypeDefinition.")
                     }
                 },
-                Token::Import => {},
+                Token::Import => {
+                    /* 
+                        All item imports must point to concrete items, such as a function or enum. It cannot point to a module.
+                        
+                        Both raw paths and dependencies can be imported via this keyword.
+                        For declaring external function token `Token::External` must be used.  
+                    
+                        When a file is imported via its raw path, the modules are accessible via its file name.
+                        
+                        Example:
+                        ```
+                        import "foo.f";
+                        import foo::bleble;
+                        import foo::bar::baz;
+                        ```
+
+                        "Foreign" (imported) items cannot have implementations given later.
+
+                        When importing dependencies all dependency paths are defined from root.
+                        Example:
+                        Given that we have a dependency named `helper`.
+                        ```
+                        import helper::hello;                        
+                        ```
+
+                        Imported items can be aliased via the `as` keyword.
+                        Example: 
+                        ```
+                        import foo::bar as "hello";
+
+                        hello();
+                        
+                        # Not found
+                        bar();
+                        ```
+                    */
+                },
+                Token::External => {
+
+                }
 
                 // If the token was not recognized, return an error.
                 _ => return Err(ParserError::ItemRequiresExplicitVisibility.into()),

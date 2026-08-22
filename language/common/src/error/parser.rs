@@ -156,7 +156,7 @@ pub enum ParserError
     #[error("Token `{0}` is not a valid compiler hint.")]
     InvalidCompilerHint(Token),
     #[error(
-        "Function is only enabled when the specific feature is enabled, which is an invalid feature."
+        r#"A function's feature requirement must be defined like so ```@feature "<name>"```."#
     )]
     InvalidFunctionFeature,
     #[error(
