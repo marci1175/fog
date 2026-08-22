@@ -93,6 +93,10 @@ impl<T> Spanned<T>
             span: self.span,
         }
     }
+    
+    pub fn inner_owned(self) -> T {
+        self.inner
+    }
 }
 
 impl<T> Deref for Spanned<T>

@@ -1,17 +1,11 @@
 use crate::{
-    error::{Spanned, parser::ParserError, syntax::SyntaxError},
-    parser::{
-        common::{StatementVariant, Streamable, child_iterator_until, find_closing_braces},
-        dbg::combine_span_info,
-        numeric_value::{MathematicalSymbol, parse_numeric_value},
-        statements::{
+    error::{Spanned, parser::ParserError, syntax::SyntaxError}, parser::{
+        common::{StatementVariant, Streamable, child_iterator_until, find_closing_braces, find_closing_paren}, dbg::combine_span_info, numeric_value::{MathematicalSymbol, parse_numeric_value}, statements::{
             conditionals::{conditional_else, conditional_elseif, conditional_if},
             loops::{loop_for, loop_while},
             variables::var_decl,
         },
-    },
-    tokenizer::{Token, TokenDiscriminants},
-    ty::OrdMap,
+    }, tokenizer::{Token, TokenDiscriminants}, ty::OrdMap,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -365,6 +359,9 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     Ok(value)
 }
 
+/// This function is called when we want to parse a part of the expression which might change or repeat an undefined times.
+/// Examples include parsing mathematical expressions: ```10 + foo + bar```
+/// Parsing struct field accessing: ```foo.bar[3].baz.asd[0]```
 pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
     stmt: Spanned<StatementVariant>,
@@ -637,6 +634,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                         }
                     },
 
+                    // The reason this is included here
                     Token::SetValue => {
                         // Parse the value we are setting whatever to
                         let value = Box::new(parse_expr(tkns)?);
@@ -668,16 +666,15 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
 }
 
 /// This function should already be receiving a slice of tokens until the next semicolon.
+/// This function is basically for parsing standalone expressions (Most of the times able to be guessed from the first token) from tokens. It parses expressions which are already complete.
+/// Called for example when we want to parse the tokens until the next semicolon, or when trying to parse a standalone value.
 pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
-    if let Some(tkn) = tkns.peek_next().cloned() {
+    if let Some(tkn) = tkns.consume().cloned() {
         let value = match tkn.get_inner() {
             Token::Identifier(ident) => {
-                // Consume the token from the stream after peeking it.
-                tkns.consume();
-
                 // Own the first identifier
                 let ident = ident.to_owned();
 
@@ -695,9 +692,6 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 )?
             },
             Token::Literal(val) => {
-                // Consume the token from the stream after peeking it.
-                tkns.consume();
-
                 // Consume the tokens after that since this may be a math expression or anything like that.
                 parse_variable_expression(
                     tkns,
@@ -708,18 +702,12 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 )?
             },
             Token::Reference => {
-                // Consume token after peeking it
-                tkns.consume();
-
                 Spanned {
                     inner: StatementVariant::GetPointerTo(Box::new(parse_expr(tkns)?)),
                     span: *tkn.get_span(),
                 }
             },
             Token::Dereference => {
-                // Consume token after peeking it
-                tkns.consume();
-
                 Spanned {
                     inner: StatementVariant::DerefPointer(Box::new(parse_expr(tkns)?)),
                     span: *tkn.get_span(),
@@ -728,13 +716,10 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             // Parse the numeric value
             Token::UnparsedLiteral(_)
             | Token::MathSym(MathematicalSymbol::Addition)
-            | Token::MathSym(MathematicalSymbol::Subtraction) => parse_numeric_value(tkns)?,
+            | Token::MathSym(MathematicalSymbol::Subtraction) => parse_numeric_value(tkn, tkns)?,
 
             // Return token indicates the end of the function on that specific path
             Token::Return => {
-                // Consume token after peeking it
-                tkns.consume();
-
                 // Get the returned value from the tokens
                 let returned_value = parse_expr(tkns)?;
 
@@ -751,8 +736,6 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 
             // This must be an array definition
             Token::OpenBraces => {
-                tkns.consume();
-
                 let mut values = Vec::new();
 
                 let mut array_init_tokens = tkns
@@ -784,6 +767,42 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 Spanned {
                     inner: StatementVariant::ArrayInitialization { values },
                     span: combine_span_info(&[*tkn.get_span(), *closing_brace.get_span()], true),
+                }
+            },
+
+            // Used to parse grouped expressions
+            Token::OpenParentheses => {
+                let mut code_block_tokens = tkns
+                    .child_iterator_bulk(
+                        find_closing_paren(&*tkns)
+                            .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?,
+                    )
+                    .ok_or(ParserError::EOF)?;
+
+                // Parse the expression inside the grouping
+                let grouped_expression = parse_expr(&mut code_block_tokens)?;
+                
+                // Drop child buffer
+                drop(code_block_tokens);
+
+                // Consume closing parentheses to ensure syntax, however this check is impossible to fail due to the way we extract the child iterator.
+                let grouping_close = tkns.try_consume_match(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses), &TokenDiscriminants::CloseParentheses)?;
+                
+                // Create a spaninfo for the grouped expr
+                let grouped_expr_span = combine_span_info(&[*tkn.get_span(), *grouping_close.get_span()], true);
+                
+                // Create a grouped expression statement
+                let grouped_expr = Spanned { inner: StatementVariant::Grouping { inner_expr: Box::new(grouped_expression) }, span: grouped_expr_span };
+                
+                // Parse the rest of the expression
+                let complete_expression = parse_variable_expression(tkns, grouped_expr)?;
+
+                // Create a span of the whole expression
+                let span = combine_span_info(&[*tkn.get_span(), *complete_expression.get_span()], true);
+
+                Spanned {
+                    inner: complete_expression.inner_owned(),
+                    span
                 }
             },
 

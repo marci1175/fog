@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 use strum_macros::Display;
+use tracing::Span;
 
 use crate::{
     codegen::{
@@ -509,13 +510,6 @@ pub enum StatementVariant
 
     Brackets(Vec<Spanned<StatementVariant>>, Type),
 
-    // (
-    //     (FunctionSignature, String),
-    //     OrdMap<
-    //         FunctionArgumentIdentifier<String, usize>,
-    //         (Spanned<StatementVariant>, (Type, UniqueId)),
-    //     >,
-    // )
     FunctionCall
     {
         // This will get resolved later
@@ -559,6 +553,10 @@ pub enum StatementVariant
     If(If),
 
     CodeBlock(Vec<StatementVariant>),
+
+    Grouping {
+        inner_expr: Box<Spanned<StatementVariant>>
+    },
 
     Loop(Vec<Spanned<StatementVariant>>),
 
@@ -668,26 +666,26 @@ impl Context
     }
 }
 
-/// Pass in 0 for the `open_paren_count` if you're searching for the very next closing token on the same level.
-pub fn find_closing_paren(paren_start_slice: &[Token], open_paren_count: usize) -> Result<usize>
+pub fn find_closing_paren<S: Streamable<Spanned<Token>>>(tokens: &S) -> Option<usize>
 {
-    let mut paren_layer_counter = 1;
-    let iter = paren_start_slice.iter().enumerate();
+    tokens.peek_remainder().and_then(|tkns| {
+        let mut parentheses_counter: usize = 1;
 
-    for (idx, token) in iter {
-        match token {
-            Token::OpenParentheses => paren_layer_counter += 1,
-            Token::CloseParentheses => {
-                paren_layer_counter -= 1;
-                if paren_layer_counter == open_paren_count {
-                    return Ok(idx);
-                }
-            },
-            _ => continue,
+        for (idx, token) in tkns.iter().enumerate() {
+            if token.get_inner() == &Token::OpenParentheses {
+                parentheses_counter += 1;
+            }
+            else if token.get_inner() == &Token::CloseParentheses {
+                parentheses_counter -= 1;
+            }
+
+            if parentheses_counter == 0 {
+                return Some(idx);
+            }
         }
-    }
 
-    Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
+        None
+    })
 }
 
 /// This function will return the idx of the earliest occurence of a `|` in the provided slice.

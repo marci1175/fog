@@ -78,6 +78,7 @@ fn fit_unsigned(digits: &str) -> Result<Value, ParserError>
     Ok(Value::U64(n))
 }
 
+// Future me: The reason why this is unused (here) is because, normally integers get parsed as either a negated usize (basically -usize, which is converted to an integer in analyzer::type_inference), usize or a float.
 fn fit_signed(digits: &str) -> Result<Value, ParserError>
 {
     let n = digits
@@ -129,18 +130,15 @@ fn fit_float(digits: &str) -> Result<Value, ParserError>
 /// The name is a bit inaccurate, please check definition before use.
 /// This functions tries to parse a value related to a mathematical equation.
 pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    first_token: Spanned<Token>,
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    let tkn = tkns
-        .consume()
-        .ok_or(ParserError::SyntaxError(SyntaxError::ValueExpected))?;
-
     // Fetch the span of the token consumed
-    let current_token_span = *tkn.get_span();
+    let current_token_span = *first_token.get_span();
 
     // Fetch the lhs of the expression
-    let val = match tkn.get_inner() {
+    let val = match first_token.get_inner() {
         // Check if the first token is a negation/subtraction sign.
         Token::MathSym(MathematicalSymbol::Subtraction) => {
             Spanned {
