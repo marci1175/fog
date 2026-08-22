@@ -14,17 +14,13 @@ It focuses on minimalism, predictable semantics, and fast native compilation —
 | Feature | Status |
 |--------|--------|
 | LLVM Backend | Supported ✅ |
-| Custom PE/COFF Linker | Supported ✅ |
-| Distributed Build Infrastructure | Supported ✅ |
-| Rich Error Diagnostics | Supported ✅ |
 | Fog IR + LLVM IR Emission | Supported ✅ |
 | Custom Types | Supported ✅ |
-| Module System | Partially Supported ⚠️ |
+| Module System | Supported ✅ |
+| Dependency System | Supported ✅ |
+| Function Generics & Traits | Supported ✅ |
 | Debug Information | Partially Supported ⚠️ |
 | FFI (C ABI) | Partially Supported ⚠️ |
-| Cross-Compilation | Partially Supported ⚠️ |
-| Dependency System | Partially Supported ⚠️ |
-| Function Generics & Traits | Planned 🔵 |
 | Dynamic Memory Allocation | Planned 🔵 |
 | Async / Tasks | Planned 🔵 |
 | Incremental Compilation | Planned 🔵 |
@@ -39,15 +35,22 @@ Fog offers a clean syntax designed around expressive power:
 ```fog
 external println(lhs: string, ...);
 
-pub function add(a: int, b: int): int {
-    return a + b;
+pub function main(): int {
+    array<int, 4> numbers = {1, 2, 3, 4};
+    
+    ptr<int> item_ptr = ref numbers[0];
+    ptr<array<int, 4>> array_ptr = ref numbers;
+
+    string name = "Alma";
+    int number = wello(10, 24);
+
+    println("Name: %s, Number: %i", name, number);
+
+    return (deref item_ptr) - 1;
 }
 
-pub function main() {
-    int x = add(10, 20);
-    println("%i", x);
+@feature "testing"
+pub function wello(lhs: int, rhs: int): int {
+    return lhs * (rhs - lhs);
 }
 ```
-
-## 🚧Disclaimer🚧
-**The project is being recoded and has been put on hold.**
