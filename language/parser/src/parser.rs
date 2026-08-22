@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{hint::cold_path, path::PathBuf};
 
 use common::{
     anyhow::Result,
@@ -75,57 +75,64 @@ impl Settings
                         &TokenDiscriminants::TypeDefinition,
                     )?;
 
-                    // Match the type of the item
-                    match item_tkn.get_inner() {
-                        Token::TypeDefinition(item_type) => {
-                            match item_type {
-                                common::tokenizer::TypeToken::Enum => {
-                                    parse_enum(
-                                        &mut ctx,
-                                        vis,
-                                        tokens,
-                                        std::mem::take(&mut item_compiler_instruction),
-                                    )
-                                },
-                                common::tokenizer::TypeToken::Struct => {
-                                    let struct_def = parse_struct(
-                                        &mut ctx,
-                                        vis,
-                                        tokens,
-                                        std::mem::take(&mut item_compiler_instruction),
-                                    )?;
+                    // This should always follow this path due to the check above.
+                    // The only reason the else statement is not `unreachable_unchecked` because im scared of breaking it in future modifications.
+                    // Regardless it does not result in any meaningful speedup.
+                    if let Token::TypeDefinition(item_type) = item_tkn.get_inner() {
+                        // Match the type of the item
+                        match item_type {
+                            common::tokenizer::TypeToken::Enum => {
+                                parse_enum(
+                                    &mut ctx,
+                                    vis,
+                                    tokens,
+                                    std::mem::take(&mut item_compiler_instruction),
+                                )
+                            },
+                            common::tokenizer::TypeToken::Struct => {
+                                let struct_def = parse_struct(
+                                    &mut ctx,
+                                    vis,
+                                    tokens,
+                                    std::mem::take(&mut item_compiler_instruction),
+                                )?;
 
-                                    ctx.items.insert(
-                                        combine_path(ctx.path.clone(), struct_def.name.clone()),
-                                        struct_def.name.clone().into(),
-                                        common::codegen::CustomItem::Struct(struct_def),
-                                    );
-                                },
-                                common::tokenizer::TypeToken::Function => {
-                                    let function = parse_function(
-                                        &ctx,
-                                        vis,
-                                        tokens,
-                                        std::mem::take(&mut item_compiler_instruction),
-                                    )?;
+                                ctx.items.insert(
+                                    combine_path(ctx.path.clone(), struct_def.name.clone()),
+                                    struct_def.name.clone().into(),
+                                    common::codegen::CustomItem::Struct(struct_def),
+                                );
+                            },
+                            common::tokenizer::TypeToken::Function => {
+                                let function = parse_function(
+                                    &ctx,
+                                    vis,
+                                    tokens,
+                                    std::mem::take(&mut item_compiler_instruction),
+                                )?;
 
-                                    ctx.functions.insert(
-                                        combine_path(
-                                            function.signature.module_path.clone(),
-                                            function.signature.name.clone(),
-                                        ),
-                                        function.signature.name.clone().into(),
-                                        function,
-                                    );
-                                },
-                                _ => return Err(ParserError::ItemTypeExpected.into()),
-                            }
-                        },
+                                ctx.functions.insert(
+                                    combine_path(
+                                        function.module_path.clone(),
+                                        function.signature.name.clone(),
+                                    ),
+                                    function.signature.name.clone().into(),
+                                    function,
+                                );
+                            },
+                            // We can still return the original error since the item defining tokens are also stored as TypeDefinitions. (They are defined in the TypeToken enum)
+                            _ => return Err(ParserError::ItemTypeExpected.into()),
+                        }
+                    }
+                    else {
+                        // We can hint the compiler that this path is unlikely to be taken.
+                        cold_path();
 
-                        _ => return Err(ParserError::ItemTypeExpected.into()),
+                        // Panic if we still reach this path.
+                        unreachable!("The token matched here is asserted to be a TypeDefinition.")
                     }
                 },
-                Token::Import => {}
+                Token::Import => {},
 
                 // If the token was not recognized, return an error.
                 _ => return Err(ParserError::ItemRequiresExplicitVisibility.into()),

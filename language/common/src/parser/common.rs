@@ -589,12 +589,26 @@ pub enum ItemVisibility
     Branch,
 }
 
+/// A [`Context`] instance represents one module/scope.
+/// The instance has its own imports and external declerations (`extern import`).
+/// The simplest way to explain a context is basically a source file, as one source file has one context assigned to it.
 #[derive(Clone, Debug)]
 pub struct Context
 {
+    /// This field stores all the functions created for this context (/ scope, basically in this module).
+    /// `PATH` contains the full access path to the function including the name of the function.
+    /// `NAME` contains the plain name of the function.
     pub functions: PathMap<Vec<String>, String, FunctionDefinition>,
+
+    /// This field stores all the items created for this context (/ scope, basically in this module).
+    /// `PATH` contains the full access path to the item including the name of the item.
+    /// `NAME` contains the plain name of the item. Two different items cannot share the same name, thus the same `PATH`.
     pub items: PathMap<Vec<String>, String, CustomItem>,
+
+    ///
     pub external_decls: PathMap<Vec<String>, String, FunctionSignature>,
+
+    /// Path to the source file this context represents.
     pub path: Vec<String>,
 }
 
@@ -618,6 +632,7 @@ impl Context
         return_type: Type,
         compiler_instructions: OrdSet<CompilerInstruction>,
         body: Vec<Spanned<StatementVariant>>,
+        enabling_features: OrdSet<String>,
     ) -> FunctionDefinition
     {
         FunctionDefinition {
@@ -625,10 +640,11 @@ impl Context
                 name,
                 args: arguments,
                 return_type,
-                module_path: self.path.clone(),
-                visibility: vis,
-                compiler_instructions,
             },
+            module_path: self.path.clone(),
+            visibility: vis,
+            compiler_instructions,
+            enabling_features,
             body,
         }
     }

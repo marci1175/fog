@@ -1,7 +1,8 @@
 use std::{collections::HashMap, fmt::Display, hash::Hash, rc::Rc};
 
 use bimap::BiMap;
-use strum::EnumDiscriminants;
+use indexmap::IndexSet;
+use strum::{EnumDiscriminants, EnumTryAs};
 
 use crate::{
     anyhow::{self},
@@ -33,21 +34,34 @@ pub struct UnparsedFunctionDefinition
 #[derive(Debug, Clone, PartialEq, Hash, Default, Eq)]
 pub struct FunctionDefinition
 {
+    /// Raw signature of the function.
     pub signature: FunctionSignature,
+
+    /// The actual body of the function.
     pub body: Vec<Spanned<StatementVariant>>,
+
+    /// Module path does NOT contain function name.
+    pub module_path: Vec<String>,
+
+    /// The visibility of this function in the given [`Context`] (scope).
+    pub visibility: ItemVisibility,
+
+    /// Compiler instructions for this specific function.
+    pub compiler_instructions: OrdSet<CompilerInstruction>,
+    
+    /// Features required to be enabled for this function.
+    pub enabling_features: OrdSet<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FunctionSignature
 {
+    /// Name of the function.
     pub name: String,
+    /// Required arguments of the function.
     pub args: FunctionArguments,
+    /// Return type of the function.
     pub return_type: Type,
-    /// Module path does NOT contain function name.
-    pub module_path: Vec<String>,
-    pub visibility: ItemVisibility,
-    pub compiler_instructions: OrdSet<CompilerInstruction>,
-    // pub enabling_features: OrdSet<String>,
 }
 
 impl Display for FunctionSignature
@@ -103,7 +117,9 @@ impl FunctionArguments
     }
 }
 
-#[derive(Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumDiscriminants)]
+#[derive(
+    Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumDiscriminants, EnumTryAs,
+)]
 #[strum_discriminants(derive(Hash))]
 pub enum CompilerInstruction
 {
@@ -138,8 +154,12 @@ impl From<CompilerInstructionDiscriminants> for CompilerInstruction
 #[derive(Debug, Default, Clone)]
 pub struct Interner<VALUE: Eq + Hash>
 {
-    interner: BiMap<VALUE, ID>,
-    _internal_counter: usize,
+    /// A BiMap which allows us to look up values from both the left and right side.
+    internal_map: BiMap<VALUE, ID>,
+
+    /// This is basically an ID generator for every value.
+    /// Every value unique value inserted gets a new ID which is unique to that specific value.
+    internal_id: usize,
 }
 
 impl<VALUE: Eq + Hash> Interner<VALUE>
@@ -147,32 +167,32 @@ impl<VALUE: Eq + Hash> Interner<VALUE>
     pub fn new() -> Self
     {
         Self {
-            interner: BiMap::new(),
-            _internal_counter: 0,
+            internal_map: BiMap::new(),
+            internal_id: 0,
         }
     }
 
     pub fn lookup_name(&self, value: &VALUE) -> Option<&ID>
     {
-        self.interner.get_by_left(value)
+        self.internal_map.get_by_left(value)
     }
 
     pub fn lookup_id(&self, id: &ID) -> Option<&VALUE>
     {
-        self.interner.get_by_right(id)
+        self.internal_map.get_by_right(id)
     }
 
     pub fn insert_or_get_association(&mut self, value: VALUE) -> ID
     {
-        if let Some(right) = self.interner.get_by_left(&value) {
+        if let Some(right) = self.internal_map.get_by_left(&value) {
             *right
         }
         else {
-            self._internal_counter += 1;
+            self.internal_id += 1;
 
-            let curr_id = self._internal_counter;
+            let curr_id = self.internal_id;
 
-            self.interner.insert(value, curr_id);
+            self.internal_map.insert(value, curr_id);
 
             curr_id
         }
@@ -180,12 +200,12 @@ impl<VALUE: Eq + Hash> Interner<VALUE>
 
     pub fn remove_association_by_value(&mut self, value: &VALUE) -> Option<(VALUE, usize)>
     {
-        self.interner.remove_by_left(value)
+        self.internal_map.remove_by_left(value)
     }
 
     pub fn remove_association_by_id(&mut self, id: &ID) -> Option<(VALUE, usize)>
     {
-        self.interner.remove_by_right(id)
+        self.internal_map.remove_by_right(id)
     }
 }
 
@@ -204,7 +224,7 @@ pub struct PathMap<PATH: Eq + Hash, NAME: Eq + Hash, ITEM>
     /// The namespace map of the functions. This allows us to see how many functions are there in the namespace with the same name.
     namespace_members: HashMap<ID, usize>,
 
-    _interner: Interner<Rc<NAME>>,
+    interner: Interner<Rc<NAME>>,
 }
 
 /// Allows us to specify the method we want to remove a key from a map.
@@ -223,7 +243,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
         Self {
             items: IndexMap::new(),
             namespace_members: HashMap::new(),
-            _interner: Interner::new(),
+            interner: Interner::new(),
         }
     }
 
@@ -237,7 +257,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
         name: Rc<NAME>,
     ) -> Option<(PATH, ITEM, Rc<NAME>)>
     {
-        let id = self._interner.insert_or_get_association(name.clone());
+        let id = self.interner.insert_or_get_association(name.clone());
 
         if self.items.contains_key(&key) {
             return Some((key, value, name));
@@ -256,7 +276,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
     /// The function also increment the function's counter in the namespace map.
     pub fn insert(&mut self, key: PATH, name: Rc<NAME>, value: ITEM) -> Option<(ID, ITEM)>
     {
-        let id = self._interner.insert_or_get_association(name.clone());
+        let id = self.interner.insert_or_get_association(name.clone());
 
         let insert_result = self.items.insert(key, (id, value));
 
@@ -286,7 +306,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
 
     pub fn contains_name(&self, name: Rc<NAME>) -> bool
     {
-        if let Some(id) = self._interner.lookup_name(&name) {
+        if let Some(id) = self.interner.lookup_name(&name) {
             return self.namespace_members.contains_key(id);
         }
 
@@ -302,7 +322,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
     {
         self.items
             .get(path)
-            .map(|(intern_id, def)| (self._interner.lookup_id(intern_id).unwrap(), def))
+            .map(|(intern_id, def)| (self.interner.lookup_id(intern_id).unwrap(), def))
     }
 
     pub fn get_item2(&self, path: &PATH) -> Option<&(ID, ITEM)>
@@ -313,7 +333,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
     pub fn get_item_by_idx(&self, idx: usize) -> Option<(&PATH, (&Rc<NAME>, &ITEM))>
     {
         self.items.get_index(idx).map(|(path, (intern_id, def))| {
-            (path, (self._interner.lookup_id(intern_id).unwrap(), def))
+            (path, (self.interner.lookup_id(intern_id).unwrap(), def))
         })
     }
 
@@ -324,13 +344,13 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
 
     pub fn get_name_from_id(&self, id: &ID) -> Option<&Rc<NAME>>
     {
-        self._interner.lookup_id(id)
+        self.interner.lookup_id(id)
     }
 
     pub fn get_item_full(&self, path: &PATH) -> Option<(&ID, &Rc<NAME>, &ITEM)>
     {
         self.items.get(path).map(|(id, def)| {
-            let name = self._interner.lookup_id(id).unwrap();
+            let name = self.interner.lookup_id(id).unwrap();
 
             (id, name, def)
         })
@@ -379,7 +399,7 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
         // If there are no more function's with this name in the namespace remove the field.
         if should_remove {
             self.namespace_members.remove(id);
-            self._interner.remove_association_by_id(id);
+            self.interner.remove_association_by_id(id);
         }
     }
 
@@ -387,8 +407,17 @@ impl<PATH: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<PATH, NAME, ITEM>
     {
         PathMapIterator {
             inner_iter: self.items.iter(),
-            interner: &self._interner,
+            interner: &self.interner,
         }
+    }
+
+    pub fn get_paths(&self) -> indexmap::map::Keys<'_, PATH, (usize, ITEM)>
+    {
+        self.items.keys()
+    }
+    pub fn get_names(&self) -> bimap::hash::LeftValues<'_, Rc<NAME>, usize>
+    {
+        self.interner.internal_map.left_values()
     }
 
     pub fn len(&self) -> usize
@@ -424,7 +453,7 @@ pub fn parse_function(
     ctx: &Context,
     vis: &ItemVisibility,
     tokens: &mut Stream<Spanned<Token>>,
-    compiler_instructions: OrdSet<CompilerInstruction>,
+    mut compiler_instructions: OrdSet<CompilerInstruction>,
 ) -> anyhow::Result<FunctionDefinition>
 {
     // Get the function name token
@@ -491,6 +520,20 @@ pub fn parse_function(
         &TokenDiscriminants::CloseBraces,
     )?;
 
+    // Extract those compiler instructions which are a feature requirement for the function
+    // Store those in a different place so that its easier to access.
+    let enabling_features = compiler_instructions
+        .extract_if(.., |instr| {
+            // Extract the compiler instruction if its a required feature.
+            matches!(instr, CompilerInstruction::Feature(_))
+        })
+        .map(|instruction| {
+            instruction
+                .try_as_feature()
+                .expect("CompilerInstruction::Feature assert failed.")
+        })
+        .collect::<IndexSet<String>>();
+
     Ok(ctx.create_function(
         vis.clone(),
         function_name,
@@ -498,6 +541,7 @@ pub fn parse_function(
         return_type,
         compiler_instructions,
         fn_body,
+        OrdSet::wrap(enabling_features),
     ))
 }
 

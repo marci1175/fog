@@ -5,3 +5,11 @@ pub function main(): int {
     int egy = deref egy_ptr;
     return egy;
 }
+
+pub function marci(): string {
+    return "Marci";
+}
+
+pub function wello(lhs: int, rhs: int): int {
+    return lhs * rhs - lhs;
+}

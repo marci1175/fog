@@ -16,7 +16,6 @@ pub fn parse_enum(
     _compiler_instructions: OrdSet<CompilerInstruction>,
 )
 {
-    
 }
 
 /// The function parses the entire struct, but does not validate the fields of the struct.

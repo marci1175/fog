@@ -357,7 +357,7 @@ fn create_function_with_ir<'ctx>(
 
     add_compiler_hints_to_fn(
         context,
-        &function_definition.signature.compiler_instructions,
+        &function_definition.compiler_instructions,
         function,
     )?;
 
