@@ -125,6 +125,7 @@ impl Settings
                         _ => return Err(ParserError::ItemTypeExpected.into()),
                     }
                 },
+                Token::Import => {}
 
                 // If the token was not recognized, return an error.
                 _ => return Err(ParserError::ItemRequiresExplicitVisibility.into()),
