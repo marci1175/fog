@@ -73,7 +73,7 @@ pub enum SyntaxError
         "Duplicate function definitions have been found with function `{0}`. Signature: `{1}`. Functions with matching names are only available when they are allowed under different features."
     )]
     DuplicateFunctions(String, FunctionSignature),
-    #[error("The import's signature is invalid.")]
+    #[error(r#"The import statement contains invalid tokens. Consult the documentation on the correct usage of imports. Example: ```import "../../foo.f"; import foo::bar;``` "#)]
     InvalidImportDefinition,
     #[error("Invalid Function name definition.")]
     InvalidFunctionName,

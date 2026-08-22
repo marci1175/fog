@@ -163,8 +163,8 @@ pub enum ParserError
         "Function requires feature `{0}` to be enabled but project only has features `{1:?}` enabled."
     )]
     InvalidFeatureRequirement(String, Vec<String>),
-    #[error("Module path contains an invalid token: `{0}`.")]
-    InvalidModulePathDefinition(Token),
+    #[error("Imported source file was not found at the specified path.")]
+    ImportedPathNotFound,
     #[error("Imported function was not found in the dependencies: `{0:?}`.")]
     FunctionDependencyNotFound(Vec<String>),
     #[error("Literal contains a non-Utf8 compatible char.")]

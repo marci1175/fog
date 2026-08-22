@@ -1,17 +1,11 @@
 use std::{hint::cold_path, path::PathBuf};
 
 use common::{
-    anyhow::Result,
-    combine_path,
-    compiler::ProjectConfig,
-    error::{Spanned, parser::ParserError},
-    parser::{
+    anyhow::Result, combine_path, compiler::ProjectConfig, error::{Spanned, parser::ParserError}, parser::{
         common::{Context, Stream, Streamable, parse_compiler_instruction},
         function::{CompilerInstruction, parse_function},
         ty::{parse_enum, parse_struct},
-    },
-    tokenizer::{Token, TokenDiscriminants},
-    ty::OrdSet,
+    }, tokenizer::{Token, TokenDiscriminants}, ty::{self, OrdSet},
 };
 
 #[derive(Debug, Clone)]
@@ -169,6 +163,28 @@ impl Settings
                         bar();
                         ```
                     */
+
+                    // Peek the next token
+                    // The two accepted paths right now would be a string literal or an identifier.
+                    let peek_next = tokens.peek_next();
+
+                    if let Some(next) = peek_next {
+                        let next_token = next.get_inner();
+
+                        match next_token {
+                            Token::Literal(ty::Value::String(path)) => {
+                                
+                            },
+                            Token::Identifier(ident) => {
+                                
+                            }
+                            _ => return Err(ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidImportDefinition).into())
+                        }
+                    }
+                    else {
+                        return Err(ParserError::EOF.into());
+                    }
+
                 },
                 Token::External => {
 
