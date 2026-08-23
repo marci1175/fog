@@ -61,8 +61,8 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
             if let Some(capture) = &mut capture_string {
                 // Try to find the end of the string
                 if let Some(quote_idx) = raw_text.find('"') {
-                    // Split at the quote end
-                    let (string_p, other) = raw_text.split_at(quote_idx);
+                    let string_p = &raw_text[..quote_idx];
+                    let other = &raw_text[quote_idx + 1..];
 
                     // Store the string which is a part of the full string
                     capture.string_buffer.extend(string_p.as_bytes());

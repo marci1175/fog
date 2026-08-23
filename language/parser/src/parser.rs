@@ -1,11 +1,18 @@
 use std::{hint::cold_path, path::PathBuf};
 
 use common::{
-    anyhow::Result, combine_path, compiler::ProjectConfig, error::{Spanned, parser::ParserError}, parser::{
-        common::{Context, Stream, Streamable, parse_compiler_instruction},
+    anyhow::Result,
+    combine_path,
+    compiler::ProjectConfig,
+    error::{Spanned, parser::ParserError, syntax::SyntaxError},
+    parser::{
+        common::{Context, Stream, Streamable, child_iterator_until, parse_compiler_instruction},
         function::{CompilerInstruction, parse_function},
+        import::parse_import_statement,
         ty::{parse_enum, parse_struct},
-    }, tokenizer::{Token, TokenDiscriminants}, ty::{self, OrdSet},
+    },
+    tokenizer::{Token, TokenDiscriminants},
+    ty::OrdSet,
 };
 
 #[derive(Debug, Clone)]
@@ -128,67 +135,25 @@ impl Settings
                     }
                 },
                 Token::Import => {
-                    /* 
-                        All item imports must point to concrete items, such as a function or enum. It cannot point to a module.
-                        
-                        Both raw paths and dependencies can be imported via this keyword.
-                        For declaring external function token `Token::External` must be used.  
-                    
-                        When a file is imported via its raw path, the modules are accessible via its file name.
-                        
-                        Example:
-                        ```
-                        import "foo.f";
-                        import foo::bleble;
-                        import foo::bar::baz;
-                        ```
+                    let mut import_tokens = child_iterator_until(
+                        tokens,
+                        &TokenDiscriminants::SemiColon,
+                        ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+                    )?;
 
-                        "Foreign" (imported) items cannot have implementations given later.
+                    // Parse improt statement and append it to the list of imports stored
+                    parse_import_statement(&mut import_tokens, &mut ctx.imports)?;
 
-                        When importing dependencies all dependency paths are defined from root.
-                        Example:
-                        Given that we have a dependency named `helper`.
-                        ```
-                        import helper::hello;                        
-                        ```
+                    // Drop child buffer
+                    drop(import_tokens);
 
-                        Imported items can be aliased via the `as` keyword.
-                        Example: 
-                        ```
-                        import foo::bar as "hello";
-
-                        hello();
-                        
-                        # Not found
-                        bar();
-                        ```
-                    */
-
-                    // Peek the next token
-                    // The two accepted paths right now would be a string literal or an identifier.
-                    let peek_next = tokens.peek_next();
-
-                    if let Some(next) = peek_next {
-                        let next_token = next.get_inner();
-
-                        match next_token {
-                            Token::Literal(ty::Value::String(path)) => {
-                                
-                            },
-                            Token::Identifier(ident) => {
-                                
-                            }
-                            _ => return Err(ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidImportDefinition).into())
-                        }
-                    }
-                    else {
-                        return Err(ParserError::EOF.into());
-                    }
-
+                    // Consume however many semicolons there are after the import
+                    tokens.try_consume_match(
+                        ParserError::ExpressionSemicolonMissing,
+                        &TokenDiscriminants::SemiColon,
+                    )?;
                 },
-                Token::External => {
-
-                }
+                Token::External => {},
 
                 // If the token was not recognized, return an error.
                 _ => return Err(ParserError::ItemRequiresExplicitVisibility.into()),

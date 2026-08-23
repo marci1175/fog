@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -7,8 +9,10 @@ pub struct LibraryImport
     pub version: String,
 }
 
-pub enum ImportItem
+#[derive(Debug, Clone)]
+pub enum ImportType
 {
-    Module(Box<ImportItem>),
-    Function(String),
+    Path(PathBuf),
+    Dependency(Vec<String>),
+    Aliased(String, Box<Self>),
 }

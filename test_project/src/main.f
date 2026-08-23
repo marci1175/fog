@@ -1,10 +1,12 @@
-external println(lhs: string, ...);
+import marci::asd::hello as marci;
+import "helper.f";
+import helper::functions::add as marci;
 
 pub function main(): int {
     array<int, 4> numbers = {1, 2, 3, 4};
     
-    ptr<int> item_ptr = ref numbers[0];
-    ptr<array<int, 4>> array_ptr = ref numbers;
+    ptr item_ptr = ref numbers[0];
+    # ptr<array<int, 4>> array_ptr = ref numbers;
 
     string name = "Alma";
     int number = wello(10, 24);

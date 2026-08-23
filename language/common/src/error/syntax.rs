@@ -6,9 +6,9 @@ use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
 pub enum SyntaxError
 {
     #[error(
-        "An unknown expression follows a variable reference. Check manual to see valid variable reference uses."
+        "An unknown expression (`{0}`) follows a variable reference. Check manual to see valid variable reference uses."
     )]
-    InvalidVariableExpression,
+    InvalidVariableExpression(Token),
     #[error("A literal value was expected.")]
     ValueExpected,
     #[error("All variables must be initialized with a value before use.")]

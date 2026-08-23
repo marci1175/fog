@@ -354,10 +354,7 @@ fn render_current_connection(frame: &mut Frame, app: &mut App, server_state: &Se
         let addr = entry.key();
         let info = entry.value();
 
-        rows.push(widgets::Row::new(vec![
-            addr.to_string(),
-            format!("{}", info),
-        ]));
+        rows.push(widgets::Row::new(vec![addr.to_string(), info.to_string()]));
     }
 
     // table scrolling

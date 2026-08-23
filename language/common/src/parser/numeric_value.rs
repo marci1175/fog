@@ -2,8 +2,7 @@ use crate::{
     error::{Spanned, parser::ParserError},
     parser::{
         common::Streamable,
-        dbg::combine_span_info,
-        statement::{parse_expr, parse_statement, parse_variable_expression},
+        statement::{parse_expr, parse_variable_expression},
     },
     tokenizer::Token,
     ty::{NotNan, TypeDiscriminants, Value},
@@ -21,7 +20,7 @@ pub enum MathematicalSymbol
     Power,
 }
 
-use crate::{error::syntax::SyntaxError, parser::common::StatementVariant};
+use crate::parser::common::StatementVariant;
 
 ///
 /// Bits	Signed	Unsigned	Float
@@ -227,5 +226,5 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     // -foo
     // -bar()
 
-    return Ok(parse_variable_expression(tkns, val)?);
+    parse_variable_expression(tkns, val)
 }

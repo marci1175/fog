@@ -1,15 +1,14 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use anyhow::Result;
 use strum_macros::Display;
-use tracing::Span;
 
 use crate::{
     codegen::{
-        CustomItem, DerefMode, FunctionArgumentIdentifier, If, Order, StructAttributes,
-        StructDefinition,
+        CustomItem, FunctionArgumentIdentifier, If, Order, StructAttributes, StructDefinition,
     },
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
+    imports::ImportType,
     parser::{
         function::{
             CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
@@ -378,11 +377,11 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
     {
         let query = self.buffer.get(self.local_idx()).ok_or(error.clone())?;
 
+        self.increment_all(1);
+
         if query != discriminant {
             return Err(error);
         }
-
-        self.increment_all(1);
 
         Ok(query)
     }
@@ -554,8 +553,9 @@ pub enum StatementVariant
 
     CodeBlock(Vec<StatementVariant>),
 
-    Grouping {
-        inner_expr: Box<Spanned<StatementVariant>>
+    Grouping
+    {
+        inner_expr: Box<Spanned<StatementVariant>>,
     },
 
     Loop(Vec<Spanned<StatementVariant>>),
@@ -603,8 +603,8 @@ pub struct Context
     /// `NAME` contains the plain name of the item. Two different items cannot share the same name, thus the same `PATH`.
     pub items: PathMap<Vec<String>, String, CustomItem>,
 
-    ///
-    pub external_decls: PathMap<Vec<String>, String, FunctionSignature>,
+    pub imports: HashMap<String, ImportType>,
+    pub ffi_declerations: HashMap<String, FunctionSignature>,
 
     /// Path to the source file this context represents.
     pub path: Vec<String>,
@@ -617,7 +617,8 @@ impl Context
         Self {
             functions: PathMap::new(),
             items: PathMap::new(),
-            external_decls: PathMap::new(),
+            imports: HashMap::new(),
+            ffi_declerations: HashMap::new(),
             path,
         }
     }
@@ -773,8 +774,7 @@ pub fn parse_compiler_instruction(
                             &TokenDiscriminants::Literal,
                         )?
                         .try_as_literal_ref()
-                        .map(|val| val.try_as_string_ref())
-                        .flatten()
+                        .and_then(|val| val.try_as_string_ref())
                         .ok_or(ParserError::InvalidFunctionFeature)?;
 
                     instr_buf.insert(CompilerInstruction::Feature(feature_name.clone()));

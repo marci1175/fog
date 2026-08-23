@@ -11,6 +11,16 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error(
+        "Item named `{0}` has been imported already. Items' name must not collide with one another."
+    )]
+    ImportNameCollision(String),
+    #[error(
+        "Imports can only be aliased once with an identifier. Example: ```import foo::bar as baz;```"
+    )]
+    InvalidImportAlias,
+    #[error("An invalid import path was provided. Please check path definition.")]
+    InvalidImportPath,
     #[error("Unknown value could not be matched with any valid value patterns.")]
     UnknownValueExpression,
     #[error("A semicolon is missing from the end of this expression.")]
@@ -155,9 +165,7 @@ pub enum ParserError
     ItemTypeExpected,
     #[error("Token `{0}` is not a valid compiler hint.")]
     InvalidCompilerHint(Token),
-    #[error(
-        r#"A function's feature requirement must be defined like so ```@feature "<name>"```."#
-    )]
+    #[error(r#"A function's feature requirement must be defined like so ```@feature "<name>"```."#)]
     InvalidFunctionFeature,
     #[error(
         "Function requires feature `{0}` to be enabled but project only has features `{1:?}` enabled."

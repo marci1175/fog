@@ -725,13 +725,11 @@ pub fn parse_fn_body(
         let stmt = parse_statement(&mut fn_body)?;
 
         // Consume however many semicolons there are after the expression
-        while fn_body
+        fn_body
             .try_consume_match(
                 ParserError::ExpressionSemicolonMissing,
                 &TokenDiscriminants::SemiColon,
-            )
-            .is_ok()
-        {}
+            )?;
 
         parsed_tokens.push(stmt);
     }

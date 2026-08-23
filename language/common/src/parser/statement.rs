@@ -1,11 +1,20 @@
 use crate::{
-    error::{Spanned, parser::ParserError, syntax::SyntaxError}, parser::{
-        common::{StatementVariant, Streamable, child_iterator_until, find_closing_braces, find_closing_paren}, dbg::combine_span_info, numeric_value::{MathematicalSymbol, parse_numeric_value}, statements::{
+    error::{Spanned, parser::ParserError, syntax::SyntaxError},
+    parser::{
+        common::{
+            StatementVariant, Streamable, child_iterator_until, find_closing_braces,
+            find_closing_paren,
+        },
+        dbg::combine_span_info,
+        numeric_value::{MathematicalSymbol, parse_numeric_value},
+        statements::{
             conditionals::{conditional_else, conditional_elseif, conditional_if},
             loops::{loop_for, loop_while},
             variables::var_decl,
         },
-    }, tokenizer::{Token, TokenDiscriminants}, ty::OrdMap,
+    },
+    tokenizer::{Token, TokenDiscriminants},
+    ty::OrdMap,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -303,7 +312,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    let value = 
+    let value =
     // Try matching with the pre-defined expression patterns
     // If the pattern starts with a variable reference or and identifier which is not a function we will parse that manually.
     if let Some(matched) = match_expr_pattern(tkns).cloned() {
@@ -352,7 +361,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             &TokenDiscriminants::SemiColon,
             ParserError::SyntaxError(SyntaxError::MissingSemiColon),
         )?;
-    
+        dbg!(&expr_tkns);
         parse_expr(&mut expr_tkns)?
     };
 
@@ -541,7 +550,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                         // The next token should be the closing "]", consume it for syntax purposes
                         let closing_bracket_span = *tkns
                             .try_consume_match(
-                                ParserError::SyntaxError(SyntaxError::InvalidVariableExpression),
+                                ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets),
                                 &TokenDiscriminants::CloseSquareBrackets,
                             )?
                             .get_span();
@@ -654,7 +663,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
 
                     _ => {
                         return Err(ParserError::SyntaxError(
-                            SyntaxError::InvalidVariableExpression,
+                            SyntaxError::InvalidVariableExpression(tkn.get_inner().clone()),
                         )
                         .into());
                     },
@@ -694,7 +703,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             Token::Literal(val) => {
                 // Consume the tokens after that since this may be a math expression or anything like that.
                 parse_variable_expression(
-                    tkns,
+                    dbg!(tkns),
                     Spanned {
                         inner: StatementVariant::Value(val.clone()),
                         span: *tkn.get_span(),
@@ -781,28 +790,38 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 
                 // Parse the expression inside the grouping
                 let grouped_expression = parse_expr(&mut code_block_tokens)?;
-                
+
                 // Drop child buffer
                 drop(code_block_tokens);
 
                 // Consume closing parentheses to ensure syntax, however this check is impossible to fail due to the way we extract the child iterator.
-                let grouping_close = tkns.try_consume_match(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses), &TokenDiscriminants::CloseParentheses)?;
-                
+                let grouping_close = tkns.try_consume_match(
+                    ParserError::SyntaxError(SyntaxError::LeftOpenParentheses),
+                    &TokenDiscriminants::CloseParentheses,
+                )?;
+
                 // Create a spaninfo for the grouped expr
-                let grouped_expr_span = combine_span_info(&[*tkn.get_span(), *grouping_close.get_span()], true);
-                
+                let grouped_expr_span =
+                    combine_span_info(&[*tkn.get_span(), *grouping_close.get_span()], true);
+
                 // Create a grouped expression statement
-                let grouped_expr = Spanned { inner: StatementVariant::Grouping { inner_expr: Box::new(grouped_expression) }, span: grouped_expr_span };
-                
+                let grouped_expr = Spanned {
+                    inner: StatementVariant::Grouping {
+                        inner_expr: Box::new(grouped_expression),
+                    },
+                    span: grouped_expr_span,
+                };
+
                 // Parse the rest of the expression
                 let complete_expression = parse_variable_expression(tkns, grouped_expr)?;
 
                 // Create a span of the whole expression
-                let span = combine_span_info(&[*tkn.get_span(), *complete_expression.get_span()], true);
+                let span =
+                    combine_span_info(&[*tkn.get_span(), *complete_expression.get_span()], true);
 
                 Spanned {
                     inner: complete_expression.inner_owned(),
-                    span
+                    span,
                 }
             },
 

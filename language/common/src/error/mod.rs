@@ -1,5 +1,7 @@
 use std::{fmt::Display, fs, ops::Deref, path::PathBuf};
 
+use crate::tokenizer::Token;
+
 pub mod application;
 pub mod cliparser;
 pub mod codegen;
@@ -68,6 +70,14 @@ pub struct Spanned<T>
     pub span: SpanInfo,
 }
 
+impl PartialEq<Token> for Spanned<Token>
+{
+    fn eq(&self, other: &Token) -> bool
+    {
+        &self.inner == other
+    }
+}
+
 impl<T> Spanned<T>
 {
     pub fn new(inner: T, span: SpanInfo) -> Self
@@ -93,8 +103,9 @@ impl<T> Spanned<T>
             span: self.span,
         }
     }
-    
-    pub fn inner_owned(self) -> T {
+
+    pub fn inner_owned(self) -> T
+    {
         self.inner
     }
 }
