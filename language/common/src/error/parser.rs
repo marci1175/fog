@@ -11,6 +11,10 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("An item's name must be defined here.")]
+    ItemNameExpected,
+    #[error("Only functions and statics can be declared as a FFI item.")]
+    InvalidFFIDecl,
     #[error(
         "Item named `{0}` has been imported already. Items' name must not collide with one another."
     )]
@@ -21,8 +25,8 @@ pub enum ParserError
     InvalidImportAlias,
     #[error("An invalid import path was provided. Please check path definition.")]
     InvalidImportPath,
-    #[error("Unknown value could not be matched with any valid value patterns.")]
-    UnknownValueExpression,
+    #[error("Unknown expression could not be matched with any valid value patterns.")]
+    UnknownExpression,
     #[error("A semicolon is missing from the end of this expression.")]
     ExpressionSemicolonMissing,
     #[error("Token is not a valid mathematical symbol.")]
@@ -83,14 +87,12 @@ pub enum ParserError
     InvalidTraitImplementation(Vec<String>, String),
     #[error("Custom item `{0}` was not found in the current scope. (Check typos)")]
     CustomItemNotFound(String),
-    #[error(
-        "External function cannot return type interfaces, only a concrete type. (ie. int or a struct)"
-    )]
-    ExternalFunctionsReturnConcreteTypes,
+    #[error(r#"All functions are required to have a valid return type. ```":" <return type>```"#)]
+    FunctionReturnTypeRequired,
     #[error("Trait `{0}` cannot be converted into a value.")]
     TraitNotObject(String),
-    #[error("A function or import signature is invalid.")]
-    InvalidSignatureDefinition,
+    #[error(r#"Function's signature definition is invalid. Valid signature is as follows: ```<name> "(" [{{<arg>: <type>, }}] ")" ":" <return type>```"#)]
+    InvalidFunctionSignatureDefinition,
     #[error(
         "The function is called with the wrong type of arguments. Functions with no arguments still need to be called with `()`. ie.: `foo();`"
     )]
@@ -194,7 +196,7 @@ pub enum ParserError
     #[error("Variable `{0}` must have a default value of type `{1}`.")]
     MissingVariableValue(String, Type),
     #[error(
-        "Function name cannot start with `__internal` as it is reserved for internal language functions."
+        "Function name cannot start with `__internal` as it is reserved for internally generated functions."
     )]
     FunctionNameReserved,
 }

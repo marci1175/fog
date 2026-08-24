@@ -2,8 +2,12 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
     error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition},
-    imports::ImportType,
-    parser::common::{StatementVariant, Streamable},
+    imports::{FFIDeclType, ImportType},
+    parser::{
+        common::Streamable,
+        function::{FunctionArguments, FunctionSignature, parse_function_signature},
+        ty::parse_type,
+    },
     tokenizer::{Token, TokenDiscriminants},
     ty,
 };
@@ -50,7 +54,7 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
 
                 // Get the file name of the imported file
                 let file_name = path
-                    .file_name()
+                    .file_prefix()
                     .map(|str| str.to_string_lossy().to_string())
                     .ok_or(ParserError::InvalidImportPath)?;
 
@@ -137,15 +141,98 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
             }
 
             // Store aliased import
-            (alias.clone(), imports.insert(alias.clone(), ImportType::Aliased(alias, Box::new(import))))
+            (alias.clone(), imports.insert(alias.clone(), import))
         }
         else {
-            (identifier.clone(), imports.insert(identifier.clone(), import))
+            (
+                identifier.clone(),
+                imports.insert(identifier.clone(), import),
+            )
         };
 
         // Check if there is a name collision in the imports
         if store_result.is_some() {
             return Err(ParserError::ImportNameCollision(stored_ident).into());
+        }
+    }
+    else {
+        return Err(ParserError::EOF.into());
+    }
+
+    Ok(())
+}
+
+pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    external_decls: &mut HashMap<String, FFIDeclType>,
+) -> anyhow::Result<()>
+{
+    // The first token should be the type of the item (This can either be a static or a function)
+    let decl_type = tkns.consume();
+
+    if let Some(decl_type) = decl_type {
+        let tkn = decl_type.get_inner();
+
+        // Match the valid item variants
+        if let Token::TypeDefinition(crate::tokenizer::TypeToken::Function) = tkn {
+            // Next token is the name of the item
+            let name = tkns
+                .try_consume_match(
+                    ParserError::ItemNameExpected,
+                    &TokenDiscriminants::Identifier,
+                )?
+                .try_as_identifier_ref()
+                .unwrap()
+                .clone();
+
+            // Consume the first opening parentheses
+            tkns.try_consume_match(
+                ParserError::InvalidFunctionSignatureDefinition,
+                &TokenDiscriminants::OpenParentheses,
+            )?;
+
+            let mut args = FunctionArguments::new();
+            dbg!(&tkns);
+            // This function consumes the token until the closing parentheses
+            parse_function_signature(tkns, &mut args)?;
+
+            // All functions must have a return type
+            // Consume colon for syntax
+            tkns.try_consume_match(
+                ParserError::FunctionReturnTypeRequired,
+                &TokenDiscriminants::Colon,
+            )?;
+
+            // Consume the type this function returns
+            let return_type = parse_type(tkns)?;
+
+            external_decls.insert(
+                name.clone(),
+                FFIDeclType::Function(FunctionSignature {
+                    name,
+                    args,
+                    return_type,
+                }),
+            );
+        }
+        else if let Token::Static = tkn {
+            // Next token is the type of the static
+            let ty = parse_type(tkns)?;
+
+            // Next token is the name of the item
+            let name = tkns
+                .try_consume_match(
+                    ParserError::ItemNameExpected,
+                    &TokenDiscriminants::Identifier,
+                )?
+                .try_as_identifier_ref()
+                .unwrap()
+                .clone();
+
+            external_decls.insert(name, FFIDeclType::Static(ty));
+        }
+        else {
+            return Err(ParserError::InvalidFFIDecl.into());
         }
     }
     else {

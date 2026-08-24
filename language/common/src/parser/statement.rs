@@ -336,18 +336,6 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                     ParserError::SyntaxError(SyntaxError::MissingSemiColon),
                 )?)
             },
-
-            // TODO: This should not be fixed as it would mean that id have to double the implementation of the variable parsing.
-            // (Just move it further down)
-            // Please note that this is not only for the simple ```<ident> "="``` statement but rather any expression that directly modifies the value of the variable. ("/=", "+=", ....)
-            // This path does not accept more complex uses of mathmeatical expressions, such as `foo() - 3 + var2`.
-            // Expr::ModifyVariable => {
-            //     mod_variable(&mut child_iterator_until(
-            //         tkns,
-            //         &TokenDiscriminants::SemiColon,
-            //         ParserError::SyntaxError(SyntaxError::MissingSemiColon),
-            //     )?)
-            // },
         }?;
 
         // Return the expression matched by the fastpaths
@@ -361,7 +349,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             &TokenDiscriminants::SemiColon,
             ParserError::SyntaxError(SyntaxError::MissingSemiColon),
         )?;
-        dbg!(&expr_tkns);
+
         parse_expr(&mut expr_tkns)?
     };
 
@@ -703,7 +691,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             Token::Literal(val) => {
                 // Consume the tokens after that since this may be a math expression or anything like that.
                 parse_variable_expression(
-                    dbg!(tkns),
+                    tkns,
                     Spanned {
                         inner: StatementVariant::Value(val.clone()),
                         span: *tkn.get_span(),
@@ -826,13 +814,13 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             },
 
             _ => {
-                dbg!(&tkn);
-                todo!()
+                // If any other tokens are encountered just return an error.
+                return Err(ParserError::UnknownExpression.into());
             },
         };
 
         return Ok(value);
     }
 
-    Err(ParserError::UnknownValueExpression.into())
+    Err(ParserError::EOF.into())
 }

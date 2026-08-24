@@ -8,7 +8,7 @@ use crate::{
         CustomItem, FunctionArgumentIdentifier, If, Order, StructAttributes, StructDefinition,
     },
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
-    imports::ImportType,
+    imports::{FFIDeclType, ImportType},
     parser::{
         function::{
             CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
@@ -603,8 +603,11 @@ pub struct Context
     /// `NAME` contains the plain name of the item. Two different items cannot share the same name, thus the same `PATH`.
     pub items: PathMap<Vec<String>, String, CustomItem>,
 
+    /// Imports defined in the source code. These can be either source code imports or dependency imports.
     pub imports: HashMap<String, ImportType>,
-    pub ffi_declerations: HashMap<String, FunctionSignature>,
+
+    /// FFI declerations are raw ffi function definitions, which are valid when the right object files are linked with the project. (such as libc when linking with clang)
+    pub ffi_declerations: HashMap<String, FFIDeclType>,
 
     /// Path to the source file this context represents.
     pub path: Vec<String>,

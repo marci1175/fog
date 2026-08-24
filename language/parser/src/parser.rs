@@ -8,7 +8,7 @@ use common::{
     parser::{
         common::{Context, Stream, Streamable, child_iterator_until, parse_compiler_instruction},
         function::{CompilerInstruction, parse_function},
-        import::parse_import_statement,
+        import::{parse_external_decl, parse_import_statement},
         ty::{parse_enum, parse_struct},
     },
     tokenizer::{Token, TokenDiscriminants},
@@ -141,19 +141,34 @@ impl Settings
                         ParserError::SyntaxError(SyntaxError::MissingSemiColon),
                     )?;
 
-                    // Parse improt statement and append it to the list of imports stored
+                    // Parse import statement and append it to the list of imports stored
                     parse_import_statement(&mut import_tokens, &mut ctx.imports)?;
 
                     // Drop child buffer
                     drop(import_tokens);
 
-                    // Consume however many semicolons there are after the import
                     tokens.try_consume_match(
                         ParserError::ExpressionSemicolonMissing,
                         &TokenDiscriminants::SemiColon,
                     )?;
                 },
-                Token::External => {},
+                Token::External => {
+                    let mut external_decl_tokens = child_iterator_until(
+                        tokens,
+                        &TokenDiscriminants::SemiColon,
+                        ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+                    )?;
+
+                    // Parse ffi/external declerations.
+                    parse_external_decl(&mut external_decl_tokens, &mut ctx.ffi_declerations)?;
+
+                    drop(external_decl_tokens);
+
+                    tokens.try_consume_match(
+                        ParserError::ExpressionSemicolonMissing,
+                        &TokenDiscriminants::SemiColon,
+                    )?;
+                },
 
                 // If the token was not recognized, return an error.
                 _ => return Err(ParserError::ItemRequiresExplicitVisibility.into()),

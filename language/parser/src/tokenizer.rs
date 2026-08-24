@@ -192,30 +192,19 @@ fn parse_single_text(
             This branch is made to parse `a*f` or `foo==bar`.
         */
         else if try_match_token(&[text[idx]]).is_some() {
-            // Try to greedily consume the longest matching token
-            let mut match_end = idx + 1;
+            // The guard above confirms text[idx] alone is a valid 1-byte token,
+            // so this is always guaranteed to match at least length 1.
+            // match_longest_token finds the longest one instead (e.g. preferring
+            // "..." over ".").
+            let (matched, match_len) = match_longest_token(&text[idx..])
+                .expect("guarded above: text[idx] alone is always a valid 1-byte token");
 
-            while match_end < text.len() {
-                if try_match_token(&text[idx..=match_end]).is_some() {
-                    match_end += 1;
-                }
-                else {
-                    break;
-                }
-            }
+            token_list.push(Spanned::new(
+                matched,
+                create_span_info(line_number, span_offset, idx, idx + match_len),
+            ));
 
-            // Walk back to the last valid match
-            while match_end > idx {
-                if let Some(matched) = try_match_token(&text[idx..match_end]) {
-                    token_list.push(Spanned::new(
-                        matched,
-                        create_span_info(line_number, span_offset, idx, match_end),
-                    ));
-                    idx = match_end;
-                    break;
-                }
-                match_end -= 1;
-            }
+            idx += match_len;
         }
         else if text[idx] == b'"' {
             let mut string_buffer = Vec::new();
@@ -277,6 +266,18 @@ fn parse_single_text(
     }
 }
 
+/// Longest possible length (in bytes) of any multi-character symbolic token
+const MAX_SYMBOL_TOKEN_LEN: usize = 3;
+
+fn match_longest_token(bytes: &[u8]) -> Option<(Token, usize)>
+{
+    let max_len = bytes.len().min(MAX_SYMBOL_TOKEN_LEN);
+
+    (1..=max_len)
+        .rev()
+        .find_map(|len| try_match_token(&bytes[..len]).map(|tok| (tok, len)))
+}
+
 /// This assumes that the Span we are trying to create is in one line.
 fn create_span_info(line: usize, offset: usize, start: usize, end: usize) -> SpanInfo
 {
@@ -313,6 +314,7 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
 
         b"," => Token::Comma,
         b"." => Token::Dot,
+        b"..." => Token::Ellipsis,
         b":" => Token::Colon,
 
         b"int" => Token::TypeDefinition(TypeToken::I32),
@@ -392,8 +394,13 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"&" => Token::BitAnd,
         b"@" => Token::CompilerHintSymbol,
         b";" => Token::SemiColon,
+
         b"const" => Token::Const,
+        b"static" => Token::Static,
+
+        // Unused
         b"var" => Token::Variable,
+
         b"namespace" => Token::Namespace,
         _ => return None,
     })

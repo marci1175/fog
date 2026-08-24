@@ -142,7 +142,7 @@ impl CompilerState
         match parser_settings.parse(&mut tokens) {
             Ok(_ret) => {
                 dbg!(&_ret.functions.get_names());
-                dbg!(&_ret.imports);
+                dbg!(&_ret.ffi_declerations);
             },
             Err(error) => {
                 let spanned_err = tokens

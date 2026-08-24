@@ -1,6 +1,9 @@
+external function print(str: string, ...): int;
+external static int counter;
+
 import marci::asd::hello as marci;
 import "helper.f";
-import helper::functions::add as marci;
+import helper::functions::add;
 
 pub function main(): int {
     array<int, 4> numbers = {1, 2, 3, 4};

@@ -27,11 +27,14 @@ pub enum Token
 
     /// Used to flag variables as non-mutable: `const int marci = 0;`
     Const,
+    /// This is used when defining statics through ffi
+    Static,
 
     Variable,
 
     TypeDefinition(TypeToken),
 
+    /// ... - for ffi functions only
     Ellipsis,
     Return,
 
@@ -74,12 +77,19 @@ pub enum Token
     /// Othervise known as equals.
     SetValue,
 
+    /// &
     BitAnd,
+    /// |
     BitOr,
+    /// <<
     BitLeft,
+    /// >>
     BitRight,
 
+    /// For ffi decls
     External,
+
+    /// For dependency imports
     Import,
 
     Loop,
@@ -89,14 +99,20 @@ pub enum Token
     Continue,
     Break,
 
+    /// Implements keyword for implementing for items
     Implements,
+
     Trait,
+
+    /// This is used as the function receiver when implementing for items
     This,
 
+    /// Item vis pub, publib etc etc
     ItemVisibility(ItemVisibility),
 
     /// @
     CompilerHintSymbol,
+    /// The acutal keywords for the compiler
     CompilerInstruction(CompilerInstructionDiscriminants),
 
     /// Used to expose functions from a module into another one.
@@ -107,13 +123,12 @@ pub enum Token
     /// This can be used as a substitute in function definitions in place of the `:` indicating return type.
     Returns,
 
+    /// Used at "modules"
     Namespace,
-    Use,
 
+    /// Pointer management
     Reference,
     Dereference,
-
-    /* These tokens are syntax sugar */
     In,
 }
 
@@ -210,7 +225,7 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::Namespace => other == &TokenDiscriminants::Namespace,
             Token::Reference => other == &TokenDiscriminants::Reference,
             Token::Dereference => other == &TokenDiscriminants::Dereference,
-            Token::Use => other == &TokenDiscriminants::Use,
+            Token::Static => other == &TokenDiscriminants::Static,
             Token::In => other == &TokenDiscriminants::In,
         }
     }
@@ -327,12 +342,10 @@ pub enum TokenDiscriminants
     Returns,
 
     Namespace,
-    Use,
 
     Reference,
     Dereference,
-
-    /* These tokens are syntax sugar */
+    Static,
     In,
 }
 

@@ -483,15 +483,15 @@ pub fn parse_function(
 
                 // The next token should be a "(" due to the syntax.
                 tokens.try_consume_match(
-                    ParserError::InvalidSignatureDefinition,
+                    ParserError::InvalidFunctionSignatureDefinition,
                     &TokenDiscriminants::OpenParentheses,
                 )?;
 
                 // Parse the arguments of the function
-                arguments.arguments = parse_fn_sig_arguments(tokens)?;
+                parse_function_signature(tokens, &mut arguments)?;
             },
             // Parse arguments
-            Token::OpenParentheses => arguments.arguments = parse_fn_sig_arguments(tokens)?,
+            Token::OpenParentheses => parse_function_signature(tokens,&mut arguments)?,
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
@@ -637,17 +637,16 @@ pub fn parse_generics(
 
 /// The function assumes the first token to be the first token in the parentheses.
 /// Please note that the function does not evaluate anything it parses.
-pub fn parse_fn_sig_arguments(
-    tokens: &mut Stream<Spanned<Token>>,
-) -> anyhow::Result<OrdMap<String, (Type, UniqueId)>>
+pub fn parse_function_signature<S: Streamable<Spanned<Token>>>(
+    tokens: &mut S,
+    function_args: &mut FunctionArguments,
+) -> anyhow::Result<()>
 {
     /*
         Arguments are defined like so:
         "(" [{<arg_name> ":" <type>, }] ")"
         The function will be called after the first "(" therefor the function should start parsing from the first arguments name or the closing ")".
     */
-    // Create the map of arguments
-    let mut arguments: OrdMap<String, (Type, UniqueId)> = OrdMap::new();
 
     // Loop thorugh all the arguments
     'main_loop: while let Some(tkn) = tokens.consume() {
@@ -668,7 +667,7 @@ pub fn parse_fn_sig_arguments(
                     let arg_ty = create_ty_token(ty)?;
 
                     // Store the argument
-                    let insertion_result = arguments.insert(
+                    let insertion_result = function_args.arguments.insert(
                         arg_name.clone(),
                         (arg_ty, VARIABLE_ID_SOURCE.get_unique_id()),
                     );
@@ -693,12 +692,45 @@ pub fn parse_fn_sig_arguments(
                 // If we didnt break continue or return an error that means that there werent any more tokens left in the stream therefor we can do an EOF.
                 return Err(ParserError::EOF.into());
             },
+            // The receiver doesnt have to be the first argument in the function.
+            Token::This => {
+                function_args.receiver_referenced = true;
+
+                // If the receiver is present, indicate that in the FunctionSignature instance
+                // The next token should be a comma
+                // Check the next token
+                // If it is a "," that means that there are more arguments or the user just left it in.
+                // If it s a ")" that shows that the all the function arguments have been parsed
+                if let Some(tkn) = tokens.consume() {
+                    match tkn.get_inner() {
+                        Token::Comma => continue 'main_loop,
+                        Token::CloseParentheses => break 'main_loop,
+                        _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
+                    }
+                }
+                // If we didnt break continue or return an error that means that there werent any more tokens left in the stream therefor we can do an EOF.
+                return Err(ParserError::EOF.into());
+            },
+            // The usage of ellpsises would only be valid in a FFI declaration
+            Token::Ellipsis => {
+                function_args.ellipsis_present = true;
+
+                // The ellipsis does have to be the last argument present unlike all the other
+                if let Some(tkn) = tokens.consume() {
+                    match tkn.get_inner() {
+                        Token::CloseParentheses => break 'main_loop,
+                        _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
+                    }
+                }
+                // If we didnt break continue or return an error that means that there werent any more tokens left in the stream therefor we can do an EOF.
+                return Err(ParserError::EOF.into());
+            }
             Token::CloseParentheses => break 'main_loop,
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
-
-    Ok(arguments)
+    
+    Ok(())
 }
 
 /// This function will parse the tokens in the body of the function, but it will not check the validness of the tokens themselves.
@@ -725,11 +757,10 @@ pub fn parse_fn_body(
         let stmt = parse_statement(&mut fn_body)?;
 
         // Consume however many semicolons there are after the expression
-        fn_body
-            .try_consume_match(
-                ParserError::ExpressionSemicolonMissing,
-                &TokenDiscriminants::SemiColon,
-            )?;
+        fn_body.try_consume_match(
+            ParserError::ExpressionSemicolonMissing,
+            &TokenDiscriminants::SemiColon,
+        )?;
 
         parsed_tokens.push(stmt);
     }
