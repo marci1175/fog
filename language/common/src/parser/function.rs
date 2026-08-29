@@ -491,7 +491,7 @@ pub fn parse_function(
                 parse_function_signature(tokens, &mut arguments)?;
             },
             // Parse arguments
-            Token::OpenParentheses => parse_function_signature(tokens,&mut arguments)?,
+            Token::OpenParentheses => parse_function_signature(tokens, &mut arguments)?,
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
@@ -724,12 +724,12 @@ pub fn parse_function_signature<S: Streamable<Spanned<Token>>>(
                 }
                 // If we didnt break continue or return an error that means that there werent any more tokens left in the stream therefor we can do an EOF.
                 return Err(ParserError::EOF.into());
-            }
+            },
             Token::CloseParentheses => break 'main_loop,
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
-    
+
     Ok(())
 }
 

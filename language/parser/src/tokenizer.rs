@@ -388,8 +388,8 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"<-" => Token::LeftArrow,
         b"->" => Token::RightArrow,
         b"=" => Token::SetValue,
-        b">>" => Token::BitRight,
-        b"<<" => Token::BitLeft,
+        b"b>>" => Token::BitRight,
+        b"b<<" => Token::BitLeft,
         b"|" => Token::BitOr,
         b"&" => Token::BitAnd,
         b"@" => Token::CompilerHintSymbol,
@@ -398,7 +398,6 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"const" => Token::Const,
         b"static" => Token::Static,
 
-        // Unused
         b"var" => Token::Variable,
 
         b"namespace" => Token::Namespace,

@@ -55,7 +55,7 @@ pub enum SyntaxError
     OpenQuotes,
     #[error("The code contains a missing `;`.")]
     MissingSemiColon,
-    #[error("Variables must be defined like so: `(const) <ty> <name> = <value>;`")]
+    #[error("Variables must be defined like so: `const|var <ty> <name> = <value>;`")]
     InvalidVariableDefinition,
     #[error("The code contains an invalid function definition.")]
     InvalidFunctionDefinition,

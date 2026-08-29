@@ -68,7 +68,7 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
                 path_chain.push(ident.clone());
 
                 // Create a loop which stores all the remaining identifiers but stops either at the end of the stream or at the `as` keyword
-                while tkns.peek_next() != None
+                while tkns.peek_next().is_some()
                     && !matches!(
                         tkns.peek_next(),
                         Some(Spanned {
@@ -192,7 +192,7 @@ pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             )?;
 
             let mut args = FunctionArguments::new();
-            dbg!(&tkns);
+
             // This function consumes the token until the closing parentheses
             parse_function_signature(tkns, &mut args)?;
 

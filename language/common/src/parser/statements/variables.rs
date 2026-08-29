@@ -20,21 +20,13 @@ pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         .map(|tkn| tkn.get_span())
         .ok_or(ParserError::EOF)?;
 
-    // If the first token is a const token then that means that this variable is a constant and cannot be modified later.
-    let is_constant = matches!(
-        tkns.peek_next(),
-        Some(&Spanned {
-            inner: Token::Const,
-            span: _
-        })
-    );
+    // First token of the variable declaration tells you whether its mutable or immutable
+    let is_constant = match tkns.consume().map(|peek| peek.get_inner()) {
+        Some(&Token::Const) => true,
+        Some(&Token::Variable) => false,
+        _ => unreachable!("Expression matching failed for variable declaration.")
+    };
 
-    // If the variable is a constant we should consume the constant token
-    if is_constant {
-        tkns.consume();
-    }
-
-    // The first token should be a type of some sorts
     let variable_type = parse_type(tkns)?;
 
     // Fetch the variable's name

@@ -132,116 +132,17 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
     //
     (
         &[
-            // <ty> <name> "=" <val>
+
+            // "const" <ty> <name> "=" <val> 
+            // These are immutable
             &[
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
+                TokenDiscriminants::Const
             ],
-            // <ident (for custom types)> <name> "=" <val>
+            // These are mutable
+            // "const" <ty> <name> "=" <val> 
             &[
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // "const" <ty> <name> "=" <val>
-            &[
-                TokenDiscriminants::Const,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // "const" <ident (for custom types)> <name> "=" <val>
-            &[
-                TokenDiscriminants::Const,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // const "ptr<" <ty> ">" <name> "=" <val>
-            &[
-                TokenDiscriminants::Const,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::OpenAngledBrackets,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::CloseAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // "ptr<" <ty> ">" <name> "=" <val>
-            &[
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::OpenAngledBrackets,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::CloseAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // const "ptr<" <ident> ">" <name> "=" <val>
-            &[
-                TokenDiscriminants::Const,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::OpenAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::CloseAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // "ptr<" <ident> ">" <name> "=" <val>
-            &[
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::OpenAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::CloseAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // "array" "<" <ty> "," <literal> ">" <ident> "=" <val>
-            &[
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::OpenAngledBrackets,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::Comma,
-                TokenDiscriminants::UnparsedLiteral,
-                TokenDiscriminants::CloseAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // "const" "array" "<" <ty> "," <literal> ">" <ident> "=" <val>
-            &[
-                TokenDiscriminants::Const,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::OpenAngledBrackets,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::Comma,
-                TokenDiscriminants::UnparsedLiteral,
-                TokenDiscriminants::CloseAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // "array" "<" <ident> "," <literal> ">" <ident> "=" <val>
-            &[
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::OpenAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::Comma,
-                TokenDiscriminants::UnparsedLiteral,
-                TokenDiscriminants::CloseAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
-            // "const" "array" "<" <ident> "," <literal> ">" <ident> "=" <val>
-            &[
-                TokenDiscriminants::Const,
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::OpenAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::Comma,
-                TokenDiscriminants::UnparsedLiteral,
-                TokenDiscriminants::CloseAngledBrackets,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SetValue,
-            ],
+                TokenDiscriminants::Variable
+            ]
         ],
         Ok(Expr::VariableDeclaration),
     ),
