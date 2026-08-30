@@ -3,7 +3,7 @@ use crate::{
     parser::{
         common::{StatementVariant, Streamable},
         dbg::combine_span_info,
-        statement::parse_expr,
+        statement::{Expr, parse_expr},
         ty::parse_type,
         variable::VARIABLE_ID_SOURCE,
     },
@@ -11,6 +11,7 @@ use crate::{
 };
 
 pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    expr: Expr,
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
@@ -24,7 +25,7 @@ pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     let is_constant = match tkns.consume().map(|peek| peek.get_inner()) {
         Some(&Token::Const) => true,
         Some(&Token::Variable) => false,
-        _ => unreachable!("Expression matching failed for variable declaration.")
+        _ => unreachable!("Expression matching failed for variable declaration."),
     };
 
     let variable_type = parse_type(tkns)?;

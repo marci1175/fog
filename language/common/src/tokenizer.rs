@@ -1,10 +1,8 @@
 use crate::{
-    error::{Spanned, parser::ParserError},
-    parser::{
+    codegen::Order, error::{Spanned, parser::ParserError}, parser::{
         common::ItemVisibility, function::CompilerInstructionDiscriminants,
         numeric_value::MathematicalSymbol,
-    },
-    ty::{Type, Value},
+    }, ty::{Type, Value},
 };
 use strum::EnumTryAs;
 
@@ -52,12 +50,7 @@ pub enum Token
     Else,
     ElseIf,
 
-    Equal,
-    NotEqual,
-    Bigger,
-    EqBigger,
-    Smaller,
-    EqSmaller,
+    Comparison(Order),
 
     OpenParentheses,
     CloseParentheses,
@@ -183,12 +176,7 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::If => other == &TokenDiscriminants::If,
             Token::Else => other == &TokenDiscriminants::Else,
             Token::ElseIf => other == &TokenDiscriminants::ElseIf,
-            Token::Equal => other == &TokenDiscriminants::Equal,
-            Token::NotEqual => other == &TokenDiscriminants::NotEqual,
-            Token::Bigger => other == &TokenDiscriminants::Bigger,
-            Token::EqBigger => other == &TokenDiscriminants::EqBigger,
-            Token::Smaller => other == &TokenDiscriminants::Smaller,
-            Token::EqSmaller => other == &TokenDiscriminants::EqSmaller,
+            Token::Comparison(_) => other == &TokenDiscriminants::Comparison,
             Token::OpenParentheses => other == &TokenDiscriminants::OpenParentheses,
             Token::CloseParentheses => other == &TokenDiscriminants::CloseParentheses,
             Token::OpenBraces => other == &TokenDiscriminants::OpenBraces,
@@ -283,12 +271,7 @@ pub enum TokenDiscriminants
     Else,
     ElseIf,
 
-    Equal,
-    NotEqual,
-    Bigger,
-    EqBigger,
-    Smaller,
-    EqSmaller,
+    Comparison,
 
     OpenParentheses,
     CloseParentheses,
@@ -406,4 +389,14 @@ impl TryInto<Type> for TypeToken
             },
         })
     }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumTryAs)]
+pub enum Comparison {
+    Equal,
+    NotEqual,
+    Bigger,
+    EqBigger,
+    Smaller,
+    EqSmaller,
 }

@@ -140,6 +140,29 @@ impl Deref for Imports
     }
 }
 
+/// The representation of an if statement. When else if statements are chained they go into the false branch.
+/// Example:
+/// ```fog
+/// if (a) {
+///     # a stuff
+/// }
+/// else if (b) {
+///     # b stuff
+/// }
+/// else {
+///     # else stuff
+/// }
+/// ```
+/// Is interpreted as:
+/// ```
+/// If {
+///     true: # a stuff
+///     false: If {
+///         true: # b stuff
+///         false: # else stuff
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct If
 {
@@ -149,7 +172,7 @@ pub struct If
     pub false_branch: Vec<Spanned<StatementVariant>>,
 }
 
-#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, Display, PartialEq, Eq, Hash)]
 pub enum Order
 {
     Equal,
@@ -162,26 +185,6 @@ pub enum Order
 
 impl Order
 {
-    pub fn from_token(token: &Token) -> anyhow::Result<Self>
-    {
-        match token {
-            Token::Equal => Ok(Self::Equal),
-            Token::NotEqual => Ok(Self::NotEqual),
-            Token::Bigger => Ok(Self::Bigger),
-            Token::EqBigger => Ok(Self::EqBigger),
-            Token::Smaller => Ok(Self::Smaller),
-            Token::EqSmaller => Ok(Self::EqSmaller),
-
-            _ => {
-                Err(
-                    ParserError::SyntaxError(SyntaxError::InvalidTokenComparisonUsage(
-                        token.clone(),
-                    ))
-                    .into(),
-                )
-            },
-        }
-    }
     pub fn into_int_predicate(&self, signed: bool) -> IntPredicate
     {
         if signed {

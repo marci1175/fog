@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::{
     error::syntax::SyntaxError,
-    parser::{common::StatementVariant, variable::VariableReference},
+    parser::{common::StatementVariant, statement::Expr, variable::VariableReference},
     tokenizer::Token,
     ty::Type,
 };
@@ -11,6 +11,10 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error(
+        "[INTERNAL ERROR] The parser's predefined fastpath for this expression (`{0:?}`) mistmaches the actual definition requirement of the expression."
+    )]
+    InternalFastpathMatchingError(Expr),
     #[error("An item's name must be defined here.")]
     ItemNameExpected,
     #[error("Only functions and statics can be declared as a FFI item.")]

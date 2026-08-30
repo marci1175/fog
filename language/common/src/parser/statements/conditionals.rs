@@ -1,26 +1,36 @@
 use crate::{
-    error::Spanned,
-    parser::common::{StatementVariant, Streamable},
-    tokenizer::Token,
+    error::{Spanned, parser::ParserError, syntax::SyntaxError},
+    parser::{
+        common::{StatementVariant, Streamable, find_closing_paren},
+        statement::Expr,
+    },
+    tokenizer::{Token, TokenDiscriminants},
 };
 
-pub fn conditional_if<S: Streamable<Spanned<Token>>>(
-    _tkns: &mut S,
+pub fn conditional_branch<S: Streamable<Spanned<Token>>>(
+    expr: Expr,
+    tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    Ok(todo!())
-}
+    // The first token must be an `if` token
+    tkns.try_consume_match(
+        ParserError::InternalFastpathMatchingError(expr),
+        &TokenDiscriminants::If,
+    )?;
 
-pub fn conditional_elseif<S: Streamable<Spanned<Token>>>(
-    _tkns: &mut S,
-) -> anyhow::Result<Spanned<StatementVariant>>
-{
-    Ok(todo!())
-}
+    // The condition needs to be created with an open parentheses
+    tkns.try_consume_match(
+        ParserError::InternalFastpathMatchingError(expr),
+        &TokenDiscriminants::OpenParentheses,
+    )?;
 
-pub fn conditional_else<S: Streamable<Spanned<Token>>>(
-    _tkns: &mut S,
-) -> anyhow::Result<Spanned<StatementVariant>>
-{
+    // Extract the tokens until the closing parentheses
+    let condition_tokens = tkns
+        .child_iterator_bulk(
+            find_closing_paren(tkns)
+                .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?,
+        )
+        .ok_or(ParserError::EOF)?;
+
     Ok(todo!())
 }

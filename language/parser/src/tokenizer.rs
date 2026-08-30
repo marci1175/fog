@@ -339,7 +339,13 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"ref" => Token::Reference,
         b"deref" => Token::Dereference,
 
-        b"==" => Token::Equal,
+        b"==" => Token::Comparison(common::codegen::Order::Equal),
+        b"!=" => Token::Comparison(common::codegen::Order::NotEqual),
+        b">=" => Token::Comparison(common::codegen::Order::EqBigger),
+        b"<=" => Token::Comparison(common::codegen::Order::EqSmaller),
+        // b">" => Token::Comparison(common::codegen::Order::Bigger),
+        // b"<" => Token::Comparison(common::codegen::Order::Smaller),
+
         b"&&" => Token::And,
         b"||" => Token::Or,
 

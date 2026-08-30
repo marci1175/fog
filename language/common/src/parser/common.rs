@@ -542,12 +542,11 @@ pub enum StatementVariant
         value: Box<Spanned<StatementVariant>>,
     },
 
-    Comparison(
-        Box<Spanned<StatementVariant>>,
-        Order,
-        Box<Spanned<StatementVariant>>,
-        Type,
-    ),
+    Comparison{
+        lhs: Box<Spanned<StatementVariant>>,
+        ord: Order,
+        rhs: Box<Spanned<StatementVariant>>,
+    },
 
     If(If),
 

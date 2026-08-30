@@ -8,7 +8,7 @@ use crate::{
         dbg::combine_span_info,
         numeric_value::{MathematicalSymbol, parse_numeric_value},
         statements::{
-            conditionals::{conditional_else, conditional_elseif, conditional_if},
+            conditionals::conditional_branch,
             loops::{loop_for, loop_while},
             variables::var_decl,
         },
@@ -20,10 +20,17 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub enum Expr
 {
+    /// Variable declarations, all variables must be created by declaring whether they are constant (`const`) or mutable (`var`)
     VariableDeclaration,
-    If,
-    Else,
-    Elseif,
+    Conditional,
+
+    // The reason why these are not separate is because when parsing the If statement, we also parse the else if and else chains too.
+    // There is simply no reason to parse these separately
+    // I just wanted to explicitly comment these out for future reference.
+    // Elseif,
+    // Else,
+
+    // These two loops are structurally different thus, these are interpreted as two different things.
     While,
     For,
 }
@@ -132,17 +139,12 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
     //
     (
         &[
-
-            // "const" <ty> <name> "=" <val> 
+            // "const" <ty> <name> "=" <val>
             // These are immutable
-            &[
-                TokenDiscriminants::Const
-            ],
+            &[TokenDiscriminants::Const],
             // These are mutable
-            // "const" <ty> <name> "=" <val> 
-            &[
-                TokenDiscriminants::Variable
-            ]
+            // "const" <ty> <name> "=" <val>
+            &[TokenDiscriminants::Variable]
         ],
         Ok(Expr::VariableDeclaration),
     ),
@@ -168,19 +170,20 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
     ),
     (
         &[&[TokenDiscriminants::If, TokenDiscriminants::OpenParentheses]],
-        Ok(Expr::If),
+        Ok(Expr::Conditional),
     ),
-    (
-        &[&[
-            TokenDiscriminants::ElseIf,
-            TokenDiscriminants::OpenParentheses,
-        ]],
-        Ok(Expr::Elseif),
-    ),
-    (
-        &[&[TokenDiscriminants::Else, TokenDiscriminants::OpenBraces]],
-        Ok(Expr::Else),
-    ),
+    // Every else if and else chain is interpreted after the original if expression. They do not need to be parsed separately.
+    // (
+    //     &[&[
+    //         TokenDiscriminants::ElseIf,
+    //         TokenDiscriminants::OpenParentheses,
+    //     ]],
+    //     Ok(Expr::Elseif),
+    // ),
+    // (
+    //     &[&[TokenDiscriminants::Else, TokenDiscriminants::OpenBraces]],
+    //     Ok(Expr::Else),
+    // ),
     (
         &[&[
             TokenDiscriminants::For,
@@ -223,15 +226,13 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         // These are complete statements that do not create a new value. These statements introduce loop and logic to the language, but these do not create new values.
         let stmt = match expr {
             // These are complete expressions, these do not need the ';' terminator.
-            Expr::If => conditional_if(tkns),
-            Expr::Elseif => conditional_elseif(tkns),
-            Expr::Else => conditional_else(tkns),
-            Expr::While => loop_while(tkns),
-            Expr::For => loop_for(tkns),
+            Expr::Conditional => conditional_branch(expr, tkns),
+            Expr::While => loop_while(expr, tkns),
+            Expr::For => loop_for(expr, tkns),
 
             // These expression should end at the `;` terminator since they are set size expressions.
             Expr::VariableDeclaration => {
-                var_decl(&mut child_iterator_until(
+                var_decl(expr, &mut child_iterator_until(
                     tkns,
                     &TokenDiscriminants::SemiColon,
                     ParserError::SyntaxError(SyntaxError::MissingSemiColon),
@@ -550,6 +551,23 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                         }
                     },
 
+                    Token::Comparison(_) | Token::OpenAngledBrackets | Token::CloseAngledBrackets => {
+                        let ord = match tkn.get_inner() {
+                            Token::Comparison(ord) => *ord,
+                            Token::OpenAngledBrackets => crate::codegen::Order::Bigger,
+                            Token::CloseAngledBrackets => crate::codegen::Order::Smaller,
+                            _ => unreachable!()
+                        };
+
+                        // Rhs of the comparsion
+                        let rhs = parse_expr(tkns)?;
+                        
+                        // Create a span for the comparison
+                        let span = combine_span_info(&[*stmt.get_span(), *rhs.get_span()], true);
+                        
+                        Spanned { inner: StatementVariant::Comparison { lhs: Box::new(stmt), ord: ord, rhs: Box::new(rhs) }, span }
+                    }
+
                     _ => {
                         return Err(ParserError::SyntaxError(
                             SyntaxError::InvalidVariableExpression(tkn.get_inner().clone()),
@@ -661,11 +679,16 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                     &TokenDiscriminants::CloseBraces,
                 )?;
 
+                let span = combine_span_info(&[*tkn.get_span(), *closing_brace.get_span()], true);
+
                 // Return the array init
-                Spanned {
-                    inner: StatementVariant::ArrayInitialization { values },
-                    span: combine_span_info(&[*tkn.get_span(), *closing_brace.get_span()], true),
-                }
+                parse_variable_expression(
+                    tkns,
+                    Spanned {
+                        inner: StatementVariant::ArrayInitialization { values },
+                        span,
+                    },
+                )?
             },
 
             // Used to parse grouped expressions
@@ -708,10 +731,13 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 let span =
                     combine_span_info(&[*tkn.get_span(), *complete_expression.get_span()], true);
 
-                Spanned {
-                    inner: complete_expression.inner_owned(),
-                    span,
-                }
+                parse_variable_expression(
+                    tkns,
+                    Spanned {
+                        inner: complete_expression.inner_owned(),
+                        span,
+                    },
+                )?
             },
 
             _ => {
