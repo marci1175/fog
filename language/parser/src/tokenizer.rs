@@ -1,9 +1,5 @@
 use common::{
-    anyhow,
-    error::{CharPosition, SpanInfo, Spanned},
-    parser::function::CompilerInstructionDiscriminants,
-    tokenizer::{Token, TypeToken},
-    ty::Value,
+    anyhow, codegen::LogicalOperator, error::{CharPosition, SpanInfo, Spanned}, parser::function::CompilerInstructionDiscriminants, tokenizer::{Token, TypeToken}, ty::Value,
 };
 use std::u8;
 
@@ -346,8 +342,9 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         // b">" => Token::Comparison(common::codegen::Order::Bigger),
         // b"<" => Token::Comparison(common::codegen::Order::Smaller),
 
-        b"&&" => Token::And,
-        b"||" => Token::Or,
+        b"&&" => Token::LogicalOperator(LogicalOperator::And),
+        b"||" => Token::LogicalOperator(LogicalOperator::Or),
+        b"x||" => Token::LogicalOperator(LogicalOperator::Xor),
 
         b"=+" => {
             Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Addition)

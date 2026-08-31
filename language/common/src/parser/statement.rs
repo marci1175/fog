@@ -551,22 +551,53 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                         }
                     },
 
-                    Token::Comparison(_) | Token::OpenAngledBrackets | Token::CloseAngledBrackets => {
+                    Token::LogicalOperator(log_op) => {
+                        let lhs = stmt;
+                        let rhs = parse_expr(tkns)?;
+
+                        let span = combine_span_info(&[*lhs.get_span(), *rhs.get_span()], true);
+
+                        parse_variable_expression(
+                            tkns,
+                            Spanned {
+                                inner: StatementVariant::LogicalOperation {
+                                    lhs: Box::new(lhs),
+                                    op: *log_op,
+                                    rhs: Box::new(rhs),
+                                },
+                                span,
+                            },
+                        )?
+                    },
+
+                    Token::Comparison(_)
+                    | Token::OpenAngledBrackets
+                    | Token::CloseAngledBrackets => {
                         let ord = match tkn.get_inner() {
                             Token::Comparison(ord) => *ord,
                             Token::OpenAngledBrackets => crate::codegen::Order::Bigger,
                             Token::CloseAngledBrackets => crate::codegen::Order::Smaller,
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         };
 
                         // Rhs of the comparsion
                         let rhs = parse_expr(tkns)?;
-                        
+
                         // Create a span for the comparison
                         let span = combine_span_info(&[*stmt.get_span(), *rhs.get_span()], true);
-                        
-                        Spanned { inner: StatementVariant::Comparison { lhs: Box::new(stmt), ord: ord, rhs: Box::new(rhs) }, span }
-                    }
+
+                        parse_variable_expression(
+                            tkns,
+                            Spanned {
+                                inner: StatementVariant::Comparison {
+                                    lhs: Box::new(stmt),
+                                    ord: ord,
+                                    rhs: Box::new(rhs),
+                                },
+                                span,
+                            },
+                        )?
+                    },
 
                     _ => {
                         return Err(ParserError::SyntaxError(

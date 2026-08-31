@@ -1,5 +1,5 @@
 use crate::{
-    codegen::Order, error::{Spanned, parser::ParserError}, parser::{
+    codegen::{LogicalOperator, Order}, error::{Spanned, parser::ParserError}, parser::{
         common::ItemVisibility, function::CompilerInstructionDiscriminants,
         numeric_value::MathematicalSymbol,
     }, ty::{Type, Value},
@@ -42,8 +42,9 @@ pub enum Token
     /// This is for expressions directly modifying a variable: ```<val> <math expr>= <val>```
     SetValueMathSym(MathematicalSymbol),
 
-    And,
-    Or,
+    /// XOR, Or, AND can only be asserted between boolean values.
+    LogicalOperator(LogicalOperator),
+
     Not,
 
     If,
@@ -170,8 +171,7 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::Variable => other == &TokenDiscriminants::Variable,
             Token::Ellipsis => other == &TokenDiscriminants::Ellipsis,
             Token::Return => other == &TokenDiscriminants::Return,
-            Token::And => other == &TokenDiscriminants::And,
-            Token::Or => other == &TokenDiscriminants::Or,
+            Token::LogicalOperator(_) => other == &TokenDiscriminants::LogicalOperator,
             Token::Not => other == &TokenDiscriminants::Not,
             Token::If => other == &TokenDiscriminants::If,
             Token::Else => other == &TokenDiscriminants::Else,
@@ -263,8 +263,7 @@ pub enum TokenDiscriminants
     SetValueMathSymModulo,
     SetValueMathSymPower,
 
-    And,
-    Or,
+    LogicalOperator,
     Not,
 
     If,
@@ -392,7 +391,8 @@ impl TryInto<Type> for TypeToken
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumTryAs)]
-pub enum Comparison {
+pub enum Comparison
+{
     Equal,
     NotEqual,
     Bigger,

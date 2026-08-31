@@ -183,6 +183,13 @@ pub enum Order
     EqSmaller,
 }
 
+#[derive(Debug, Copy, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
+pub enum LogicalOperator {
+    And,
+    Xor,
+    Or
+}
+
 impl Order
 {
     pub fn into_int_predicate(&self, signed: bool) -> IntPredicate

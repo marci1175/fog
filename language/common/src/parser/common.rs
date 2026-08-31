@@ -5,20 +5,15 @@ use strum_macros::Display;
 
 use crate::{
     codegen::{
-        CustomItem, FunctionArgumentIdentifier, If, Order, StructAttributes, StructDefinition,
-    },
-    error::{Spanned, parser::ParserError, syntax::SyntaxError},
-    imports::{FFIDeclType, ImportType},
-    parser::{
+        CustomItem, FunctionArgumentIdentifier, If, LogicalOperator, Order, StructAttributes, StructDefinition,
+    }, error::{Spanned, parser::ParserError, syntax::SyntaxError}, imports::{FFIDeclType, ImportType}, parser::{
         function::{
             CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
             FunctionDefinition, FunctionSignature, PathMap,
         },
         numeric_value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId},
-    },
-    tokenizer::{Token, TokenDiscriminants},
-    ty::{OrdMap, OrdSet, Type, Value},
+    }, tokenizer::{Token, TokenDiscriminants}, ty::{OrdMap, OrdSet, Type, Value},
 };
 
 /// Helper trait for types lookingto implement a buffer-like stream.
@@ -542,9 +537,17 @@ pub enum StatementVariant
         value: Box<Spanned<StatementVariant>>,
     },
 
-    Comparison{
+    Comparison
+    {
         lhs: Box<Spanned<StatementVariant>>,
         ord: Order,
+        rhs: Box<Spanned<StatementVariant>>,
+    },
+
+    /// Both lhs and rhs must resolve to a boolean value
+    LogicalOperation {
+        lhs: Box<Spanned<StatementVariant>>,
+        op: LogicalOperator,
         rhs: Box<Spanned<StatementVariant>>,
     },
 
