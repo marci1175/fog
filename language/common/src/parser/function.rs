@@ -512,7 +512,7 @@ pub fn parse_function(
     )?;
 
     // Fetch the function body and increment the tokenstream accordingly.
-    let fn_body = parse_fn_body(tokens)?;
+    let fn_body = parse_body(tokens)?;
 
     // This should never return an error since we are already checking the closing brace when fetching the fn body.
     tokens.try_consume_match(
@@ -736,8 +736,8 @@ pub fn parse_function_signature<S: Streamable<Spanned<Token>>>(
 /// This function will parse the tokens in the body of the function, but it will not check the validness of the tokens themselves.
 ///
 /// The function parses the tokens but does not evaluate them.
-pub fn parse_fn_body(
-    tokens: &mut Stream<Spanned<Token>>,
+pub fn parse_body<S: Streamable<Spanned<Token>>>(
+    tokens: &mut S,
 ) -> anyhow::Result<Vec<Spanned<StatementVariant>>>
 {
     // Get the index of the closing brace token

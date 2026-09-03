@@ -95,8 +95,10 @@ pub enum SyntaxError
     InvalidStructExtensionPlacement,
     #[error("Token `{0}` cannot be used to comapre values.")]
     InvalidTokenComparisonUsage(Token),
-    #[error(r#"The condition should be surrounded by parentheses. ie: `if (x > 3) {{}}`"#)]
-    InvalidIfConditionDefinition,
+    #[error(
+        r#"Conditional expressions (if statements) require a body. Example: ```if (x > 2) {{}}```"#
+    )]
+    ConditionalExpressionRequiresBody,
     #[error("Loop bodies are defined via brackets surrounding the code we would like to repeat.")]
     InvalidLoopBody,
     #[error("A function signature must have their return type defined.")]

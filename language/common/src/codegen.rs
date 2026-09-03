@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    error::{Spanned, codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
+    error::{SpanInfo, Spanned, codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{ItemVisibility, StatementVariant},
         function::{
@@ -168,8 +168,15 @@ pub struct If
 {
     pub condition: Box<Spanned<StatementVariant>>,
 
-    pub true_branch: Vec<Spanned<StatementVariant>>,
-    pub false_branch: Vec<Spanned<StatementVariant>>,
+    pub true_branch: Branch,
+    pub false_branch: Option<Branch>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Branch
+{
+    pub body: Vec<Spanned<StatementVariant>>,
+    pub span: SpanInfo,
 }
 
 #[derive(Debug, Copy, Clone, Display, PartialEq, Eq, Hash)]
@@ -184,10 +191,11 @@ pub enum Order
 }
 
 #[derive(Debug, Copy, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
-pub enum LogicalOperator {
+pub enum LogicalOperator
+{
     And,
     Xor,
-    Or
+    Or,
 }
 
 impl Order

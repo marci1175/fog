@@ -8,7 +8,7 @@ use crate::{
         dbg::combine_span_info,
         numeric_value::{MathematicalSymbol, parse_numeric_value},
         statements::{
-            conditionals::conditional_branch,
+            conditionals::conditional_expr,
             loops::{loop_for, loop_while},
             variables::var_decl,
         },
@@ -226,7 +226,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         // These are complete statements that do not create a new value. These statements introduce loop and logic to the language, but these do not create new values.
         let stmt = match expr {
             // These are complete expressions, these do not need the ';' terminator.
-            Expr::Conditional => conditional_branch(expr, tkns),
+            Expr::Conditional => conditional_expr(expr, tkns),
             Expr::While => loop_while(expr, tkns),
             Expr::For => loop_for(expr, tkns),
 

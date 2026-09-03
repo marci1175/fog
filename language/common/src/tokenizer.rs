@@ -1,8 +1,11 @@
 use crate::{
-    codegen::{LogicalOperator, Order}, error::{Spanned, parser::ParserError}, parser::{
+    codegen::{LogicalOperator, Order},
+    error::{Spanned, parser::ParserError},
+    parser::{
         common::ItemVisibility, function::CompilerInstructionDiscriminants,
         numeric_value::MathematicalSymbol,
-    }, ty::{Type, Value},
+    },
+    ty::{Type, Value},
 };
 use strum::EnumTryAs;
 
