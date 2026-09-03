@@ -232,11 +232,19 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 
             // These expression should end at the `;` terminator since they are set size expressions.
             Expr::VariableDeclaration => {
-                var_decl(expr, &mut child_iterator_until(
+                let return_val = var_decl(expr, &mut child_iterator_until(
                     tkns,
                     &TokenDiscriminants::SemiColon,
                     ParserError::SyntaxError(SyntaxError::MissingSemiColon),
-                )?)
+                )?);
+
+                // Consume semicolon after variable declaration
+                tkns.try_consume_match(
+                    ParserError::ExpressionSemicolonMissing,
+                    &TokenDiscriminants::SemiColon,
+                )?;
+
+                return_val
             },
         }?;
 
@@ -252,7 +260,18 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             ParserError::SyntaxError(SyntaxError::MissingSemiColon),
         )?;
 
-        parse_expr(&mut expr_tkns)?
+        let return_val = parse_expr(&mut expr_tkns)?;
+
+        // Drop child buffer
+        drop(expr_tkns);
+
+        // Consume semicolon after expression
+        tkns.try_consume_match(
+            ParserError::ExpressionSemicolonMissing,
+            &TokenDiscriminants::SemiColon,
+        )?;
+
+        return_val
     };
 
     Ok(value)

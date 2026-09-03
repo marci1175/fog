@@ -10,7 +10,7 @@ use crate::{
     tokenizer::{Token, TokenDiscriminants},
 };
 
-pub fn conditional_expr<S: Streamable<Spanned<Token>>>(
+pub fn conditional_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     expr: Expr,
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
@@ -27,6 +27,7 @@ pub fn conditional_expr<S: Streamable<Spanned<Token>>>(
     // This if instance can be modified later on by else if chains
     let mut if_instance = If {
         condition,
+        // This will contain the original, first body of code which will get ran if the if's condition returns true
         true_branch: if_branch,
         false_branch: None,
     };
@@ -49,22 +50,10 @@ pub fn conditional_expr<S: Streamable<Spanned<Token>>>(
 
         let false_branch_snapshot = std::mem::take(current_false_branch);
 
-        // Realisitcally the only time the instance's false branch is used a list of statements is when there are no else if chains.
-        // Otherwise this instance's false branch will consist of one if statement
-        // This moves the current "else" (false) branch into a nested if.
-        // The chained else if will be completed if it matches and all the other conditions before this fail.
-        
-        // Not exactly sure what to do abt this one
-        let branch_span = combine_span_info(
-                    &[
-                        chained_branch.span,
-                        current_false_branch.as_ref()
-                            .map(|branch| branch.span)
-                            .unwrap_or(if_branch.span),
-                    ],
-                    true,
-                );
+        let branch_span = chained_branch.span;
 
+        // Insert a nested if and move the current false branch into the nested if's false branch.
+        // Realistically we will never really need this to be stored since we are parsing the else at the last place which is the only thing that can overwrite the actual false branch at the very end.
         *current_false_branch = Some(Branch {
             body: vec![Spanned {
                 inner: StatementVariant::If(If {
@@ -72,14 +61,19 @@ pub fn conditional_expr<S: Streamable<Spanned<Token>>>(
                     true_branch: chained_branch,
                     false_branch: false_branch_snapshot,
                 }),
+
+                // The actal false branch is not included in this span (correctly) because this if statement is chained into the false branch
                 span: branch_span,
             }],
+            // Same thing here
             span: branch_span,
         });
 
-        // Move the current false branch's mutable reference to the recently inserted nested if's false branch
-        // Its safe to index straight into the vector since we have just set its item
-        // current_false_branch = &mut current_false_branch[0].inner.try_as_if_mut().unwrap().false_branch;
+        current_false_branch = &mut current_false_branch.as_mut().unwrap().body[0]
+            .inner
+            .try_as_if_mut()
+            .unwrap()
+            .false_branch;
     }
 
     // If there is an else branch, parse that, the `current_false_branch` should already point to the correct location
@@ -100,21 +94,26 @@ pub fn conditional_expr<S: Streamable<Spanned<Token>>>(
     }
 
     // Combine spans but if there are no false branches, the false branch span will be unset, lets handle it as the body span as a safe default.
+    let span = combine_span_info(
+        &[
+            if_instance.true_branch.span,
+            current_false_branch
+                .as_ref()
+                .map(|branch| branch.span)
+                .unwrap_or(if_instance.true_branch.span),
+        ],
+        true,
+    );
+
     Ok(Spanned {
         inner: StatementVariant::If(if_instance),
-        span: combine_span_info(
-            &[
-                if_branch.span,
-                current_false_branch
-                    .map(|branch| branch.span)
-                    .unwrap_or(if_branch.span),
-            ],
-            true,
-        ),
+        span,
     })
 }
 
-fn parse_expr_body<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<Branch, anyhow::Error>
+fn parse_expr_body<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+) -> Result<Branch, anyhow::Error>
 {
     let body_start = *tkns
         .try_consume_match(
@@ -123,16 +122,7 @@ fn parse_expr_body<S: Streamable<Spanned<Token>>>(tkns: &mut S) -> Result<Branch
         )?
         .get_span();
 
-    let mut body_tokens = tkns
-        .child_iterator_bulk(
-            find_closing_braces(tkns)
-                .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?,
-        )
-        .ok_or(ParserError::EOF)?;
-
-    let body = parse_body(&mut body_tokens)?;
-
-    drop(body_tokens);
+    let body = parse_body(tkns)?;
 
     let body_end = *tkns
         .try_consume_match(

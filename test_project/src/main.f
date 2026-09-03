@@ -11,8 +11,10 @@ pub function main(): int {
 
     if (x > 42) {
 
-    } else if (b > 35) {
+    } elseif (b > 35 || x == 1000) {
 
+    } else {
+        
     }
 
     return 0;

@@ -15,7 +15,7 @@
 			"include": "#strings"
 		},
 		{
-			"include": "#pointer_reference"
+			"include": "#boolean_literal"
 		},
 		{
 			"include": "#types"
@@ -78,9 +78,9 @@
 			"name": "keyword.other",
 			"match": "%(?:[a-zA-Z_][a-zA-Z0-9_]*|)"
 		},
-		"pointer_reference": {
+		"boolean_literal": {
 			"name": "keyword.other",
-			"match": "\\$"
+			"match": "\\b(false|true)\\b"
 		},
 		"strings": {
 			"name": "string.quoted.double",

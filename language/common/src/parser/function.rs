@@ -736,7 +736,7 @@ pub fn parse_function_signature<S: Streamable<Spanned<Token>>>(
 /// This function will parse the tokens in the body of the function, but it will not check the validness of the tokens themselves.
 ///
 /// The function parses the tokens but does not evaluate them.
-pub fn parse_body<S: Streamable<Spanned<Token>>>(
+pub fn parse_body<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tokens: &mut S,
 ) -> anyhow::Result<Vec<Spanned<StatementVariant>>>
 {
@@ -754,14 +754,10 @@ pub fn parse_body<S: Streamable<Spanned<Token>>>(
     // I dont want to consume the token from the token stream every iteration, since i want to match "patterns" of tokens.
     while fn_body.peek_next().is_some() {
         // The line expression closing semi colon is not consumed so it must be matched here.
+        // The semicolons are consumed in the statement parser function
         let stmt = parse_statement(&mut fn_body)?;
 
-        // Consume however many semicolons there are after the expression
-        fn_body.try_consume_match(
-            ParserError::ExpressionSemicolonMissing,
-            &TokenDiscriminants::SemiColon,
-        )?;
-
+        // Store parsed statement
         parsed_tokens.push(stmt);
     }
 
