@@ -4,7 +4,7 @@ use crate::{
     error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition},
     imports::{FFIDeclType, ImportType},
     parser::{
-        common::Streamable,
+        common::{ItemVisibility, Streamable},
         function::{FunctionArguments, FunctionSignature, parse_function_signature},
         ty::parse_type,
     },
@@ -43,9 +43,7 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
 {
     // Peek the next token
     // The two accepted paths right now would be a string literal or an identifier.
-    let peek_next = tkns.consume();
-
-    if let Some(next) = peek_next {
+    if let Some(next) = tkns.consume() {
         let next_token = next.get_inner();
 
         let (identifier, import): (String, ImportType) = match next_token {
@@ -58,7 +56,7 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
                     .map(|str| str.to_string_lossy().to_string())
                     .ok_or(ParserError::InvalidImportPath)?;
 
-                (file_name, ImportType::Path(path))
+                (file_name, ImportType::File(path))
             },
             Token::Identifier(ident) => {
                 // Stores the elements of the import chain

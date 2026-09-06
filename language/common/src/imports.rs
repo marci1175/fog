@@ -18,8 +18,9 @@ pub struct LibraryImport
 pub enum ImportType
 {
     /// A path import is used to import files from the host machine.
-    Path(PathBuf),
+    File(PathBuf),
     /// A dependency import is used to import actual items (such as functions or structs) from either a dependecy of the project, or a previously imported source file.
+    /// All dependency paths have to be fully defined. (For example you cannot import namespace `a` from dependency `b` and then refer to its items later as `a::foo` instead you need to use `b::a::foo`)
     Dependency(Vec<String>),
 }
 

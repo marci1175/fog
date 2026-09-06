@@ -139,10 +139,10 @@ impl CompilerState
             PathBuf::from(format!("{path_to_src}\\main.f")),
         );
 
-        match parser_settings.parse(&mut tokens) {
-            Ok(_ret) => {
-                dbg!(&_ret.functions);
-            },
+        info!("Parsing...");
+
+        let context = match parser_settings.parse(&mut tokens) {
+            Ok(ret) => ret,
             Err(error) => {
                 let spanned_err = tokens
                     .get_last_consumed()
@@ -151,7 +151,7 @@ impl CompilerState
 
                 return Err(spanned_err.into());
             },
-        }
+        };
 
         // let function_table = parser.function_table();
         // let imported_functions = parser.imported_functions().clone();

@@ -581,7 +581,7 @@ pub enum StatementVariant
     DerefPointer(Box<Spanned<StatementVariant>>),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum ItemVisibility
 {
     /// Not available to any scopes besides the file it was created in
@@ -597,7 +597,7 @@ pub enum ItemVisibility
 }
 
 /// A [`Context`] instance represents one module/scope.
-/// The instance has its own imports and external declerations (`extern import`).
+/// The instance has its own imports and external declerations (`extern`). These cannot be imported by other contexts.
 /// The simplest way to explain a context is basically a source file, as one source file has one context assigned to it.
 #[derive(Clone, Debug)]
 pub struct Context
@@ -613,9 +613,11 @@ pub struct Context
     pub items: PathMap<Vec<String>, String, CustomItem>,
 
     /// Imports defined in the source code. These can be either source code imports or dependency imports.
+    /// The actual imported function or file is the key in this map.
     pub imports: HashMap<String, ImportType>,
 
     /// FFI declerations are raw ffi function definitions, which are valid when the right object files are linked with the project. (such as libc when linking with clang)
+    /// FFI declarations cannot be imported from other crates, contexts.
     pub ffi_declerations: HashMap<String, FFIDeclType>,
 
     /// Path to the source file this context represents.
