@@ -13,7 +13,7 @@ And enter the code:
 ```fog
 external puts(msg: string): int;
 
-function main(): int {
+public function main(): int {
     puts("Hello World!");
     
     return 0;

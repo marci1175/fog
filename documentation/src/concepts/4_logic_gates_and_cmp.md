@@ -9,7 +9,7 @@ Logic gates work **almost** perfectly. The issue is with comparisons, as every c
 ```fog
 external printf(msg: string): void;
 
-pub function main(): int {
+public function main(): int {
     if (3 > 8) {
         printf("Oh no! Math broke!");
     }

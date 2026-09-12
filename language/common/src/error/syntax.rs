@@ -53,7 +53,7 @@ pub enum SyntaxError
     LeftOpenSquareBrackets,
     #[error(r#"An open '"' has been left in the code."#)]
     OpenQuotes,
-    #[error("The code contains a missing `;`.")]
+    #[error("The code contains a missing `;` after this statement.")]
     MissingSemiColon,
     #[error("Variables must be defined like so: `const|var <ty> <name> = <value>;`")]
     InvalidVariableDefinition,

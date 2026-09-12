@@ -7,14 +7,13 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    error::{SpanInfo, Spanned, codegen::CodeGenError, parser::ParserError, syntax::SyntaxError},
+    error::{SpanInfo, Spanned, codegen::CodeGenError},
     parser::{
         common::{ItemVisibility, StatementVariant},
         function::{
             CompilerInstruction, FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition,
         },
     },
-    tokenizer::Token,
     ty::{OrdMap, OrdSet, Type},
 };
 use anyhow::Result;

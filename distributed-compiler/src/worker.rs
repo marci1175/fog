@@ -168,7 +168,7 @@ fn compile_job(
         ))
         .unwrap();
 
-    let source_file =
+    let _source_file =
         fs::read_to_string(format!("{}\\src\\main.f", job.depdendency_path.display()))
             .map_err(|_| CodeGenError::NoMain)?;
 
@@ -199,13 +199,11 @@ fn compile_job(
     let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
 
     let build_manifest = compiler_state.compilation_process(
-        &source_file,
         target_ir_path,
         target_o_path,
         build_path,
         true,
         true,
-        &format!("{}\\src", job.depdendency_path.display()),
         &job.flags_passed_in,
         Some(job.target_triple),
         job.cpu_name,

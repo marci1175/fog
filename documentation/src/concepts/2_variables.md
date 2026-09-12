@@ -2,14 +2,14 @@
 
 ## Creating Variables
 
-Since the language is statically typed, every variable must have its type defined at compile time. Initializing a variable is not crucial, as variables get a default value if left uninitialized by the user.
+Since the language is statically typed, every variable must have its type defined at compile time. Each variable must be declared either as a constant or a variable.
 
 **Here is how one can define a variable with the aforementioned types:**
 
 ```fog
-int age = 23;
-string name = "marci1175";
-bool is_male = true;
+var int age = 23;
+const string name = "marci1175";
+const bool is_male = true;
 ```
 
 Defining a struct may seem tricky at first, but it is no different from most languages. Every field must be manually initialized with its own default value.
@@ -43,9 +43,12 @@ enum Numbers {
     SixtySeven = 67
 }
 
-string ida_name = Apples::Idared.name;
-int integer_zwei = Numbers::Two;
+const string ida_name = Apples::Idared.name;
+const int integer_zwei = Numbers::Two;
 
-# Error
-int float_zwei = Numbers::Two as float;
+# Returns an error since the default type of an enum is uint and enums variants cannot be casted to a different type.
+const int float_zwei = Numbers::Two as float;
+
+# Valid
+const int float_zwei = Numbers::Two as uint as float;
 ```

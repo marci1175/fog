@@ -10,8 +10,7 @@ Every function requires a predetermined visibility attribute.
 
 | Keyword | Explanation                                                                               |
 | ------- | ----------------------------------------------------------------------------------------- |
-| pub     | A public function is publicly available in the module.                                    |
-| publib  | A public library function is available outside of the project when imported as a library. |
+| public  | A public function is publicly available in the module.                                    |
 | private | A private function is only available in the module it is defined in.                      |
 
 > Every source file serves as a different module.

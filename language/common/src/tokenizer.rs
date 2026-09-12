@@ -112,9 +112,6 @@ pub enum Token
     /// The acutal keywords for the compiler
     CompilerInstruction(CompilerInstructionDiscriminants),
 
-    /// Used to expose functions from a module into another one.
-    Export,
-
     LeftArrow,
     RightArrow,
     /// This can be used as a substitute in function definitions in place of the `:` indicating return type.
@@ -209,7 +206,6 @@ impl PartialEq<TokenDiscriminants> for Token
             Token::Trait => other == &TokenDiscriminants::Trait,
             Token::This => other == &TokenDiscriminants::This,
             Token::CompilerHintSymbol => other == &TokenDiscriminants::CompilerHintSymbol,
-            Token::Export => other == &TokenDiscriminants::Export,
             Token::LeftArrow => other == &TokenDiscriminants::LeftArrow,
             Token::RightArrow => other == &TokenDiscriminants::RightArrow,
             Token::Returns => other == &TokenDiscriminants::Returns,
@@ -242,7 +238,8 @@ pub enum TokenDiscriminants
     As,
 
     Const,
-    /// Used to flag variables as non-mutable: `const int marci = 0;`
+
+    /// Used to flag variables as mutable: `var int marci = 0;`
     Variable,
 
     TypeDefinition,
@@ -317,9 +314,6 @@ pub enum TokenDiscriminants
     /// @
     CompilerHintSymbol,
     CompilerInstruction,
-
-    /// Used to expose functions from a module into another one.
-    Export,
 
     LeftArrow,
     RightArrow,

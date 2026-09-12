@@ -1,20 +1,19 @@
-external function print(str: string, ...): int;
-external static int counter;
+external function printf(str: string, ...): int;
 
-import marci::asd::hello as marci;
 import "helper.f";
-import helper::functions::add;
+import helper::helper_function1;
+import helper::helper_function2;
 
-pub function main(): int {
+public function main(): int {
     const int x = 1000;
     const int b = 31;
 
     if (x > 42) {
-
+        printf("Hi: %i", helper_function1(47));
     } elseif (b > 35 || x == 1000) {
-
+        printf("Hello: %i", helper_function2(100 / b));
     } else {
-        
+        printf("Did not work :()");
     }
 
     return 0;

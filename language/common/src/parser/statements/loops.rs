@@ -8,7 +8,7 @@ use crate::{
 };
 
 pub fn loop_for<S: Streamable<Spanned<Token>>>(
-    expr: Expr,
+    _expr: Expr,
     _tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
@@ -16,7 +16,7 @@ pub fn loop_for<S: Streamable<Spanned<Token>>>(
 }
 
 pub fn loop_while<S: Streamable<Spanned<Token>>>(
-    expr: Expr,
+    _expr: Expr,
     _tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {

@@ -40,9 +40,6 @@ pub struct FunctionDefinition
     /// The actual body of the function.
     pub body: Vec<Spanned<StatementVariant>>,
 
-    /// Module path does NOT contain function name.
-    pub module_path: Vec<String>,
-
     /// The visibility of this function in the given [`Context`] (scope).
     pub visibility: ItemVisibility,
 
@@ -535,7 +532,7 @@ pub fn parse_function(
         .collect::<IndexSet<String>>();
 
     Ok(ctx.create_function(
-        vis.clone(),
+        *vis,
         function_name,
         arguments,
         return_type,

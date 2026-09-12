@@ -9,6 +9,8 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum CodeGenError
 {
+    #[error("Source file referenced at `{0}` is not found or inaccessible in the host system.")]
+    SrcFileNotFound(PathBuf),
     #[error(
         "[INTERNAL ERROR] Inner type of a trait object is unknown. The internal type should only be None if referenced in a function signature."
     )]

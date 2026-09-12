@@ -114,7 +114,7 @@ pub fn parse_struct(
 
     // Create a new struct definition and return it
     Ok(ctx.create_struct(
-        vis.clone(),
+        *vis,
         struct_name,
         fields,
         generics,

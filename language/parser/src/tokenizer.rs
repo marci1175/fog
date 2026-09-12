@@ -381,10 +381,10 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"while" => Token::While,
         b"break" => Token::Break,
         b"continue" => Token::Continue,
-        b"priv" => Token::ItemVisibility(common::parser::common::ItemVisibility::Private),
-        b"pub" => Token::ItemVisibility(common::parser::common::ItemVisibility::Public),
-        b"publib" => Token::ItemVisibility(common::parser::common::ItemVisibility::PublicLibrary),
-        b"exp" => Token::Export,
+
+        b"private" => Token::ItemVisibility(common::parser::common::ItemVisibility::Private),
+        b"public" => Token::ItemVisibility(common::parser::common::ItemVisibility::Public),
+
         b"cold" => Token::CompilerInstruction(CompilerInstructionDiscriminants::Cold),
         b"nofree" => Token::CompilerInstruction(CompilerInstructionDiscriminants::NoFree),
         b"nounwind" => Token::CompilerInstruction(CompilerInstructionDiscriminants::NoUnWind),

@@ -127,7 +127,7 @@
 		"declarations": {
 			"patterns": [{
 			"name": "keyword.other",
-			"match": "\\b(static|deref|ref|const|struct|function|impl|trait|enum|pub|publib|priv|exp)\\b"
+			"match": "\\b(static|deref|ref|const|var|struct|function|impl|trait|enum|public|private)\\b"
 			}]
 		},
 		"compiler_hints": {

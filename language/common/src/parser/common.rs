@@ -1,4 +1,9 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    rc::Rc,
+};
 
 use anyhow::Result;
 use strum_macros::Display;
@@ -8,6 +13,7 @@ use crate::{
         CustomItem, FunctionArgumentIdentifier, If, LogicalOperator, Order, StructAttributes,
         StructDefinition,
     },
+    combine_path,
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     imports::{FFIDeclType, ImportType},
     parser::{
@@ -589,25 +595,87 @@ pub enum ItemVisibility
     Private, // priv
     /// Is exposed as a function to import
     Public, // pub
-    /// Can only be accessed from the same library it was created in
-    PublicLibrary, // publib
     /// Branches are parsed like function, and this type is supposed to indicate that the function is actually a branch.
     /// A branch does not have any visibility, it is only for debugging.
     Branch,
 }
 
-/// A [`Context`] instance represents one module/scope.
-/// The instance has its own imports and external declerations (`extern`). These cannot be imported by other contexts.
-/// The simplest way to explain a context is basically a source file, as one source file has one context assigned to it.
-#[derive(Clone, Debug)]
-pub struct Context
+#[derive(Debug, Clone)]
+pub struct GlobalContext
 {
-    /// This field stores all the functions created for this context (/ scope, basically in this module).
+    /// Contains all of the functions created in the whole project, including functions present in the dependencies.
     /// `PATH` contains the full access path to the function including the name of the function.
     /// `NAME` contains the plain name of the function.
     pub functions: PathMap<Vec<String>, String, FunctionDefinition>,
 
-    /// This field stores all the items created for this context (/ scope, basically in this module).
+    /// Contains all of the items created in the whole project, including items present in the dependencies.
+    /// `PATH` contains the full access path to the item including the name of the item.
+    /// `NAME` contains the plain name of the item. Two different items cannot share the same name, thus the same `PATH`.
+    pub items: PathMap<Vec<String>, String, CustomItem>,
+
+    /// A set of all parsed files.
+    pub parsed_files: HashSet<PathBuf>,
+
+    /// External declerations present in each context file.
+    /// The reason why these external decls still have a path is to check the scope validity.
+    /// It so that a different context cannot reference an ffi decl from an other file.
+    pub ffi_declerations: HashMap<Vec<String>, FFIDeclType>,
+}
+
+impl Default for GlobalContext
+{
+    fn default() -> Self
+    {
+        Self::new()
+    }
+}
+
+impl GlobalContext
+{
+    pub fn new() -> Self
+    {
+        Self {
+            functions: PathMap::new(),
+            items: PathMap::new(),
+            ffi_declerations: HashMap::new(),
+            parsed_files: HashSet::new(),
+        }
+    }
+
+    pub fn append_ctx(&mut self, ctx: &Context)
+    {
+        // Store the context's functions
+        for (path, name, def) in ctx.functions.iter() {
+            self.functions
+                .insert(path.clone(), name.clone(), def.clone());
+        }
+
+        // Store the context's items
+        for (path, name, def) in ctx.items.iter() {
+            self.items.insert(path.clone(), name.clone(), def.clone());
+        }
+
+        // Store ffi decls with their path aswell
+        for (name, decl) in ctx.ffi_declerations.iter() {
+            self.ffi_declerations
+                .insert(combine_path(ctx.path.clone(), name.clone()), decl.clone());
+        }
+    }
+}
+
+/// A [`Context`] instance represents one source file.
+/// The instance has its own imports and external declerations (`extern`). These cannot be imported by other contexts.
+/// If however a file is imported, then the imported file's items are stored in the [`GlobalContext`].
+/// The simplest way to explain a context is basically a type representing a source file.
+#[derive(Clone, Debug)]
+pub struct Context
+{
+    /// This field stores all the functions created for this context.
+    /// `PATH` contains the full access path to the function including the name of the function.
+    /// `NAME` contains the plain name of the function.
+    pub functions: PathMap<Vec<String>, String, FunctionDefinition>,
+
+    /// This field stores all the items created for this context.
     /// `PATH` contains the full access path to the item including the name of the item.
     /// `NAME` contains the plain name of the item. Two different items cannot share the same name, thus the same `PATH`.
     pub items: PathMap<Vec<String>, String, CustomItem>,
@@ -621,6 +689,8 @@ pub struct Context
     pub ffi_declerations: HashMap<String, FFIDeclType>,
 
     /// Path to the source file this context represents.
+    /// This is used to create an access path to a context's items.
+    /// This is not checked when checking for circular dependencies (when two files import eachother or two dependencies depend on eachother).
     pub path: Vec<String>,
 }
 
@@ -654,7 +724,6 @@ impl Context
                 args: arguments,
                 return_type,
             },
-            module_path: self.path.clone(),
             visibility: vis,
             compiler_instructions,
             enabling_features,

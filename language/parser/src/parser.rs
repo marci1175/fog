@@ -1,4 +1,4 @@
-use std::{hint::cold_path, path::PathBuf};
+use std::hint::cold_path;
 
 use common::{
     anyhow::Result,
@@ -21,10 +21,6 @@ pub struct Settings
     // Project settings
     pub config: ProjectConfig,
     pub enabled_features: OrdSet<String>,
-    /// The path to the root of this project.
-    /// This is important when we are parsing libraries.
-    pub module_path: Vec<String>,
-    pub root_path: PathBuf,
 }
 
 impl Settings
@@ -53,13 +49,17 @@ impl Settings
     */
 
     /// Creates a [`Context`] instance by parsing the passed in tokens with the settings provided.
-    pub fn parse(&self, tokens: &mut Stream<Spanned<Token>>) -> Result<Context>
+    pub fn parse(
+        &self,
+        tokens: &mut Stream<Spanned<Token>>,
+        module_path: &[String],
+    ) -> Result<Context>
     {
         // The first step should be parsing the top level items, such as structs, functions, enums.
         // We will store all the items present, and parse the inner contents of the function later.
         // By doing this, the compiler wont be single pass anymore and the sequence of function declarations wont be important.
         // Im gonna first parse the entire main file and then work out/parse all the other files which were linked.
-        let mut ctx = Context::new(self.module_path.clone());
+        let mut ctx = Context::new(module_path.to_vec());
 
         // Collect the compiler instructions in a list and we can move the instructions to the next item we are parsing.
         let mut item_compiler_instruction: OrdSet<CompilerInstruction> = OrdSet::new();
@@ -114,10 +114,7 @@ impl Settings
                                 )?;
 
                                 ctx.functions.insert(
-                                    combine_path(
-                                        function.module_path.clone(),
-                                        function.signature.name.clone(),
-                                    ),
+                                    combine_path(ctx.path.clone(), function.signature.name.clone()),
                                     function.signature.name.clone().into(),
                                     function,
                                 );
@@ -178,18 +175,11 @@ impl Settings
         Ok(ctx)
     }
 
-    pub fn new(
-        config: ProjectConfig,
-        module_path: Vec<String>,
-        enabled_features: OrdSet<String>,
-        root_path: PathBuf,
-    ) -> Self
+    pub fn new(config: ProjectConfig, enabled_features: OrdSet<String>) -> Self
     {
         Self {
             enabled_features,
             config,
-            module_path,
-            root_path,
         }
     }
 }

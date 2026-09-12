@@ -16,7 +16,7 @@ pub fn analyze_dependency(
 {
     let tokens = tokenize(source_file_contents)?;
 
-    let mut parser = Settings::new(config, module_path, enabled_features, todo!());
+    let mut parser = Settings::new(config, enabled_features);
 
     // parser.parse(deps)?;
 

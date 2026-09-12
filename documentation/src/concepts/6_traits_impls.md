@@ -24,7 +24,7 @@ trait walks {
     function get_walk(this);
 }
 
-pub function generic(m: walks): int {
+public function generic(m: walks): int {
     if m.get_walk() {
         return 1;
     }

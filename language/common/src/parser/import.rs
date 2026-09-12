@@ -4,7 +4,7 @@ use crate::{
     error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition},
     imports::{FFIDeclType, ImportType},
     parser::{
-        common::{ItemVisibility, Streamable},
+        common::Streamable,
         function::{FunctionArguments, FunctionSignature, parse_function_signature},
         ty::parse_type,
     },

@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
-    expr: Expr,
+    _expr: Expr,
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {

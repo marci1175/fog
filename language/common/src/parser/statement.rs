@@ -143,7 +143,7 @@ pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = e
             // These are immutable
             &[TokenDiscriminants::Const],
             // These are mutable
-            // "const" <ty> <name> "=" <val>
+            // "var" <ty> <name> "=" <val>
             &[TokenDiscriminants::Variable]
         ],
         Ok(Expr::VariableDeclaration),
@@ -610,7 +610,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                             Spanned {
                                 inner: StatementVariant::Comparison {
                                     lhs: Box::new(stmt),
-                                    ord: ord,
+                                    ord,
                                     rhs: Box::new(rhs),
                                 },
                                 span,

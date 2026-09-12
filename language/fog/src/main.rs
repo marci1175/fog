@@ -7,7 +7,7 @@ use common::{
     compiler::ProjectConfig,
     compression::{compress_bytes, zip_folder},
     dependency_manager::{DependencyUpload, DependencyUploadReply},
-    error::{application::ApplicationError, codegen::CodeGenError, linker::LinkerError},
+    error::{application::ApplicationError, linker::LinkerError},
     linker::BuildManifest,
     reqwest::{self, StatusCode},
     rmp_serde, serde_json, tokio, toml,
@@ -82,12 +82,6 @@ async fn main() -> common::anyhow::Result<()>
                 current_working_dir
             };
 
-            // Check for the main source file
-            info!("Reading Files...");
-
-            let source_file = fs::read_to_string(format!("{}/src/main.f", root_path.display()))
-                .map_err(|_| ApplicationError::CodeGenError(CodeGenError::NoMain.into()))?;
-
             let compiler_state = CompilerState::new(root_path.clone(), OrdSet::new())?;
 
             let compiler_config = compiler_state.config.clone();
@@ -123,13 +117,11 @@ async fn main() -> common::anyhow::Result<()>
 
             let build_manifest = tokio::task::spawn_blocking(move || {
                 compiler_state.compilation_process(
-                    &source_file,
                     target_ir_path.clone(),
                     target_o_path.clone(),
                     build_path_clone.clone(),
                     is_release,
                     compiler_config.is_library,
-                    &format!("{}\\src", root_path.display()),
                     &llvm_flags,
                     target_triple,
                     cpu_name,

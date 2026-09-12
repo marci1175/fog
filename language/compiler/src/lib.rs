@@ -7,10 +7,11 @@ use std::{
 use common::{
     anyhow::{self, Result},
     compiler::ProjectConfig,
-    error::application::ApplicationError,
+    error::{application::ApplicationError, codegen::CodeGenError},
+    imports::ImportType,
     inkwell::targets::{TargetMachine, TargetTriple},
     linker::BuildManifest,
-    parser::common::{Stream, Streamable},
+    parser::common::{GlobalContext, Stream, Streamable},
     toml,
     tracing::info,
     ty::OrdSet,
@@ -44,13 +45,11 @@ impl CompilerState
 
     pub fn compilation_process(
         &self,
-        file_contents: &str,
         _target_ir_path: PathBuf,
         _target_o_path: PathBuf,
         _build_path: PathBuf,
         _optimization: bool,
         _is_lib: bool,
-        path_to_src: &str,
         _flags_passed_in: &str,
         target_triple_name: Option<String>,
         _cpu_name: Option<String>,
@@ -65,10 +64,6 @@ impl CompilerState
                 TargetMachine::get_default_triple()
             },
         );
-
-        info!("Tokenizing...");
-
-        let mut tokens = Stream::new(tokenize(file_contents)?);
 
         // info!("Creating LLVM context...");
         // let context = Context::create();
@@ -132,26 +127,22 @@ impl CompilerState
         //     cpu_features.clone(),
         // )?;
 
-        let parser_settings = Settings::new(
-            self.config.clone(),
-            vec![self.config.name.clone()],
-            self.enabled_features.clone(),
-            PathBuf::from(format!("{path_to_src}\\main.f")),
-        );
+        let parser_settings = Settings::new(self.config.clone(), self.enabled_features.clone());
 
         info!("Parsing...");
 
-        let context = match parser_settings.parse(&mut tokens) {
-            Ok(ret) => ret,
-            Err(error) => {
-                let spanned_err = tokens
-                    .get_last_consumed()
-                    .map(|tkn| tkn.raise_error(parser_settings.root_path, error))
-                    .unwrap();
+        // A global GlobalContext holds all of the context files' items.
+        let mut g_context = GlobalContext::new();
 
-                return Err(spanned_err.into());
-            },
-        };
+        // This source path is always defining the path of the currently parsed file.
+        // This is also a way of navigating between imported source files via their relative path.
+        let src_path = PathBuf::from(format!("{}\\src\\main.f", self.root_dir.display()));
+        let module_path = vec![self.config.name.clone()];
+
+        // Parse "main.f" (The main entrypoint of the project)
+        parse_src_file(&parser_settings, module_path, &mut g_context, src_path)?;
+
+        dbg!(&g_context);
 
         // let function_table = parser.function_table();
         // let imported_functions = parser.imported_functions().clone();
@@ -220,4 +211,73 @@ impl CompilerState
 
         Ok(todo!())
     }
+}
+
+fn parse_src_file(
+    parser_settings: &Settings,
+    module_path: Vec<String>,
+    g_context: &mut GlobalContext,
+    src_path: PathBuf,
+) -> Result<(), anyhow::Error>
+{
+    // Inform the user that we are parsing the files
+    info!("Parsing file `{}`", src_path.display());
+
+    let file_contents = fs::read_to_string(&src_path).map_err(|_| {
+        // Check for the edgecase being that the first file read is always for the "main.f" file
+        if src_path.ends_with("\\main.f") {
+            ApplicationError::CodeGenError(CodeGenError::NoMain.into())
+        }
+        else {
+            ApplicationError::CodeGenError(CodeGenError::SrcFileNotFound(src_path.clone()).into())
+        }
+    })?;
+
+    // Tokenize raw file
+    let mut tokens = Stream::new(tokenize(&file_contents)?);
+
+    // Parse tokenized file
+    match parser_settings.parse(&mut tokens, &module_path) {
+        Ok(ctx) => {
+            // Append the functions and items to the global context
+            g_context.append_ctx(&ctx);
+
+            // After parsing insert the src file's path into the list of parsed files
+            g_context.parsed_files.insert(src_path.clone());
+
+            // Evaluate all source file imports
+            for (name, import) in ctx.imports.iter() {
+                let mut module_path = module_path.clone();
+                let mut src_path = src_path.clone();
+
+                module_path.push(name.clone());
+
+                // Ensure that this is a file import
+                if let ImportType::File(path) = import {
+                    // Pop file name of the path
+                    src_path.pop();
+
+                    // Append the imported file's path
+                    src_path.extend(path);
+
+                    // Parse imported source file
+                    parse_src_file(parser_settings, module_path, g_context, src_path)?;
+                }
+                else {
+                    continue;
+                }
+            }
+        },
+        Err(error) => {
+            // Create a specialized error that also display where the issue is.
+            let spanned_err = tokens
+                .get_last_consumed()
+                .map(|tkn| tkn.raise_error(src_path, error))
+                .unwrap();
+
+            return Err(spanned_err.into());
+        },
+    };
+
+    Ok(())
 }
