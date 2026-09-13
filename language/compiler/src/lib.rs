@@ -239,7 +239,7 @@ fn parse_src_file(
     // Parse tokenized file
     match parser_settings.parse(&mut tokens, &module_path) {
         Ok(ctx) => {
-            // Append the functions and items to the global context
+            // Append the functions and items and other important information to the global context
             g_context.append_ctx(&ctx);
 
             // After parsing insert the src file's path into the list of parsed files

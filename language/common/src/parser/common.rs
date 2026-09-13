@@ -606,11 +606,13 @@ pub struct GlobalContext
     /// Contains all of the functions created in the whole project, including functions present in the dependencies.
     /// `PATH` contains the full access path to the function including the name of the function.
     /// `NAME` contains the plain name of the function.
+    /// By default a function's context can be fetched via removing the function name from the given function's key. This is important when trying to resolve imports from a given item.
     pub functions: PathMap<Vec<String>, String, FunctionDefinition>,
 
     /// Contains all of the items created in the whole project, including items present in the dependencies.
     /// `PATH` contains the full access path to the item including the name of the item.
     /// `NAME` contains the plain name of the item. Two different items cannot share the same name, thus the same `PATH`.
+    /// By default a item's context can be fetched via removing the item name from the given item's key. This is important when trying to resolve imports from a given item.
     pub items: PathMap<Vec<String>, String, CustomItem>,
 
     /// A set of all parsed files.
@@ -620,6 +622,9 @@ pub struct GlobalContext
     /// The reason why these external decls still have a path is to check the scope validity.
     /// It so that a different context cannot reference an ffi decl from an other file.
     pub ffi_declerations: HashMap<Vec<String>, FFIDeclType>,
+
+    /// These are all the imports belonging to one [`Context`] instance.
+    pub ctx_imports: HashMap<Vec<String>, HashMap<String, ImportType>>,
 }
 
 impl Default for GlobalContext
@@ -639,6 +644,7 @@ impl GlobalContext
             items: PathMap::new(),
             ffi_declerations: HashMap::new(),
             parsed_files: HashSet::new(),
+            ctx_imports: HashMap::new(),
         }
     }
 
@@ -660,6 +666,9 @@ impl GlobalContext
             self.ffi_declerations
                 .insert(combine_path(ctx.path.clone(), name.clone()), decl.clone());
         }
+
+        // Store imports from context file
+        self.ctx_imports.insert(ctx.path.clone(), ctx.imports.clone());
     }
 }
 

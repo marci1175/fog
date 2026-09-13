@@ -7,5 +7,5 @@ edition = "2024"
 common = { path = "../common" }
 codegen = { path = "../codegen" }
 parser = { path = "../parser" }
+analyzer = { path = "../analyzer" }
 serde = { version = "1.0.228", features = ["derive"] }
-imports = { path = "../imports" }

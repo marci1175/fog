@@ -2,7 +2,7 @@
 pub mod type_check;
 
 /// Resolves all dependencies for the project.
-pub mod dependency_resolver;
+pub mod resolver;
 
 /// Semantic analysis, for example checks if the code is actually valid structurally, not just syntactically.
 pub mod semantic;

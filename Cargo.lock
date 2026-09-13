@@ -686,9 +686,9 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "analyzer",
  "codegen",
  "common",
- "imports",
  "parser",
  "serde",
 ]
@@ -1984,7 +1984,6 @@ dependencies = [
  "clap",
  "common",
  "compiler",
- "imports",
  "linker",
  "serde",
  "strum 0.27.2",
@@ -2634,15 +2633,6 @@ dependencies = [
  "sized-chunks",
  "typenum",
  "version_check",
-]
-
-[[package]]
-name = "imports"
-version = "0.1.0"
-dependencies = [
- "codegen",
- "common",
- "parser",
 ]
 
 [[package]]
