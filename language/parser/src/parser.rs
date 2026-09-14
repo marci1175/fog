@@ -1,4 +1,4 @@
-use std::hint::cold_path;
+use std::{hint::cold_path, rc::Rc};
 
 use common::{
     anyhow::Result,
@@ -100,8 +100,8 @@ impl Settings
                                 )?;
 
                                 ctx.items.insert(
-                                    combine_path(ctx.path.clone(), struct_def.name.clone()),
-                                    struct_def.name.clone().into(),
+                                    Rc::new(ctx.path.clone()),
+                                    Rc::new(struct_def.name.clone()),
                                     common::codegen::CustomItem::Struct(struct_def),
                                 );
                             },
@@ -114,8 +114,8 @@ impl Settings
                                 )?;
 
                                 ctx.functions.insert(
-                                    combine_path(ctx.path.clone(), function.signature.name.clone()),
-                                    function.signature.name.clone().into(),
+                                    Rc::new(ctx.path.clone()),
+                                    Rc::new(function.signature.name.clone()),
                                     function,
                                 );
                             },

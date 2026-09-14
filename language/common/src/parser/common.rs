@@ -6,6 +6,8 @@ use std::{
 };
 
 use anyhow::Result;
+use bimap::BiMap;
+use indexmap::IndexMap;
 use strum_macros::Display;
 
 use crate::{
@@ -19,7 +21,7 @@ use crate::{
     parser::{
         function::{
             CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
-            FunctionDefinition, FunctionSignature, PathMap,
+            FunctionDefinition, FunctionSignature,
         },
         numeric_value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId},
@@ -27,6 +29,7 @@ use crate::{
     tokenizer::{Token, TokenDiscriminants},
     ty::{OrdMap, OrdSet, Type, Value},
 };
+use std::hash::Hash;
 
 /// Helper trait for types lookingto implement a buffer-like stream.
 pub trait Streamable<T>
@@ -473,6 +476,361 @@ impl<'owner, T> Streamable<T> for StreamChild<'owner, T>
     }
 }
 
+/// Allows us to create associations based on values.
+/// This type stores an internal map, and gives a unique id to every unique value.
+#[derive(Debug, Default, Clone)]
+pub struct Interner<VALUE: Eq + Hash>
+{
+    /// A BiMap which allows us to look up values from both the left and right side.
+    internal_map: BiMap<VALUE, NAMEID>,
+
+    /// This is basically an ID generator for every value.
+    /// Every value unique value inserted gets a new ID which is unique to that specific value.
+    internal_id: usize,
+}
+
+impl<VALUE: Eq + Hash> Interner<VALUE>
+{
+    pub fn new() -> Self
+    {
+        Self {
+            internal_map: BiMap::new(),
+            internal_id: 0,
+        }
+    }
+
+    pub fn lookup_value(&self, value: &VALUE) -> Option<&ID>
+    {
+        self.internal_map.get_by_left(value)
+    }
+
+    pub fn lookup_id(&self, id: &ID) -> Option<&VALUE>
+    {
+        self.internal_map.get_by_right(id)
+    }
+
+    pub fn insert_or_get_association(&mut self, value: VALUE) -> ID
+    {
+        if let Some(right) = self.internal_map.get_by_left(&value) {
+            *right
+        }
+        else {
+            self.internal_id += 1;
+
+            let curr_id = self.internal_id;
+
+            self.internal_map.insert(value, curr_id);
+
+            curr_id
+        }
+    }
+
+    pub fn remove_association_by_value(&mut self, value: &VALUE) -> Option<(VALUE, usize)>
+    {
+        self.internal_map.remove_by_left(value)
+    }
+
+    pub fn remove_association_by_id(&mut self, id: &ID) -> Option<(VALUE, usize)>
+    {
+        self.internal_map.remove_by_right(id)
+    }
+}
+
+type ID = usize;
+type NAMEID = usize;
+type SCOPEID = usize;
+
+/// This is a custom type which allows two important things. Handling items and their respective scopes.
+/// 1. It can look up an item based on its <PATH>.
+/// 2. It allows us to check whether a items's name is already present in the map.
+#[derive(Debug, Default, Clone)]
+pub struct PathMap<SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM>
+{
+    /// The function that are contained in this map.
+    /// The `PATH` must be unqiue to every function.
+    /// A <PATH>'s last item is the function name.
+    scopes: IndexMap<SCOPEID, IndexMap<NAMEID, ITEM>>,
+
+    /// This allows us to see how many items are there in the map with the same name.
+    member_name_count: HashMap<NAMEID, usize>,
+
+    name_interner: Interner<Rc<NAME>>,
+
+    scope_interner: Interner<Rc<SCOPE>>,
+}
+
+/// Allows us to specify the method we want to remove a key from a map.
+pub enum RemoveType
+{
+    /// See [`indexmap::IndexMap::swap_remove`] for more documentation.
+    Swap,
+    /// See [`indexmap::IndexMap::shift_remove`] for more documentation.
+    Shift,
+}
+
+impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
+{
+    pub fn new() -> Self
+    {
+        Self {
+            scopes: IndexMap::new(),
+            member_name_count: HashMap::new(),
+            name_interner: Interner::new(),
+            scope_interner: Interner::new(),
+        }
+    }
+
+    /// If a key is inserted with this method, it first checks if that path is already present in the map.
+    /// If it is present it will not overwrite the map's field, instead it will return the passed in function.
+    /// The function also increment the function's counter in the namespace map.
+    pub fn try_insert(&mut self, scope: Rc<SCOPE>, value: ITEM, name: Rc<NAME>) -> Option<&ITEM>
+    {
+        let name_id = self.name_interner.insert_or_get_association(name.clone());
+        let scope_id = self.scope_interner.insert_or_get_association(scope.clone());
+
+        let item_scope = self.scopes.entry(scope_id).or_insert_with(IndexMap::new);
+
+        let already_present = item_scope.contains_key(&name_id);
+
+        if !already_present {
+            item_scope.insert(name_id, value);
+        }
+
+        if already_present {
+            self.scopes.get(&scope_id).unwrap().get(&name_id)
+        }
+        else {
+            self.increment_name_counter(name_id);
+            None
+        }
+    }
+
+    /// If a key is inserted with this function, it will automaticly overwrite the value paired to the specified key.
+    /// The returned value is the overwritten value of the map.
+    /// If the function returns [`None`], it means that the key we inserted was not present in the map.
+    /// The function also increment the function's counter in the namespace map.
+    pub fn insert(&mut self, scope: Rc<SCOPE>, name: Rc<NAME>, value: ITEM) -> Option<ITEM>
+    {
+        let name_id = self.name_interner.insert_or_get_association(name.clone());
+        let scope_id = self.scope_interner.insert_or_get_association(scope.clone());
+
+        // Try to fetch the correct scope for the function.
+        let insert_result = if let Some(scope) = self.scopes.get_mut(&scope_id) {
+            scope.insert(name_id, value)
+        }
+        else {
+            self.scopes.insert(scope_id, IndexMap::new());
+            let scope = self.scopes.get_mut(&scope_id).unwrap();
+
+            scope.insert(name_id, value)
+        };
+
+        self.increment_name_counter(name_id);
+
+        insert_result
+    }
+
+    /// This internal function increment the function's count in the namespace.
+    /// If the name is not present it creates one.
+    fn increment_name_counter(&mut self, id: NAMEID)
+    {
+        // IF the namespace had this value this will return `false` otherwise `true`.
+        if let Some(fn_count) = self.member_name_count.get_mut(&id) {
+            *fn_count += 1;
+        }
+        else {
+            // We ensure that we only insert if there isnt an existing namespace member with this name.
+            self.member_name_count.insert(id, 1);
+        }
+    }
+
+    pub fn contains_name(&self, name: Rc<NAME>) -> bool
+    {
+        if let Some(id) = self.name_interner.lookup_value(&name) {
+            return self.member_name_count.contains_key(id);
+        }
+
+        false
+    }
+
+    pub fn contains_function(&self, scope: Rc<SCOPE>, name: Rc<NAME>) -> bool
+    {
+        (|| {
+            let scope_id = self.scope_interner.lookup_value(&scope)?;
+            let name_id = self.name_interner.lookup_value(&name)?;
+
+            self.scopes.get(scope_id)?.get(name_id)
+        })()
+        .is_some()
+    }
+
+    pub fn get_item(&self, scope: Rc<SCOPE>, name: Rc<NAME>) -> Option<&ITEM>
+    {
+        let scope_id = self.scope_interner.lookup_value(&scope)?;
+
+        self.scopes
+            .get(scope_id)
+            .map(|scope| {
+                let name_id = self.name_interner.lookup_value(&name)?;
+                scope.get(name_id)
+            })
+            .flatten()
+    }
+
+    pub fn get_item2(&self, scope: Rc<SCOPE>) -> Option<&IndexMap<NAMEID, ITEM>>
+    {
+        self.scopes.get(self.scope_interner.lookup_value(&scope)?)
+    }
+
+    pub fn get_item_by_idx(&self, idx: usize, name: Rc<NAME>) -> Option<(&Rc<SCOPE>, &ITEM)>
+    {
+        self.scopes
+            .get_index(idx)
+            .map(|(path, scope)| -> Option<_> {
+                Some((
+                    self.scope_interner.lookup_id(&path)?,
+                    scope.get(self.name_interner.lookup_value(&name)?)?,
+                ))
+            })
+            .flatten()
+    }
+
+    pub fn get_name_from_id(&self, id: &NAMEID) -> Option<&Rc<NAME>>
+    {
+        self.name_interner.lookup_id(id)
+    }
+
+    pub fn remove_scope(
+        &mut self,
+        scope: Rc<SCOPE>,
+        remove_type: RemoveType,
+    ) -> Option<(SCOPEID, IndexMap<NAMEID, ITEM>)>
+    {
+        let id = self.scope_interner.lookup_value(&scope)?;
+
+        // Remove the function definition on the specified path
+        if let Some(scope) = {
+            // Remove the function the specified way
+            match remove_type {
+                RemoveType::Swap => self.scopes.swap_remove(id),
+                RemoveType::Shift => self.scopes.shift_remove(id),
+            }
+        } {
+            // Return removed scope
+            Some((*id, scope))
+        }
+        else {
+            None
+        }
+    }
+
+    pub fn remove_item(
+        &mut self,
+        scope: Rc<SCOPE>,
+        name: Rc<NAME>,
+        remove_type: RemoveType,
+    ) -> Option<(NAMEID, ITEM)>
+    {
+        let scope = self
+            .scopes
+            .get_mut(self.scope_interner.lookup_value(&scope)?)?;
+        let name_id = self.name_interner.lookup_value(&name)?;
+
+        let removed_item = match remove_type {
+            RemoveType::Swap => scope.swap_remove(name_id),
+            RemoveType::Shift => scope.shift_remove(name_id),
+        }?;
+
+        Some((*name_id, removed_item))
+    }
+
+    /// Check how many function with this name are present in the namespace.
+    /// Subtract one from the function's counter in the namespace.
+    /// Removes the field from the namespace if the counter is 0.
+    fn decrement_namespace(&mut self, id: &NAMEID)
+    {
+        let should_remove = if let Some(fn_count) = self.member_name_count.get_mut(id) {
+            // Subtract 1 from the count
+            *fn_count -= 1;
+
+            // Check if the function count is 0.
+            *fn_count == 0
+        }
+        else {
+            // I was too scared to make this an `unreachable_unchecked` lol
+            unreachable!(
+                "[INTERNAL ERROR] If you see this, that means ive messed up big time. Please check <FunctionMap> internal behavior."
+            )
+        };
+
+        // If there are no more function's with this name in the namespace remove the field.
+        if should_remove {
+            self.member_name_count.remove(id);
+            self.name_interner.remove_association_by_id(id);
+        }
+    }
+
+    pub fn iter(&self) -> PathMapIterator<'_, SCOPE, NAME, ITEM>
+    {
+        PathMapIterator {
+            outer_iter: self.scopes.iter(),
+            inner_iter: None,
+            current_scope: None,
+            scope_interner: &self.scope_interner,
+            name_interner: &self.name_interner,
+        }
+    }
+
+    pub fn get_scopes(&self) -> bimap::hash::LeftValues<'_, Rc<SCOPE>, usize>
+    {
+        self.scope_interner.internal_map.left_values()
+    }
+
+    pub fn get_names(&self) -> bimap::hash::LeftValues<'_, Rc<NAME>, usize>
+    {
+        self.name_interner.internal_map.left_values()
+    }
+
+    pub fn len(&self) -> usize
+    {
+        self.scopes.len()
+    }
+}
+
+pub struct PathMapIterator<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM>
+{
+    outer_iter: indexmap::map::Iter<'a, SCOPEID, IndexMap<NAMEID, ITEM>>,
+    inner_iter: Option<indexmap::map::Iter<'a, NAMEID, ITEM>>,
+    current_scope: Option<&'a Rc<SCOPE>>,
+    scope_interner: &'a Interner<Rc<SCOPE>>,
+    name_interner: &'a Interner<Rc<NAME>>,
+}
+
+impl<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
+    for PathMapIterator<'a, SCOPE, NAME, ITEM>
+{
+    type Item = (&'a Rc<SCOPE>, &'a Rc<NAME>, &'a ITEM);
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        loop {
+            // Try to pull the next item out of the current scope's inner map.
+            if let Some(inner) = self.inner_iter.as_mut() {
+                if let Some((name_id, item)) = inner.next() {
+                    let name = self.name_interner.lookup_id(name_id).unwrap();
+                    let scope = self.current_scope.unwrap();
+                    return Some((scope, name, item));
+                }
+            }
+
+            // Current scope exhausted (or we haven't started) - advance to the next scope.
+            let (scope_id, inner_map) = self.outer_iter.next()?;
+            self.current_scope = Some(self.scope_interner.lookup_id(scope_id).unwrap());
+            self.inner_iter = Some(inner_map.iter());
+        }
+    }
+}
+
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum StatementVariant
 {
@@ -668,7 +1026,8 @@ impl GlobalContext
         }
 
         // Store imports from context file
-        self.ctx_imports.insert(ctx.path.clone(), ctx.imports.clone());
+        self.ctx_imports
+            .insert(ctx.path.clone(), ctx.imports.clone());
     }
 }
 
