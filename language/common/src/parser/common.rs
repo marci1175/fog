@@ -540,9 +540,8 @@ type ID = usize;
 type NAMEID = usize;
 type SCOPEID = usize;
 
-/// This is a custom type which allows two important things. Handling items and their respective scopes.
-/// 1. It can look up an item based on its <PATH>.
-/// 2. It allows us to check whether a items's name is already present in the map.
+/// This custom map enables a memory efficient way of managing items and their respective scopes.
+/// This is achieved by the use of interning for both the name and the scope of the item present in the map.
 #[derive(Debug, Default, Clone)]
 pub struct PathMap<SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM>
 {
@@ -551,11 +550,12 @@ pub struct PathMap<SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM>
     /// A <PATH>'s last item is the function name.
     scopes: IndexMap<SCOPEID, IndexMap<NAMEID, ITEM>>,
 
-    /// This allows us to see how many items are there in the map with the same name.
-    member_name_count: HashMap<NAMEID, usize>,
+    // The reason why the name and the scope interners are separate is so that the scope can have a different type to the name interner
 
+    /// Item name interner
     name_interner: Interner<Rc<NAME>>,
 
+    /// Item scope interner
     scope_interner: Interner<Rc<SCOPE>>,
 }
 
@@ -574,7 +574,6 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
     {
         Self {
             scopes: IndexMap::new(),
-            member_name_count: HashMap::new(),
             name_interner: Interner::new(),
             scope_interner: Interner::new(),
         }
@@ -600,7 +599,6 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
             self.scopes.get(&scope_id).unwrap().get(&name_id)
         }
         else {
-            self.increment_name_counter(name_id);
             None
         }
     }
@@ -625,32 +623,13 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
             scope.insert(name_id, value)
         };
 
-        self.increment_name_counter(name_id);
-
         insert_result
     }
 
-    /// This internal function increment the function's count in the namespace.
-    /// If the name is not present it creates one.
-    fn increment_name_counter(&mut self, id: NAMEID)
-    {
-        // IF the namespace had this value this will return `false` otherwise `true`.
-        if let Some(fn_count) = self.member_name_count.get_mut(&id) {
-            *fn_count += 1;
-        }
-        else {
-            // We ensure that we only insert if there isnt an existing namespace member with this name.
-            self.member_name_count.insert(id, 1);
-        }
-    }
-
+    /// Shows if a function's name was ever present in the map. (The interner never removes unused names.)
     pub fn contains_name(&self, name: Rc<NAME>) -> bool
     {
-        if let Some(id) = self.name_interner.lookup_value(&name) {
-            return self.member_name_count.contains_key(id);
-        }
-
-        false
+        self.name_interner.lookup_value(&name).is_some()
     }
 
     pub fn contains_function(&self, scope: Rc<SCOPE>, name: Rc<NAME>) -> bool
@@ -677,7 +656,7 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
             .flatten()
     }
 
-    pub fn get_item2(&self, scope: Rc<SCOPE>) -> Option<&IndexMap<NAMEID, ITEM>>
+    pub fn get_scope(&self, scope: Rc<SCOPE>) -> Option<&IndexMap<NAMEID, ITEM>>
     {
         self.scopes.get(self.scope_interner.lookup_value(&scope)?)
     }
@@ -742,32 +721,6 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         }?;
 
         Some((*name_id, removed_item))
-    }
-
-    /// Check how many function with this name are present in the namespace.
-    /// Subtract one from the function's counter in the namespace.
-    /// Removes the field from the namespace if the counter is 0.
-    fn decrement_namespace(&mut self, id: &NAMEID)
-    {
-        let should_remove = if let Some(fn_count) = self.member_name_count.get_mut(id) {
-            // Subtract 1 from the count
-            *fn_count -= 1;
-
-            // Check if the function count is 0.
-            *fn_count == 0
-        }
-        else {
-            // I was too scared to make this an `unreachable_unchecked` lol
-            unreachable!(
-                "[INTERNAL ERROR] If you see this, that means ive messed up big time. Please check <FunctionMap> internal behavior."
-            )
-        };
-
-        // If there are no more function's with this name in the namespace remove the field.
-        if should_remove {
-            self.member_name_count.remove(id);
-            self.name_interner.remove_association_by_id(id);
-        }
     }
 
     pub fn iter(&self) -> PathMapIterator<'_, SCOPE, NAME, ITEM>
