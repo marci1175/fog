@@ -5,16 +5,7 @@ use std::{
 };
 
 use common::{
-    anyhow::{self, Result},
-    compiler::ProjectConfig,
-    error::{application::ApplicationError, codegen::CodeGenError},
-    imports::ImportType,
-    inkwell::targets::{TargetMachine, TargetTriple},
-    linker::BuildManifest,
-    parser::common::{GlobalContext, Stream, Streamable},
-    toml,
-    tracing::info,
-    ty::OrdSet,
+    anyhow::{self, Result}, compiler::ProjectConfig, dependency::verify_dependencies_fs, error::{application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::targets::{TargetMachine, TargetTriple}, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::info, ty::{OrdSet, Type},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
@@ -140,62 +131,26 @@ impl CompilerState
         let module_path = vec![self.config.name.clone()];
 
         // Parse "main.f" (The main entrypoint of the project)
-        parse_src_file(&parser_settings, module_path, &mut g_context, src_path)?;
+        // If "main.f" imports any other files those will get parsed too
+        parse_src_file(&parser_settings, &module_path, &mut g_context, src_path)?;
 
-        dbg!(&g_context);
+        // Ensure that if this project is not a library it has a main function
+        if !self.config.is_library {
+            // If the project is an application it must have a main function
+            if let Some(main_fn) = g_context.functions.get_item(Rc::new(module_path), Rc::new(String::from("main"))) {
+                if !(main_fn.signature.return_type == Type::I32 && main_fn.visibility == ItemVisibility::Public && main_fn.signature.args.arguments.is_empty() && !main_fn.signature.args.ellipsis_present) {
+                    return Err(CodeGenError::InvalidMain.into());
+                }
+            }
+            else {
+                return Err(CodeGenError::NoMain.into());
+            }
+        }
 
-        // let function_table = parser.function_table();
-        // let imported_functions = parser.imported_functions().clone();
+        // Check if the folder is present inside the dependencies folder
+        let dependencies_path = verify_dependencies_fs(self.root_dir.clone(), &self.config.dependencies)?;
 
-        // if !is_lib {
-        //     if let Some(fn_sig) = function_table.get("main") {
-        //         if fn_sig.signature.return_type != Type::I32
-        //             || !fn_sig.signature.args.arguments.is_empty()
-        //         {
-        //             return Err(CodeGenError::InvalidMain.into());
-        //         }
-        //     }
-        //     else {
-        //         return Err(CodeGenError::InvalidMain.into());
-        //     }
-        // }
-        // else if function_table.contains_key("main") {
-        //     info!("A `main` function has been found, but the library flag is set to `true`.");
-        // }
 
-        // This does NOT work with structs and comments
-        // check function token offset and custom types offsetting tokens
-        // debug!("Recontructed token tree");
-        // let lines = file_contents.lines().collect::<Vec<&str>>();
-        // for (fn_name, fn_def) in function_table.iter() {
-        //     for psd_tkn in &fn_def.inner {
-        //         println!(
-        //             "{fn_name}: tkn: {}  str: {}",
-        //             psd_tkn.inner,
-        //             &lines[dbg!(psd_tkn.debug_information.char_start.line)][dbg!(
-        //                 psd_tkn.debug_information.char_start.column
-        //             )
-        //                 ..dbg!(psd_tkn.debug_information.char_end.column)]
-        //         )
-        //     }
-        // }
-
-        // llvm_codegen(
-        //     target_ir_path.clone(),
-        //     target_o_path,
-        //     optimization,
-        //     parser.clone(),
-        //     function_table,
-        //     Rc::new(imported_functions),
-        //     &context,
-        //     &builder,
-        //     module,
-        //     path_to_src,
-        //     flags_passed_in,
-        //     target_triple,
-        //     cpu_name,
-        //     cpu_features,
-        // )?;
 
         // Linking the object file
         // link_llvm_to_target(&module, target, target_o_path)?;
@@ -215,7 +170,7 @@ impl CompilerState
 
 fn parse_src_file(
     parser_settings: &Settings,
-    module_path: Vec<String>,
+    module_path: &[String],
     g_context: &mut GlobalContext,
     src_path: PathBuf,
 ) -> Result<(), anyhow::Error>
@@ -247,7 +202,7 @@ fn parse_src_file(
 
             // Evaluate all source file imports
             for (name, import) in ctx.imports.iter() {
-                let mut module_path = module_path.clone();
+                let mut module_path = module_path.to_vec();
                 let mut src_path = src_path.clone();
 
                 module_path.push(name.clone());
@@ -261,7 +216,7 @@ fn parse_src_file(
                     src_path.extend(path);
 
                     // Parse imported source file
-                    parse_src_file(parser_settings, module_path, g_context, src_path)?;
+                    parse_src_file(parser_settings, &module_path, g_context, src_path)?;
                 }
                 else {
                     continue;

@@ -20,6 +20,8 @@ pub struct ProjectConfig
     pub version: String,
     pub build_path: String,
     pub additional_linking_material: Vec<PathBuf>,
+
+    /// The dependencies present in this map must be present in the `dependencies` folder in the project root.
     pub dependencies: HashMap<String, DependencyInfo>,
 }
 

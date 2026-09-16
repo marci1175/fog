@@ -551,7 +551,6 @@ pub struct PathMap<SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM>
     scopes: IndexMap<SCOPEID, IndexMap<NAMEID, ITEM>>,
 
     // The reason why the name and the scope interners are separate is so that the scope can have a different type to the name interner
-
     /// Item name interner
     name_interner: Interner<Rc<NAME>>,
 
@@ -932,7 +931,7 @@ pub struct GlobalContext
     /// External declerations present in each context file.
     /// The reason why these external decls still have a path is to check the scope validity.
     /// It so that a different context cannot reference an ffi decl from an other file.
-    pub ffi_declerations: HashMap<Vec<String>, FFIDeclType>,
+    pub ffi_declerations: PathMap<Vec<String>, String, FFIDeclType>,
 
     /// These are all the imports belonging to one [`Context`] instance.
     pub ctx_imports: HashMap<Vec<String>, HashMap<String, ImportType>>,
@@ -953,7 +952,7 @@ impl GlobalContext
         Self {
             functions: PathMap::new(),
             items: PathMap::new(),
-            ffi_declerations: HashMap::new(),
+            ffi_declerations: PathMap::new(),
             parsed_files: HashSet::new(),
             ctx_imports: HashMap::new(),
         }
@@ -974,8 +973,11 @@ impl GlobalContext
 
         // Store ffi decls with their path aswell
         for (name, decl) in ctx.ffi_declerations.iter() {
-            self.ffi_declerations
-                .insert(combine_path(ctx.path.clone(), name.clone()), decl.clone());
+            self.ffi_declerations.insert(
+                Rc::new(ctx.path.clone()),
+                Rc::new(name.clone()),
+                decl.clone(),
+            );
         }
 
         // Store imports from context file

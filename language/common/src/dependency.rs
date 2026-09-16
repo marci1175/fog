@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, fs, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,9 @@ pub struct DependencyInfo
 {
     pub version: String,
     pub features: Vec<String>,
-    pub remote: Option<String>,
+    
+    // Remove this for the time being
+    // pub remote: Option<String>,
 }
 
 /// Can be used to fetch a dependency from a remote dependency manager.
@@ -36,4 +38,23 @@ pub fn construct_dependency_path(
     ));
 
     dependency_path
+}
+
+
+/// This function verifies all the dependencies that they are present in the dependency folder and returns a Path for each.
+/// This does not verify if config file and whatever need is in there, only check the presence of the folder inside the dependencies folder.
+pub fn verify_dependencies_fs<'a>(mut project_root: PathBuf, dependencies: &'a HashMap<String, DependencyInfo>) -> anyhow::Result<Vec<(&'a str, PathBuf)>> {
+    let mut dependency_paths = Vec::new();
+
+    for (name, _) in dependencies.iter() {
+        project_root.push(name.to_string());
+
+        if fs::exists(&project_root)? {
+            dependency_paths.push((name.as_str(), project_root.clone()));
+        }
+
+        project_root.pop();
+    }
+    
+    Ok(dependency_paths)
 }
