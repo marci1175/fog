@@ -5,7 +5,7 @@ use std::{
 };
 
 use common::{
-    anyhow::{self, Result}, compiler::ProjectConfig, dependency::verify_dependencies_fs, error::{application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::targets::{TargetMachine, TargetTriple}, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::info, ty::{OrdSet, Type},
+    anyhow::{self, Result}, compiler::ProjectConfig, dependency::verify_dependencies_fs, error::{application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::{context::Context, targets::{TargetMachine, TargetTriple}}, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::info, ty::{OrdSet, Type},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
@@ -36,15 +36,10 @@ impl CompilerState
 
     pub fn compilation_process(
         &self,
-        _target_ir_path: PathBuf,
-        _target_o_path: PathBuf,
-        _build_path: PathBuf,
-        _optimization: bool,
-        _is_lib: bool,
-        _flags_passed_in: &str,
+        build_path: PathBuf,
+        optimization: bool,
+        flags_passed_in: &str,
         target_triple_name: Option<String>,
-        _cpu_name: Option<String>,
-        _cpu_features: Option<String>,
     ) -> Result<BuildManifest>
     {
         let _target_triple = Rc::new(
@@ -56,67 +51,13 @@ impl CompilerState
             },
         );
 
-        // info!("Creating LLVM context...");
-        // let context = Context::create();
-        // let builder = context.create_builder();
-        // let module = context.create_module("main");
+        info!("Creating LLVM context...");
 
-        // info!("Initializing LLVM environment...");
-        // unsafe {
-        //     LLVM_InitializeAllTargetInfos();
-        //     LLVM_InitializeAllTargets();
-        //     LLVM_InitializeAllTargetMCs();
-        //     LLVM_InitializeAllAsmParsers();
-        //     LLVM_InitializeAllAsmPrinters();
-        // }
+        unsafe {
+            
+        }
 
-        // let mut dependency_output_paths = Vec::new();
-        // let deps_path = PathBuf::from(format!("{}\\deps", self.root_dir.display()));
-
-        // info!("Analyzing dependencies...");
-
-        // // Create an extern libs folder which we will store all the external (pre compiled) deps in
-        // let extern_libs_path = PathBuf::from(format!("{}\\extern_libs", self.config.build_path));
-
-        // let _ = create_dir_all(&extern_libs_path);
-
-        // let mut additional_linking_material_list: Vec<PathBuf> = Vec::new();
-
-        // // Move all of the external dep files to the folder
-        // for origin_path in &self.config.additional_linking_material {
-        //     let mut extern_libs_path = extern_libs_path.clone();
-
-        //     // Modify path with the file name
-        //     extern_libs_path.push(
-        //         origin_path
-        //             .file_name()
-        //             .unwrap()
-        //             .to_string_lossy()
-        //             .to_string(),
-        //     );
-
-        //     fs::copy(origin_path, &extern_libs_path)?;
-
-        //     additional_linking_material_list.push(extern_libs_path);
-        // }
-
-        // // Create dependency imports
-        // let dependency_fn_list = create_dependency_functions_list(
-        //     &mut dependency_output_paths,
-        //     &mut additional_linking_material_list,
-        //     self.config.dependencies.clone(),
-        //     self.config.remote_compiler_workers.clone(),
-        //     deps_path.clone(),
-        //     self.root_dir.clone(),
-        //     optimization,
-        //     &context,
-        //     &builder,
-        //     &module,
-        //     flags_passed_in,
-        //     target_triple.clone(),
-        //     cpu_name.clone(),
-        //     cpu_features.clone(),
-        // )?;
+        let codegen_ctx = Context::create();
 
         let parser_settings = Settings::new(self.config.clone(), self.enabled_features.clone());
 
@@ -137,8 +78,15 @@ impl CompilerState
         // Ensure that if this project is not a library it has a main function
         if !self.config.is_library {
             // If the project is an application it must have a main function
-            if let Some(main_fn) = g_context.functions.get_item(Rc::new(module_path), Rc::new(String::from("main"))) {
-                if !(main_fn.signature.return_type == Type::I32 && main_fn.visibility == ItemVisibility::Public && main_fn.signature.args.arguments.is_empty() && !main_fn.signature.args.ellipsis_present) {
+            if let Some(main_fn) = g_context
+                .functions
+                .get_item(Rc::new(module_path), Rc::new(String::from("main")))
+            {
+                if !(main_fn.signature.return_type == Type::I32
+                    && main_fn.visibility == ItemVisibility::Public
+                    && main_fn.signature.args.arguments.is_empty()
+                    && !main_fn.signature.args.ellipsis_present)
+                {
                     return Err(CodeGenError::InvalidMain.into());
                 }
             }
@@ -147,10 +95,12 @@ impl CompilerState
             }
         }
 
+        // Start the analysis of the source code for the root project.
+        analyzer::start_analysis(&mut g_context)?;
+        
         // Check if the folder is present inside the dependencies folder
-        let dependencies_path = verify_dependencies_fs(self.root_dir.clone(), &self.config.dependencies)?;
-
-
+        let dependencies_path =
+            verify_dependencies_fs(self.root_dir.clone(), &self.config.dependencies)?;
 
         // Linking the object file
         // link_llvm_to_target(&module, target, target_o_path)?;

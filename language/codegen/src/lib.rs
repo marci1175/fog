@@ -10,19 +10,13 @@ pub mod irgen;
 pub mod pointer;
 
 use common::{
-    anyhow::Result,
-    codegen::CustomItem,
-    error::{application::ApplicationError, codegen::CodeGenError},
-    indexmap::IndexMap,
-    inkwell::{
+    anyhow::Result, codegen::CustomItem, error::{application::ApplicationError, codegen::CodeGenError}, indexmap::IndexMap, inkwell::{
         builder::Builder,
         context::Context,
         module::Module,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
-    },
-    parser::function::{FunctionDefinition, FunctionSignature},
-    tracing::info,
+    }, parser::{common::GlobalContext, function::{FunctionDefinition, FunctionSignature}}, tracing::info,
 };
 use parser::parser::Settings;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, rc::Rc};
@@ -31,61 +25,21 @@ use crate::{import::import_user_lib_functions, irgen::generate_ir};
 
 /// Main function to the codegen module.
 /// This function handles everything IR generation related.
-pub fn llvm_codegen_main<'ctx>(
+pub fn start_codegen<'ctx>(
     context: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
     module: &Module<'ctx>,
-    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
+    project: GlobalContext,
     path_to_ir_output: PathBuf,
-
-    #[allow(unused_variables)]
-    // For some reason inkwell crashes when having a break statement in the IR when generating object files.
-    path_to_o_output: PathBuf,
-
     is_optimized: bool,
-    imported_functions: Rc<HashMap<String, FunctionSignature>>,
-    custom_types: Rc<IndexMap<String, CustomItem>>,
-    flags_passed_in: &str,
-    path_to_src: &str,
-    target_triple: Rc<TargetTriple>,
-    cpu_name: Option<String>,
-    cpu_features: Option<String>,
+    target_triple: TargetTriple,
 ) -> Result<TargetMachine>
 {
-    #[cfg(debug_assertions)]
-    {
-        use std::{fs::OpenOptions, io::Write};
-
-        if let Ok(mut o_opt) = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .append(false)
-            .open(format!("{}/compiler-ir", env!("CARGO_MANIFEST_DIR")))
-        {
-            for (_, def) in parsed_functions.iter() {
-                o_opt.write_all(format!("------------------- FUNCTION DEFINITION START-------------------\n{:#?}\n------------------- FUNCTION DEFINITION END-------------------\n------------------- FUNCTION BODY START-------------------{:#?}------------------- FUNCTION BODY END-------------------\n", def.signature, def.body.clone()).as_bytes())?;
-            }
-        }
-    }
-
-    // Import functions defined by the user via llvm
-    import_user_lib_functions(
-        context,
-        module,
-        imported_functions,
-        parsed_functions.clone(),
-        custom_types.clone(),
-    )?;
-
     generate_ir(
-        parsed_functions,
         context,
         module,
         builder,
-        custom_types,
         is_optimized,
-        flags_passed_in,
-        path_to_src,
     )?;
 
     // Init target
@@ -99,8 +53,8 @@ pub fn llvm_codegen_main<'ctx>(
     let target_machine = target
         .create_target_machine(
             &target_triple,
-            &cpu_name.unwrap_or_else(|| TargetMachine::get_host_cpu_name().to_string()),
-            &cpu_features.unwrap_or_else(|| TargetMachine::get_host_cpu_features().to_string()),
+            &TargetMachine::get_host_cpu_name().to_string(),
+            &TargetMachine::get_host_cpu_features().to_string(),
             common::inkwell::OptimizationLevel::Aggressive,
             RelocMode::Default,
             common::inkwell::targets::CodeModel::Default,
@@ -149,42 +103,4 @@ pub fn llvm_codegen_main<'ctx>(
     //     })?;
 
     Ok(target_machine)
-}
-
-/// Wrapper function for the LLVM codegen init function.
-pub fn llvm_codegen<'ctx>(
-    target_ir_path: PathBuf,
-    target_o_path: PathBuf,
-    optimization: bool,
-    parser_state: Settings,
-    function_table: &common::indexmap::IndexMap<String, FunctionDefinition>,
-    imported_functions: Rc<std::collections::HashMap<String, FunctionSignature>>,
-    context: &'ctx Context,
-    builder: &'ctx common::inkwell::builder::Builder<'ctx>,
-    module: common::inkwell::module::Module<'ctx>,
-    path_to_src: &str,
-    flags_passed_in: &str,
-    target_triple: Rc<TargetTriple>,
-    cpu_name: Option<String>,
-    cpu_features: Option<String>,
-) -> Result<(), common::anyhow::Error>
-{
-    // let _target = llvm_codegen_main(
-    //     context,
-    //     builder,
-    //     &module,
-    //     Rc::new(function_table.clone()),
-    //     target_ir_path,
-    //     target_o_path.clone(),
-    //     optimization,
-    //     imported_functions,
-    //     parser_state.custom_types,
-    //     flags_passed_in,
-    //     path_to_src,
-    //     target_triple,
-    //     cpu_name,
-    //     cpu_features,
-    // )?;
-
-    Ok(())
 }

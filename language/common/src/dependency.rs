@@ -8,7 +8,6 @@ pub struct DependencyInfo
 {
     pub version: String,
     pub features: Vec<String>,
-    
     // Remove this for the time being
     // pub remote: Option<String>,
 }
@@ -40,10 +39,13 @@ pub fn construct_dependency_path(
     dependency_path
 }
 
-
 /// This function verifies all the dependencies that they are present in the dependency folder and returns a Path for each.
 /// This does not verify if config file and whatever need is in there, only check the presence of the folder inside the dependencies folder.
-pub fn verify_dependencies_fs<'a>(mut project_root: PathBuf, dependencies: &'a HashMap<String, DependencyInfo>) -> anyhow::Result<Vec<(&'a str, PathBuf)>> {
+pub fn verify_dependencies_fs<'a>(
+    mut project_root: PathBuf,
+    dependencies: &'a HashMap<String, DependencyInfo>,
+) -> anyhow::Result<Vec<(&'a str, PathBuf)>>
+{
     let mut dependency_paths = Vec::new();
 
     for (name, _) in dependencies.iter() {
@@ -55,6 +57,6 @@ pub fn verify_dependencies_fs<'a>(mut project_root: PathBuf, dependencies: &'a H
 
         project_root.pop();
     }
-    
+
     Ok(dependency_paths)
 }

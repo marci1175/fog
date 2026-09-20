@@ -8,8 +8,7 @@ description = "Common utilities and types for the Fog programming language ecosy
 dependency_manager = ["dep:r2d2", "dep:diesel", "dep:rand", "dep:base64"]
 
 [dependencies]
-# Migrate to LLVM 21-1 
-inkwell = { version = "0.7.1", features = ["llvm18-1", "target-x86"], default-features = false }
+inkwell = { version = "0.10.0", features = ["llvm23-1", "target-x86"], default-features = false, git = "https://github.com/TheDan64/inkwell.git" }
 anyhow = { version = "1.0.100", features = ["backtrace"]}
 crossbeam = "0.8.4"
 parking_lot = "0.12.5"

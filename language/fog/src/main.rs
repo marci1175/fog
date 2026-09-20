@@ -117,15 +117,10 @@ async fn main() -> common::anyhow::Result<()>
 
             let build_manifest = tokio::task::spawn_blocking(move || {
                 compiler_state.compilation_process(
-                    target_ir_path.clone(),
-                    target_o_path.clone(),
                     build_path_clone.clone(),
                     is_release,
-                    compiler_config.is_library,
                     &llvm_flags,
                     target_triple,
-                    cpu_name,
-                    cpu_features,
                 )
             })
             .await??;

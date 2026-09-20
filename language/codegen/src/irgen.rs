@@ -226,28 +226,24 @@ pub fn create_function_call_args<'ctx>(
 
 /// This function is solely for generating the LLVM-IR from the main sourec file.
 pub fn generate_ir<'ctx>(
-    parsed_functions: Rc<IndexMap<String, FunctionDefinition>>,
     context: &'ctx Context,
     module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
-    custom_types: Rc<IndexMap<String, CustomItem>>,
     is_optimized: bool,
-    flags_passed_in: &str,
-    path_to_src_file: &str,
 ) -> Result<()>
 {
     let (debug_info_builder, debug_info_compile_uint) = module.create_debug_info_builder(
         false,
         DWARFSourceLanguage::C,
         module.get_name().to_str()?,
-        path_to_src_file,
+        "<UNUSED>",
         &format!(
             "Fog (ver.: {}) with LLVM {}",
             env!("CARGO_PKG_VERSION"),
             env!("LLVM_VERSION")
         ),
         is_optimized,
-        flags_passed_in,
+        "",
         1,
         "",
         {
@@ -275,59 +271,27 @@ pub fn generate_ir<'ctx>(
 
     let debug_scope = debug_info_file.as_debug_info_scope();
 
-    let mut unique_id_source = 0;
-
-    // for (_item_name, item) in custom_types.iter() {
-    //     if let CustomItem::Struct((_name, _fields, attr)) = item {
-    //         for (_, impl_fn) in attr.impl_fn_list.iter() {
-    //             // It is safe to unwrap this here since all the functions have been parsed.
-    //             let impl_fn = impl_fn.try_as_parsed_ref().unwrap();
-
-    //             // If there are any generics present in the function arguments, the function should not be statically parsed and is generated after call during compile
-    //             if !impl_fn.signature.args.generics.is_empty() {
-    //                 continue;
-    //             }
-
-    //             // Generate IR of the function
-    //             create_function_with_ir(
-    //                 &parsed_functions,
-    //                 context,
-    //                 module,
-    //                 builder,
-    //                 &custom_types,
-    //                 is_optimized,
-    //                 &debug_info_builder,
-    //                 debug_info_file,
-    //                 debug_scope,
-    //                 &mut unique_id_source,
-    //                 &format!("__internal_fn_{_name}_{}", impl_fn.signature.name),
-    //                 impl_fn,
-    //             )?;
-    //         }
+    // for (function_name, function_definition) in parsed_functions.iter() {
+    //     // If there are any generics present in the function arguments, the function cannot be statically parsed and is generated after call during compile
+    //     if !function_definition.signature.args.generics.is_empty() {
+    //         continue;
     //     }
+
+    //     create_function_with_ir(
+    //         &parsed_functions,
+    //         context,
+    //         module,
+    //         builder,
+    //         &custom_types,
+    //         is_optimized,
+    //         &debug_info_builder,
+    //         debug_info_file,
+    //         debug_scope,
+    //         &mut unique_id_source,
+    //         function_name,
+    //         function_definition,
+    //     )?;
     // }
-
-    for (function_name, function_definition) in parsed_functions.iter() {
-        // If there are any generics present in the function arguments, the function cannot be statically parsed and is generated after call during compile
-        if !function_definition.signature.args.generics.is_empty() {
-            continue;
-        }
-
-        create_function_with_ir(
-            &parsed_functions,
-            context,
-            module,
-            builder,
-            &custom_types,
-            is_optimized,
-            &debug_info_builder,
-            debug_info_file,
-            debug_scope,
-            &mut unique_id_source,
-            function_name,
-            function_definition,
-        )?;
-    }
 
     Ok(())
 }
