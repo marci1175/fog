@@ -552,10 +552,10 @@ pub struct PathMap<SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM>
 
     // The reason why the name and the scope interners are separate is so that the scope can have a different type to the name interner
     /// Item name interner
-    name_interner: Interner<Rc<NAME>>,
+    name_interner: Interner<NAME>,
 
     /// Item scope interner
-    scope_interner: Interner<Rc<SCOPE>>,
+    scope_interner: Interner<SCOPE>,
 }
 
 /// Allows us to specify the method we want to remove a key from a map.
@@ -581,10 +581,10 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
     /// If a key is inserted with this method, it first checks if that path is already present in the map.
     /// If it is present it will not overwrite the map's field, instead it will return the passed in function.
     /// The function also increment the function's counter in the namespace map.
-    pub fn try_insert(&mut self, scope: Rc<SCOPE>, value: ITEM, name: Rc<NAME>) -> Option<&ITEM>
+    pub fn try_insert(&mut self, scope: SCOPE, value: ITEM, name: NAME) -> Option<&ITEM>
     {
-        let name_id = self.name_interner.insert_or_get_association(name.clone());
-        let scope_id = self.scope_interner.insert_or_get_association(scope.clone());
+        let name_id = self.name_interner.insert_or_get_association(name);
+        let scope_id = self.scope_interner.insert_or_get_association(scope);
 
         let item_scope = self.scopes.entry(scope_id).or_insert_with(IndexMap::new);
 
@@ -606,10 +606,10 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
     /// The returned value is the overwritten value of the map.
     /// If the function returns [`None`], it means that the key we inserted was not present in the map.
     /// The function also increment the function's counter in the namespace map.
-    pub fn insert(&mut self, scope: Rc<SCOPE>, name: Rc<NAME>, value: ITEM) -> Option<ITEM>
+    pub fn insert(&mut self, scope: SCOPE, name: NAME, value: ITEM) -> Option<ITEM>
     {
-        let name_id = self.name_interner.insert_or_get_association(name.clone());
-        let scope_id = self.scope_interner.insert_or_get_association(scope.clone());
+        let name_id = self.name_interner.insert_or_get_association(name);
+        let scope_id = self.scope_interner.insert_or_get_association(scope);
 
         // Try to fetch the correct scope for the function.
         let insert_result = if let Some(scope) = self.scopes.get_mut(&scope_id) {
@@ -626,12 +626,12 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
     }
 
     /// Shows if a function's name was ever present in the map. (The interner never removes unused names.)
-    pub fn contains_name(&self, name: Rc<NAME>) -> bool
+    pub fn contains_name(&self, name: NAME) -> bool
     {
         self.name_interner.lookup_value(&name).is_some()
     }
 
-    pub fn contains_function(&self, scope: Rc<SCOPE>, name: Rc<NAME>) -> bool
+    pub fn contains_function(&self, scope: SCOPE, name: NAME) -> bool
     {
         (|| {
             let scope_id = self.scope_interner.lookup_value(&scope)?;
@@ -642,7 +642,7 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         .is_some()
     }
 
-    pub fn get_item(&self, scope: Rc<SCOPE>, name: Rc<NAME>) -> Option<&ITEM>
+    pub fn get_item(&self, scope: SCOPE, name: NAME) -> Option<&ITEM>
     {
         let scope_id = self.scope_interner.lookup_value(&scope)?;
 
@@ -655,12 +655,12 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
             .flatten()
     }
 
-    pub fn get_scope(&self, scope: Rc<SCOPE>) -> Option<&IndexMap<NAMEID, ITEM>>
+    pub fn get_scope(&self, scope: SCOPE) -> Option<&IndexMap<NAMEID, ITEM>>
     {
         self.scopes.get(self.scope_interner.lookup_value(&scope)?)
     }
 
-    pub fn get_item_by_idx(&self, idx: usize, name: Rc<NAME>) -> Option<(&Rc<SCOPE>, &ITEM)>
+    pub fn get_item_by_idx(&self, idx: usize, name: NAME) -> Option<(&SCOPE, &ITEM)>
     {
         self.scopes
             .get_index(idx)
@@ -673,14 +673,14 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
             .flatten()
     }
 
-    pub fn get_name_from_id(&self, id: &NAMEID) -> Option<&Rc<NAME>>
+    pub fn get_name_from_id(&self, id: &NAMEID) -> Option<&NAME>
     {
         self.name_interner.lookup_id(id)
     }
 
     pub fn remove_scope(
         &mut self,
-        scope: Rc<SCOPE>,
+        scope: SCOPE,
         remove_type: RemoveType,
     ) -> Option<(SCOPEID, IndexMap<NAMEID, ITEM>)>
     {
@@ -704,8 +704,8 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
 
     pub fn remove_item(
         &mut self,
-        scope: Rc<SCOPE>,
-        name: Rc<NAME>,
+        scope: SCOPE,
+        name: NAME,
         remove_type: RemoveType,
     ) -> Option<(NAMEID, ITEM)>
     {
@@ -733,12 +733,12 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         }
     }
 
-    pub fn get_scopes(&self) -> bimap::hash::LeftValues<'_, Rc<SCOPE>, usize>
+    pub fn get_scopes(&self) -> bimap::hash::LeftValues<'_, SCOPE, usize>
     {
         self.scope_interner.internal_map.left_values()
     }
 
-    pub fn get_names(&self) -> bimap::hash::LeftValues<'_, Rc<NAME>, usize>
+    pub fn get_names(&self) -> bimap::hash::LeftValues<'_, NAME, usize>
     {
         self.name_interner.internal_map.left_values()
     }
@@ -753,15 +753,15 @@ pub struct PathMapIterator<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM>
 {
     outer_iter: indexmap::map::Iter<'a, SCOPEID, IndexMap<NAMEID, ITEM>>,
     inner_iter: Option<indexmap::map::Iter<'a, NAMEID, ITEM>>,
-    current_scope: Option<&'a Rc<SCOPE>>,
-    scope_interner: &'a Interner<Rc<SCOPE>>,
-    name_interner: &'a Interner<Rc<NAME>>,
+    current_scope: Option<&'a SCOPE>,
+    scope_interner: &'a Interner<SCOPE>,
+    name_interner: &'a Interner<NAME>,
 }
 
 impl<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
     for PathMapIterator<'a, SCOPE, NAME, ITEM>
 {
-    type Item = (&'a Rc<SCOPE>, &'a Rc<NAME>, &'a ITEM);
+    type Item = (&'a SCOPE, &'a NAME, &'a ITEM);
 
     fn next(&mut self) -> Option<Self::Item>
     {
@@ -969,8 +969,8 @@ impl GlobalContext
         // Store ffi decls with their path aswell
         for (name, decl) in ctx.ffi_declerations.iter() {
             self.ffi_declerations.insert(
-                Rc::new(ctx.path.clone()),
-                Rc::new(name.clone()),
+                ctx.path.clone(),
+                name.clone(),
                 decl.clone(),
             );
         }
@@ -989,7 +989,7 @@ impl GlobalContext
                 .insert(path.clone(), name.clone(), def.clone())
             {
                 return Err(ParserError::ContextItemCollision(
-                    (**path).clone(),
+                    (*path).clone(),
                     g_ctx.name.clone(),
                     self.name.clone(),
                 )
@@ -1001,7 +1001,7 @@ impl GlobalContext
         for (path, name, def) in g_ctx.items.iter() {
             if let Some(_) = self.items.insert(path.clone(), name.clone(), def.clone()) {
                 return Err(ParserError::ContextItemCollision(
-                    (**path).clone(),
+                    (*path).clone(),
                     g_ctx.name.clone(),
                     self.name.clone(),
                 )
@@ -1016,7 +1016,7 @@ impl GlobalContext
                 .insert(path.clone(), name.clone(), decl.clone())
             {
                 return Err(ParserError::ContextItemCollision(
-                    (**path).clone(),
+                    (*path).clone(),
                     g_ctx.name.clone(),
                     self.name.clone(),
                 )

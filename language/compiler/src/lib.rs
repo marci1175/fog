@@ -1,41 +1,28 @@
 use std::{
-    collections::HashSet,
-    fs::{self},
-    path::PathBuf,
-    rc::Rc,
+    collections::{HashMap, HashSet}, fs::{self}, path::PathBuf, rc::Rc,
 };
 
 use common::{
-    anyhow::{self, Result},
-    compiler::ProjectConfig,
-    dependency::verify_dependencies_fs,
-    error::{
+    anyhow::{self, Result}, compiler::ProjectConfig, dependency::verify_dependencies_fs, error::{
         application::ApplicationError, codegen::CodeGenError, dependency::DependencyError,
         parser::ParserError,
-    },
-    imports::ImportType,
-    inkwell::{
-        context::Context,
-        targets::{TargetMachine, TargetTriple},
-    },
-    linker::BuildManifest,
-    parser::common::{GlobalContext, ItemVisibility, Stream, Streamable},
-    toml,
-    tracing::info,
-    ty::{OrdSet, Type},
+    }, imports::ImportType, inkwell::{
+        context::Context, module::Module, targets::{TargetMachine, TargetTriple}, types::{BasicTypeEnum, FunctionType},
+    }, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::info, ty::{OrdSet, Type},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
-pub struct CompilerJob
+pub struct CompilerInstance
 {
+    pub optimized: bool,
     pub config: ProjectConfig,
     pub root_dir: PathBuf,
     pub enabled_features: OrdSet<String>,
 }
 
-impl CompilerJob
+impl CompilerInstance
 {
-    pub fn new(project_root_dir: PathBuf, enabled_features: OrdSet<String>)
+    pub fn new(project_root_dir: PathBuf, enabled_features: OrdSet<String>, optimized: bool)
     -> anyhow::Result<Self>
     {
         // Read config file
@@ -47,16 +34,107 @@ impl CompilerJob
             toml::from_str::<ProjectConfig>(&config_file).map_err(ApplicationError::ConfigError)?;
 
         Ok(Self {
+            optimized,
             config,
             root_dir: project_root_dir,
             enabled_features,
         })
     }
 
-    pub fn generate_asts(
+    /// Comprehensive function for compiling an entire project.
+    /// The function handles generating ASTs, LLVM IR and producing a [`BuildManifest`] that the linker can use to produce a binary.
+    pub fn compile(&self) -> anyhow::Result<BuildManifest> {
+        let root_path = vec![self.config.name.clone()];
+        
+        // The global context for the whole project
+        // This function basically generates all of the ASTs for all of the dependencies and source files and puts them into one global context.
+        let mut global_context = self.generate_asts()?;
+
+        // Ensure that if this project is not a library it has a main function
+        if !self.config.is_library {
+            // If the project is an application it must have a main function
+            if let Some(main_fn) = global_context
+                .functions
+                .get_item(root_path, String::from("main"))
+            {
+                if !(main_fn.signature.return_type == Type::I32
+                    && main_fn.visibility == ItemVisibility::Public
+                    && main_fn.signature.args.arguments.is_empty()
+                    && !main_fn.signature.args.ellipsis_present)
+                {
+                    return Err(CodeGenError::InvalidMain.into());
+                }
+            }
+            else {
+                return Err(CodeGenError::NoMain.into());
+            }
+        }
+
+        // Analyze the whole project
+        // This includes type resolving (widening type for numbers), type checking, semantic analysis
+        analyzer::start_analysis(&mut global_context)?;
+
+        // Generate LLVM IR for the global context
+        self.generate_ir(&global_context)?;
+
+        Ok(todo!())
+    }
+
+    fn generate_ir(&self, global_context: &GlobalContext) -> anyhow::Result<()> {
+        info!("Initalizing LLVM....");
+
+        // Create the llvm context
+        let context = Context::create();
+        let builder = context.create_builder();
+        
+        // Create a map of the available modules.
+        // A module is created if its not found in the map. A module contains every function which has the module name as its first item in its path. (ie. module: `foo` contains foo::bar, foo::bar::baz, etc.) 
+        let mut modules: HashMap<String, Module> = HashMap::new();
+        
+        // The function has its appropriate module found, then the function is parsed as a whole.
+        // Every function's name must follow a common rule as following. All functions must have their full paths in their name. (ie. foo::bar::baz => define i32 @"foo::bar::baz"...) This helps the linking process later.
+
+        for (path, name, definition) in global_context.functions.iter() {
+            // Lookup module in module map
+            let module_name = path.get(0).ok_or(CodeGenError::InternalItemPathEmpty(name.clone()))?;
+            
+            if let Some(module) = modules.get(module_name) {
+                // Create function
+
+                // Store function in module
+                // module.add_function(name, ty, linkage)?;
+            }
+            // If the module was not found
+            else {
+                modules.insert(module_name.clone(), context.create_module(&*module_name));
+            }
+        }
+
+        let i32_type = context.i32_type();
+
+        let fn_type = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
+
+        let module = context.create_module("asd");
+        let module2 = context.create_module("asd");
+        let module3 = context.create_module("asd");
+        let module4 = context.create_module("asd");
+
+        let function = module.add_function("add", fn_type, None);
+        let fn_block = context.append_basic_block(function, "fn_body");
+
+        builder.position_at_end(fn_block);
+        
+        let var = builder.build_alloca(i32_type, "test")?;
+
+        builder.build_store(var, i32_type.const_int(4000, false))?;
+
+        module.print_to_file("hello.ll")?;
+
+        Ok(())
+    }
+
+    fn generate_asts(
         &self,
-        optimization: bool,
-        target_triple_name: Option<String>,
     ) -> Result<GlobalContext>
     {
         let parser_settings = Settings::new(self.config.clone(), self.enabled_features.clone());
@@ -75,26 +153,6 @@ impl CompilerJob
         // If "main.f" imports any other files those will get parsed too
         parse_src_file(&parser_settings, &module_path, &mut g_context, src_path)?;
 
-        // Ensure that if this project is not a library it has a main function
-        if !self.config.is_library {
-            // If the project is an application it must have a main function
-            if let Some(main_fn) = g_context
-                .functions
-                .get_item(Rc::new(module_path), Rc::new(String::from("main")))
-            {
-                if !(main_fn.signature.return_type == Type::I32
-                    && main_fn.visibility == ItemVisibility::Public
-                    && main_fn.signature.args.arguments.is_empty()
-                    && !main_fn.signature.args.ellipsis_present)
-                {
-                    return Err(CodeGenError::InvalidMain.into());
-                }
-            }
-            else {
-                return Err(CodeGenError::NoMain.into());
-            }
-        }
-
         // Check if the folder is present inside the dependencies folder
         let dependencies =
             verify_dependencies_fs(self.root_dir.clone(), &self.config.dependencies)?;
@@ -102,15 +160,17 @@ impl CompilerJob
         // Create jobs for the compiler from the dependencies
         for (name, path) in dependencies {
             // Its safe to unwrap here since the names presented are fetched from the dependency list directly.
-            let job = CompilerJob::new(
+            let job = CompilerInstance::new(
                 path,
                 // Fetch the enabled features from the config.toml
                 OrdSet::from_vec(self.config.dependencies.get(name).unwrap().features.clone()),
+                self.optimized,
             )?;
 
             // Create a list of artifacts (these are usually the dependencies of the dependency itself)
+            // The function checks for item path collisions
             g_context
-                .append_global_ctx(job.generate_asts(optimization, target_triple_name.clone())?);
+                .append_global_ctx(job.generate_asts()?)?;
         }
 
         Ok(g_context)

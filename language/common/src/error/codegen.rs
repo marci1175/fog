@@ -9,6 +9,8 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum CodeGenError
 {
+    #[error("[INTERNAL ERROR] Item `{0}`'s path is empty.")]
+    InternalItemPathEmpty(String),
     #[error("Source file referenced at `{0}` is not found or inaccessible in the host system.")]
     SrcFileNotFound(PathBuf),
     #[error(

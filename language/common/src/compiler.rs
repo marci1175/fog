@@ -32,6 +32,8 @@ pub struct ProjectConfig
     /// The dependencies present in this map must be present in the `dependencies` folder in the project root.
     pub dependencies: HashMap<String, DependencyInfo>,
 
+    #[serde(skip)]
+    /// This field should be initalized by the code.
     pub root_path: PathBuf,
 }
 

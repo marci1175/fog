@@ -15,7 +15,7 @@ use common::{
     tracing_subscriber,
     ty::OrdSet,
 };
-use compiler::CompilerJob;
+use compiler::CompilerInstance;
 use linker::link;
 use std::{env, fs, path::PathBuf};
 use tracing::Level;
@@ -82,12 +82,13 @@ fn main() -> common::anyhow::Result<()>
                 current_working_dir
             };
 
-            // Reads the project's configuration in its `config.toml`
-            let compiler_state = CompilerJob::new(root_path.clone(), OrdSet::new())?;
+            // Reads the project's configuration in its `config.toml` and create a compiler job
+            let compiler = CompilerInstance::new(root_path.clone(), OrdSet::new(), is_release)?;
 
             // Fetch project config
-            let compiler_config = compiler_state.config.clone();
+            let compiler_config = compiler.config.clone();
 
+            // Check if tehre are any unusable features in the project
             if !compiler_config.is_library && compiler_config.features.is_some() {
                 warn!(
                     "WARNING: Project `{}({})` is not a library, but has features. Features {:?} will be ignored.",
@@ -103,7 +104,7 @@ fn main() -> common::anyhow::Result<()>
             let build_artifact_name = format!(
                 "{}\\{}\\{}",
                 root_path.display(),
-                compiler_state.config.build_path,
+                compiler.config.build_path,
                 compiler_config.name.clone()
             );
 
@@ -111,7 +112,7 @@ fn main() -> common::anyhow::Result<()>
             let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
             let compiler_startup_instant = std::time::Instant::now();
 
-            let global_context = compiler_state.generate_asts(is_release, target_triple)?;
+            let build_manifest = compiler.compile()?;
 
             // Write build manifest to disc
             fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
@@ -160,7 +161,7 @@ fn main() -> common::anyhow::Result<()>
         CliCommand::Version => info!("Build version: {}", env!("CARGO_PKG_VERSION")),
         CliCommand::New { path } => {
             info!("Creating project folders...");
-            let path_s = path.display();
+            let path_s = path.display().to_string();
 
             fs::create_dir_all(path_s.to_string()).map_err(ApplicationError::FileError)?;
             fs::create_dir(format!("{path_s}/out"))?;
@@ -175,6 +176,7 @@ fn main() -> common::anyhow::Result<()>
 
             let project_cfg = ProjectConfig::new(
                 path.file_name().unwrap().to_string_lossy().to_string(),
+                path,
             );
 
             fs::write(
@@ -210,7 +212,7 @@ fn main() -> common::anyhow::Result<()>
             info!("Creating config file...");
             fs::write(
                 format!("{}/config.toml", current_working_dir.display()),
-                toml::to_string(&ProjectConfig::new(get_folder_name.to_string()))?,
+                toml::to_string(&ProjectConfig::new(get_folder_name.to_string(), current_working_dir.clone()))?,
             )
             .map_err(ApplicationError::FileError)?;
 

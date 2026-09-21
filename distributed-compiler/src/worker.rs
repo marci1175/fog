@@ -17,7 +17,7 @@ use common::{
     linker::BuildManifest,
     tokio, toml,
 };
-use compiler::CompilerJob;
+use compiler::CompilerInstance;
 use dashmap::DashMap;
 
 pub type JobQueue = deque::Injector<CompileJob>;
@@ -154,7 +154,7 @@ fn compile_job(
     thread_id: ThreadIdentification,
 ) -> anyhow::Result<(PathBuf, ProjectConfig, BuildManifest)>
 {
-    let compiler_state = CompilerJob::new(job.depdendency_path.clone(), job.features).unwrap();
+    let compiler_state = CompilerInstance::new(job.depdendency_path.clone(), job.features, true).unwrap();
 
     // Send message that we have received a job
     ui_sender

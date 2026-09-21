@@ -100,8 +100,8 @@ impl Settings
                                 )?;
 
                                 ctx.items.insert(
-                                    Rc::new(ctx.path.clone()),
-                                    Rc::new(struct_def.name.clone()),
+                                    ctx.path.clone(),
+                                    struct_def.name.clone(),
                                     common::codegen::CustomItem::Struct(struct_def),
                                 );
                             },
@@ -114,8 +114,8 @@ impl Settings
                                 )?;
 
                                 ctx.functions.insert(
-                                    Rc::new(ctx.path.clone()),
-                                    Rc::new(function.signature.name.clone()),
+                                    ctx.path.clone(),
+                                    function.signature.name.clone(),
                                     function,
                                 );
                             },
