@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, rc::Rc};
 use thiserror::Error;
 
 use crate::{
@@ -11,6 +11,8 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("Item with path `{0:?}` is present in dependency `{1}` and `{2}`.")]
+    ContextItemCollision(Vec<String>, String, String),
     #[error(
         "[INTERNAL ERROR] The parser's predefined fastpath for this expression (`{0:?}`) mistmaches the actual definition requirement of the expression."
     )]

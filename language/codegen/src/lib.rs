@@ -10,13 +10,22 @@ pub mod irgen;
 pub mod pointer;
 
 use common::{
-    anyhow::Result, codegen::CustomItem, error::{application::ApplicationError, codegen::CodeGenError}, indexmap::IndexMap, inkwell::{
+    anyhow::Result,
+    codegen::CustomItem,
+    error::{application::ApplicationError, codegen::CodeGenError},
+    indexmap::IndexMap,
+    inkwell::{
         builder::Builder,
         context::Context,
         module::Module,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
-    }, parser::{common::GlobalContext, function::{FunctionDefinition, FunctionSignature}}, tracing::info,
+    },
+    parser::{
+        common::GlobalContext,
+        function::{FunctionDefinition, FunctionSignature},
+    },
+    tracing::info,
 };
 use parser::parser::Settings;
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf, rc::Rc};
@@ -35,12 +44,7 @@ pub fn start_codegen<'ctx>(
     target_triple: TargetTriple,
 ) -> Result<TargetMachine>
 {
-    generate_ir(
-        context,
-        module,
-        builder,
-        is_optimized,
-    )?;
+    generate_ir(context, module, builder, is_optimized)?;
 
     // Init target
     Target::initialize_x86(&InitializationConfig::default());

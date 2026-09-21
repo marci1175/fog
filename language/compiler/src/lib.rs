@@ -1,75 +1,75 @@
 use std::{
+    collections::HashSet,
     fs::{self},
     path::PathBuf,
     rc::Rc,
 };
 
 use common::{
-    anyhow::{self, Result}, compiler::ProjectConfig, dependency::verify_dependencies_fs, error::{application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::{context::Context, targets::{TargetMachine, TargetTriple}}, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::info, ty::{OrdSet, Type},
+    anyhow::{self, Result},
+    compiler::ProjectConfig,
+    dependency::verify_dependencies_fs,
+    error::{
+        application::ApplicationError, codegen::CodeGenError, dependency::DependencyError,
+        parser::ParserError,
+    },
+    imports::ImportType,
+    inkwell::{
+        context::Context,
+        targets::{TargetMachine, TargetTriple},
+    },
+    linker::BuildManifest,
+    parser::common::{GlobalContext, ItemVisibility, Stream, Streamable},
+    toml,
+    tracing::info,
+    ty::{OrdSet, Type},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
-pub struct CompilerState
+pub struct CompilerJob
 {
     pub config: ProjectConfig,
     pub root_dir: PathBuf,
     pub enabled_features: OrdSet<String>,
 }
 
-impl CompilerState
+impl CompilerJob
 {
-    pub fn new(root_dir: PathBuf, enabled_features: OrdSet<String>) -> anyhow::Result<Self>
+    pub fn new(project_root_dir: PathBuf, enabled_features: OrdSet<String>)
+    -> anyhow::Result<Self>
     {
         // Read config file
-        let config_file = fs::read_to_string(format!("{}\\config.toml", root_dir.display()))
-            .map_err(|_| ApplicationError::ConfigNotFound(root_dir.clone()))?;
+        let config_file =
+            fs::read_to_string(format!("{}\\config.toml", project_root_dir.display()))
+                .map_err(|_| ApplicationError::ConfigNotFound(project_root_dir.clone()))?;
 
         let config =
             toml::from_str::<ProjectConfig>(&config_file).map_err(ApplicationError::ConfigError)?;
 
         Ok(Self {
             config,
-            root_dir,
+            root_dir: project_root_dir,
             enabled_features,
         })
     }
 
-    pub fn compilation_process(
+    pub fn generate_asts(
         &self,
-        build_path: PathBuf,
         optimization: bool,
-        flags_passed_in: &str,
         target_triple_name: Option<String>,
-    ) -> Result<BuildManifest>
+    ) -> Result<GlobalContext>
     {
-        let _target_triple = Rc::new(
-            if let Some(target_triple_name) = target_triple_name {
-                TargetTriple::create(&target_triple_name)
-            }
-            else {
-                TargetMachine::get_default_triple()
-            },
-        );
-
-        info!("Creating LLVM context...");
-
-        unsafe {
-            
-        }
-
-        let codegen_ctx = Context::create();
-
         let parser_settings = Settings::new(self.config.clone(), self.enabled_features.clone());
 
-        info!("Parsing...");
-
         // A global GlobalContext holds all of the context files' items.
-        let mut g_context = GlobalContext::new();
+        let mut g_context = GlobalContext::new(self.config.name.clone());
 
         // This source path is always defining the path of the currently parsed file.
         // This is also a way of navigating between imported source files via their relative path.
         let src_path = PathBuf::from(format!("{}\\src\\main.f", self.root_dir.display()));
         let module_path = vec![self.config.name.clone()];
+
+        info!("Generating ({})....", self.config.name);
 
         // Parse "main.f" (The main entrypoint of the project)
         // If "main.f" imports any other files those will get parsed too
@@ -95,26 +95,25 @@ impl CompilerState
             }
         }
 
-        // Start the analysis of the source code for the root project.
-        analyzer::start_analysis(&mut g_context)?;
-        
         // Check if the folder is present inside the dependencies folder
-        let dependencies_path =
+        let dependencies =
             verify_dependencies_fs(self.root_dir.clone(), &self.config.dependencies)?;
 
-        // Linking the object file
-        // link_llvm_to_target(&module, target, target_o_path)?;
-        // dependency_output_paths.push(target_ir_path.clone());
+        // Create jobs for the compiler from the dependencies
+        for (name, path) in dependencies {
+            // Its safe to unwrap here since the names presented are fetched from the dependency list directly.
+            let job = CompilerJob::new(
+                path,
+                // Fetch the enabled features from the config.toml
+                OrdSet::from_vec(self.config.dependencies.get(name).unwrap().features.clone()),
+            )?;
 
-        // Ok(BuildManifest {
-        //     // Localize path for later use, if we cannot strip it, it means that the path is already a stripped version, therefor we can skip that
-        //     build_output_paths: dependency_output_paths,
-        //     additional_linking_material: additional_linking_material_list,
-        //     // Localize path for later use
-        //     output_path: build_path,
-        // })
+            // Create a list of artifacts (these are usually the dependencies of the dependency itself)
+            g_context
+                .append_global_ctx(job.generate_asts(optimization, target_triple_name.clone())?);
+        }
 
-        Ok(todo!())
+        Ok(g_context)
     }
 }
 

@@ -15,7 +15,7 @@ use common::{
     tracing_subscriber,
     ty::OrdSet,
 };
-use compiler::CompilerState;
+use compiler::CompilerJob;
 use linker::link;
 use std::{env, fs, path::PathBuf};
 use tracing::Level;
@@ -28,8 +28,8 @@ pub struct CompilerArgs
     command: CliCommand,
 }
 
-#[tokio::main]
-async fn main() -> common::anyhow::Result<()>
+// #[tokio::main]
+fn main() -> common::anyhow::Result<()>
 {
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
@@ -56,7 +56,7 @@ async fn main() -> common::anyhow::Result<()>
 
             info!(
                 "Linking finished successfully! Binary output is available at: {}",
-                manifest.output_path.display()
+                manifest.build_path.display()
             );
         },
         CliCommand::Compile {
@@ -82,8 +82,10 @@ async fn main() -> common::anyhow::Result<()>
                 current_working_dir
             };
 
-            let compiler_state = CompilerState::new(root_path.clone(), OrdSet::new())?;
+            // Reads the project's configuration in its `config.toml`
+            let compiler_state = CompilerJob::new(root_path.clone(), OrdSet::new())?;
 
+            // Fetch project config
             let compiler_config = compiler_state.config.clone();
 
             if !compiler_config.is_library && compiler_config.features.is_some() {
@@ -95,6 +97,7 @@ async fn main() -> common::anyhow::Result<()>
                 );
             }
 
+            // Create a directory from the build path specified in the config
             fs::create_dir_all(compiler_config.build_path)?;
 
             let build_artifact_name = format!(
@@ -104,26 +107,11 @@ async fn main() -> common::anyhow::Result<()>
                 compiler_config.name.clone()
             );
 
-            let target_ir_path = PathBuf::from(format!("{build_artifact_name}.ll"));
-
-            let target_o_path = PathBuf::from(format!("{build_artifact_name}.obj"));
-
             let build_path = PathBuf::from(format!("{build_artifact_name}.exe"));
-
             let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
-            let build_path_clone = build_path.clone();
             let compiler_startup_instant = std::time::Instant::now();
-            let root_path_clone = root_path.clone();
 
-            let build_manifest = tokio::task::spawn_blocking(move || {
-                compiler_state.compilation_process(
-                    build_path_clone.clone(),
-                    is_release,
-                    &llvm_flags,
-                    target_triple,
-                )
-            })
-            .await??;
+            let global_context = compiler_state.generate_asts(is_release, target_triple)?;
 
             // Write build manifest to disc
             fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
@@ -156,7 +144,8 @@ async fn main() -> common::anyhow::Result<()>
                     /* Pass in the arguments inherited (TODO) */ args.join(" ")
                 );
 
-                let exit_status = build_manifest.run_build_output(root_path_clone, args)?;
+                // Run the acutal compiled application
+                let exit_status = build_manifest.run_build_output(root_path, args)?;
 
                 if !exit_status.success() {
                     if let Some(exit_code) = exit_status.code() {
@@ -184,7 +173,7 @@ async fn main() -> common::anyhow::Result<()>
             )
             .map_err(ApplicationError::FileError)?;
 
-            let project_cfg = ProjectConfig::new_from_name(
+            let project_cfg = ProjectConfig::new(
                 path.file_name().unwrap().to_string_lossy().to_string(),
             );
 
@@ -221,7 +210,7 @@ async fn main() -> common::anyhow::Result<()>
             info!("Creating config file...");
             fs::write(
                 format!("{}/config.toml", current_working_dir.display()),
-                toml::to_string(&ProjectConfig::new_from_name(get_folder_name.to_string()))?,
+                toml::to_string(&ProjectConfig::new(get_folder_name.to_string()))?,
             )
             .map_err(ApplicationError::FileError)?;
 
@@ -236,77 +225,77 @@ async fn main() -> common::anyhow::Result<()>
             secret,
             path,
         } => {
-            let path = if let Some(path) = path.clone() {
-                path
-            }
-            else {
-                current_working_dir
-            };
+            //     let path = if let Some(path) = path.clone() {
+            //         path
+            //     }
+            //     else {
+            //         current_working_dir
+            //     };
 
-            // Read config file
-            let config_file = fs::read_to_string(format!("{}/config.toml", path.display()))
-                .map_err(|_| ApplicationError::ConfigNotFound(path.clone()))?;
+            //     // Read config file
+            //     let config_file = fs::read_to_string(format!("{}/config.toml", path.display()))
+            //         .map_err(|_| ApplicationError::ConfigNotFound(path.clone()))?;
 
-            let compiler_config = toml::from_str::<ProjectConfig>(&config_file)
-                .map_err(ApplicationError::ConfigError)?;
+            //     let compiler_config = toml::from_str::<ProjectConfig>(&config_file)
+            //         .map_err(ApplicationError::ConfigError)?;
 
-            info!("Resolving `{url}`...");
+            //     info!("Resolving `{url}`...");
 
-            let http_client = reqwest::Client::new();
-            let request_reply = http_client.get(&url).send().await?;
+            //     let http_client = reqwest::Client::new();
+            //     let request_reply = http_client.get(&url).send().await?;
 
-            let response_code = request_reply.status();
+            //     let response_code = request_reply.status();
 
-            info!("Remote `{url}` responded with: `{}`", response_code);
+            //     info!("Remote `{url}` responded with: `{}`", response_code);
 
-            let zip = zip_folder(fs::read_dir(path)?, Some(compiler_config.build_path))?;
+            //     let zip = zip_folder(fs::read_dir(path)?, Some(compiler_config.build_path))?;
 
-            let zipped_folder = zip.finish_into_readable()?;
+            //     let zipped_folder = zip.finish_into_readable()?;
 
-            if response_code == StatusCode::OK {
-                info!("Uploading dependency...");
+            //     if response_code == StatusCode::OK {
+            //         info!("Uploading dependency...");
 
-                if let Some(_secret_key) = secret {}
+            //         if let Some(_secret_key) = secret {}
 
-                let dependency_instance = DependencyUpload::new(
-                    compiler_config.name.clone(),
-                    compiler_config.version.clone(),
-                    author,
-                    zipped_folder.into_inner().into_inner(),
-                );
+            //         let dependency_instance = DependencyUpload::new(
+            //             compiler_config.name.clone(),
+            //             compiler_config.version.clone(),
+            //             author,
+            //             zipped_folder.into_inner().into_inner(),
+            //         );
 
-                let serialized_dep_upload = rmp_serde::to_vec(&dependency_instance)?;
+            //         let serialized_dep_upload = rmp_serde::to_vec(&dependency_instance)?;
 
-                let compressed_body = compress_bytes(&serialized_dep_upload)?;
+            //         let compressed_body = compress_bytes(&serialized_dep_upload)?;
 
-                info!("Sending dependency...");
+            //         info!("Sending dependency...");
 
-                let publish_response_code = http_client
-                    .post(format!("{url}/publish_dependency"))
-                    .header("Content-Type", "application/octet-stream")
-                    .body(compressed_body)
-                    .send()
-                    .await?;
+            //         let publish_response_code = http_client
+            //             .post(format!("{url}/publish_dependency"))
+            //             .header("Content-Type", "application/octet-stream")
+            //             .body(compressed_body)
+            //             .send()
+            //             .await?;
 
-                let response_code = publish_response_code.status();
+            //         let response_code = publish_response_code.status();
 
-                if response_code == StatusCode::INTERNAL_SERVER_ERROR {
-                    let request_body = publish_response_code.text().await?;
-                    info!("Received response `{response_code}` from server: {request_body}.");
-                }
-                else {
-                    let reply = request_reply.text().await?;
+            //         if response_code == StatusCode::INTERNAL_SERVER_ERROR {
+            //             let request_body = publish_response_code.text().await?;
+            //             info!("Received response `{response_code}` from server: {request_body}.");
+            //         }
+            //         else {
+            //             let reply = request_reply.text().await?;
 
-                    let dep_reply = serde_json::from_str::<DependencyUploadReply>(&reply)?;
+            //             let dep_reply = serde_json::from_str::<DependencyUploadReply>(&reply)?;
 
-                    info!(
-                        "Dependency `{}({})` has been successfully created. This secret token `{}` can be used to update this dependency later.",
-                        compiler_config.name, compiler_config.version, dep_reply.secret_to_dep
-                    );
-                }
-            }
+            //             info!(
+            //                 "Dependency `{}({})` has been successfully created. This secret token `{}` can be used to update this dependency later.",
+            //                 compiler_config.name, compiler_config.version, dep_reply.secret_to_dep
+            //             );
+            //         }
+            //     }
 
-            info!("Abandoning connection...");
+            //     info!("Abandoning connection...");
         },
     }
 

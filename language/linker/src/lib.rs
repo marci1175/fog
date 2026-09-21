@@ -1,6 +1,11 @@
 #![feature(iterator_try_collect)]
 
-use common::{error::linker::LinkerError, linker::BuildManifest, toml, tracing::info};
+use common::{
+    error::linker::LinkerError,
+    linker::{BuildManifest, BuildType},
+    toml,
+    tracing::info,
+};
 use std::{
     env, fs,
     path::PathBuf,
@@ -24,7 +29,7 @@ pub fn link_from_manifest(build_manifest_path: PathBuf) -> Result<(), LinkerErro
 
     println!(
         "Linking finished output located at: {}",
-        build_manifest.output_path.display()
+        build_manifest.build_path.display()
     );
 
     Ok(())
@@ -44,13 +49,14 @@ pub fn host_information() -> Result<(), LinkerError>
     }
 }
 
+/// Tries to link all the artifacts and additional files into a single file. (Output file type specified by build manifest)
 pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>
 {
     let mut args: Vec<String> = Vec::new();
 
     args.extend(
         build_manifest
-            .build_output_paths
+            .build_arctifact_paths
             .iter()
             .map(|p| p.display().to_string()),
     );
@@ -71,7 +77,7 @@ pub fn link(build_manifest: &BuildManifest) -> Result<Output, LinkerError>
     );
 
     args.push("-o".to_string());
-    args.push(build_manifest.output_path.display().to_string());
+    args.push(build_manifest.build_path.display().to_string());
 
     info!("Linking...");
 

@@ -17,7 +17,7 @@ use common::{
     linker::BuildManifest,
     tokio, toml,
 };
-use compiler::CompilerState;
+use compiler::CompilerJob;
 use dashmap::DashMap;
 
 pub type JobQueue = deque::Injector<CompileJob>;
@@ -154,7 +154,7 @@ fn compile_job(
     thread_id: ThreadIdentification,
 ) -> anyhow::Result<(PathBuf, ProjectConfig, BuildManifest)>
 {
-    let compiler_state = CompilerState::new(job.depdendency_path.clone(), job.features).unwrap();
+    let compiler_state = CompilerJob::new(job.depdendency_path.clone(), job.features).unwrap();
 
     // Send message that we have received a job
     ui_sender
@@ -196,21 +196,21 @@ fn compile_job(
 
     let build_path = PathBuf::from(format!("{build_artifact_name}.exe"));
 
-    let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
+    // let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
 
-    let build_manifest = compiler_state.compilation_process(
-        target_ir_path,
-        target_o_path,
-        build_path,
-        true,
-        true,
-        &job.flags_passed_in,
-        Some(job.target_triple),
-        job.cpu_name,
-        job.cpu_features,
-    )?;
+    // let build_manifest = compiler_state.compilation_process(
+    //     target_ir_path,
+    //     target_o_path,
+    //     build_path,
+    //     true,
+    //     true,
+    //     &job.flags_passed_in,
+    //     Some(job.target_triple),
+    //     job.cpu_name,
+    //     job.cpu_features,
+    // )?;
 
-    fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
+    // fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
 
     ui_sender
         .send((

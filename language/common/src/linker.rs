@@ -5,13 +5,31 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use tracing::{error, warn};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BuildManifest
 {
-    pub build_output_paths: Vec<PathBuf>,
+    /// The list of build artifacts needed to compile and link the project.
+    pub build_arctifact_paths: Vec<PathBuf>,
+
+    /// Files requried to be linked in order for the build to function
     pub additional_linking_material: Vec<PathBuf>,
-    pub output_path: PathBuf,
+
+    /// When linking a binary from a [`BuildManifest`], this path is where the binary is written to.
+    pub build_path: PathBuf,
+
+    /// Type of binary this [`BuildManifest`] should help link.
+    pub build_type: BuildType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum BuildType
+{
+    /// .exe or any other
+    Executable,
+    /// .lib
+    Library,
 }
 
 impl BuildManifest
@@ -22,7 +40,7 @@ impl BuildManifest
         args: Vec<String>,
     ) -> anyhow::Result<ExitStatus>
     {
-        Ok(Command::new(self.output_path.clone())
+        Ok(Command::new(self.build_path.clone())
             .args(args)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
@@ -34,8 +52,8 @@ impl BuildManifest
     pub fn localize_paths(self, root: PathBuf) -> Self
     {
         Self {
-            build_output_paths: self
-                .build_output_paths
+            build_arctifact_paths: self
+                .build_arctifact_paths
                 .iter()
                 .map(|p| {
                     p.strip_prefix(fs::canonicalize(&root).unwrap())
@@ -52,7 +70,8 @@ impl BuildManifest
                         .to_path_buf()
                 })
                 .collect::<Vec<PathBuf>>(),
-            output_path: self.output_path.strip_prefix(&root).unwrap().to_path_buf(),
+            build_path: self.build_path.strip_prefix(&root).unwrap().to_path_buf(),
+            build_type: self.build_type,
         }
     }
 }

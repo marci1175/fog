@@ -935,21 +935,16 @@ pub struct GlobalContext
 
     /// These are all the imports belonging to one [`Context`] instance.
     pub ctx_imports: HashMap<Vec<String>, HashMap<String, ImportType>>,
-}
 
-impl Default for GlobalContext
-{
-    fn default() -> Self
-    {
-        Self::new()
-    }
+    pub name: String,
 }
 
 impl GlobalContext
 {
-    pub fn new() -> Self
+    pub fn new(name: String) -> Self
     {
         Self {
+            name,
             functions: PathMap::new(),
             items: PathMap::new(),
             ffi_declerations: PathMap::new(),
@@ -983,6 +978,58 @@ impl GlobalContext
         // Store imports from context file
         self.ctx_imports
             .insert(ctx.path.clone(), ctx.imports.clone());
+    }
+
+    pub fn append_global_ctx(&mut self, g_ctx: GlobalContext) -> anyhow::Result<()>
+    {
+        // Store the context's functions
+        for (path, name, def) in g_ctx.functions.iter() {
+            if let Some(_) = self
+                .functions
+                .insert(path.clone(), name.clone(), def.clone())
+            {
+                return Err(ParserError::ContextItemCollision(
+                    (**path).clone(),
+                    g_ctx.name.clone(),
+                    self.name.clone(),
+                )
+                .into());
+            }
+        }
+
+        // Store the context's items
+        for (path, name, def) in g_ctx.items.iter() {
+            if let Some(_) = self.items.insert(path.clone(), name.clone(), def.clone()) {
+                return Err(ParserError::ContextItemCollision(
+                    (**path).clone(),
+                    g_ctx.name.clone(),
+                    self.name.clone(),
+                )
+                .into());
+            }
+        }
+
+        // Store ffi decls with their path aswell
+        for (path, name, decl) in g_ctx.ffi_declerations.iter() {
+            if let Some(_) = self
+                .ffi_declerations
+                .insert(path.clone(), name.clone(), decl.clone())
+            {
+                return Err(ParserError::ContextItemCollision(
+                    (**path).clone(),
+                    g_ctx.name.clone(),
+                    self.name.clone(),
+                )
+                .into());
+            }
+        }
+
+        // Store imports from context file
+        self.ctx_imports.extend(g_ctx.ctx_imports);
+
+        self.parsed_files.extend(g_ctx.parsed_files);
+
+        Ok(())
     }
 }
 
