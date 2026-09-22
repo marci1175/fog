@@ -1,5 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet}, fs::{self}, path::PathBuf, rc::Rc,
+    collections::{HashMap, HashSet},
+    fs::{self},
+    ops::Add,
+    path::PathBuf,
+    rc::Rc,
 };
 
 use common::{
@@ -7,7 +11,7 @@ use common::{
         application::ApplicationError, codegen::CodeGenError, dependency::DependencyError,
         parser::ParserError,
     }, imports::ImportType, inkwell::{
-        context::Context, module::Module, targets::{TargetMachine, TargetTriple}, types::{BasicTypeEnum, FunctionType},
+        context::Context, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple}, types::{BasicTypeEnum, FunctionType},
     }, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::info, ty::{OrdSet, Type},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
@@ -22,8 +26,11 @@ pub struct CompilerInstance
 
 impl CompilerInstance
 {
-    pub fn new(project_root_dir: PathBuf, enabled_features: OrdSet<String>, optimized: bool)
-    -> anyhow::Result<Self>
+    pub fn new(
+        project_root_dir: PathBuf,
+        enabled_features: OrdSet<String>,
+        optimized: bool,
+    ) -> anyhow::Result<Self>
     {
         // Read config file
         let config_file =
@@ -43,7 +50,8 @@ impl CompilerInstance
 
     /// Comprehensive function for compiling an entire project.
     /// The function handles generating ASTs, LLVM IR and producing a [`BuildManifest`] that the linker can use to produce a binary.
-    pub fn compile(&self) -> anyhow::Result<BuildManifest> {
+    pub fn compile(&self) -> anyhow::Result<BuildManifest>
+    {
         let root_path = vec![self.config.name.clone()];
         
         // The global context for the whole project
@@ -80,62 +88,94 @@ impl CompilerInstance
         Ok(todo!())
     }
 
-    fn generate_ir(&self, global_context: &GlobalContext) -> anyhow::Result<()> {
+    fn generate_ir(&self, global_context: &GlobalContext) -> anyhow::Result<()>
+    {
         info!("Initalizing LLVM....");
+
+        // Initalize target
+        Target::initialize_x86(&InitializationConfig::default());
+        let target_triple = TargetMachine::get_default_triple();
+        
+        // Create target
+        let target = Target::from_triple(&target_triple)
+            .map_err(|_| common::anyhow::Error::from(CodeGenError::FaliedToAcquireTargetTriple))?;
+
+        // Create target machine
+        let target_machine = target
+            .create_target_machine(
+                &target_triple,
+                &TargetMachine::get_host_cpu_name().to_string(),
+                &TargetMachine::get_host_cpu_features().to_string(),
+                common::inkwell::OptimizationLevel::Aggressive,
+                RelocMode::Default,
+                common::inkwell::targets::CodeModel::Default,
+            )
+            .unwrap();
 
         // Create the llvm context
         let context = Context::create();
         let builder = context.create_builder();
-        
+            
         // Create a map of the available modules.
-        // A module is created if its not found in the map. A module contains every function which has the module name as its first item in its path. (ie. module: `foo` contains foo::bar, foo::bar::baz, etc.) 
+        // A module is created if its not found in the map. A module contains every function which has the module name as its first item in its path. (ie. module: `foo` contains foo::bar, foo::bar::baz, etc.)
         let mut modules: HashMap<String, Module> = HashMap::new();
-        
-        // The function has its appropriate module found, then the function is parsed as a whole.
-        // Every function's name must follow a common rule as following. All functions must have their full paths in their name. (ie. foo::bar::baz => define i32 @"foo::bar::baz"...) This helps the linking process later.
 
+        // The function has its appropriate module found, then the function is parsed as a whole.
+        // Every function's name must follow a common rule as following.
+        // All functions must have their full paths in their name. (ie. foo::bar::baz => define i32 @"foo::bar::baz"...) This helps the linking process later.
         for (path, name, definition) in global_context.functions.iter() {
             // Lookup module in module map
-            let module_name = path.get(0).ok_or(CodeGenError::InternalItemPathEmpty(name.clone()))?;
-            
-            if let Some(module) = modules.get(module_name) {
-                // Create function
+            let module_name = path
+                .get(0)
+                .ok_or(CodeGenError::InternalItemPathEmpty(name.clone()))?;
 
-                // Store function in module
-                // module.add_function(name, ty, linkage)?;
+            // Try to find the module
+            if let Some(module) = modules.get(module_name) {
+                // Create function and store function in module
+                let function = module.add_function(
+                    &path.join("::").add(&name.to_string()),
+                    ty,
+                    Some({
+                        match definition.visibility {
+                            ItemVisibility::Private => common::inkwell::module::Linkage::Internal,
+                            ItemVisibility::Public => common::inkwell::module::Linkage::External,
+                            ItemVisibility::Branch => {
+                                return Err(CodeGenError::InternalInvalidStructReference.into());
+                            },
+                        }
+                    }),
+                );
             }
             // If the module was not found
             else {
-                modules.insert(module_name.clone(), context.create_module(&*module_name));
+                let module = context.create_module(&*module_name);
+
+                module.set_data_layout(&target_machine.get_target_data().get_data_layout());
+                module.set_triple(&target_machine.get_triple());
+
+                modules.insert(module_name.clone(), module);
             }
         }
 
-        let i32_type = context.i32_type();
+        // Create opt passes list
+        let passes = ["globaldce", "sink", "mem2reg"].join(",");
 
-        let fn_type = i32_type.fn_type(&[i32_type.into(), i32_type.into()], false);
+        // Run optimization passes if the user prompted to
+        if self.optimized {
+            let passes = passes.as_str();
 
-        let module = context.create_module("asd");
-        let module2 = context.create_module("asd");
-        let module3 = context.create_module("asd");
-        let module4 = context.create_module("asd");
-
-        let function = module.add_function("add", fn_type, None);
-        let fn_block = context.append_basic_block(function, "fn_body");
-
-        builder.position_at_end(fn_block);
-        
-        let var = builder.build_alloca(i32_type, "test")?;
-
-        builder.build_store(var, i32_type.const_int(4000, false))?;
-
-        module.print_to_file("hello.ll")?;
+            info!("Running optimization passes: {passes}...");
+            for (_, module) in modules {
+                module
+                    .run_passes(passes, &target_machine, PassBuilderOptions::create())
+                    .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
+            }
+        }
 
         Ok(())
     }
 
-    fn generate_asts(
-        &self,
-    ) -> Result<GlobalContext>
+    fn generate_asts(&self) -> Result<GlobalContext>
     {
         let parser_settings = Settings::new(self.config.clone(), self.enabled_features.clone());
 
@@ -169,8 +209,7 @@ impl CompilerInstance
 
             // Create a list of artifacts (these are usually the dependencies of the dependency itself)
             // The function checks for item path collisions
-            g_context
-                .append_global_ctx(job.generate_asts()?)?;
+            g_context.append_global_ctx(job.generate_asts()?)?;
         }
 
         Ok(g_context)

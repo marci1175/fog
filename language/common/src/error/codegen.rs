@@ -2,13 +2,19 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    parser::{common::StatementVariant, function::CompilerInstruction, variable::UniqueId},
+    parser::{
+        common::{ItemVisibility, StatementVariant},
+        function::CompilerInstruction,
+        variable::UniqueId,
+    },
     ty::Type,
 };
 
 #[derive(Debug, Error)]
 pub enum CodeGenError
 {
+    #[error("[INTERNAL ERROR] This item cannot have the visibility `{0}` in this context.")]
+    InternalInvalidItemVisiblity(ItemVisibility),
     #[error("[INTERNAL ERROR] Item `{0}`'s path is empty.")]
     InternalItemPathEmpty(String),
     #[error("Source file referenced at `{0}` is not found or inaccessible in the host system.")]

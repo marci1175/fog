@@ -154,7 +154,8 @@ fn compile_job(
     thread_id: ThreadIdentification,
 ) -> anyhow::Result<(PathBuf, ProjectConfig, BuildManifest)>
 {
-    let compiler_state = CompilerInstance::new(job.depdendency_path.clone(), job.features, true).unwrap();
+    let compiler_state =
+        CompilerInstance::new(job.depdendency_path.clone(), job.features, true).unwrap();
 
     // Send message that we have received a job
     ui_sender

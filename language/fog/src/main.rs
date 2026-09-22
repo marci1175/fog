@@ -212,7 +212,10 @@ fn main() -> common::anyhow::Result<()>
             info!("Creating config file...");
             fs::write(
                 format!("{}/config.toml", current_working_dir.display()),
-                toml::to_string(&ProjectConfig::new(get_folder_name.to_string(), current_working_dir.clone()))?,
+                toml::to_string(&ProjectConfig::new(
+                    get_folder_name.to_string(),
+                    current_working_dir.clone(),
+                ))?,
             )
             .map_err(ApplicationError::FileError)?;
 

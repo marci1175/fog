@@ -897,7 +897,7 @@ pub enum StatementVariant
     DerefPointer(Box<Spanned<StatementVariant>>),
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Display, Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum ItemVisibility
 {
     /// Not available to any scopes besides the file it was created in
@@ -968,11 +968,8 @@ impl GlobalContext
 
         // Store ffi decls with their path aswell
         for (name, decl) in ctx.ffi_declerations.iter() {
-            self.ffi_declerations.insert(
-                ctx.path.clone(),
-                name.clone(),
-                decl.clone(),
-            );
+            self.ffi_declerations
+                .insert(ctx.path.clone(), name.clone(), decl.clone());
         }
 
         // Store imports from context file
