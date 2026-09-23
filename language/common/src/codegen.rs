@@ -1,240 +1,27 @@
 use std::{
     collections::HashMap,
-    ops::{Deref, DerefMut},
     rc::Rc,
     sync::Arc,
 };
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    error::{SpanInfo, Spanned, codegen::CodeGenError},
+    error::codegen::CodeGenError,
     parser::{
-        common::{ItemVisibility, StatementVariant},
-        function::{
-            CompilerInstruction, FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition,
-        },
+        common::{CustomItem, StatementVariant},
+        function::FunctionSignature,
     },
-    ty::{OrdMap, OrdSet, Type},
+    ty::Type,
 };
 use anyhow::Result;
 use indexmap::IndexMap;
 use inkwell::{
-    AddressSpace, FloatPredicate, IntPredicate,
+    AddressSpace,
     basic_block::BasicBlock,
     context::Context,
     types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     values::PointerValue,
 };
-use strum::Display;
-
-/// A recode of the type
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StructAttributes
-{
-    /// Compiler instructions given as attributes to the struct.
-    compiler_instructions: OrdSet<CompilerInstruction>,
-
-    /// The Set should consist of the full access path to the traits implemented.
-    /// Example: {["dep1", "common", "trait1"], ["dep1", "common", "trait2"]}
-    pub traits_implemented: OrdSet<Vec<String>>,
-
-    /// This field contains all the functions implemented for the struct.
-    /// The function can be implemented through a trait or just normal impl statements.
-    pub impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>,
-}
-
-impl StructAttributes
-{
-    pub fn new(
-        compiler_instructions: OrdSet<CompilerInstruction>,
-        traits_implemented: OrdSet<Vec<String>>,
-        impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>,
-    ) -> Self
-    {
-        Self {
-            compiler_instructions,
-            traits_implemented,
-            impl_fn_list,
-        }
-    }
-}
-
-/// Function implementation variant for a struct.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ImplType
-{
-    /// Trait implementations should contain the whole access path to the trait function.
-    TraitImplementation(Vec<String>),
-
-    /// A struct implementation only consist of a function name since its access path doesnt matter.
-    /// I am not planning to make functions implemented for a function accessible outside of the struct's variable. ( ie. no ```Struct::function1()``` )
-    StructImplementation(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, strum::EnumTryAs)]
-pub enum ParsedState<PARSED, UNPARSED>
-{
-    Parsed(PARSED),
-    Unparsed(UNPARSED),
-}
-
-#[derive(PartialEq, Eq, Debug, Clone, Hash)]
-pub struct StructDefinition
-{
-    pub visibility: ItemVisibility,
-    pub name: String,
-    pub fields: OrdMap<String, Type>,
-    pub generics: OrdMap<String, OrdSet<String>>,
-    pub attributes: StructAttributes,
-}
-
-/// All of the custom types implemented by the User are defined here
-#[derive(Debug, Clone, PartialEq, Display, Hash)]
-pub enum CustomItem
-{
-    Struct(StructDefinition),
-    Enum(
-        (
-            // Enum type
-            Type,
-            // Enum variant values
-            OrdMap<String, Spanned<StatementVariant>>,
-        ),
-    ),
-    Trait
-    {
-        name: String,
-        functions: OrdMap<String, FunctionSignature>,
-        access_path: Vec<String>,
-    },
-}
-
-#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
-pub enum DerefMode
-{
-    Value,
-    Address,
-}
-
-/// These are used to define Imports.
-/// Function symbols are manually defined to be imported.
-#[derive(Debug, Clone, Default)]
-pub struct Imports(HashMap<String, FunctionSignature>);
-
-impl DerefMut for Imports
-{
-    fn deref_mut(&mut self) -> &mut Self::Target
-    {
-        &mut self.0
-    }
-}
-
-impl Deref for Imports
-{
-    type Target = HashMap<String, FunctionSignature>;
-
-    fn deref(&self) -> &Self::Target
-    {
-        &self.0
-    }
-}
-
-/// The representation of an if statement. When else if statements are chained they go into the false branch.
-/// Example:
-/// ```fog
-/// if (a) {
-///     # a stuff
-/// }
-/// else if (b) {
-///     # b stuff
-/// }
-/// else {
-///     # else stuff
-/// }
-/// ```
-/// Is interpreted as:
-/// ```
-/// If {
-///     true: # a stuff
-///     false: If {
-///         true: # b stuff
-///         false: # else stuff
-///     }
-/// }
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct If
-{
-    pub condition: Box<Spanned<StatementVariant>>,
-
-    pub true_branch: Branch,
-    pub false_branch: Option<Branch>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Branch
-{
-    pub body: Vec<Spanned<StatementVariant>>,
-    pub span: SpanInfo,
-}
-
-#[derive(Debug, Copy, Clone, Display, PartialEq, Eq, Hash)]
-pub enum Order
-{
-    Equal,
-    NotEqual,
-    Bigger,
-    EqBigger,
-    Smaller,
-    EqSmaller,
-}
-
-#[derive(Debug, Copy, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
-pub enum LogicalOperator
-{
-    And,
-    Xor,
-    Or,
-}
-
-impl Order
-{
-    pub fn into_int_predicate(&self, signed: bool) -> IntPredicate
-    {
-        if signed {
-            match self {
-                Order::Equal => IntPredicate::EQ,
-                Order::NotEqual => IntPredicate::NE,
-                Order::Bigger => IntPredicate::SGT,
-                Order::EqBigger => IntPredicate::SGE,
-                Order::Smaller => IntPredicate::SLT,
-                Order::EqSmaller => IntPredicate::SLE,
-            }
-        }
-        else {
-            match self {
-                Order::Equal => IntPredicate::EQ,
-                Order::NotEqual => IntPredicate::NE,
-                Order::Bigger => IntPredicate::UGT,
-                Order::EqBigger => IntPredicate::UGE,
-                Order::Smaller => IntPredicate::ULT,
-                Order::EqSmaller => IntPredicate::ULE,
-            }
-        }
-    }
-
-    pub fn into_float_predicate(&self) -> FloatPredicate
-    {
-        match self {
-            Order::Equal => FloatPredicate::OEQ,
-            Order::NotEqual => FloatPredicate::ONE,
-            Order::Bigger => FloatPredicate::OGT,
-            Order::EqBigger => FloatPredicate::OGE,
-            Order::Smaller => FloatPredicate::OLT,
-            Order::EqSmaller => FloatPredicate::OLE,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PreAllocationEntry<'ctx>

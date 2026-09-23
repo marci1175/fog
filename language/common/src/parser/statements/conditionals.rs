@@ -1,8 +1,7 @@
 use crate::{
-    codegen::{Branch, If},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{StatementVariant, Streamable, find_closing_paren},
+        common::{Branch, If, StatementVariant, Streamable, find_closing_paren},
         dbg::combine_span_info,
         function::parse_body,
         statement::{Expr, parse_expr},

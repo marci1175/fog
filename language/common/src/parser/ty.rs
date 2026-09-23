@@ -1,8 +1,7 @@
 use crate::{
-    codegen::{StructAttributes, StructDefinition},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{Context, ItemVisibility, Stream, Streamable},
+        common::{Context, ItemVisibility, Stream, Streamable, StructAttributes, StructDefinition},
         function::{CompilerInstruction, parse_generics},
     },
     tokenizer::{self, Token, TokenDiscriminants},

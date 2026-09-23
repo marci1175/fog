@@ -1,90 +1,75 @@
-use common::{
-    anyhow::{self, Result},
-    codegen::{
-        CustomItem, FunctionArgumentIdentifier, LoopBodyBlocks, create_fn_type_from_ty_disc,
-        fn_arg_to_string, ty_enum_to_metadata_ty_enum, ty_to_llvm_ty,
-    },
-    error::{Spanned, codegen::CodeGenError},
-    indexmap::IndexMap,
-    inkwell::{
-        AddressSpace,
-        attributes::Attribute,
-        basic_block::BasicBlock,
-        builder::Builder,
-        context::Context,
-        debug_info::{AsDIScope, DWARFEmissionKind, DWARFSourceLanguage},
-        module::Module,
-        types::BasicMetadataTypeEnum,
-        values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
-    },
-    parser::{
-        common::StatementVariant,
-        function::{CompilerInstruction, FunctionDefinition},
-        numeric_value::MathematicalSymbol,
-        variable::{ControlFlowType, UniqueId},
-    },
-    tokenizer::Token,
-    ty::{OrdMap, OrdSet, Type},
-};
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, ops::Add};
 
-use crate::{
-    debug::create_subprogram_debug_information,
-    // pointer::set_value_of_ptr,
+use common::{
+    anyhow::{self, Result}, error::codegen::CodeGenError, inkwell::{
+        attributes::Attribute, builder::Builder, context::Context, debug_info::{AsDIScope, DWARFEmissionKind, DWARFSourceLanguage}, module::Module, targets::TargetMachine, values::{BasicValue, FunctionValue},
+    }, parser::{common::{GlobalContext, ItemVisibility}, function::CompilerInstruction}, ty::OrdSet,
 };
+
+use crate::debug::{DebugInformation, create_debug_information};
+
 
 /// This function is solely for generating the LLVM-IR from the main sourec file.
-pub fn generate_ir<'ctx>(
+pub fn start_codegen<'ctx>(
     context: &'ctx Context,
-    module: &Module<'ctx>,
     builder: &'ctx Builder<'ctx>,
+    global_context: &GlobalContext,
     is_optimized: bool,
-) -> Result<()>
+    target_machine: &TargetMachine,
+) -> Result<HashMap<String, (Module<'ctx>, DebugInformation<'ctx>)>>
 {
-    let (debug_info_builder, debug_info_compile_uint) = module.create_debug_info_builder(
-        false,
-        DWARFSourceLanguage::C,
-        module.get_name().to_str()?,
-        "<UNUSED>",
-        &format!(
-            "Fog (ver.: {}) with LLVM {}",
-            env!("CARGO_PKG_VERSION"),
-            env!("LLVM_VERSION")
-        ),
-        is_optimized,
-        "",
-        1,
-        "",
-        {
-            if is_optimized {
-                DWARFEmissionKind::LineTablesOnly
-            }
-            else {
-                DWARFEmissionKind::Full
-            }
-        },
-        0,
-        false,
-        !is_optimized,
-        "",
-        "",
-    );
+    // Create a map of the available modules.
+    // A module is created if its not found in the map. A module contains every function which has the module name as its first item in its path. (ie. module: `foo` contains foo::bar, foo::bar::baz, etc.)
+    let mut modules: HashMap<String, (Module, DebugInformation<'ctx>)> = HashMap::new();
 
-    let dbg_version = context.i32_type().const_int(1, false);
-    let dbg_version_md = context.metadata_node(&[dbg_version.as_basic_value_enum().into()]);
+    // The function has its appropriate module found, then the function is parsed as a whole.
+    // Every function's name must follow a common rule as following.
+    // All functions must have their full paths in their name. (ie. foo::bar::baz => define i32 @"foo::bar::baz"...) This helps the linking process later.
+    for (path, name, definition) in global_context.functions.iter() {
+        // Lookup module in module map
+        let module_name = path
+            .get(0)
+            .ok_or(CodeGenError::InternalItemPathEmpty(name.clone()))?;
 
-    module
-        .add_global_metadata("llvm.debug.version", &dbg_version_md)
-        .unwrap();
+        // Try to find the module
+        if let Some((module, dbg)) = modules.get(module_name) {
+            // Create function and store function in module
+            let function = module.add_function(
+                &path.join("::").add(&name.to_string()),
+                todo!(),
+                Some({
+                    match definition.visibility {
+                        ItemVisibility::Private => common::inkwell::module::Linkage::Internal,
+                        ItemVisibility::Public => common::inkwell::module::Linkage::External,
+                        ItemVisibility::Branch => {
+                            return Err(CodeGenError::InternalInvalidStructReference.into());
+                        },
+                    }
+                }),
+            );
+        }
+        // If the module was not found
+        else {
+            // Create new module based on the module's name
+            let module = context.create_module(&*module_name);
+            
+            // Create debug information
+            let debug_information = create_debug_information(&module, context, is_optimized)?;
 
-    let debug_info_file = debug_info_compile_uint.get_file();
-    let debug_scope = debug_info_file.as_debug_info_scope();
+            // Set module data
+            module.set_data_layout(&target_machine.get_target_data().get_data_layout());
+            module.set_triple(&target_machine.get_triple());
+
+            // Store module and information
+            modules.insert(module_name.clone(), (module, debug_information));
+        }
+    }
 
     // for (function_name, function_definition) in parsed_functions.iter() {
 
     // }
 
-    Ok(())
+    Ok(modules)
 }
 
 pub fn add_compiler_hints_to_fn(

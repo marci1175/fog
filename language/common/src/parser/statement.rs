@@ -594,8 +594,8 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                     | Token::CloseAngledBrackets => {
                         let ord = match tkn.get_inner() {
                             Token::Comparison(ord) => *ord,
-                            Token::OpenAngledBrackets => crate::codegen::Order::Bigger,
-                            Token::CloseAngledBrackets => crate::codegen::Order::Smaller,
+                            Token::OpenAngledBrackets => crate::parser::common::Order::Bigger,
+                            Token::CloseAngledBrackets => crate::parser::common::Order::Smaller,
                             _ => unreachable!(),
                         };
 

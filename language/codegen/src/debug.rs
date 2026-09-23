@@ -1,14 +1,8 @@
 use common::{
-    anyhow::{self, Result},
-    codegen::CustomItem,
-    get_unique_id,
-    indexmap::IndexMap,
-    inkwell::{
-        context::Context,
-        debug_info::{
-            DIFile, DIFlagsConstants, DIScope, DIType, DWARFSourceLanguage, DebugInfoBuilder,
-        },
-        llvm_sys::{
+    anyhow::{self, Result}, get_unique_id, indexmap::IndexMap, inkwell::{
+        context::Context, debug_info::{
+            AsDIScope, DICompileUnit, DIFile, DIFlagsConstants, DIScope, DIType, DWARFEmissionKind, DWARFSourceLanguage, DebugInfoBuilder,
+        }, llvm_sys::{
             core::LLVMDisposeMessage,
             error::LLVMDisposeErrorMessage,
             target::{LLVMABIAlignmentOfType, LLVMDisposeTargetData, LLVMStoreSizeOfType},
@@ -17,12 +11,8 @@ use common::{
                 LLVMCreateTargetMachine, LLVMDisposeTargetMachine, LLVMGetDefaultTargetTriple,
                 LLVMGetTargetFromTriple, LLVMRelocMode,
             },
-        },
-        module::Module,
-        types::AsTypeRef,
-    },
-    parser::function::FunctionDefinition,
-    ty::Type,
+        }, module::Module, types::AsTypeRef, values::BasicValue,
+    }, parser::{common::CustomItem, function::FunctionDefinition}, ty::Type,
 };
 use std::{
     ffi::{CStr, CString},
@@ -288,4 +278,53 @@ pub fn create_subprogram_debug_information<'ctx>(
         DIFlagsConstants::ZERO,
         is_optimized,
     ))
+}
+
+pub struct DebugInformation<'ctx> {
+    pub scope: DIScope<'ctx>,
+    pub file: DIFile<'ctx>,
+    pub info_builder: DebugInfoBuilder<'ctx>,
+    pub info_compile_unit: DICompileUnit<'ctx>,
+}
+
+pub fn create_debug_information<'ctx>(module: &Module<'ctx>, context: &'ctx Context, is_optimized: bool) -> Result<DebugInformation<'ctx>, anyhow::Error> {
+    let (debug_info_builder, debug_info_compile_uint) = module.create_debug_info_builder(
+        false,
+        DWARFSourceLanguage::C,
+        module.get_name().to_str()?,
+        "<UNUSED>",
+        &format!(
+            "Fog (ver.: {}) with LLVM {}",
+            env!("CARGO_PKG_VERSION"),
+            env!("LLVM_VERSION")
+        ),
+        is_optimized,
+        "",
+        1,
+        "",
+        {
+            if is_optimized {
+                DWARFEmissionKind::LineTablesOnly
+            }
+            else {
+                DWARFEmissionKind::Full
+            }
+        },
+        0,
+        false,
+        !is_optimized,
+        "",
+        "",
+    );
+    let dbg_version = context.i32_type().const_int(1, false);
+    let dbg_version_md = context.metadata_node(&[dbg_version.as_basic_value_enum().into()]);
+    
+    module
+        .add_global_metadata("llvm.debug.version", &dbg_version_md)
+        .unwrap();
+    
+    let debug_info_file = debug_info_compile_uint.get_file();
+    let debug_scope = debug_info_file.as_debug_info_scope();
+
+    Ok(DebugInformation { scope: debug_scope, file: debug_info_file, info_builder: debug_info_builder, info_compile_unit: debug_info_compile_uint })
 }

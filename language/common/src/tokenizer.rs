@@ -1,8 +1,8 @@
 use crate::{
-    codegen::{LogicalOperator, Order},
     error::{Spanned, parser::ParserError},
     parser::{
-        common::ItemVisibility, function::CompilerInstructionDiscriminants,
+        common::{ItemVisibility, LogicalOperator, Order},
+        function::CompilerInstructionDiscriminants,
         numeric_value::MathematicalSymbol,
     },
     ty::{Type, Value},

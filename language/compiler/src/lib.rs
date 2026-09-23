@@ -6,13 +6,28 @@ use std::{
     rc::Rc,
 };
 
+use codegen::irgen::start_codegen;
 use common::{
-    anyhow::{self, Result}, compiler::ProjectConfig, dependency::verify_dependencies_fs, error::{
+    anyhow::{self, Result},
+    compiler::ProjectConfig,
+    dependency::verify_dependencies_fs,
+    error::{
         application::ApplicationError, codegen::CodeGenError, dependency::DependencyError,
         parser::ParserError,
-    }, imports::ImportType, inkwell::{
-        context::Context, module::Module, passes::PassBuilderOptions, targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple}, types::{BasicTypeEnum, FunctionType},
-    }, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::info, ty::{OrdSet, Type},
+    },
+    imports::ImportType,
+    inkwell::{
+        context::Context,
+        module::Module,
+        passes::PassBuilderOptions,
+        targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
+        types::{BasicTypeEnum, FunctionType},
+    },
+    linker::BuildManifest,
+    parser::common::{GlobalContext, ItemVisibility, Stream, Streamable},
+    toml,
+    tracing::info,
+    ty::{OrdSet, Type},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
@@ -53,7 +68,7 @@ impl CompilerInstance
     pub fn compile(&self) -> anyhow::Result<BuildManifest>
     {
         let root_path = vec![self.config.name.clone()];
-        
+
         // The global context for the whole project
         // This function basically generates all of the ASTs for all of the dependencies and source files and puts them into one global context.
         let mut global_context = self.generate_asts()?;
@@ -95,7 +110,7 @@ impl CompilerInstance
         // Initalize target
         Target::initialize_x86(&InitializationConfig::default());
         let target_triple = TargetMachine::get_default_triple();
-        
+
         // Create target
         let target = Target::from_triple(&target_triple)
             .map_err(|_| common::anyhow::Error::from(CodeGenError::FaliedToAcquireTargetTriple))?;
@@ -115,47 +130,9 @@ impl CompilerInstance
         // Create the llvm context
         let context = Context::create();
         let builder = context.create_builder();
-            
-        // Create a map of the available modules.
-        // A module is created if its not found in the map. A module contains every function which has the module name as its first item in its path. (ie. module: `foo` contains foo::bar, foo::bar::baz, etc.)
-        let mut modules: HashMap<String, Module> = HashMap::new();
 
-        // The function has its appropriate module found, then the function is parsed as a whole.
-        // Every function's name must follow a common rule as following.
-        // All functions must have their full paths in their name. (ie. foo::bar::baz => define i32 @"foo::bar::baz"...) This helps the linking process later.
-        for (path, name, definition) in global_context.functions.iter() {
-            // Lookup module in module map
-            let module_name = path
-                .get(0)
-                .ok_or(CodeGenError::InternalItemPathEmpty(name.clone()))?;
-
-            // Try to find the module
-            if let Some(module) = modules.get(module_name) {
-                // Create function and store function in module
-                let function = module.add_function(
-                    &path.join("::").add(&name.to_string()),
-                    ty,
-                    Some({
-                        match definition.visibility {
-                            ItemVisibility::Private => common::inkwell::module::Linkage::Internal,
-                            ItemVisibility::Public => common::inkwell::module::Linkage::External,
-                            ItemVisibility::Branch => {
-                                return Err(CodeGenError::InternalInvalidStructReference.into());
-                            },
-                        }
-                    }),
-                );
-            }
-            // If the module was not found
-            else {
-                let module = context.create_module(&*module_name);
-
-                module.set_data_layout(&target_machine.get_target_data().get_data_layout());
-                module.set_triple(&target_machine.get_triple());
-
-                modules.insert(module_name.clone(), module);
-            }
-        }
+        // Generate modules
+        let modules = start_codegen(&context, &builder, global_context, self.optimized, &target_machine)?;
 
         // Create opt passes list
         let passes = ["globaldce", "sink", "mem2reg"].join(",");

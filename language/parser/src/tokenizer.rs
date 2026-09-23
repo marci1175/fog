@@ -1,6 +1,6 @@
 use common::{
     anyhow,
-    codegen::LogicalOperator,
+    parser::common::LogicalOperator,
     error::{CharPosition, SpanInfo, Spanned},
     parser::function::CompilerInstructionDiscriminants,
     tokenizer::{Token, TypeToken},
@@ -340,12 +340,13 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"ref" => Token::Reference,
         b"deref" => Token::Dereference,
 
-        b"==" => Token::Comparison(common::codegen::Order::Equal),
-        b"!=" => Token::Comparison(common::codegen::Order::NotEqual),
-        b">=" => Token::Comparison(common::codegen::Order::EqBigger),
-        b"<=" => Token::Comparison(common::codegen::Order::EqSmaller),
+        b"==" => Token::Comparison(common::parser::common::Order::Equal),
+        b"!=" => Token::Comparison(common::parser::common::Order::NotEqual),
+        b">=" => Token::Comparison(common::parser::common::Order::EqBigger),
+        b"<=" => Token::Comparison(common::parser::common::Order::EqSmaller),
         // b">" => Token::Comparison(common::codegen::Order::Bigger),
         // b"<" => Token::Comparison(common::codegen::Order::Smaller),
+
         b"&&" => Token::LogicalOperator(LogicalOperator::And),
         b"||" => Token::LogicalOperator(LogicalOperator::Or),
         b"x||" => Token::LogicalOperator(LogicalOperator::Xor),

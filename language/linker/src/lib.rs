@@ -2,7 +2,7 @@
 
 use common::{
     error::linker::LinkerError,
-    linker::{BuildManifest, BuildType},
+    linker::BuildManifest,
     toml,
     tracing::info,
 };

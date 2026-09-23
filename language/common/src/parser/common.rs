@@ -8,20 +8,17 @@ use std::{
 use anyhow::Result;
 use bimap::BiMap;
 use indexmap::IndexMap;
+use inkwell::{FloatPredicate, IntPredicate};
 use strum_macros::Display;
 
 use crate::{
-    codegen::{
-        CustomItem, FunctionArgumentIdentifier, If, LogicalOperator, Order, StructAttributes,
-        StructDefinition,
-    },
-    combine_path,
-    error::{Spanned, parser::ParserError, syntax::SyntaxError},
+    codegen::FunctionArgumentIdentifier,
+    error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     imports::{FFIDeclType, ImportType},
     parser::{
         function::{
             CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
-            FunctionDefinition, FunctionSignature,
+            FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition,
         },
         numeric_value::MathematicalSymbol,
         variable::{ControlFlowType, UniqueId},
@@ -586,7 +583,7 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         let name_id = self.name_interner.insert_or_get_association(name);
         let scope_id = self.scope_interner.insert_or_get_association(scope);
 
-        let item_scope = self.scopes.entry(scope_id).or_insert_with(IndexMap::new);
+        let item_scope = self.scopes.entry(scope_id).or_default();
 
         let already_present = item_scope.contains_key(&name_id);
 
@@ -612,7 +609,9 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         let scope_id = self.scope_interner.insert_or_get_association(scope);
 
         // Try to fetch the correct scope for the function.
-        let insert_result = if let Some(scope) = self.scopes.get_mut(&scope_id) {
+        
+
+        if let Some(scope) = self.scopes.get_mut(&scope_id) {
             scope.insert(name_id, value)
         }
         else {
@@ -620,9 +619,7 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
             let scope = self.scopes.get_mut(&scope_id).unwrap();
 
             scope.insert(name_id, value)
-        };
-
-        insert_result
+        }
     }
 
     /// Shows if a function's name was ever present in the map. (The interner never removes unused names.)
@@ -648,11 +645,10 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
 
         self.scopes
             .get(scope_id)
-            .map(|scope| {
+            .and_then(|scope| {
                 let name_id = self.name_interner.lookup_value(&name)?;
                 scope.get(name_id)
             })
-            .flatten()
     }
 
     pub fn get_scope(&self, scope: SCOPE) -> Option<&IndexMap<NAMEID, ITEM>>
@@ -664,13 +660,12 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
     {
         self.scopes
             .get_index(idx)
-            .map(|(path, scope)| -> Option<_> {
+            .and_then(|(path, scope)| -> Option<_> {
                 Some((
-                    self.scope_interner.lookup_id(&path)?,
+                    self.scope_interner.lookup_id(path)?,
                     scope.get(self.name_interner.lookup_value(&name)?)?,
                 ))
             })
-            .flatten()
     }
 
     pub fn get_name_from_id(&self, id: &NAMEID) -> Option<&NAME>
@@ -687,19 +682,13 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         let id = self.scope_interner.lookup_value(&scope)?;
 
         // Remove the function definition on the specified path
-        if let Some(scope) = {
+        {
             // Remove the function the specified way
             match remove_type {
                 RemoveType::Swap => self.scopes.swap_remove(id),
                 RemoveType::Shift => self.scopes.shift_remove(id),
             }
-        } {
-            // Return removed scope
-            Some((*id, scope))
-        }
-        else {
-            None
-        }
+        }.map(|scope| (*id, scope))
     }
 
     pub fn remove_item(
@@ -767,13 +756,12 @@ impl<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
     {
         loop {
             // Try to pull the next item out of the current scope's inner map.
-            if let Some(inner) = self.inner_iter.as_mut() {
-                if let Some((name_id, item)) = inner.next() {
+            if let Some(inner) = self.inner_iter.as_mut()
+                && let Some((name_id, item)) = inner.next() {
                     let name = self.name_interner.lookup_id(name_id).unwrap();
                     let scope = self.current_scope.unwrap();
                     return Some((scope, name, item));
                 }
-            }
 
             // Current scope exhausted (or we haven't started) - advance to the next scope.
             let (scope_id, inner_map) = self.outer_iter.next()?;
@@ -1249,4 +1237,190 @@ pub fn parse_compiler_instruction(
     }
 
     Ok(())
+}
+
+/// A recode of the type
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StructAttributes
+{
+    /// Compiler instructions given as attributes to the struct.
+    compiler_instructions: OrdSet<CompilerInstruction>,
+
+    /// The Set should consist of the full access path to the traits implemented.
+    /// Example: {["dep1", "common", "trait1"], ["dep1", "common", "trait2"]}
+    pub traits_implemented: OrdSet<Vec<String>>,
+
+    /// This field contains all the functions implemented for the struct.
+    /// The function can be implemented through a trait or just normal impl statements.
+    pub impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>,
+}
+
+impl StructAttributes
+{
+    pub fn new(
+        compiler_instructions: OrdSet<CompilerInstruction>,
+        traits_implemented: OrdSet<Vec<String>>,
+        impl_fn_list: OrdMap<String, ParsedState<FunctionDefinition, UnparsedFunctionDefinition>>,
+    ) -> Self
+    {
+        Self {
+            compiler_instructions,
+            traits_implemented,
+            impl_fn_list,
+        }
+    }
+}
+
+/// Function implementation variant for a struct.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ImplType
+{
+    /// Trait implementations should contain the whole access path to the trait function.
+    TraitImplementation(Vec<String>),
+
+    /// A struct implementation only consist of a function name since its access path doesnt matter.
+    /// I am not planning to make functions implemented for a function accessible outside of the struct's variable. ( ie. no ```Struct::function1()``` )
+    StructImplementation(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, strum::EnumTryAs)]
+pub enum ParsedState<PARSED, UNPARSED>
+{
+    Parsed(PARSED),
+    Unparsed(UNPARSED),
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+pub struct StructDefinition
+{
+    pub visibility: ItemVisibility,
+    pub name: String,
+    pub fields: OrdMap<String, Type>,
+    pub generics: OrdMap<String, OrdSet<String>>,
+    pub attributes: StructAttributes,
+}
+
+/// All of the custom types implemented by the User are defined here
+#[derive(Debug, Clone, PartialEq, Display, Hash)]
+pub enum CustomItem
+{
+    Struct(StructDefinition),
+    Enum(
+        (
+            // Enum type
+            Type,
+            // Enum variant values
+            OrdMap<String, Spanned<StatementVariant>>,
+        ),
+    ),
+    Trait
+    {
+        name: String,
+        functions: OrdMap<String, FunctionSignature>,
+        access_path: Vec<String>,
+    },
+}
+
+#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
+pub enum DerefMode
+{
+    Value,
+    Address,
+}
+
+/// The representation of an if statement. When else if statements are chained they go into the false branch.
+/// Example:
+/// ```fog
+/// if (a) {
+///     # a stuff
+/// }
+/// else if (b) {
+///     # b stuff
+/// }
+/// else {
+///     # else stuff
+/// }
+/// ```
+/// Is interpreted as:
+/// ```
+/// If {
+///     true: # a stuff
+///     false: If {
+///         true: # b stuff
+///         false: # else stuff
+///     }
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct If
+{
+    pub condition: Box<Spanned<StatementVariant>>,
+
+    pub true_branch: Branch,
+    pub false_branch: Option<Branch>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Branch
+{
+    pub body: Vec<Spanned<StatementVariant>>,
+    pub span: SpanInfo,
+}
+
+#[derive(Debug, Copy, Clone, Display, PartialEq, Eq, Hash)]
+pub enum Order
+{
+    Equal,
+    NotEqual,
+    Bigger,
+    EqBigger,
+    Smaller,
+    EqSmaller,
+}
+
+#[derive(Debug, Copy, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
+pub enum LogicalOperator
+{
+    And,
+    Xor,
+    Or,
+}
+
+impl Order
+{
+    pub fn into_int_predicate(&self, signed: bool) -> IntPredicate
+    {
+        if signed {
+            match self {
+                Order::Equal => IntPredicate::EQ,
+                Order::NotEqual => IntPredicate::NE,
+                Order::Bigger => IntPredicate::SGT,
+                Order::EqBigger => IntPredicate::SGE,
+                Order::Smaller => IntPredicate::SLT,
+                Order::EqSmaller => IntPredicate::SLE,
+            }
+        }
+        else {
+            match self {
+                Order::Equal => IntPredicate::EQ,
+                Order::NotEqual => IntPredicate::NE,
+                Order::Bigger => IntPredicate::UGT,
+                Order::EqBigger => IntPredicate::UGE,
+                Order::Smaller => IntPredicate::ULT,
+                Order::EqSmaller => IntPredicate::ULE,
+            }
+        }
+    }
+
+    pub fn into_float_predicate(&self) -> FloatPredicate
+    {
+        match self {
+            Order::Equal => FloatPredicate::OEQ,
+            Order::NotEqual => FloatPredicate::ONE,
+            Order::Bigger => FloatPredicate::OGT,
+            Order::EqBigger => FloatPredicate::OGE,
+            Order::Smaller => FloatPredicate::OLT,
+            Order::EqSmaller => FloatPredicate::OLE,
+        }
+    }
 }

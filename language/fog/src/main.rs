@@ -5,12 +5,8 @@ use clap::Parser;
 use common::{
     anyhow, clap,
     compiler::ProjectConfig,
-    compression::{compress_bytes, zip_folder},
-    dependency_manager::{DependencyUpload, DependencyUploadReply},
     error::{application::ApplicationError, linker::LinkerError},
-    linker::BuildManifest,
-    reqwest::{self, StatusCode},
-    rmp_serde, serde_json, tokio, toml,
+    linker::BuildManifest, toml,
     tracing::{info, warn},
     tracing_subscriber,
     ty::OrdSet,
@@ -62,18 +58,18 @@ fn main() -> common::anyhow::Result<()>
         CliCommand::Compile {
             path: compile_path,
             release: is_release,
-            target_triple,
-            llvm_flags,
-            cpu_name,
-            cpu_features,
+            target_triple: _,
+            llvm_flags: _,
+            cpu_name: _,
+            cpu_features: _,
         }
         | CliCommand::Run {
             path: compile_path,
             release: is_release,
-            target_triple,
-            llvm_flags,
-            cpu_name,
-            cpu_features,
+            target_triple: _,
+            llvm_flags: _,
+            cpu_name: _,
+            cpu_features: _,
         } => {
             let root_path = if let Some(path) = compile_path.clone() {
                 path
@@ -163,7 +159,7 @@ fn main() -> common::anyhow::Result<()>
             info!("Creating project folders...");
             let path_s = path.display().to_string();
 
-            fs::create_dir_all(path_s.to_string()).map_err(ApplicationError::FileError)?;
+            fs::create_dir_all(&path_s).map_err(ApplicationError::FileError)?;
             fs::create_dir(format!("{path_s}/out"))?;
             fs::create_dir(format!("{path_s}/deps"))?;
             fs::create_dir(format!("{path_s}/src"))?;
@@ -225,10 +221,10 @@ fn main() -> common::anyhow::Result<()>
             );
         },
         CliCommand::Publish {
-            url,
-            author,
-            secret,
-            path,
+            url: _,
+            author: _,
+            secret: _,
+            path: _,
         } => {
             //     let path = if let Some(path) = path.clone() {
             //         path

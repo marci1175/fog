@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use codegen::irgen::generate_ir;
+use codegen::irgen::start_codegen;
 use common::{
     compiler::ProjectConfig,
     inkwell::{

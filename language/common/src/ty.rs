@@ -7,9 +7,12 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    codegen::{CustomItem, StructAttributes, struct_field_to_ty_list},
+    codegen::struct_field_to_ty_list,
     error::{Spanned, codegen::CodeGenError, parser::ParserError},
-    parser::{common::StatementVariant, function::FunctionSignature},
+    parser::{
+        common::{CustomItem, StatementVariant, StructAttributes},
+        function::FunctionSignature,
+    },
 };
 use indexmap::{IndexMap, IndexSet};
 use inkwell::{

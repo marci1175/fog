@@ -2,7 +2,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use common::{
     anyhow::{self, Result},
-    codegen::{CustomItem, ty_to_llvm_ty},
+    codegen::ty_to_llvm_ty,
     error::Spanned,
     indexmap::IndexMap,
     inkwell::{
@@ -11,7 +11,7 @@ use common::{
         types::{ArrayType, BasicMetadataTypeEnum},
         values::{IntValue, PointerValue},
     },
-    parser::{common::StatementVariant, variable::UniqueId},
+    parser::{common::{StatementVariant, CustomItem}, variable::UniqueId},
     ty::Type,
 };
 

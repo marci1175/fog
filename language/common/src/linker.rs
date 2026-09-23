@@ -5,7 +5,6 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use tracing::{error, warn};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BuildManifest

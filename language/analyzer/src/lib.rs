@@ -6,7 +6,7 @@ pub mod type_check;
 /// Semantic analysis, for example checks if the code is actually valid structurally, not just syntactically.
 pub mod semantic;
 
-pub fn start_analysis(g_ctx: &mut GlobalContext) -> anyhow::Result<()>
+pub fn start_analysis(_g_ctx: &mut GlobalContext) -> anyhow::Result<()>
 {
     Ok(())
 }

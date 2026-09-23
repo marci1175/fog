@@ -1,8 +1,7 @@
-use std::{hint::cold_path, rc::Rc};
+use std::hint::cold_path;
 
 use common::{
     anyhow::Result,
-    combine_path,
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
@@ -102,7 +101,7 @@ impl Settings
                                 ctx.items.insert(
                                     ctx.path.clone(),
                                     struct_def.name.clone(),
-                                    common::codegen::CustomItem::Struct(struct_def),
+                                    common::parser::common::CustomItem::Struct(struct_def),
                                 );
                             },
                             common::tokenizer::TypeToken::Function => {
