@@ -1,29 +1,24 @@
-use std::{collections::HashMap, ops::Add};
+use std::collections::HashMap;
 
 use common::{
     anyhow::{self, Result},
     codegen::ty::OrdSet,
     error::codegen::CodeGenError,
     inkwell::{
-        attributes::Attribute,
-        builder::Builder,
-        context::Context,
-        debug_info::{AsDIScope, DWARFEmissionKind, DWARFSourceLanguage},
-        module::Module,
-        targets::TargetMachine,
-        values::{BasicValue, FunctionValue},
+        attributes::Attribute, builder::Builder, context::Context, module::Module,
+        targets::TargetMachine, values::FunctionValue,
     },
-    parser::{
-        common::{GlobalContext, ItemVisibility},
-        function::CompilerInstruction,
-    },
+    parser::{common::GlobalContext, function::CompilerInstruction},
 };
 
-use crate::debug::{DebugInformation, create_debug_information};
+use crate::{
+    debug::{DebugInformation, create_debug_information},
+    items::function::store_fn_in_module,
+};
 
 /// This function is solely for generating the LLVM-IR from the main sourec file.
 pub fn start_codegen<'ctx>(
-    context: &'ctx Context,
+    ctx: &'ctx Context,
     builder: &'ctx Builder<'ctx>,
     global_context: &GlobalContext,
     is_optimized: bool,
@@ -40,46 +35,32 @@ pub fn start_codegen<'ctx>(
     for (path, name, definition) in global_context.functions.iter() {
         // Lookup module in module map
         let module_name = path
-            .get(0)
+            .first()
             .ok_or(CodeGenError::InternalItemPathEmpty(name.clone()))?;
 
         // Try to find the module
-        if let Some((module, dbg)) = modules.get(module_name) {
-            // Create function and store function in module
-            let function = module.add_function(
-                &path.join("::").add(&name.to_string()),
-                todo!(),
-                Some({
-                    match definition.visibility {
-                        ItemVisibility::Private => common::inkwell::module::Linkage::Internal,
-                        ItemVisibility::Public => common::inkwell::module::Linkage::External,
-                        ItemVisibility::Branch => {
-                            return Err(CodeGenError::InternalInvalidStructReference.into());
-                        },
-                    }
-                }),
-            );
+        if let Some((module, _dbg)) = modules.get(module_name) {
+            store_fn_in_module(ctx, builder, path, name, definition, module)?;
         }
         // If the module was not found
         else {
             // Create new module based on the module's name
-            let module = context.create_module(&*module_name);
+            let module = ctx.create_module(module_name);
 
             // Create debug information
-            let debug_information = create_debug_information(&module, context, is_optimized)?;
+            let debug_information = create_debug_information(&module, ctx, is_optimized)?;
 
             // Set module data
             module.set_data_layout(&target_machine.get_target_data().get_data_layout());
             module.set_triple(&target_machine.get_triple());
 
-            // Store module and information
+            // Store function in module when the module is first created
+            store_fn_in_module(ctx, builder, path, name, definition, &module)?;
+
+            // Store module with function and its information
             modules.insert(module_name.clone(), (module, debug_information));
         }
     }
-
-    // for (function_name, function_definition) in parsed_functions.iter() {
-
-    // }
 
     Ok(modules)
 }

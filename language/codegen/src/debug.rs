@@ -291,6 +291,7 @@ pub fn create_subprogram_debug_information<'ctx>(
     ))
 }
 
+#[derive(Debug)]
 pub struct DebugInformation<'ctx>
 {
     pub scope: DIScope<'ctx>,

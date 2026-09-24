@@ -134,17 +134,22 @@ impl CompilerInstance
 
         // Create opt passes list
         let passes = ["globaldce", "sink", "mem2reg"].join(",");
+        let passes = passes.as_str();
 
         // Run optimization passes if the user prompted to
         if self.optimized {
-            let passes = passes.as_str();
-
             info!("Running optimization passes: {passes}...");
-            for (_, (module, _)) in modules {
+        }
+
+        for (name, (module, _)) in modules {
+            if self.optimized {
                 module
                     .run_passes(passes, &target_machine, PassBuilderOptions::create())
                     .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
             }
+
+            // Write the generated llvm IR to its designated file
+            module.print_to_file(format!("{name}.ll"))?;
         }
 
         Ok(())

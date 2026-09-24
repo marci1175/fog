@@ -1,20 +1,16 @@
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use common::{
     anyhow::{self, Result},
-    codegen::ty::{Type, ty_to_llvm_ty},
+    codegen::ty::Type,
     error::Spanned,
-    indexmap::IndexMap,
     inkwell::{
         builder::Builder,
         context::Context,
         types::{ArrayType, BasicMetadataTypeEnum},
         values::{IntValue, PointerValue},
     },
-    parser::{
-        common::{CustomItem, StatementVariant},
-        variable::UniqueId,
-    },
+    parser::{common::StatementVariant, variable::UniqueId},
 };
 
 pub fn allocate_string<'a>(
@@ -65,7 +61,6 @@ pub fn create_new_variable<'a, 'b>(
     var_type: &Type,
     var_id: Option<UniqueId>,
     allocation_table: &HashMap<UniqueId, PointerValue<'a>>,
-    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>)>
 {
     // Turn a `TypeDiscriminant` into an LLVM type
@@ -91,7 +86,6 @@ pub fn create_allocation_table<'ctx>(
     ctx: &'ctx Context,
     builder: &'ctx Builder<'_>,
     parsed_tokens: &[Spanned<StatementVariant>],
-    custom_types: Rc<IndexMap<String, CustomItem>>,
 ) -> anyhow::Result<HashMap<UniqueId, PointerValue<'ctx>>>
 {
     // Create allocation table to store the allocation in later
