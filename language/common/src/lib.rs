@@ -32,9 +32,6 @@ pub mod tokenizer;
 
 pub mod compression;
 
-/// Custom language types and type wrappers
-pub mod ty;
-
 pub mod dependency_manager;
 
 /// Used for handling errors in the fog toolset

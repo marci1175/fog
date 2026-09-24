@@ -1,13 +1,25 @@
 use std::{collections::HashMap, ops::Add};
 
 use common::{
-    anyhow::{self, Result}, error::codegen::CodeGenError, inkwell::{
-        attributes::Attribute, builder::Builder, context::Context, debug_info::{AsDIScope, DWARFEmissionKind, DWARFSourceLanguage}, module::Module, targets::TargetMachine, values::{BasicValue, FunctionValue},
-    }, parser::{common::{GlobalContext, ItemVisibility}, function::CompilerInstruction}, ty::OrdSet,
+    anyhow::{self, Result},
+    codegen::ty::OrdSet,
+    error::codegen::CodeGenError,
+    inkwell::{
+        attributes::Attribute,
+        builder::Builder,
+        context::Context,
+        debug_info::{AsDIScope, DWARFEmissionKind, DWARFSourceLanguage},
+        module::Module,
+        targets::TargetMachine,
+        values::{BasicValue, FunctionValue},
+    },
+    parser::{
+        common::{GlobalContext, ItemVisibility},
+        function::CompilerInstruction,
+    },
 };
 
 use crate::debug::{DebugInformation, create_debug_information};
-
 
 /// This function is solely for generating the LLVM-IR from the main sourec file.
 pub fn start_codegen<'ctx>(
@@ -52,7 +64,7 @@ pub fn start_codegen<'ctx>(
         else {
             // Create new module based on the module's name
             let module = context.create_module(&*module_name);
-            
+
             // Create debug information
             let debug_information = create_debug_information(&module, context, is_optimized)?;
 

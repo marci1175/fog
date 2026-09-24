@@ -12,7 +12,10 @@ use inkwell::{FloatPredicate, IntPredicate};
 use strum_macros::Display;
 
 use crate::{
-    codegen::FunctionArgumentIdentifier,
+    codegen::{
+        common::FunctionArgumentIdentifier,
+        ty::{OrdMap, OrdSet, Type, Value},
+    },
     error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     imports::{FFIDeclType, ImportType},
     parser::{
@@ -24,7 +27,6 @@ use crate::{
         variable::{ControlFlowType, UniqueId},
     },
     tokenizer::{Token, TokenDiscriminants},
-    ty::{OrdMap, OrdSet, Type, Value},
 };
 use std::hash::Hash;
 
@@ -609,7 +611,6 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         let scope_id = self.scope_interner.insert_or_get_association(scope);
 
         // Try to fetch the correct scope for the function.
-        
 
         if let Some(scope) = self.scopes.get_mut(&scope_id) {
             scope.insert(name_id, value)
@@ -643,12 +644,10 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
     {
         let scope_id = self.scope_interner.lookup_value(&scope)?;
 
-        self.scopes
-            .get(scope_id)
-            .and_then(|scope| {
-                let name_id = self.name_interner.lookup_value(&name)?;
-                scope.get(name_id)
-            })
+        self.scopes.get(scope_id).and_then(|scope| {
+            let name_id = self.name_interner.lookup_value(&name)?;
+            scope.get(name_id)
+        })
     }
 
     pub fn get_scope(&self, scope: SCOPE) -> Option<&IndexMap<NAMEID, ITEM>>
@@ -688,7 +687,8 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
                 RemoveType::Swap => self.scopes.swap_remove(id),
                 RemoveType::Shift => self.scopes.shift_remove(id),
             }
-        }.map(|scope| (*id, scope))
+        }
+        .map(|scope| (*id, scope))
     }
 
     pub fn remove_item(
@@ -757,11 +757,12 @@ impl<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
         loop {
             // Try to pull the next item out of the current scope's inner map.
             if let Some(inner) = self.inner_iter.as_mut()
-                && let Some((name_id, item)) = inner.next() {
-                    let name = self.name_interner.lookup_id(name_id).unwrap();
-                    let scope = self.current_scope.unwrap();
-                    return Some((scope, name, item));
-                }
+                && let Some((name_id, item)) = inner.next()
+            {
+                let name = self.name_interner.lookup_id(name_id).unwrap();
+                let scope = self.current_scope.unwrap();
+                return Some((scope, name, item));
+            }
 
             // Current scope exhausted (or we haven't started) - advance to the next scope.
             let (scope_id, inner_map) = self.outer_iter.next()?;

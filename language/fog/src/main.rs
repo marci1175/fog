@@ -3,13 +3,14 @@ mod cli;
 use crate::cli::CliCommand;
 use clap::Parser;
 use common::{
-    anyhow, clap,
+    anyhow,
+    codegen::ty::OrdSet,
     compiler::ProjectConfig,
     error::{application::ApplicationError, linker::LinkerError},
-    linker::BuildManifest, toml,
+    linker::BuildManifest,
+    toml,
     tracing::{info, warn},
     tracing_subscriber,
-    ty::OrdSet,
 };
 use compiler::CompilerInstance;
 use linker::link;

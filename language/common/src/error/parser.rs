@@ -2,15 +2,19 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
+    codegen::ty::Type,
     error::syntax::SyntaxError,
     parser::{common::StatementVariant, statement::Expr, variable::VariableReference},
     tokenizer::Token,
-    ty::Type,
 };
 
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error(
+        "When using the `this` keyword the function needs to be implemented for a specific type."
+    )]
+    NotImplementingForAny,
     #[error("Item with path `{0:?}` is present in dependency `{1}` and `{2}`.")]
     ContextItemCollision(Vec<String>, String, String),
     #[error(

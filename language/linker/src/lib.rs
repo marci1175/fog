@@ -1,11 +1,6 @@
 #![feature(iterator_try_collect)]
 
-use common::{
-    error::linker::LinkerError,
-    linker::BuildManifest,
-    toml,
-    tracing::info,
-};
+use common::{error::linker::LinkerError, linker::BuildManifest, toml, tracing::info};
 use std::{
     env, fs,
     path::PathBuf,

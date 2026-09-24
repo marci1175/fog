@@ -1,11 +1,11 @@
 use crate::{
+    codegen::ty::{NotNan, TypeDiscriminants, Value},
     error::{Spanned, parser::ParserError},
     parser::{
         common::Streamable,
         statement::{parse_expr, parse_variable_expression},
     },
     tokenizer::Token,
-    ty::{NotNan, TypeDiscriminants, Value},
 };
 use anyhow::Result;
 

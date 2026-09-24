@@ -11,6 +11,7 @@ use std::{
 
 use common::{
     anyhow,
+    codegen::ty::OrdSet,
     compression::{compress_bytes, decompress_bytes, unzip_from_bytes, write_zip_to_fs_async},
     crossbeam::channel::{Receiver, bounded},
     dependency::construct_dependency_path,
@@ -24,7 +25,6 @@ use common::{
         io::{AsyncReadExt, AsyncWriteExt},
         sync::mpsc::{Sender, channel},
     },
-    ty::OrdSet,
 };
 use dashmap::DashMap;
 

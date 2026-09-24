@@ -1,10 +1,14 @@
 use thiserror::Error;
 
-use crate::{parser::function::FunctionSignature, tokenizer::Token, ty::Type};
+use crate::{codegen::ty::Type, parser::function::FunctionSignature, tokenizer::Token};
 
 #[derive(Clone, Debug, Error)]
 pub enum SyntaxError
 {
+    #[error(
+        "The `this` keyword has already been referenced already in this function argument definition."
+    )]
+    ThisRereferenced,
     #[error(
         "An unknown expression (`{0}`) follows a variable reference. Check manual to see valid variable reference uses."
     )]

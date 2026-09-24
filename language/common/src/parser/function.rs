@@ -5,6 +5,7 @@ use strum::{EnumDiscriminants, EnumTryAs};
 
 use crate::{
     anyhow::{self},
+    codegen::ty::{OrdMap, OrdSet, Type},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{
@@ -16,7 +17,6 @@ use crate::{
         variable::{UniqueId, VARIABLE_ID_SOURCE},
     },
     tokenizer::{Token, TokenDiscriminants},
-    ty::{OrdMap, OrdSet, Type},
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Hash)]
@@ -72,13 +72,15 @@ pub struct FunctionArguments
 {
     /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are unique in this context.
     pub arguments: OrdMap<String, (Type, UniqueId)>,
+    /// Made for backwards compatibility with FFI functions. (`...`)
     pub ellipsis_present: bool,
     /// The map consists of the generic types and their traits.
     /// ie: { "T": {"trait1", "trait2"} }
+    /// Functions containing generics are generated when a function call is made to the specific function.
+    /// Basically, when a function with generics is called, it will check the arguments and if the arguments have the traits needed it will create a new function instance which will have the concrete types as its arguments.
     pub generics: OrdMap<String, OrdSet<String>>,
-    /// This is true if the function references the struct its implemented for ie. using the this keyword.
-    /// Obviously this shouldnt be true for an ordinary function since the `this` keyword cannot be used there.
-    pub receiver_referenced: bool,
+    /// If the function is being implemented for a valid type, this field will contain the type we are implementing for.
+    pub referenced_receiver: Option<Type>,
 }
 
 impl FunctionArguments
@@ -107,7 +109,7 @@ impl FunctionArguments
             arguments: OrdMap::new(),
             generics: OrdMap::new(),
             ellipsis_present: false,
-            receiver_referenced: false,
+            referenced_receiver: None,
         }
     }
 }
@@ -154,6 +156,7 @@ pub fn parse_function(
     vis: &ItemVisibility,
     tokens: &mut Stream<Spanned<Token>>,
     mut compiler_instructions: OrdSet<CompilerInstruction>,
+    implementing_for_type: Option<Type>,
 ) -> anyhow::Result<FunctionDefinition>
 {
     // Get the function name token
@@ -188,10 +191,12 @@ pub fn parse_function(
                 )?;
 
                 // Parse the arguments of the function
-                parse_function_signature(tokens, &mut arguments)?;
+                parse_function_signature(tokens, &mut arguments, implementing_for_type)?;
             },
             // Parse arguments
-            Token::OpenParentheses => parse_function_signature(tokens, &mut arguments)?,
+            Token::OpenParentheses => {
+                parse_function_signature(tokens, &mut arguments, implementing_for_type)?
+            },
             _ => return Err(ParserError::InvalidFunctionArgumentDefinition.into()),
         }
     }
@@ -340,6 +345,10 @@ pub fn parse_generics(
 pub fn parse_function_signature<S: Streamable<Spanned<Token>>>(
     tokens: &mut S,
     function_args: &mut FunctionArguments,
+
+    // This is used when we are specifically implementing a function for a struct or an enum.
+    // When the `this` keyword is referenced this argument is checked and the type we are implementing for will be stored.
+    implementing_for_type: Option<Type>,
 ) -> anyhow::Result<()>
 {
     /*
@@ -394,7 +403,17 @@ pub fn parse_function_signature<S: Streamable<Spanned<Token>>>(
             },
             // The receiver doesnt have to be the first argument in the function.
             Token::This => {
-                function_args.receiver_referenced = true;
+                // Check if we are implementing this function for a type
+                if implementing_for_type.is_none() {
+                    return Err(ParserError::NotImplementingForAny.into());
+                }
+
+                // Check if we have already referenced `this`
+                if function_args.referenced_receiver.is_some() {
+                    return Err(ParserError::SyntaxError(SyntaxError::ThisRereferenced).into());
+                }
+
+                function_args.referenced_receiver = implementing_for_type.clone();
 
                 // If the receiver is present, indicate that in the FunctionSignature instance
                 // The next token should be a comma

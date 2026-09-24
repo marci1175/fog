@@ -7,7 +7,6 @@ use std::{
 
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
-    codegen::struct_field_to_ty_list,
     error::{Spanned, codegen::CodeGenError, parser::ParserError},
     parser::{
         common::{CustomItem, StatementVariant, StructAttributes},
@@ -16,7 +15,6 @@ use crate::{
 };
 use indexmap::{IndexMap, IndexSet};
 use inkwell::{
-    AddressSpace,
     context::Context,
     types::{BasicType, BasicTypeEnum},
 };
@@ -230,6 +228,7 @@ pub enum Type
 
     U8,
 
+    /// The `String` type is represented as a pointer, however the String value is represented as an array of i8s
     String,
     Boolean,
 
@@ -396,53 +395,58 @@ impl Type
         }
     }
 
-    pub fn to_basic_type_enum<'a>(
-        &self,
-        ctx: &'a Context,
-        custom_types: Rc<IndexMap<String, CustomItem>>,
-    ) -> anyhow::Result<BasicTypeEnum<'a>>
+    pub fn to_basic_type_enum<'a>(&self, ctx: &'a Context) -> anyhow::Result<BasicTypeEnum<'a>>
     {
-        let basic_ty = match self {
-            Type::I64 => BasicTypeEnum::IntType(ctx.i64_type()),
-            Type::F64 => BasicTypeEnum::FloatType(ctx.f64_type()),
-            Type::U64 => BasicTypeEnum::IntType(ctx.i64_type()),
-            Type::I32 => BasicTypeEnum::IntType(ctx.i32_type()),
-            Type::F32 => BasicTypeEnum::FloatType(ctx.f32_type()),
-            Type::U32 => BasicTypeEnum::IntType(ctx.i32_type()),
-            Type::I16 => BasicTypeEnum::IntType(ctx.i16_type()),
-            Type::F16 => BasicTypeEnum::FloatType(ctx.f16_type()),
-            Type::U16 => BasicTypeEnum::IntType(ctx.i16_type()),
-            Type::U8 => BasicTypeEnum::IntType(ctx.i8_type()),
+        Ok(match self {
+            Type::I64 => ctx.i64_type().as_basic_type_enum(),
+            Type::F64 => ctx.f64_type().as_basic_type_enum(),
+            Type::U64 => ctx.i64_type().as_basic_type_enum(),
+            Type::I32 => ctx.i32_type().as_basic_type_enum(),
+            Type::F32 => ctx.f32_type().as_basic_type_enum(),
+            Type::U32 => ctx.i32_type().as_basic_type_enum(),
+            Type::I16 => ctx.i16_type().as_basic_type_enum(),
+            Type::F16 => ctx.f16_type().as_basic_type_enum(),
+            Type::U16 => ctx.i16_type().as_basic_type_enum(),
+            Type::U8 => ctx.i8_type().as_basic_type_enum(),
+            // The `String` type is represented as a pointer, however the String value is represented as an array of i8s
             Type::String => {
-                BasicTypeEnum::PointerType(
-                    ctx.ptr_type(AddressSpace::from(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE)),
-                )
+                ctx.ptr_type(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE.into())
+                    .as_basic_type_enum()
             },
-            Type::Boolean => BasicTypeEnum::IntType(ctx.bool_type()),
-            Type::Void => return Err(CodeGenError::InvalidVoidValue.into()),
-            Type::Struct((_struct_name, fields, _)) => {
-                BasicTypeEnum::StructType(ctx.struct_type(
-                    &struct_field_to_ty_list(ctx, fields, custom_types.clone())?,
-                    false,
-                ))
-            },
-            Type::Array((array_ty, len)) => {
-                BasicTypeEnum::ArrayType(
-                    array_ty
-                        .to_basic_type_enum(ctx, custom_types.clone())?
-                        .array_type(*len as u32),
-                )
-            },
-            Type::Enum((ty, _)) => ty.to_basic_type_enum(ctx, custom_types.clone())?,
-            Type::Pointer(_) => {
-                BasicTypeEnum::PointerType(ctx.ptr_type(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE.into()))
-            },
-            Type::Trait { .. } => return Err(CodeGenError::TraitIsNotType.into()),
-            Type::TraitObject { .. } => todo!(),
-            Type::Unresolved(_) => todo!(),
-        };
+            Type::Boolean => ctx.bool_type().as_basic_type_enum(),
+            // Void types are represented as an empty struct as a placeholder, so that they can be represented in a basictypeenum
+            Type::Void => ctx.struct_type(&[], false).as_basic_type_enum(),
+            Type::Enum((inner_ty, _variants)) => ty_to_llvm_ty(ctx, inner_ty)?,
+            Type::Struct((_name, fields, _attributes)) => {
+                let mut field_types = Vec::new();
 
-        Ok(basic_ty)
+                for (_name, field) in fields.iter() {
+                    field_types.push(ty_to_llvm_ty(ctx, field)?);
+                }
+
+                ctx.struct_type(&field_types, false).as_basic_type_enum()
+            },
+            Type::Array((ty, len)) => {
+                let ty = ty_to_llvm_ty(ctx, ty)?;
+
+                ty.array_type(*len as u32).as_basic_type_enum()
+            },
+            Type::Pointer(_ty) => {
+                ctx.ptr_type(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE.into())
+                    .as_basic_type_enum()
+            },
+            Type::Trait {
+                name: _,
+                access_path: _,
+                functions: _,
+            } => return Err(CodeGenError::InternalTypeNonRepresentable(self.clone()).into()),
+            Type::Unresolved(str) => {
+                return Err(CodeGenError::InternalUnresolvedType(str.to_string()).into());
+            },
+            Type::TraitObject(_ord_set) => {
+                return Err(CodeGenError::InternalTypeNonRepresentable(self.clone()).into());
+            },
+        })
     }
 
     /// Returns the inner type of an enum, if it is an enum.
@@ -850,4 +854,58 @@ impl<T: Hash + Eq + Clone> OrdSet<T>
 
         set
     }
+}
+
+pub fn ty_to_llvm_ty<'ctx>(ctx: &'ctx Context, ty: &Type) -> anyhow::Result<BasicTypeEnum<'ctx>>
+{
+    Ok(match ty {
+        Type::I64 => ctx.i64_type().as_basic_type_enum(),
+        Type::F64 => ctx.f64_type().as_basic_type_enum(),
+        Type::U64 => ctx.i64_type().as_basic_type_enum(),
+        Type::I32 => ctx.i32_type().as_basic_type_enum(),
+        Type::F32 => ctx.f32_type().as_basic_type_enum(),
+        Type::U32 => ctx.i32_type().as_basic_type_enum(),
+        Type::I16 => ctx.i16_type().as_basic_type_enum(),
+        Type::F16 => ctx.f16_type().as_basic_type_enum(),
+        Type::U16 => ctx.i16_type().as_basic_type_enum(),
+        Type::U8 => ctx.i8_type().as_basic_type_enum(),
+        // The `String` type is represented as a pointer, however the String value is represented as an array of i8s
+        Type::String => {
+            ctx.ptr_type(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE.into())
+                .as_basic_type_enum()
+        },
+        Type::Boolean => ctx.bool_type().as_basic_type_enum(),
+        // Void types are represented as an empty struct as a placeholder, so that they can be represented in a basictypeenum
+        Type::Void => ctx.struct_type(&[], false).as_basic_type_enum(),
+        Type::Enum((inner_ty, _variants)) => ty_to_llvm_ty(ctx, inner_ty)?,
+        Type::Struct((_name, fields, _attributes)) => {
+            let mut field_types = Vec::new();
+
+            for (_name, field) in fields.iter() {
+                field_types.push(ty_to_llvm_ty(ctx, field)?);
+            }
+
+            ctx.struct_type(&field_types, false).as_basic_type_enum()
+        },
+        Type::Array((ty, len)) => {
+            let ty = ty_to_llvm_ty(ctx, ty)?;
+
+            ty.array_type(*len as u32).as_basic_type_enum()
+        },
+        Type::Pointer(_ty) => {
+            ctx.ptr_type(DEFAULT_COMPILER_ADDRESS_SPACE_SIZE.into())
+                .as_basic_type_enum()
+        },
+        Type::Trait {
+            name: _,
+            access_path: _,
+            functions: _,
+        } => return Err(CodeGenError::InternalTypeNonRepresentable(ty.clone()).into()),
+        Type::Unresolved(str) => {
+            return Err(CodeGenError::InternalUnresolvedType(str.to_string()).into());
+        },
+        Type::TraitObject(_ord_set) => {
+            return Err(CodeGenError::InternalTypeNonRepresentable(ty.clone()).into());
+        },
+    })
 }

@@ -2,27 +2,31 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
+    codegen::ty::Type,
     parser::{
         common::{ItemVisibility, StatementVariant},
         function::CompilerInstruction,
         variable::UniqueId,
     },
-    ty::Type,
 };
 
 #[derive(Debug, Error)]
 pub enum CodeGenError
 {
+    #[error("[INTERNAL ERROR] Function `{0}` needs to be generated when the function is called.")]
+    InternalFunctionGeneratable(String),
+    #[error(
+        "[INTERNAL ERROR] Unresolved type `{0}` encountered at codegen. Check type resolver output."
+    )]
+    InternalUnresolvedType(String),
+    #[error("[INTERNAL ERROR] Type `{0}` cannot be represented as a `BasicTypeEnum`.")]
+    InternalTypeNonRepresentable(Type),
     #[error("[INTERNAL ERROR] This item cannot have the visibility `{0}` in this context.")]
     InternalInvalidItemVisiblity(ItemVisibility),
     #[error("[INTERNAL ERROR] Item `{0}`'s path is empty.")]
     InternalItemPathEmpty(String),
     #[error("Source file referenced at `{0}` is not found or inaccessible in the host system.")]
     SrcFileNotFound(PathBuf),
-    #[error(
-        "[INTERNAL ERROR] Inner type of a trait object is unknown. The internal type should only be None if referenced in a function signature."
-    )]
-    InternalTraitObjectTypeUnknown,
     #[error("Trait objects are not determined types as they are function interfaces.")]
     TraitObjectOpaqueType,
     #[error("Output path `{0}` is unavailable.")]

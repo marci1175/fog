@@ -1,33 +1,25 @@
 use std::{
-    collections::{HashMap, HashSet},
     fs::{self},
-    ops::Add,
     path::PathBuf,
-    rc::Rc,
 };
 
 use codegen::irgen::start_codegen;
 use common::{
     anyhow::{self, Result},
+    codegen::ty::{OrdSet, Type},
     compiler::ProjectConfig,
     dependency::verify_dependencies_fs,
-    error::{
-        application::ApplicationError, codegen::CodeGenError, dependency::DependencyError,
-        parser::ParserError,
-    },
+    error::{application::ApplicationError, codegen::CodeGenError},
     imports::ImportType,
     inkwell::{
         context::Context,
-        module::Module,
         passes::PassBuilderOptions,
-        targets::{InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple},
-        types::{BasicTypeEnum, FunctionType},
+        targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     },
     linker::BuildManifest,
     parser::common::{GlobalContext, ItemVisibility, Stream, Streamable},
     toml,
     tracing::info,
-    ty::{OrdSet, Type},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
@@ -132,7 +124,13 @@ impl CompilerInstance
         let builder = context.create_builder();
 
         // Generate modules
-        let modules = start_codegen(&context, &builder, global_context, self.optimized, &target_machine)?;
+        let modules = start_codegen(
+            &context,
+            &builder,
+            global_context,
+            self.optimized,
+            &target_machine,
+        )?;
 
         // Create opt passes list
         let passes = ["globaldce", "sink", "mem2reg"].join(",");
@@ -142,7 +140,7 @@ impl CompilerInstance
             let passes = passes.as_str();
 
             info!("Running optimization passes: {passes}...");
-            for (_, module) in modules {
+            for (_, (module, _)) in modules {
                 module
                     .run_passes(passes, &target_machine, PassBuilderOptions::create())
                     .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
@@ -217,7 +215,7 @@ fn parse_src_file(
     let mut tokens = Stream::new(tokenize(&file_contents)?);
 
     // Parse tokenized file
-    match parser_settings.parse(&mut tokens, &module_path) {
+    match parser_settings.parse(&mut tokens, module_path) {
         Ok(ctx) => {
             // Append the functions and items and other important information to the global context
             g_context.append_ctx(&ctx);

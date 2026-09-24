@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
+    codegen::ty,
     error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition},
     imports::{FFIDeclType, ImportType},
     parser::{
@@ -9,7 +10,6 @@ use crate::{
         ty::parse_type,
     },
     tokenizer::{Token, TokenDiscriminants},
-    ty,
 };
 
 /// All item imports must point to concrete items, such as a function or enum, they cannot point to a module.
@@ -192,7 +192,7 @@ pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             let mut args = FunctionArguments::new();
 
             // This function consumes the token until the closing parentheses
-            parse_function_signature(tkns, &mut args)?;
+            parse_function_signature(tkns, &mut args, None)?;
 
             // All functions must have a return type
             // Consume colon for syntax

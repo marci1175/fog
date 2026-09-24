@@ -2,7 +2,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use common::{
     anyhow::{self, Result},
-    codegen::ty_to_llvm_ty,
+    codegen::ty::{Type, ty_to_llvm_ty},
     error::Spanned,
     indexmap::IndexMap,
     inkwell::{
@@ -11,8 +11,10 @@ use common::{
         types::{ArrayType, BasicMetadataTypeEnum},
         values::{IntValue, PointerValue},
     },
-    parser::{common::{StatementVariant, CustomItem}, variable::UniqueId},
-    ty::Type,
+    parser::{
+        common::{CustomItem, StatementVariant},
+        variable::UniqueId,
+    },
 };
 
 pub fn allocate_string<'a>(
@@ -67,7 +69,7 @@ pub fn create_new_variable<'a, 'b>(
 ) -> Result<(PointerValue<'a>, BasicMetadataTypeEnum<'a>)>
 {
     // Turn a `TypeDiscriminant` into an LLVM type
-    let var_type = ty_to_llvm_ty(ctx, var_type, custom_types.clone())?;
+    let var_type = var_type.to_basic_type_enum(ctx)?;
 
     // Check if we have already pre-allocated the variable
     // If yes, we should return the pointer to the pre-allocated variable
@@ -112,7 +114,7 @@ pub fn create_allocation_table<'ctx>(
             // Allocate the variable here
             // We can ignore the initial value of the variable since NewVariables will be interpreted as setvalue for the variables preallocated.
             let variable_pointer = builder.build_alloca(
-                ty_to_llvm_ty(ctx, variable_type, custom_types.clone())?,
+                variable_type.to_basic_type_enum(ctx)?,
                 &format!("alloca_table_{variable_name}"),
             )?;
 

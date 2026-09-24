@@ -1,4 +1,5 @@
 use crate::{
+    codegen::ty::OrdMap,
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         common::{
@@ -14,7 +15,6 @@ use crate::{
         },
     },
     tokenizer::{Token, TokenDiscriminants},
-    ty::OrdMap,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -380,7 +380,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                                     argument_tkns.consume();
 
                                     arguments.insert(
-                                        crate::codegen::FunctionArgumentIdentifier::Identifier(
+                                        crate::codegen::common::FunctionArgumentIdentifier::Identifier(
                                             named_arg,
                                         ),
                                         parse_expr(&mut argument_tkns)?,
@@ -388,7 +388,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                                 }
                                 else {
                                     arguments.insert(
-                                        crate::codegen::FunctionArgumentIdentifier::Index(
+                                        crate::codegen::common::FunctionArgumentIdentifier::Index(
                                             argument_idx,
                                         ),
                                         parse_expr(&mut argument_tkns)?,

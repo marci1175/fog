@@ -2,6 +2,7 @@ use std::hint::cold_path;
 
 use common::{
     anyhow::Result,
+    codegen::ty::OrdSet,
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
@@ -11,7 +12,6 @@ use common::{
         ty::{parse_enum, parse_struct},
     },
     tokenizer::{Token, TokenDiscriminants},
-    ty::OrdSet,
 };
 
 #[derive(Debug, Clone)]
@@ -110,6 +110,7 @@ impl Settings
                                     vis,
                                     tokens,
                                     std::mem::take(&mut item_compiler_instruction),
+                                    None,
                                 )?;
 
                                 ctx.functions.insert(
