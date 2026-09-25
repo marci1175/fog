@@ -45,20 +45,32 @@ pub enum Value
     #[default]
     Void,
 
-    Struct(
-        (
-            String,
-            OrdMap<String, Type>,
-            OrdMap<String, Box<Spanned<StatementVariant>>>,
-            StructAttributes,
-        ),
-    ),
+    Struct
+    {
+        name: String,
+        fields: OrdMap<String, Type>,
+        values: OrdMap<String, Box<Spanned<StatementVariant>>>,
+        attributes: StructAttributes,
+    },
 
     /// First item is the type of the array
     /// Second item is the length
-    Array((Box<Type>, usize)),
-    Enum((Type, OrdMap<String, Spanned<StatementVariant>>, String)),
-    Pointer((usize, Option<Box<Type>>)),
+    Array
+    {
+        ty: Box<Type>,
+        len: usize,
+    },
+    Enum
+    {
+        name: String,
+        ty: Type,
+        variants: OrdMap<String, Spanned<StatementVariant>>,
+    },
+    Pointer
+    {
+        address: usize,
+        ty: Option<Box<Type>>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -195,18 +207,38 @@ impl Value
             Value::String(_) => Type::String,
             Value::Boolean(_) => Type::Boolean,
             Value::Void => Type::Void,
-            Value::Struct((struct_name, struct_fields, _struct_values, attr)) => {
+            Value::Struct {
+                name,
+                fields,
+                values: _,
+                attributes,
+            } => {
                 let mut struct_field_ty_list = OrdMap::new();
 
-                for (name, ty) in struct_fields.iter() {
+                for (name, ty) in fields.iter() {
                     struct_field_ty_list.insert(name.clone(), ty.clone());
                 }
 
-                Type::Struct((struct_name.clone(), struct_field_ty_list, attr.clone()))
+                Type::Struct {
+                    name: name.clone(),
+                    fields: struct_field_ty_list,
+                    attributes: attributes.clone(),
+                }
             },
-            Value::Array(inner) => Type::Array(inner.clone()),
-            Value::Enum((ty, body, _)) => Type::Enum((Box::new(ty.clone()), body.clone())),
-            Value::Pointer((_, inner_ty)) => Type::Pointer(inner_ty.clone()),
+            Value::Array { ty, len } => {
+                Type::Array {
+                    ty: ty.clone(),
+                    len: *len,
+                }
+            },
+            Value::Enum { name, ty, variants } => {
+                Type::Enum {
+                    name: name.clone(),
+                    ty: Box::new(ty.clone()),
+                    variants: variants.clone(),
+                }
+            },
+            Value::Pointer { address: _, ty } => Type::Pointer(ty.clone()),
         }
     }
 }
@@ -236,10 +268,26 @@ pub enum Type
     Void,
 
     /// Automatic type casting is not implemented for enum variants due to it being ineffecient and difficult with the current codebase. (aka im too lazy)
-    Enum((Box<Type>, OrdMap<String, Spanned<StatementVariant>>)),
+    Enum
+    {
+        name: String,
+        ty: Box<Type>,
+        variants: OrdMap<String, Spanned<StatementVariant>>,
+    },
 
-    Struct((String, OrdMap<String, Type>, StructAttributes)),
-    Array((Box<Type>, usize)),
+    Struct
+    {
+        name: String,
+        fields: OrdMap<String, Type>,
+        attributes: StructAttributes,
+    },
+
+    Array
+    {
+        ty: Box<Type>,
+        len: usize,
+    },
+
     Pointer(Option<Box<Type>>),
 
     Trait
@@ -263,9 +311,20 @@ impl From<CustomItem> for Type
     fn from(value: CustomItem) -> Self
     {
         match value {
-            CustomItem::Struct(_inner) => Self::Struct(todo!()),
-            // CustomItem::Struct(inner) => Self::Struct(inner),
-            CustomItem::Enum((ty, variants)) => Self::Enum((Box::new(ty), variants)),
+            CustomItem::Struct(def) => {
+                Self::Struct {
+                    name: def.name,
+                    fields: def.fields,
+                    attributes: def.attributes,
+                }
+            },
+            CustomItem::Enum { name, ty, variants } => {
+                Self::Enum {
+                    name,
+                    ty: Box::new(ty),
+                    variants,
+                }
+            },
             CustomItem::Trait {
                 name,
                 access_path,
@@ -286,14 +345,38 @@ impl PartialEq for Type
     fn eq(&self, other: &Self) -> bool
     {
         match (self, other) {
-            (Self::Enum(l0), Self::Enum(r0)) => l0 == r0,
+            (
+                Self::Enum {
+                    name: l0,
+                    ty: l1,
+                    variants: l2,
+                },
+                Self::Enum {
+                    name: r0,
+                    ty: r1,
+                    variants: r2,
+                },
+            ) => l0 == r0 && l1 == r1 && l2 == r2,
             /*
                 Ignore the attributes:
                 The reason is that when parsing different states of the same type gets stored therefor a mismatch occurs when in reality the two structs are the same.
                 TODO: Fix this, i could use smth like type ids and just check it from there.
             */
-            (Self::Struct(l0), Self::Struct(r0)) => l0.0 == r0.0 && l0.1 == r0.1,
-            (Self::Array(l0), Self::Array(r0)) => l0 == r0,
+            (
+                Self::Struct {
+                    name: l0,
+                    fields: l1,
+                    ..
+                },
+                Self::Struct {
+                    name: r0,
+                    fields: r1,
+                    ..
+                },
+            ) => l0 == r0 && l1 == r1,
+            (Self::Array { ty: l0, len: l1 }, Self::Array { ty: r0, len: r1 }) => {
+                l0 == r0 && l1 == r1
+            },
             (Self::Pointer(l0), Self::Pointer(r0)) => l0 == r0,
             (
                 Self::Trait {
@@ -313,13 +396,13 @@ impl PartialEq for Type
                     access_path: trait_name,
                     ..
                 },
-                Self::Struct((_, _, attr)),
-            ) => attr.traits_implemented.contains(trait_name),
-            (Self::TraitObject(implemented_traits /*inner_type */), Self::Struct((_, _, attr))) => {
+                Self::Struct { attributes, .. },
+            ) => attributes.traits_implemented.contains(trait_name),
+            (Self::TraitObject(implemented_traits), Self::Struct { attributes, .. }) => {
                 // Check if all of the traits specified in the TraitObject are implemented by the struct
                 implemented_traits
                     .iter()
-                    .all(|impl_trait| attr.traits_implemented.contains(impl_trait))
+                    .all(|impl_trait| attributes.traits_implemented.contains(impl_trait))
             },
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
@@ -356,10 +439,10 @@ impl Type
             Self::F64 | Self::F32 | Self::F16 => 4,
             Self::Boolean => 2,
             Self::String => 12,
-            Self::Struct(_) => 13,
-            Self::Pointer(_) => 15,
-            Self::Array(_) => 1,
-            Self::Enum(_) => 4,
+            Self::Struct { .. } => 13,
+            Self::Pointer { .. } => 15,
+            Self::Array { .. } => 1,
+            Self::Enum { .. } => 4,
             _ => panic!("DWARF identifier requested on invalid type."),
         }
     }
@@ -380,14 +463,14 @@ impl Type
             Self::String => std::mem::size_of::<String>(),
             Self::Boolean => std::mem::size_of::<bool>(),
             Self::Void => 0,
-            Self::Struct((_, fields, _)) => {
+            Self::Struct { fields, .. } => {
                 fields
                     .iter()
                     .map(|(_, ty)| ty.sizeof(custom_types.clone()))
                     .sum()
             },
-            Self::Enum((inner_ty, _)) => inner_ty.sizeof(custom_types.clone()),
-            Self::Array((inner, _)) => inner.sizeof(custom_types.clone()),
+            Self::Enum { ty, .. } => ty.sizeof(custom_types.clone()),
+            Self::Array { ty, .. } => ty.sizeof(custom_types.clone()),
             Self::Pointer(_) => std::mem::size_of::<usize>(),
             Self::Trait { .. } => 0,
             Self::TraitObject { .. } => 0,
@@ -416,8 +499,8 @@ impl Type
             Type::Boolean => ctx.bool_type().as_basic_type_enum(),
             // Void types are represented as an empty struct as a placeholder, so that they can be represented in a basictypeenum
             Type::Void => ctx.struct_type(&[], false).as_basic_type_enum(),
-            Type::Enum((inner_ty, _variants)) => ty_to_llvm_ty(ctx, inner_ty)?,
-            Type::Struct((_name, fields, _attributes)) => {
+            Type::Enum { ty, .. } => ty_to_llvm_ty(ctx, ty)?,
+            Type::Struct { fields, .. } => {
                 let mut field_types = Vec::new();
 
                 for (_name, field) in fields.iter() {
@@ -426,7 +509,7 @@ impl Type
 
                 ctx.struct_type(&field_types, false).as_basic_type_enum()
             },
-            Type::Array((ty, len)) => {
+            Type::Array { ty, len } => {
                 let ty = ty_to_llvm_ty(ctx, ty)?;
 
                 ty.array_type(*len as u32).as_basic_type_enum()
@@ -454,8 +537,8 @@ impl Type
     /// Be cautious when using this function to ensure correctness in the codebase.
     pub fn try_get_enum_inner(self) -> Self
     {
-        if let Self::Enum((inner_ty, _)) = self {
-            return *inner_ty;
+        if let Self::Enum { ty, .. } = self {
+            return *ty;
         }
 
         self
@@ -480,14 +563,24 @@ impl Type
             Self::String => Value::String(String::new()),
             Self::Boolean => Value::Boolean(false),
             Self::Void => Value::Void,
-            Self::Struct(_) => {
+            Self::Struct { .. } => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
-            Self::Enum(_) => {
+            Self::Enum { .. } => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
-            Self::Array(array) => Value::Array(array.to_owned()),
-            Self::Pointer(_) => Value::Pointer((0, None)),
+            Self::Array { ty, len } => {
+                Value::Array {
+                    ty: ty.clone(),
+                    len: *len,
+                }
+            },
+            Self::Pointer(_) => {
+                Value::Pointer {
+                    address: 0,
+                    ty: None,
+                }
+            },
             Self::Trait { .. } => {
                 unimplemented!("Cannot create a Custom type from a `TypeDiscriminant`.")
             },
@@ -519,12 +612,12 @@ impl Display for Type
             Type::String => "String".to_string(),
             Type::Boolean => "Boolean".to_string(),
             Type::Void => "Void".to_string(),
-            Type::Struct((struct_name, _, _)) => format!("Struct({struct_name})"),
-            Type::Array((inner_ty, len)) => {
-                format!("Array(ty: {inner_ty}, len:{len})")
+            Type::Struct { name, .. } => format!("Struct({name})"),
+            Type::Array { ty, len } => {
+                format!("Array(ty: {ty}, len:{len})")
             },
             Type::Pointer(inner_ty) => format!("Ptr<{:?}>", inner_ty),
-            Type::Enum((ty, _)) => format!("Enum<{ty}>"),
+            Type::Enum { ty, .. } => format!("Enum<{ty}>"),
             Type::Trait {
                 functions: inner_type,
                 name: _,
@@ -608,30 +701,38 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             })?)
         },
         Some(Type::Void) => Value::Void,
-        Some(Type::Struct(inner)) => {
+        Some(Type::Struct {
+            name,
+            fields,
+            attributes,
+        }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::Struct(inner),
+                Type::Struct {
+                    name,
+                    fields,
+                    attributes,
+                },
             ));
         },
-        Some(Type::Array(inner)) => {
+        Some(Type::Array { ty, len }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::Array(inner),
+                Type::Array { ty, len },
             ));
         },
         Some(Type::Pointer(ref ptr_ty)) => {
-            Value::Pointer((
-                raw_string.parse::<usize>().map_err(|_| {
+            Value::Pointer {
+                address: raw_string.parse::<usize>().map_err(|_| {
                     ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
                 })?,
-                ptr_ty.clone(),
-            ))
+                ty: ptr_ty.clone(),
+            }
         },
-        Some(Type::Enum(inner)) => {
+        Some(Type::Enum { name, ty, variants }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::Enum(inner),
+                Type::Enum { name, ty, variants },
             ));
         },
         Some(Type::Trait {
@@ -877,8 +978,8 @@ pub fn ty_to_llvm_ty<'ctx>(ctx: &'ctx Context, ty: &Type) -> anyhow::Result<Basi
         Type::Boolean => ctx.bool_type().as_basic_type_enum(),
         // Void types are represented as an empty struct as a placeholder, so that they can be represented in a basictypeenum
         Type::Void => ctx.struct_type(&[], false).as_basic_type_enum(),
-        Type::Enum((inner_ty, _variants)) => ty_to_llvm_ty(ctx, inner_ty)?,
-        Type::Struct((_name, fields, _attributes)) => {
+        Type::Enum { ty, .. } => ty_to_llvm_ty(ctx, ty)?,
+        Type::Struct { fields, .. } => {
             let mut field_types = Vec::new();
 
             for (_name, field) in fields.iter() {
@@ -887,7 +988,7 @@ pub fn ty_to_llvm_ty<'ctx>(ctx: &'ctx Context, ty: &Type) -> anyhow::Result<Basi
 
             ctx.struct_type(&field_types, false).as_basic_type_enum()
         },
-        Type::Array((ty, len)) => {
+        Type::Array { ty, len } => {
             let ty = ty_to_llvm_ty(ctx, ty)?;
 
             ty.array_type(*len as u32).as_basic_type_enum()

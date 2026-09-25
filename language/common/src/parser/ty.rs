@@ -181,7 +181,10 @@ pub fn parse_type<S: Streamable<Spanned<Token>>>(tokens: &mut S) -> anyhow::Resu
                             &TokenDiscriminants::CloseAngledBrackets,
                         )?;
 
-                        Ok(Type::Array((Box::new(ty), len)))
+                        Ok(Type::Array {
+                            ty: Box::new(ty),
+                            len,
+                        })
                     },
                     tokenizer::TypeToken::Pointer => {
                         // Pointer syntax

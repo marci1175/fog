@@ -1306,14 +1306,14 @@ pub struct StructDefinition
 pub enum CustomItem
 {
     Struct(StructDefinition),
-    Enum(
-        (
-            // Enum type
-            Type,
-            // Enum variant values
-            OrdMap<String, Spanned<StatementVariant>>,
-        ),
-    ),
+    Enum
+    {
+        name: String,
+        // Enum type
+        ty: Type,
+        // Enum variant values
+        variants: OrdMap<String, Spanned<StatementVariant>>,
+    },
     Trait
     {
         name: String,

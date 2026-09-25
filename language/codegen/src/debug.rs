@@ -76,8 +76,8 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
 ) -> Result<DIType<'ctx>>
 {
     let debug_type = match type_disc.clone() {
-        Type::Array((array_ty, len)) => {
-            let inner_ty_disc = *array_ty;
+        Type::Array { ty, len } => {
+            let inner_ty_disc = *ty;
 
             let inner_type = get_basic_debug_type_from_ty(
                 debug_info_builder,
@@ -94,10 +94,14 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
                 )
                 .as_type()
         },
-        Type::Struct((struct_name, struct_def, _)) => {
+        Type::Struct {
+            name,
+            fields,
+            attributes: _,
+        } => {
             let mut struct_field_types: Vec<DIType> = Vec::new();
 
-            let type_discs = struct_def
+            let type_discs = fields
                 .iter()
                 .map(|(_, val)| val.clone())
                 .collect::<Vec<Type>>();
@@ -175,7 +179,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
             debug_info_builder
                 .create_struct_type(
                     scope,
-                    &struct_name,
+                    &name,
                     file,
                     69,
                     size_bits,
