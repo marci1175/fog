@@ -425,7 +425,15 @@ impl Type
     {
         matches!(
             self,
-            Self::I64 | Self::I32 | Self::I16 | Self::U64 | Self::U32 | Self::U16 | Self::U8
+            Self::I64 | Self::I32 | Self::I16
+        )
+    }
+
+    pub fn is_uint(&self) -> bool
+    {
+        matches!(
+            self,
+            Self::U64 | Self::U32 | Self::U16 | Self::U8
         )
     }
 
@@ -447,7 +455,7 @@ impl Type
         }
     }
 
-    pub fn sizeof(&self, custom_types: Rc<IndexMap<String, CustomItem>>) -> usize
+    pub fn sizeof(&self) -> usize
     {
         match self {
             Self::I64 => std::mem::size_of::<i64>(),
@@ -466,11 +474,11 @@ impl Type
             Self::Struct { fields, .. } => {
                 fields
                     .iter()
-                    .map(|(_, ty)| ty.sizeof(custom_types.clone()))
+                    .map(|(_, ty)| ty.sizeof())
                     .sum()
             },
-            Self::Enum { ty, .. } => ty.sizeof(custom_types.clone()),
-            Self::Array { ty, .. } => ty.sizeof(custom_types.clone()),
+            Self::Enum { ty, .. } => ty.sizeof(),
+            Self::Array { ty, .. } => ty.sizeof(),
             Self::Pointer(_) => std::mem::size_of::<usize>(),
             Self::Trait { .. } => 0,
             Self::TraitObject { .. } => 0,

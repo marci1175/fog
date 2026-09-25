@@ -9,6 +9,7 @@ pub mod dependency;
 pub mod dependency_manager;
 pub mod linker;
 pub mod parser;
+pub mod analyzer;
 pub mod syntax;
 
 #[derive(Clone, Debug)]

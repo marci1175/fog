@@ -88,7 +88,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
             debug_info_builder
                 .create_array_type(
                     inner_type.as_type(),
-                    (inner_ty_disc.sizeof(custom_types.clone()) * len) as u64,
+                    (inner_ty_disc.sizeof() * len) as u64,
                     inner_type.as_type().get_align_in_bits(),
                     &[0..len as i64],
                 )
@@ -212,7 +212,7 @@ fn get_basic_debug_type_from_ty<'ctx>(
 {
     let debug_type = debug_info_builder.create_basic_type(
         &type_disc.to_string(),
-        type_disc.sizeof(custom_types.clone()) as u64,
+        type_disc.sizeof() as u64,
         type_disc.get_dwarf_encoding(),
         DIFlagsConstants::ZERO,
     )?;

@@ -1,17 +1,9 @@
 use std::rc::Rc;
 
 use codegen::irgen::start_codegen;
-use common::{
-    compiler::ProjectConfig,
-    inkwell::{
-        context::Context,
-        llvm_sys::target::{
-            LLVM_InitializeAllAsmParsers, LLVM_InitializeAllAsmPrinters,
-            LLVM_InitializeAllTargetInfos, LLVM_InitializeAllTargetMCs, LLVM_InitializeAllTargets,
-        },
-    },
-    ty::OrdSet,
-};
+use common::
+    codegen::ty::OrdSet
+;
 use criterion::{Criterion, criterion_group, criterion_main};
 use parser::{parser::Settings, tokenizer::tokenize};
 
