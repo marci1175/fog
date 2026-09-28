@@ -711,6 +711,17 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         Some((*name_id, removed_item))
     }
 
+    pub fn iter_mut(&mut self) -> PathMapIteratorMut<'_, SCOPE, NAME, ITEM>
+    {
+        PathMapIteratorMut {
+            outer_iter: self.scopes.iter_mut(),
+            inner_iter: None,
+            current_scope: None,
+            scope_interner: &self.scope_interner,
+            name_interner: &self.name_interner,
+        }
+    }
+
     pub fn iter(&self) -> PathMapIterator<'_, SCOPE, NAME, ITEM>
     {
         PathMapIterator {
@@ -768,6 +779,40 @@ impl<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
             let (scope_id, inner_map) = self.outer_iter.next()?;
             self.current_scope = Some(self.scope_interner.lookup_id(scope_id).unwrap());
             self.inner_iter = Some(inner_map.iter());
+        }
+    }
+}
+
+pub struct PathMapIteratorMut<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM>
+{
+    outer_iter: indexmap::map::IterMut<'a, SCOPEID, IndexMap<NAMEID, ITEM>>,
+    inner_iter: Option<indexmap::map::IterMut<'a, NAMEID, ITEM>>,
+    current_scope: Option<&'a SCOPE>,
+    scope_interner: &'a Interner<SCOPE>,
+    name_interner: &'a Interner<NAME>,
+}
+
+impl<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
+    for PathMapIteratorMut<'a, SCOPE, NAME, ITEM>
+{
+    type Item = (&'a SCOPE, &'a NAME, &'a mut ITEM);
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        loop {
+            // Try to pull the next item out of the current scope's inner map.
+            if let Some(inner) = self.inner_iter.as_mut()
+                && let Some((name_id, item)) = inner.next()
+            {
+                let name = self.name_interner.lookup_id(name_id).unwrap();
+                let scope = self.current_scope.unwrap();
+                return Some((scope, name, item));
+            }
+
+            // Current scope exhausted (or we haven't started) - advance to the next scope.
+            let (scope_id, inner_map) = self.outer_iter.next()?;
+            self.current_scope = Some(self.scope_interner.lookup_id(scope_id).unwrap());
+            self.inner_iter = Some(inner_map.iter_mut());
         }
     }
 }
