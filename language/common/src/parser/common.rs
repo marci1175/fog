@@ -931,6 +931,50 @@ pub enum StatementVariant
     DerefPointer(Box<Spanned<StatementVariant>>),
 }
 
+impl StatementVariant {
+    pub fn map_mut_child_statements<FN: FnMut(&mut Self) -> ()>(&mut self, closure: &mut FN) {
+        (closure)(self);
+
+        match self {
+            StatementVariant::NewVariable { variable_value, .. } => {
+                variable_value.inner.map_mut_child_statements(closure);
+            },
+            StatementVariant::ArrayReference { variable_reference, .. } => {
+                variable_reference.inner.map_mut_child_statements(closure);
+            },
+            StatementVariant::StructFieldReference { variable_reference, field_name } => {
+                variable_reference.inner.map_mut_child_statements(closure);
+            },
+            StatementVariant::TypeCast(spanned, _) => {
+                spanned.inner.map_mut_child_statements(closure);
+            },
+            StatementVariant::MathematicalExpression { lhs, rhs, .. } => {
+                lhs.inner.map_mut_child_statements(closure);
+                rhs.inner.map_mut_child_statements(closure);
+            },
+            StatementVariant::NegateValue(spanned) => todo!(),
+            StatementVariant::Brackets(spanneds, _) => todo!(),
+            StatementVariant::FunctionCall { identifier, arguments } => todo!(),
+            StatementVariant::SetValue { receiver, value } => todo!(),
+            StatementVariant::ModifyValueArithmetic { receiver, symbol, value } => todo!(),
+            StatementVariant::ReturnValue { value } => todo!(),
+            StatementVariant::Comparison { lhs, ord, rhs } => todo!(),
+            StatementVariant::LogicalOperation { lhs, op, rhs } => todo!(),
+            StatementVariant::If(_) => todo!(),
+            StatementVariant::CodeBlock(statement_variants) => todo!(),
+            StatementVariant::Grouping { inner_expr } => todo!(),
+            StatementVariant::Loop(spanneds) => todo!(),
+            StatementVariant::ControlFlow(control_flow_type) => todo!(),
+            StatementVariant::ArrayInitialization { values } => todo!(),
+            StatementVariant::GetPointerTo(spanned) => todo!(),
+            StatementVariant::DerefPointer(spanned) => todo!(),
+
+            // Nowhere to traverse to
+            _ => ()
+        }
+    }
+}
+
 #[derive(Display, Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum ItemVisibility
 {
