@@ -650,9 +650,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 parse_variable_expression(
                     tkns,
                     Spanned {
-                        inner: StatementVariant::BasicReference {
-                            variable_name: ident,
-                        },
+                        inner: StatementVariant::BasicReference { identifier: ident },
                         span: *tkn.get_span(),
                     },
                 )?

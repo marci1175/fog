@@ -640,19 +640,19 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         .is_some()
     }
 
-    pub fn get_item(&self, scope: SCOPE, name: NAME) -> Option<&ITEM>
+    pub fn get_item(&self, scope: SCOPE, name: &NAME) -> Option<&ITEM>
     {
         let scope_id = self.scope_interner.lookup_value(&scope)?;
 
         self.scopes.get(scope_id).and_then(|scope| {
-            let name_id = self.name_interner.lookup_value(&name)?;
+            let name_id = self.name_interner.lookup_value(name)?;
             scope.get(name_id)
         })
     }
 
-    pub fn get_scope(&self, scope: SCOPE) -> Option<&IndexMap<NAMEID, ITEM>>
+    pub fn get_scope(&self, scope: &SCOPE) -> Option<&IndexMap<NAMEID, ITEM>>
     {
-        self.scopes.get(self.scope_interner.lookup_value(&scope)?)
+        self.scopes.get(self.scope_interner.lookup_value(scope)?)
     }
 
     pub fn get_item_by_idx(&self, idx: usize, name: NAME) -> Option<(&SCOPE, &ITEM)>
@@ -820,6 +820,9 @@ impl<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum StatementVariant
 {
+    /// This is a statement that only the compiler itself can produce at analysis or codegen. This statement is a checked reference for a variable or function. (ie. The compiler has verified the exsistence of whatever this is pointing to.)
+    RawReference {},
+
     NewVariable
     {
         variable_name: String,
@@ -829,11 +832,12 @@ pub enum StatementVariant
         is_mutable: bool,
     },
 
-    /// This is the token for referencing a basic variable (by name only). This is the lowest layer of referencing a variable.
+    /// This is the token for referencing an item via an identifier (could be a variable or function or whatever, this is resolved at analysis)
     BasicReference
     {
-        variable_name: String,
+        identifier: String,
     },
+
     ArrayReference
     {
         variable_reference: Box<Spanned<StatementVariant>>,
@@ -863,7 +867,6 @@ pub enum StatementVariant
     FunctionCall
     {
         // This will get resolved later
-        // signature: FunctionSignature,
         identifier: Box<Spanned<StatementVariant>>,
 
         arguments: OrdMap<
@@ -910,7 +913,7 @@ pub enum StatementVariant
 
     If(If),
 
-    CodeBlock(Vec<StatementVariant>),
+    CodeBlock(Vec<Spanned<StatementVariant>>),
 
     Grouping
     {
@@ -931,46 +934,125 @@ pub enum StatementVariant
     DerefPointer(Box<Spanned<StatementVariant>>),
 }
 
-impl StatementVariant {
-    pub fn map_mut_child_statements<FN: FnMut(&mut Self) -> ()>(&mut self, closure: &mut FN) {
-        (closure)(self);
+impl Spanned<StatementVariant>
+{
+    pub fn map_mut_child_statements<FN: FnMut(&mut Self) -> bool>(&mut self, closure: &mut FN)
+    {
+        // Call the closure on the current statement
+        let should_continue = (closure)(self);
 
-        match self {
+        // If the closure signals that it does not want to continue stop walking the statements.
+        if !should_continue {
+            return;
+        }
+
+        // Consume the next child statement
+        match &mut self.inner {
             StatementVariant::NewVariable { variable_value, .. } => {
-                variable_value.inner.map_mut_child_statements(closure);
+                variable_value.map_mut_child_statements(closure);
             },
-            StatementVariant::ArrayReference { variable_reference, .. } => {
-                variable_reference.inner.map_mut_child_statements(closure);
+            StatementVariant::ArrayReference {
+                variable_reference, ..
+            } => {
+                variable_reference.map_mut_child_statements(closure);
             },
-            StatementVariant::StructFieldReference { variable_reference, field_name } => {
-                variable_reference.inner.map_mut_child_statements(closure);
+            StatementVariant::StructFieldReference {
+                variable_reference,
+                field_name: _,
+            } => {
+                variable_reference.map_mut_child_statements(closure);
             },
             StatementVariant::TypeCast(spanned, _) => {
-                spanned.inner.map_mut_child_statements(closure);
+                spanned.map_mut_child_statements(closure);
             },
             StatementVariant::MathematicalExpression { lhs, rhs, .. } => {
-                lhs.inner.map_mut_child_statements(closure);
-                rhs.inner.map_mut_child_statements(closure);
+                lhs.map_mut_child_statements(closure);
+                rhs.map_mut_child_statements(closure);
             },
-            StatementVariant::NegateValue(spanned) => todo!(),
-            StatementVariant::Brackets(spanneds, _) => todo!(),
-            StatementVariant::FunctionCall { identifier, arguments } => todo!(),
-            StatementVariant::SetValue { receiver, value } => todo!(),
-            StatementVariant::ModifyValueArithmetic { receiver, symbol, value } => todo!(),
-            StatementVariant::ReturnValue { value } => todo!(),
-            StatementVariant::Comparison { lhs, ord, rhs } => todo!(),
-            StatementVariant::LogicalOperation { lhs, op, rhs } => todo!(),
-            StatementVariant::If(_) => todo!(),
-            StatementVariant::CodeBlock(statement_variants) => todo!(),
-            StatementVariant::Grouping { inner_expr } => todo!(),
-            StatementVariant::Loop(spanneds) => todo!(),
-            StatementVariant::ControlFlow(control_flow_type) => todo!(),
-            StatementVariant::ArrayInitialization { values } => todo!(),
-            StatementVariant::GetPointerTo(spanned) => todo!(),
-            StatementVariant::DerefPointer(spanned) => todo!(),
+            StatementVariant::NegateValue(spanned) => {
+                spanned.map_mut_child_statements(closure);
+            },
+            StatementVariant::Brackets(spanneds, _) => {
+                for spanned in spanneds {
+                    spanned.map_mut_child_statements(closure);
+                }
+            },
+            StatementVariant::FunctionCall {
+                identifier,
+                arguments,
+            } => {
+                identifier.map_mut_child_statements(closure);
+
+                for (_arg_ident, argument) in arguments.iter_mut() {
+                    argument.map_mut_child_statements(closure);
+                }
+            },
+            StatementVariant::SetValue { receiver, value } => {
+                receiver.map_mut_child_statements(closure);
+                value.map_mut_child_statements(closure);
+            },
+            StatementVariant::ModifyValueArithmetic {
+                receiver,
+                symbol: _,
+                value,
+            } => {
+                receiver.map_mut_child_statements(closure);
+                value.map_mut_child_statements(closure);
+            },
+            StatementVariant::ReturnValue { value } => {
+                value.map_mut_child_statements(closure);
+            },
+            StatementVariant::Comparison { lhs, ord: _, rhs } => {
+                lhs.map_mut_child_statements(closure);
+                rhs.map_mut_child_statements(closure);
+            },
+            StatementVariant::LogicalOperation { lhs, op: _, rhs } => {
+                lhs.map_mut_child_statements(closure);
+                rhs.map_mut_child_statements(closure);
+            },
+            StatementVariant::If(if_statement) => {
+                if_statement
+                    .condition
+                    
+                    .map_mut_child_statements(closure);
+
+                for stmt in &mut if_statement.true_branch.body {
+                    stmt.map_mut_child_statements(closure);
+                }
+
+                if let Some(false_branch) = &mut if_statement.false_branch {
+                    for stmt in &mut false_branch.body {
+                        stmt.map_mut_child_statements(closure);
+                    }
+                }
+            },
+            StatementVariant::CodeBlock(statement_variants) => {
+                for stmt in statement_variants {
+                    stmt.map_mut_child_statements(closure);
+                }
+            },
+            StatementVariant::Grouping { inner_expr } => {
+                inner_expr.map_mut_child_statements(closure);
+            },
+            StatementVariant::Loop(spanneds) => {
+                for stmt in spanneds {
+                    stmt.map_mut_child_statements(closure);
+                }
+            },
+            StatementVariant::ArrayInitialization { values } => {
+                for stmt in values {
+                    stmt.map_mut_child_statements(closure);
+                }
+            },
+            StatementVariant::GetPointerTo(spanned) => {
+                spanned.map_mut_child_statements(closure);
+            },
+            StatementVariant::DerefPointer(spanned) => {
+                spanned.map_mut_child_statements(closure);
+            },
 
             // Nowhere to traverse to
-            _ => ()
+            _ => (),
         }
     }
 }
@@ -1003,8 +1085,8 @@ pub struct GlobalContext
     /// By default a item's context can be fetched via removing the item name from the given item's key. This is important when trying to resolve imports from a given item.
     pub items: PathMap<Vec<String>, String, CustomItem>,
 
-    /// A set of all parsed files.
-    pub parsed_files: HashSet<PathBuf>,
+    /// A map of all parsed files' path and their name.
+    pub parsed_files: HashMap<Vec<String>, PathBuf>,
 
     /// External declerations present in each context file.
     /// The reason why these external decls still have a path is to check the scope validity.
@@ -1014,6 +1096,7 @@ pub struct GlobalContext
     /// These are all the imports belonging to one [`Context`] instance.
     pub ctx_imports: HashMap<Vec<String>, HashMap<String, ImportType>>,
 
+    /// Name of the global context
     pub name: String,
 }
 
@@ -1026,7 +1109,7 @@ impl GlobalContext
             functions: PathMap::new(),
             items: PathMap::new(),
             ffi_declerations: PathMap::new(),
-            parsed_files: HashSet::new(),
+            parsed_files: HashMap::new(),
             ctx_imports: HashMap::new(),
         }
     }

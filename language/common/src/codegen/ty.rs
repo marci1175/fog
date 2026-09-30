@@ -2,7 +2,6 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
     ops::{Deref, DerefMut},
-    rc::Rc,
 };
 
 use crate::{
@@ -423,18 +422,12 @@ impl Type
 
     pub fn is_int(&self) -> bool
     {
-        matches!(
-            self,
-            Self::I64 | Self::I32 | Self::I16
-        )
+        matches!(self, Self::I64 | Self::I32 | Self::I16)
     }
 
     pub fn is_uint(&self) -> bool
     {
-        matches!(
-            self,
-            Self::U64 | Self::U32 | Self::U16 | Self::U8
-        )
+        matches!(self, Self::U64 | Self::U32 | Self::U16 | Self::U8)
     }
 
     /// Returns DWARF encoding for a type. For more complex types see: [`generate_debug_type_from_type_disc`].
@@ -471,12 +464,7 @@ impl Type
             Self::String => std::mem::size_of::<String>(),
             Self::Boolean => std::mem::size_of::<bool>(),
             Self::Void => 0,
-            Self::Struct { fields, .. } => {
-                fields
-                    .iter()
-                    .map(|(_, ty)| ty.sizeof())
-                    .sum()
-            },
+            Self::Struct { fields, .. } => fields.iter().map(|(_, ty)| ty.sizeof()).sum(),
             Self::Enum { ty, .. } => ty.sizeof(),
             Self::Array { ty, .. } => ty.sizeof(),
             Self::Pointer(_) => std::mem::size_of::<usize>(),

@@ -5,21 +5,11 @@ use std::{
 
 use codegen::irgen::start_codegen;
 use common::{
-    anyhow::{self, Result},
-    codegen::ty::{OrdSet, Type},
-    compiler::ProjectConfig,
-    dependency::verify_dependencies_fs,
-    error::{application::ApplicationError, codegen::CodeGenError},
-    imports::ImportType,
-    inkwell::{
+    anyhow::{self, Result}, codegen::ty::{OrdSet, Type}, compiler::ProjectConfig, dependency::verify_dependencies_fs, error::{SpannedError, application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::{
         context::Context,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    },
-    linker::BuildManifest,
-    parser::common::{GlobalContext, ItemVisibility, Stream, Streamable},
-    toml,
-    tracing::info,
+    }, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::{error, info},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
@@ -70,7 +60,7 @@ impl CompilerInstance
             // If the project is an application it must have a main function
             if let Some(main_fn) = global_context
                 .functions
-                .get_item(root_path, String::from("main"))
+                .get_item(root_path, &String::from("main"))
             {
                 if !(main_fn.signature.return_type == Type::I32
                     && main_fn.visibility == ItemVisibility::Public
@@ -87,7 +77,36 @@ impl CompilerInstance
 
         // Analyze the whole project
         // This includes type resolving (widening type for numbers), type checking, semantic analysis
-        analyzer::start_analysis(&mut global_context)?;
+        let output = analyzer::start_analysis(&mut global_context)?;
+
+        if !output.is_empty() {
+            error!("{} errors found.", output.len());
+
+            // Iter over all the outputs, if there are any and stop codegen as the code is invalid.
+            // It does not really matter if the fn paths are being stored in an efficient way as code is going to quit anyway after printing out the errors.
+            for (fn_path, spanned) in output {
+                let error = SpannedError {
+                    error: spanned.inner,
+                    file: global_context
+                        .parsed_files
+                        .get(&fn_path)
+                        .cloned()
+                        .unwrap_or_default(),
+                    span: spanned.span,
+                };
+
+                // Display error in cli
+                error!("{error}");
+            }
+
+            // Return an error and abandon compilation
+            return Err(ApplicationError::CompileFail.into());
+        }
+        else {
+            info!("No errors found during analysis.");
+        }
+        
+        info!("Generating LLVM IR....");
 
         // Generate LLVM IR for the global context
         self.generate_ir(&global_context)?;
@@ -226,7 +245,9 @@ fn parse_src_file(
             g_context.append_ctx(&ctx);
 
             // After parsing insert the src file's path into the list of parsed files
-            g_context.parsed_files.insert(src_path.clone());
+            g_context
+                .parsed_files
+                .insert(module_path.to_vec(), src_path.clone());
 
             // Evaluate all source file imports
             for (name, import) in ctx.imports.iter() {

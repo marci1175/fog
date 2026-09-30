@@ -26,4 +26,7 @@ pub enum ApplicationError
 
     #[error("An error occured while parsing the project's dependencies: {0}")]
     DependencyError(anyhow::Error),
+
+    #[error("Failed to compile project.")]
+    CompileFail,
 }

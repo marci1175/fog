@@ -206,7 +206,7 @@ pub fn generate_debug_type_from_type_disc<'ctx>(
 /// A simple type is basically any primitive which encoding is int or uint.
 fn get_basic_debug_type_from_ty<'ctx>(
     debug_info_builder: &DebugInfoBuilder<'ctx>,
-    custom_types: Rc<IndexMap<String, CustomItem>>,
+    _custom_types: Rc<IndexMap<String, CustomItem>>,
     type_disc: Type,
 ) -> Result<common::inkwell::debug_info::DIBasicType<'ctx>>
 {

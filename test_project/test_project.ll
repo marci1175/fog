@@ -11,7 +11,7 @@ define i32 @"test_project::helper::helper_function1"(i32 %0) {
 main:
 }
 
-define i32 @"test_project::helper::helper_function2"(i32 %0) {
+define i32 @"test_project::helper::helper_function2"() {
 main:
 }
 

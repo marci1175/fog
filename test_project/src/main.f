@@ -8,13 +8,9 @@ public function main(): int {
     const int x = 1000;
     const int b = 31;
 
-    if (x > 42) {
-        printf("Hi: %i", helper_function1(47));
-    } elseif (b > 35 || x == 1000) {
-        printf("Hello: %i", helper_function2(100 / b));
-    } else {
-        printf("Did not work :()");
-    }
-
+    b = 52;
+    faa();
+    foo();
+    
     return 0;
 }

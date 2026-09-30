@@ -1,4 +1,4 @@
-use common::{anyhow, parser::common::GlobalContext};
+use common::{anyhow, error::Spanned, parser::common::GlobalContext, tracing::info};
 
 use crate::semantic::variable_resolver::resolve_identifiers;
 
@@ -9,18 +9,29 @@ pub mod ty;
 pub mod semantic;
 
 /// The function can return `Ok` while still encountering errors during analysis. These errors are collected and dispalyed after the analysis has ended.
-pub fn start_analysis(g_ctx: &mut GlobalContext) -> anyhow::Result<Vec<anyhow::Error>>
+pub fn start_analysis(
+    g_ctx: &mut GlobalContext,
+) -> anyhow::Result<Vec<(Vec<String>, Spanned<anyhow::Error>)>>
 {
+    info!("Analyzing ({})...", g_ctx.name);
+
     // The errors encountered during analysis
-    let mut errors: Vec<anyhow::Error> = Vec::new();
+    let mut errors = Vec::with_capacity(12);
 
     // Iter over all of the functions in the global context
     for (path, _name, def) in g_ctx.functions.iter_mut() {
         // Resolve imports and identifiers (function names, variable names)
         let imports = g_ctx.ctx_imports.get(path);
 
+        // Resolve items present in context (functions, structs, etc)
         // Analyze and modify the identifiers and return the list of errors
-        let outputs = resolve_identifiers(imports, &mut def.body)?;
+        // Extend the list of errors with the analyzation step
+        errors.extend(resolve_identifiers(
+            path.to_vec(),
+            &g_ctx.items,
+            imports,
+            &mut def.body,
+        )?);
     }
 
     // First of all we should resolve everything we can that is produced by the AST parser in an unfinished state. (Such as resolving the type of numeric literals)

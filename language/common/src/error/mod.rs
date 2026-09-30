@@ -2,6 +2,7 @@ use std::{fmt::Display, fs, ops::Deref, path::PathBuf};
 
 use crate::tokenizer::Token;
 
+pub mod analyzer;
 pub mod application;
 pub mod cliparser;
 pub mod codegen;
@@ -9,7 +10,6 @@ pub mod dependency;
 pub mod dependency_manager;
 pub mod linker;
 pub mod parser;
-pub mod analyzer;
 pub mod syntax;
 
 #[derive(Clone, Debug)]
@@ -124,9 +124,9 @@ impl<T> Deref for Spanned<T>
 #[derive(Debug, Clone)]
 pub struct SpannedError<E>
 {
-    error: E,
-    file: PathBuf,
-    span: SpanInfo,
+    pub error: E,
+    pub file: PathBuf,
+    pub span: SpanInfo,
 }
 
 impl<E: ToString + Into<anyhow::Error>> From<SpannedError<E>> for anyhow::Error
@@ -237,6 +237,13 @@ impl<E: ToString> Display for SpannedError<E>
         else {
             message.push_str("Failed to access file.");
         }
+
+        // Separate actual error from the file content
+        message.push('\n');
+
+        message.push_str(&self.error.to_string());
+        
+        message.push('\n');
 
         f.write_str(&message)
     }
