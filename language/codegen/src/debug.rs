@@ -23,7 +23,10 @@ use common::{
         types::AsTypeRef,
         values::BasicValue,
     },
-    parser::{common::CustomItem, function::FunctionDefinition},
+    parser::{
+        common::CustomItem,
+        function::{FunctionDefinition, FunctionSignature},
+    },
 };
 use std::{
     ffi::{CStr, CString},
@@ -233,6 +236,7 @@ pub fn create_subprogram_debug_information<'ctx>(
     unique_id_source: &mut usize,
     function_name: &String,
     function_definition: &FunctionDefinition,
+    function_sig: &FunctionSignature,
     return_type: Type,
 ) -> Result<common::inkwell::debug_info::DISubprogram<'ctx>>
 {
@@ -259,8 +263,7 @@ pub fn create_subprogram_debug_information<'ctx>(
         module,
         &mut param_types,
         debug_info_builder,
-        function_definition
-            .signature
+        function_sig
             .args
             .arguments
             .iter()

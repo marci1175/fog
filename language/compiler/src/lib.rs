@@ -5,11 +5,21 @@ use std::{
 
 use codegen::irgen::start_codegen;
 use common::{
-    anyhow::{self, Result}, codegen::ty::{OrdSet, Type}, compiler::ProjectConfig, dependency::verify_dependencies_fs, error::{SpannedError, application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::{
+    anyhow::{self, Result},
+    codegen::ty::{OrdSet, Type},
+    compiler::ProjectConfig,
+    dependency::verify_dependencies_fs,
+    error::{SpannedError, application::ApplicationError, codegen::CodeGenError},
+    imports::ImportType,
+    inkwell::{
         context::Context,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    }, linker::BuildManifest, parser::common::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::{error, info},
+    },
+    linker::BuildManifest,
+    parser::common::{GlobalContext, ItemVisibility, Stream, Streamable},
+    toml,
+    tracing::{error, info},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
@@ -58,14 +68,16 @@ impl CompilerInstance
         // Ensure that if this project is not a library it has a main function
         if !self.config.is_library {
             // If the project is an application it must have a main function
-            if let Some(main_fn) = global_context
-                .functions
-                .get_item(root_path, &String::from("main"))
+            let main_fn_name = String::from("main");
+
+            if let Some(sig) = global_context
+                .function_signatures
+                .get_item(&root_path, &main_fn_name)
             {
-                if !(main_fn.signature.return_type == Type::I32
-                    && main_fn.visibility == ItemVisibility::Public
-                    && main_fn.signature.args.arguments.is_empty()
-                    && !main_fn.signature.args.ellipsis_present)
+                if !(sig.return_type == Type::I32
+                    && sig.visibility == ItemVisibility::Public
+                    && sig.args.arguments.is_empty()
+                    && !sig.args.ellipsis_present)
                 {
                     return Err(CodeGenError::InvalidMain.into());
                 }
@@ -105,7 +117,7 @@ impl CompilerInstance
         else {
             info!("No errors found during analysis.");
         }
-        
+
         info!("Generating LLVM IR....");
 
         // Generate LLVM IR for the global context

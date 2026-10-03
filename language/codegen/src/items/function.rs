@@ -59,14 +59,15 @@ pub fn store_fn_in_module<'ctx>(
     path: &[String],
     name: &str,
     definition: &FunctionDefinition,
+    signature: &FunctionSignature,
     module: &Module<'ctx>,
 ) -> Result<(), anyhow::Error>
 {
     let function = module.add_function(
         &path.join("::").add(&format!("::{name}")),
-        create_function_type(ctx, &definition.signature)?,
+        create_function_type(ctx, &signature)?,
         Some({
-            match definition.visibility {
+            match signature.visibility {
                 ItemVisibility::Private => common::inkwell::module::Linkage::Internal,
                 ItemVisibility::Public => common::inkwell::module::Linkage::External,
                 ItemVisibility::Branch => {
@@ -86,7 +87,7 @@ pub fn store_fn_in_module<'ctx>(
     builder.position_at_end(entry);
 
     // Parse the function's body
-    parse_function_body(ctx, builder, &definition.signature, &definition.body)?;
+    parse_function_body(ctx, builder, &signature, &definition.body)?;
 
     Ok(())
 }

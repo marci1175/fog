@@ -10,6 +10,7 @@ use common::{
     },
     parser::{common::GlobalContext, function::CompilerInstruction},
 };
+use num::traits::sign;
 
 use crate::{
     debug::{DebugInformation, create_debug_information},
@@ -32,15 +33,21 @@ pub fn start_codegen<'ctx>(
     // The function has its appropriate module found, then the function is parsed as a whole.
     // Every function's name must follow a common rule as following.
     // All functions must have their full paths in their name. (ie. foo::bar::baz => define i32 @"foo::bar::baz"...) This helps the linking process later.
-    for (path, name, definition) in global_context.functions.iter() {
+    for (path, name, definition) in global_context.function_definitions.iter() {
         // Lookup module in module map
         let module_name = path
             .first()
             .ok_or(CodeGenError::InternalItemPathEmpty(name.clone()))?;
 
+        // This is verified to exist, therefor we can safely unwrap here.
+        let signature = global_context
+            .function_signatures
+            .get_item(path, name)
+            .unwrap();
+
         // Try to find the module
         if let Some((module, _dbg)) = modules.get(module_name) {
-            store_fn_in_module(ctx, builder, path, name, definition, module)?;
+            store_fn_in_module(ctx, builder, path, name, definition, signature, module)?;
         }
         // If the module was not found
         else {
@@ -55,7 +62,7 @@ pub fn start_codegen<'ctx>(
             module.set_triple(&target_machine.get_triple());
 
             // Store function in module when the module is first created
-            store_fn_in_module(ctx, builder, path, name, definition, &module)?;
+            store_fn_in_module(ctx, builder, path, name, definition, signature, &module)?;
 
             // Store module with function and its information
             modules.insert(module_name.clone(), (module, debug_information));

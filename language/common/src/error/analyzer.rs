@@ -5,6 +5,8 @@ use crate::codegen::ty::{Type, Value};
 #[derive(Debug, Error)]
 pub enum AnalyzerError
 {
+    #[error("The module(s) containing the imported item was not found.")]
+    PathModuleNotFound,
     #[error(
         "Identifier referenced could not be resolved in current context. Check spelling of the identifier."
     )]
@@ -15,4 +17,6 @@ pub enum AnalyzerError
         "[INTERNAL ERROR] Value with type `{0}` is not numerical. Check where the automatic type"
     )]
     InternalValueNotNumerical(Type),
+    #[error("Item is not a function and cannot be called as one.")]
+    ItemNotCallableAsFunction,
 }

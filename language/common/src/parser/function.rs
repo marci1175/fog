@@ -32,14 +32,8 @@ pub struct UnparsedFunctionDefinition
 #[derive(Debug, Clone, PartialEq, Hash, Default, Eq)]
 pub struct FunctionDefinition
 {
-    /// Raw signature of the function.
-    pub signature: FunctionSignature,
-
     /// The actual body of the function.
     pub body: Vec<Spanned<StatementVariant>>,
-
-    /// The visibility of this function in the given [`Context`] (scope).
-    pub visibility: ItemVisibility,
 
     /// Compiler instructions for this specific function.
     pub compiler_instructions: OrdSet<CompilerInstruction>,
@@ -57,6 +51,8 @@ pub struct FunctionSignature
     pub args: FunctionArguments,
     /// Return type of the function.
     pub return_type: Type,
+    /// The visibility of this function in the given [`Context`] (scope).
+    pub visibility: ItemVisibility,
 }
 
 impl Display for FunctionSignature
@@ -157,7 +153,7 @@ pub fn parse_function(
     tokens: &mut Stream<Spanned<Token>>,
     mut compiler_instructions: OrdSet<CompilerInstruction>,
     implementing_for_type: Option<Type>,
-) -> anyhow::Result<FunctionDefinition>
+) -> anyhow::Result<(FunctionDefinition, FunctionSignature)>
 {
     // Get the function name token
     let function_name_tkn = tokens.try_consume_match(

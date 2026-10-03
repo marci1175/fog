@@ -105,7 +105,7 @@ impl Settings
                                 );
                             },
                             common::tokenizer::TypeToken::Function => {
-                                let function = parse_function(
+                                let (def, sig) = parse_function(
                                     &ctx,
                                     vis,
                                     tokens,
@@ -115,8 +115,8 @@ impl Settings
 
                                 ctx.functions.insert(
                                     ctx.path.clone(),
-                                    function.signature.name.clone(),
-                                    function,
+                                    sig.name.clone(),
+                                    (def, sig),
                                 );
                             },
                             // We can still return the original error since the item defining tokens are also stored as TypeDefinitions. (They are defined in the TypeToken enum)
@@ -139,7 +139,7 @@ impl Settings
                     )?;
 
                     // Parse import statement and append it to the list of imports stored
-                    parse_import_statement(&mut import_tokens, &mut ctx.imports)?;
+                    parse_import_statement(&mut import_tokens, module_path, &mut ctx.imports)?;
 
                     // Drop child buffer
                     drop(import_tokens);

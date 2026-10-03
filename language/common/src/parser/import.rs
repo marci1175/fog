@@ -38,6 +38,8 @@ use crate::{
 /// ```
 pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
     tkns: &mut S,
+    // Get the current path stack of the currently parsed file
+    current_path_stack: &[String],
     imports: &mut HashMap<String, ImportType>,
 ) -> anyhow::Result<()>
 {
@@ -60,7 +62,7 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
             },
             Token::Identifier(ident) => {
                 // Stores the elements of the import chain
-                let mut path_chain: Vec<String> = vec![];
+                let mut path_chain: Vec<String> = current_path_stack.to_vec();
 
                 // Store the very first chain item
                 path_chain.push(ident.clone());
@@ -117,7 +119,7 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
                 inner: Token::As,
                 span: _
             })
-        ) || tkns.peek_next().is_some()
+        )
         {
             // Consume the as keyword
             tkns.consume();
@@ -133,19 +135,25 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
                 .ok_or(ParserError::InvalidImportAlias)?
                 .clone();
 
-            // Check if there are more tokens left in this import, if yes that means that the import syntax is invalid
-            if tkns.peek_next().is_some() {
+            // If the next keyword is an `As` that means the user is trying realias an alias.
+            if matches!(tkns.peek_next(), Some(Spanned { inner: Token::As, .. })) {
                 return Err(ParserError::InvalidImportAlias.into());
+            }
+            // If there is anything else just assume that the user left out a semicolon.
+            else if tkns.peek_next().is_some() {
+                return Err(ParserError::ExpressionSemicolonMissing.into());
             }
 
             // Store aliased import
             (alias.clone(), imports.insert(alias.clone(), import))
         }
-        else {
+        else if tkns.peek_next() == None {
             (
                 identifier.clone(),
                 imports.insert(identifier.clone(), import),
             )
+        } else {
+            return Err(ParserError::ExpressionSemicolonMissing.into());
         };
 
         // Check if there is a name collision in the imports
@@ -210,6 +218,8 @@ pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                     name,
                     args,
                     return_type,
+                    // It really doesnt matter what you set this to since the external declerations are searched separately.
+                    visibility: super::common::ItemVisibility::Private,
                 }),
             );
         }

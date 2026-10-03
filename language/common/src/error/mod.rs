@@ -242,7 +242,7 @@ impl<E: ToString> Display for SpannedError<E>
         message.push('\n');
 
         message.push_str(&self.error.to_string());
-        
+
         message.push('\n');
 
         f.write_str(&message)

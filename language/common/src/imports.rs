@@ -21,6 +21,7 @@ pub enum ImportType
     File(PathBuf),
     /// A dependency import is used to import actual items (such as functions or structs) from either a dependecy of the project, or a previously imported source file.
     /// All dependency paths have to be fully defined. (For example you cannot import namespace `a` from dependency `b` and then refer to its items later as `a::foo` instead you need to use `b::a::foo`)
+    /// This dependency path can point to anything, the actual item accessible via the presented path is accessible in the global context after all of the items were parsed.
     Dependency(Vec<String>),
 }
 

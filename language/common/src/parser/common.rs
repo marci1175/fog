@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc};
 
 use anyhow::Result;
 use bimap::BiMap;
@@ -640,9 +635,15 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         .is_some()
     }
 
-    pub fn get_item(&self, scope: SCOPE, name: &NAME) -> Option<&ITEM>
+    pub fn contains_scope(&self, scope: &SCOPE) -> bool
     {
-        let scope_id = self.scope_interner.lookup_value(&scope)?;
+        self.scope_interner.lookup_value(scope).is_some()
+    }
+
+
+    pub fn get_item(&self, scope: &SCOPE, name: &NAME) -> Option<&ITEM>
+    {
+        let scope_id = self.scope_interner.lookup_value(scope)?;
 
         self.scopes.get(scope_id).and_then(|scope| {
             let name_id = self.name_interner.lookup_value(name)?;
@@ -820,8 +821,13 @@ impl<'a, SCOPE: Eq + Hash, NAME: Eq + Hash, ITEM> Iterator
 #[derive(Debug, Clone, Display, strum_macros::EnumTryAs, PartialEq, Eq, Hash)]
 pub enum StatementVariant
 {
-    /// This is a statement that only the compiler itself can produce at analysis or codegen. This statement is a checked reference for a variable or function. (ie. The compiler has verified the exsistence of whatever this is pointing to.)
-    RawReference {},
+    /// This is a statement that only the compiler itself can produce at analysis or codegen.
+    /// This statement is a checked reference for a variable or function. (ie. The compiler has verified the exsistence of whatever this is pointing to.)
+    RawReference
+    {
+        identifier: String,
+        referenced_item: ResolvedItemReference,
+    },
 
     NewVariable
     {
@@ -1011,10 +1017,7 @@ impl Spanned<StatementVariant>
                 rhs.map_mut_child_statements(closure);
             },
             StatementVariant::If(if_statement) => {
-                if_statement
-                    .condition
-                    
-                    .map_mut_child_statements(closure);
+                if_statement.condition.map_mut_child_statements(closure);
 
                 for stmt in &mut if_statement.true_branch.body {
                     stmt.map_mut_child_statements(closure);
@@ -1057,6 +1060,18 @@ impl Spanned<StatementVariant>
     }
 }
 
+/// Items which have already been resolved and can be trusted that a valid instance of the referenced item exsists.
+#[derive(Debug, Clone, Display, Eq, strum_macros::EnumTryAs, PartialEq, Hash)]
+pub enum ResolvedItemReference
+{
+    Variable,
+    Type(CustomItem),
+    Function(FunctionSignature),
+
+    /// This item is only a placeholder and its only purpose is that the analyzer can continue.
+    Unresolved,
+}
+
 #[derive(Display, Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum ItemVisibility
 {
@@ -1073,11 +1088,16 @@ pub enum ItemVisibility
 #[derive(Debug, Clone)]
 pub struct GlobalContext
 {
-    /// Contains all of the functions created in the whole project, including functions present in the dependencies.
+    /// Contains all of the function definitions created in the whole project, including functions present in the dependencies.
     /// `PATH` contains the full access path to the function including the name of the function.
     /// `NAME` contains the plain name of the function.
-    /// By default a function's context can be fetched via removing the function name from the given function's key. This is important when trying to resolve imports from a given item.
-    pub functions: PathMap<Vec<String>, String, FunctionDefinition>,
+    pub function_definitions: PathMap<Vec<String>, String, FunctionDefinition>,
+
+    /// Contains all of the function signatures created in the whole project, including functions present in the dependencies.
+    /// `PATH` contains the full access path to the function including the name of the function.
+    /// `NAME` contains the plain name of the function.
+    /// **ENSURE** That a function exists in both the map of signatures and definitions.
+    pub function_signatures: PathMap<Vec<String>, String, FunctionSignature>,
 
     /// Contains all of the items created in the whole project, including items present in the dependencies.
     /// `PATH` contains the full access path to the item including the name of the item.
@@ -1091,7 +1111,7 @@ pub struct GlobalContext
     /// External declerations present in each context file.
     /// The reason why these external decls still have a path is to check the scope validity.
     /// It so that a different context cannot reference an ffi decl from an other file.
-    pub ffi_declerations: PathMap<Vec<String>, String, FFIDeclType>,
+    pub external_declerations: PathMap<Vec<String>, String, FFIDeclType>,
 
     /// These are all the imports belonging to one [`Context`] instance.
     pub ctx_imports: HashMap<Vec<String>, HashMap<String, ImportType>>,
@@ -1106,9 +1126,10 @@ impl GlobalContext
     {
         Self {
             name,
-            functions: PathMap::new(),
+            function_signatures: PathMap::new(),
+            function_definitions: PathMap::new(),
             items: PathMap::new(),
-            ffi_declerations: PathMap::new(),
+            external_declerations: PathMap::new(),
             parsed_files: HashMap::new(),
             ctx_imports: HashMap::new(),
         }
@@ -1117,9 +1138,12 @@ impl GlobalContext
     pub fn append_ctx(&mut self, ctx: &Context)
     {
         // Store the context's functions
-        for (path, name, def) in ctx.functions.iter() {
-            self.functions
+        for (path, name, (def, sig)) in ctx.functions.iter() {
+            self.function_definitions
                 .insert(path.clone(), name.clone(), def.clone());
+
+            self.function_signatures
+                .insert(path.clone(), name.clone(), sig.clone());
         }
 
         // Store the context's items
@@ -1129,7 +1153,7 @@ impl GlobalContext
 
         // Store ffi decls with their path aswell
         for (name, decl) in ctx.ffi_declerations.iter() {
-            self.ffi_declerations
+            self.external_declerations
                 .insert(ctx.path.clone(), name.clone(), decl.clone());
         }
 
@@ -1141,10 +1165,10 @@ impl GlobalContext
     pub fn append_global_ctx(&mut self, g_ctx: GlobalContext) -> anyhow::Result<()>
     {
         // Store the context's functions
-        for (path, name, def) in g_ctx.functions.iter() {
-            if let Some(_) = self
-                .functions
-                .insert(path.clone(), name.clone(), def.clone())
+        for (path, name, def) in g_ctx.function_definitions.iter() {
+            if let Some(_) =
+                self.function_definitions
+                    .insert(path.clone(), name.clone(), def.clone())
             {
                 return Err(ParserError::ContextItemCollision(
                     (*path).clone(),
@@ -1168,9 +1192,9 @@ impl GlobalContext
         }
 
         // Store ffi decls with their path aswell
-        for (path, name, decl) in g_ctx.ffi_declerations.iter() {
+        for (path, name, decl) in g_ctx.external_declerations.iter() {
             if let Some(_) = self
-                .ffi_declerations
+                .external_declerations
                 .insert(path.clone(), name.clone(), decl.clone())
             {
                 return Err(ParserError::ContextItemCollision(
@@ -1201,7 +1225,7 @@ pub struct Context
     /// This field stores all the functions created for this context.
     /// `PATH` contains the full access path to the function including the name of the function.
     /// `NAME` contains the plain name of the function.
-    pub functions: PathMap<Vec<String>, String, FunctionDefinition>,
+    pub functions: PathMap<Vec<String>, String, (FunctionDefinition, FunctionSignature)>,
 
     /// This field stores all the items created for this context.
     /// `PATH` contains the full access path to the item including the name of the item.
@@ -1244,19 +1268,21 @@ impl Context
         compiler_instructions: OrdSet<CompilerInstruction>,
         body: Vec<Spanned<StatementVariant>>,
         enabling_features: OrdSet<String>,
-    ) -> FunctionDefinition
+    ) -> (FunctionDefinition, FunctionSignature)
     {
-        FunctionDefinition {
-            signature: FunctionSignature {
+        (
+            FunctionDefinition {
+                compiler_instructions,
+                enabling_features,
+                body,
+            },
+            FunctionSignature {
+                visibility: vis,
                 name,
                 args: arguments,
                 return_type,
             },
-            visibility: vis,
-            compiler_instructions,
-            enabling_features,
-            body,
-        }
+        )
     }
 
     pub fn create_struct(
@@ -1474,7 +1500,7 @@ pub struct StructDefinition
 }
 
 /// All of the custom types implemented by the User are defined here
-#[derive(Debug, Clone, PartialEq, Display, Hash)]
+#[derive(Debug, Clone, PartialEq, Display, Hash, Eq)]
 pub enum CustomItem
 {
     Struct(StructDefinition),

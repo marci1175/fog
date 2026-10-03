@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use common::{anyhow, error::Spanned, parser::common::GlobalContext, tracing::info};
 
 use crate::semantic::variable_resolver::resolve_identifiers;
@@ -19,9 +21,15 @@ pub fn start_analysis(
     let mut errors = Vec::with_capacity(12);
 
     // Iter over all of the functions in the global context
-    for (path, _name, def) in g_ctx.functions.iter_mut() {
+    for (path, name, def) in g_ctx.function_definitions.iter_mut() {
         // Resolve imports and identifiers (function names, variable names)
         let imports = g_ctx.ctx_imports.get(path);
+        
+        // Get the external decls made in this context
+        // let extern_decls = g_ctx.external_declerations.get_scope(path);
+        
+        // Get the current function's signature
+        let this_sig = g_ctx.function_signatures.get_item(path, name).unwrap();
 
         // Resolve items present in context (functions, structs, etc)
         // Analyze and modify the identifiers and return the list of errors
@@ -29,7 +37,13 @@ pub fn start_analysis(
         errors.extend(resolve_identifiers(
             path.to_vec(),
             &g_ctx.items,
+            &g_ctx.function_signatures,
             imports,
+            // extern_decls,
+
+            // Collect the arguments of this function and load the arguments into the pre-existing variable map
+            HashMap::from_iter(this_sig.args.arguments.iter().map(|(name, (ty, _))| { (name.clone(), ty.clone()) })),
+
             &mut def.body,
         )?);
     }
