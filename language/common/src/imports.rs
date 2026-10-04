@@ -26,7 +26,7 @@ pub enum ImportType
 }
 
 #[derive(Debug, Clone)]
-pub enum FFIDeclType
+pub enum ExternalDeclerationType
 {
     Static(Type),
     Function(FunctionSignature),

@@ -12,7 +12,7 @@ use crate::{
         ty::{OrdMap, OrdSet, Type, Value},
     },
     error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
-    imports::{FFIDeclType, ImportType},
+    imports::{ExternalDeclerationType, ImportType},
     parser::{
         function::{
             CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
@@ -640,7 +640,6 @@ impl<SCOPE: Eq + Hash, NAME: Hash + Eq, ITEM> PathMap<SCOPE, NAME, ITEM>
         self.scope_interner.lookup_value(scope).is_some()
     }
 
-
     pub fn get_item(&self, scope: &SCOPE, name: &NAME) -> Option<&ITEM>
     {
         let scope_id = self.scope_interner.lookup_value(scope)?;
@@ -1067,6 +1066,7 @@ pub enum ResolvedItemReference
     Variable,
     Type(CustomItem),
     Function(FunctionSignature),
+    Static(Type),
 
     /// This item is only a placeholder and its only purpose is that the analyzer can continue.
     Unresolved,
@@ -1111,7 +1111,7 @@ pub struct GlobalContext
     /// External declerations present in each context file.
     /// The reason why these external decls still have a path is to check the scope validity.
     /// It so that a different context cannot reference an ffi decl from an other file.
-    pub external_declerations: PathMap<Vec<String>, String, FFIDeclType>,
+    pub external_declerations: PathMap<Vec<String>, String, ExternalDeclerationType>,
 
     /// These are all the imports belonging to one [`Context`] instance.
     pub ctx_imports: HashMap<Vec<String>, HashMap<String, ImportType>>,
@@ -1193,9 +1193,9 @@ impl GlobalContext
 
         // Store ffi decls with their path aswell
         for (path, name, decl) in g_ctx.external_declerations.iter() {
-            if let Some(_) = self
-                .external_declerations
-                .insert(path.clone(), name.clone(), decl.clone())
+            if let Some(_) =
+                self.external_declerations
+                    .insert(path.clone(), name.clone(), decl.clone())
             {
                 return Err(ParserError::ContextItemCollision(
                     (*path).clone(),
@@ -1238,7 +1238,7 @@ pub struct Context
 
     /// FFI declerations are raw ffi function definitions, which are valid when the right object files are linked with the project. (such as libc when linking with clang)
     /// FFI declarations cannot be imported from other crates, contexts.
-    pub ffi_declerations: HashMap<String, FFIDeclType>,
+    pub ffi_declerations: HashMap<String, ExternalDeclerationType>,
 
     /// Path to the source file this context represents.
     /// This is used to create an access path to a context's items.

@@ -1,13 +1,17 @@
 use std::collections::HashMap;
 
 use common::{
-    anyhow, codegen::ty::Type, error::{Spanned, analyzer::AnalyzerError}, imports::{FFIDeclType, ImportType}, indexmap::IndexMap, parser::{
+    anyhow,
+    codegen::ty::Type,
+    error::{Spanned, analyzer::AnalyzerError},
+    imports::{ExternalDeclerationType, ImportType},
+    parser::{
         common::{
             CustomItem, PathMap,
-            ResolvedItemReference::{self, Unresolved},
+            ResolvedItemReference::{self},
             StatementVariant,
         },
-        function::{FunctionDefinition, FunctionSignature},
+        function::FunctionSignature,
     },
 };
 
@@ -23,14 +27,14 @@ pub fn resolve_identifiers(
     path: Vec<String>,
     items: &PathMap<Vec<String>, String, CustomItem>,
     function_sigs: &PathMap<Vec<String>, String, FunctionSignature>,
+    external_declerations: &PathMap<Vec<String>, String, ExternalDeclerationType>,
     imports: Option<&HashMap<String, ImportType>>,
     mut variable_map: HashMap<String, Type>,
 
     body: &mut Vec<Spanned<StatementVariant>>,
-) -> anyhow::Result<Vec<(Vec<String>, Spanned<anyhow::Error>)>>
+    errors: &mut Vec<(Vec<String>, Spanned<anyhow::Error>)>,
+) -> anyhow::Result<()>
 {
-    let mut errors = Vec::new();
-
     for stmt in body {
         match stmt.get_inner() {
             // Store every variable we have created in the function body.
@@ -56,10 +60,20 @@ pub fn resolve_identifiers(
                                 if variable_map.contains_key(identifier) {
                                     common::parser::common::ResolvedItemReference::Variable
                                 }
-                                // else if let Some(external_decl) = ...
                                 // Lookup item the locally available items.
                                 else if let Some(item) = items.get_item(&path, identifier) {
                                     common::parser::common::ResolvedItemReference::Type(item.clone())
+                                }
+                                // Search ident in external declerations
+                                else if let Some(external_decl) = external_declerations.get_item(&path, identifier) {
+                                    match external_decl {
+                                        ExternalDeclerationType::Static(static_var_ty) => {
+                                            ResolvedItemReference::Static(static_var_ty.clone())
+                                        },
+                                        ExternalDeclerationType::Function(sig) => {
+                                            ResolvedItemReference::Function(sig.clone())
+                                        },
+                                    }
                                 }
                                 // Lookup from inside the imported items too
                                 else if let Some(import) = lookup_ident(imports, identifier) {
@@ -117,6 +131,7 @@ pub fn resolve_identifiers(
                                         },
                                     }
                                 }
+                                // If we could not find anything for the given identifier, we can return an error
                                 else {
                                     errors.push((
                                         path.clone(),
@@ -126,22 +141,26 @@ pub fn resolve_identifiers(
                                         ),
                                     ));
 
+                                    // Insert a placeholder so that we can continue parsing
                                     ResolvedItemReference::Unresolved
                                 }
                             },
                         };
                     }
+                    // If a struct field reference is present stop parsing that, since struct field names may collide with any other item name
                     else if let StatementVariant::StructFieldReference { .. } =
                         statement.get_inner()
                     {
+                        // Signal to stop parsing this branch
                         return false;
                     }
 
+                    // Signal to continue parsing
                     true
                 });
             },
         }
     }
 
-    Ok(errors)
+    Ok(())
 }

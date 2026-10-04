@@ -10,7 +10,6 @@ use common::{
     },
     parser::{common::GlobalContext, function::CompilerInstruction},
 };
-use num::traits::sign;
 
 use crate::{
     debug::{DebugInformation, create_debug_information},

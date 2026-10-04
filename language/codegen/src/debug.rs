@@ -234,8 +234,8 @@ pub fn create_subprogram_debug_information<'ctx>(
     debug_info_file: DIFile<'ctx>,
     debug_scope: DIScope<'ctx>,
     unique_id_source: &mut usize,
-    function_name: &String,
-    function_definition: &FunctionDefinition,
+    function_name: &str,
+    _function_definition: &FunctionDefinition,
     function_sig: &FunctionSignature,
     return_type: Type,
 ) -> Result<common::inkwell::debug_info::DISubprogram<'ctx>>

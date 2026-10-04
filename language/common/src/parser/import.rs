@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::{
     codegen::ty,
     error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition},
-    imports::{FFIDeclType, ImportType},
+    imports::{ExternalDeclerationType, ImportType},
     parser::{
         common::Streamable,
         function::{FunctionArguments, FunctionSignature, parse_function_signature},
@@ -119,8 +119,7 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
                 inner: Token::As,
                 span: _
             })
-        )
-        {
+        ) {
             // Consume the as keyword
             tkns.consume();
 
@@ -136,7 +135,13 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
                 .clone();
 
             // If the next keyword is an `As` that means the user is trying realias an alias.
-            if matches!(tkns.peek_next(), Some(Spanned { inner: Token::As, .. })) {
+            if matches!(
+                tkns.peek_next(),
+                Some(Spanned {
+                    inner: Token::As,
+                    ..
+                })
+            ) {
                 return Err(ParserError::InvalidImportAlias.into());
             }
             // If there is anything else just assume that the user left out a semicolon.
@@ -147,12 +152,13 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
             // Store aliased import
             (alias.clone(), imports.insert(alias.clone(), import))
         }
-        else if tkns.peek_next() == None {
+        else if tkns.peek_next().is_none() {
             (
                 identifier.clone(),
                 imports.insert(identifier.clone(), import),
             )
-        } else {
+        }
+        else {
             return Err(ParserError::ExpressionSemicolonMissing.into());
         };
 
@@ -170,7 +176,7 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
 
 pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
-    external_decls: &mut HashMap<String, FFIDeclType>,
+    external_decls: &mut HashMap<String, ExternalDeclerationType>,
 ) -> anyhow::Result<()>
 {
     // The first token should be the type of the item (This can either be a static or a function)
@@ -214,7 +220,7 @@ pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 
             external_decls.insert(
                 name.clone(),
-                FFIDeclType::Function(FunctionSignature {
+                ExternalDeclerationType::Function(FunctionSignature {
                     name,
                     args,
                     return_type,
@@ -237,7 +243,7 @@ pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 .unwrap()
                 .clone();
 
-            external_decls.insert(name, FFIDeclType::Static(ty));
+            external_decls.insert(name, ExternalDeclerationType::Static(ty));
         }
         else {
             return Err(ParserError::InvalidFFIDecl.into());

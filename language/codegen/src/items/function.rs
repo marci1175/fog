@@ -65,7 +65,7 @@ pub fn store_fn_in_module<'ctx>(
 {
     let function = module.add_function(
         &path.join("::").add(&format!("::{name}")),
-        create_function_type(ctx, &signature)?,
+        create_function_type(ctx, signature)?,
         Some({
             match signature.visibility {
                 ItemVisibility::Private => common::inkwell::module::Linkage::Internal,
@@ -87,7 +87,7 @@ pub fn store_fn_in_module<'ctx>(
     builder.position_at_end(entry);
 
     // Parse the function's body
-    parse_function_body(ctx, builder, &signature, &definition.body)?;
+    parse_function_body(ctx, builder, signature, &definition.body)?;
 
     Ok(())
 }

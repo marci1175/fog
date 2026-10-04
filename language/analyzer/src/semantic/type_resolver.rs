@@ -1,7 +1,7 @@
 use common::{
     anyhow,
     codegen::ty::{NotNan, Type, Value},
-    error::analyzer::AnalyzerError,
+    error::{Spanned, analyzer::AnalyzerError},
 };
 
 #[macro_export]
@@ -25,7 +25,7 @@ macro_rules! create_conversion_chain {
 }
 
 /// This function is only ran on values which do not have a type cast. (ie. the user did not specifically cast the value to a specific type.)
-pub fn resolve_numerical_size(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
+fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
 {
     // Get original value's type
     let original_ty = value.get_type();
@@ -156,5 +156,12 @@ pub fn resolve_numerical_size(dest_ty: Type, value: &mut Value) -> anyhow::Resul
     }
 
     // No modification has been done to the passed in value, all passed without issue.
+    Ok(())
+}
+
+pub fn resolve_numerical_size(
+    errors: &mut Vec<(Vec<String>, Spanned<anyhow::Error>)>,
+) -> anyhow::Result<()>
+{
     Ok(())
 }
