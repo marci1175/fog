@@ -96,19 +96,22 @@ impl CompilerInstance
 
             // Iter over all the outputs, if there are any and stop codegen as the code is invalid.
             // It does not really matter if the fn paths are being stored in an efficient way as code is going to quit anyway after printing out the errors.
-            for (fn_path, spanned) in output {
-                let error = SpannedError {
-                    error: spanned.inner,
-                    file: global_context
-                        .parsed_files
-                        .get(&fn_path)
-                        .cloned()
-                        .unwrap_or_default(),
-                    span: spanned.span,
-                };
+            for (path, errors) in output {
+                // Print out the errors from a given function
+                for err in errors {
+                    let error = SpannedError {
+                        error: err.inner,
+                        file: global_context
+                            .parsed_files
+                            .get(&path)
+                            .cloned()
+                            .unwrap_or_default(),
+                        span: err.span,
+                    };
 
-                // Display error in cli
-                error!("{error}");
+                    // Display error in cli
+                    error!("{error}");
+                }
             }
 
             // Return an error and abandon compilation

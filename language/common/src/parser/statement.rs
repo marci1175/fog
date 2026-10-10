@@ -393,10 +393,11 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                                         ),
                                         parse_expr(&mut argument_tkns)?,
                                     );
-
-                                    // Increment argument index, but only after other indexed arguments
-                                    argument_idx += 1;
                                 }
+
+                                // Increment index regardless whether this was an indexed argument or not
+                                // When looking up a function argument we need the absolute position/index of the argument
+                                argument_idx += 1;
                             }
 
                             // Explicitly drop child iterator

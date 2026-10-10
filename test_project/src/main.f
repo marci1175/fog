@@ -7,7 +7,7 @@ public function main(): int {
     const int x = 1000;
     const int b = 31;
 
-    helper_function1();
+    helper_function1(b);
     
     return 0;
 }

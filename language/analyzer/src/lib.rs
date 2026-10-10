@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use common::{anyhow, error::Spanned, parser::common::GlobalContext, tracing::info};
 
 use crate::semantic::{
-    type_resolver::resolve_numerical_size,
-    variable_resolver::resolve_identifiers,
+    type_resolver::resolve_numerical_size, variable_resolver::resolve_identifiers,
 };
 
 /// Checks all types and automatically converts literals to their destined type.
@@ -16,12 +15,15 @@ pub mod semantic;
 /// The function can return `Ok` while still encountering errors during analysis. These errors are collected and dispalyed after the analysis has ended.
 pub fn start_analysis(
     g_ctx: &mut GlobalContext,
-) -> anyhow::Result<Vec<(Vec<String>, Spanned<anyhow::Error>)>>
+) -> anyhow::Result<Vec<(Vec<String>, Vec<Spanned<anyhow::Error>>)>>
 {
     info!("Analyzing ({})...", g_ctx.name);
 
     // The errors encountered during analysis
-    let mut errors: Vec<(Vec<String>, Spanned<anyhow::Error>)> = Vec::with_capacity(12);
+    let mut errors: Vec<(Vec<String>, Vec<Spanned<anyhow::Error>>)> = Vec::with_capacity(6);
+
+    // Errors encountered in a given function
+    let mut function_errors: Vec<Spanned<anyhow::Error>> = Vec::with_capacity(6);
 
     // Iter over all of the functions in the global context
     for (path, name, def) in g_ctx.function_definitions.iter_mut() {
@@ -52,12 +54,16 @@ pub fn start_analysis(
                     .map(|(name, (ty, _))| (name.clone(), ty.clone())),
             ),
             &mut def.body,
-            &mut errors,
+            &mut function_errors,
         )?;
 
         // Resolve types in the function bodies
         // This checks the intended type of a value and if that value is a literal, it resizes the literal to the desired type (size)
-        resolve_numerical_size(&mut errors)?;
+        resolve_numerical_size(&mut def.body, &mut function_errors)?;
+        
+        if !function_errors.is_empty() {
+            errors.push((path.clone(), std::mem::take(&mut function_errors)));
+        }
     }
 
     // First of all we should resolve everything we can that is produced by the AST parser in an unfinished state. (Such as resolving the type of numeric literals)

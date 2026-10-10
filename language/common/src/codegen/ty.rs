@@ -415,6 +415,11 @@ impl PartialEq for Type
 
 impl Type
 {
+    pub fn is_number(&self) -> bool
+    {
+        self.is_float() || self.is_int() || self.is_uint()
+    }
+
     pub fn is_float(&self) -> bool
     {
         matches!(self, Self::F64 | Self::F32 | Self::F16)

@@ -824,7 +824,9 @@ pub enum StatementVariant
     /// This statement is a checked reference for a variable or function. (ie. The compiler has verified the exsistence of whatever this is pointing to.)
     RawReference
     {
+        /// The identifier/string of the referenced item
         identifier: String,
+        /// The actual referenced item
         referenced_item: ResolvedItemReference,
     },
 
@@ -837,7 +839,7 @@ pub enum StatementVariant
         is_mutable: bool,
     },
 
-    /// This is the token for referencing an item via an identifier (could be a variable or function or whatever, this is resolved at analysis)
+    /// This is the token for referencing an item via an identifier (could be a variable or function or whatever, this is resolved at analysis and tunred into a RawReference)
     BasicReference
     {
         identifier: String,
@@ -848,6 +850,7 @@ pub enum StatementVariant
         variable_reference: Box<Spanned<StatementVariant>>,
         index: Box<Spanned<StatementVariant>>,
     },
+
     StructFieldReference
     {
         variable_reference: Box<Spanned<StatementVariant>>,

@@ -1,7 +1,11 @@
 use common::{
     anyhow,
-    codegen::ty::{NotNan, Type, Value},
+    codegen::{
+        common::FunctionArgumentIdentifier,
+        ty::{NotNan, Type, Value},
+    },
     error::{Spanned, analyzer::AnalyzerError},
+    parser::common::StatementVariant,
 };
 
 #[macro_export]
@@ -159,9 +163,117 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
     Ok(())
 }
 
-pub fn resolve_numerical_size(
-    errors: &mut Vec<(Vec<String>, Spanned<anyhow::Error>)>,
+fn resolve_numerical_size_in_statement(
+    stmt: &mut Spanned<StatementVariant>,
+    errors: &mut Vec<Spanned<anyhow::Error>>,
 ) -> anyhow::Result<()>
 {
+    // Number literals can only be in a few variants of statements
+    match &mut stmt.inner {
+        // Parse the arguments of a function call
+        StatementVariant::FunctionCall {
+            identifier,
+            arguments: call_args,
+        } => {
+            if let StatementVariant::RawReference {
+                identifier: _,
+                referenced_item,
+            } = identifier.get_inner()
+            {
+                match referenced_item {
+                    // Function pointers are not supported right now, just return an error for this or any other unsupported item.
+                    common::parser::common::ResolvedItemReference::Static(_)
+                    | common::parser::common::ResolvedItemReference::Type(_)
+                    | common::parser::common::ResolvedItemReference::Variable => {
+                        errors.push(Spanned {
+                            inner: AnalyzerError::ItemNotCallableAsFunction.into(),
+                            span: *identifier.get_span(),
+                        });
+                    },
+
+                    common::parser::common::ResolvedItemReference::Function(function_signature) => {
+                        let args = &function_signature.args.arguments;
+
+                        for (arg_ident, value) in call_args.iter_mut() {
+                            // Look the function's argument up and fetch its type
+                            let argument_query = match arg_ident {
+                                FunctionArgumentIdentifier::Identifier(arg_name) => {
+                                    args.get(arg_name)
+                                },
+                                FunctionArgumentIdentifier::Index(idx) => {
+                                    args.get_index(*idx).map(|(_, v)| v)
+                                },
+                            };
+
+                            // Verify that the function call's arguments match up with the function's signature
+                            if let Some((ty, _id)) = argument_query {
+                                // If the value is a numeric value we can convert it
+                                if let Some(numeric_value) = value.inner.try_as_value_mut() {
+                                    // If the argument is not convertible just skip the argument
+                                    // The resize function is only callable with types that can have numeric values converted to them
+                                    // This is basically just to avoid an error in the resize function.
+                                    // This will return an error later at the type checking.
+                                    if !ty.is_number() {
+                                        // Parse next argument
+                                        continue;                                    
+                                    }
+
+                                    // Resize numeric literal
+                                    resize(ty.clone(), numeric_value)?;
+                                }
+                                else {
+                                    // Resolve its argument recursively
+                                    resolve_numerical_size_in_statement(value, errors)?;
+                                }
+                            }
+                            else {
+                                // Store error of the argument nad continue parsing
+                                errors.push(Spanned {
+                                    inner: {
+                                        if let FunctionArgumentIdentifier::Index(argument_idx) =
+                                            arg_ident
+                                        {
+                                            AnalyzerError::FunctionArgumentCountInvalid(
+                                                args.len(),
+                                                *argument_idx,
+                                            )
+                                        }
+                                        else {
+                                            AnalyzerError::UnknownFunctionNamedArgument
+                                        }
+                                    }
+                                    .into(),
+                                    span: value.span,
+                                });
+                            }
+                        }
+                    },
+
+                    // Continue analyzing the function and skip this statement
+                    common::parser::common::ResolvedItemReference::Unresolved => return Ok(()),
+                }
+            }
+            else {
+                return Err(
+                    AnalyzerError::InternalIdentUnresolved(stmt.get_inner().clone()).into(),
+                );
+            }
+        },
+        _ => (),
+    }
+
+    Ok(())
+}
+
+pub fn resolve_numerical_size(
+    body: &mut Vec<Spanned<StatementVariant>>,
+    errors: &mut Vec<Spanned<anyhow::Error>>,
+) -> anyhow::Result<()>
+{
+    // We can simply iterate over all the statements since these arent need to be applied globally
+    for stmt in body {
+        resolve_numerical_size_in_statement(stmt, errors)?;
+    }
+
     Ok(())
 }

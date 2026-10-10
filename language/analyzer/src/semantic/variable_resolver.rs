@@ -32,7 +32,7 @@ pub fn resolve_identifiers(
     mut variable_map: HashMap<String, Type>,
 
     body: &mut Vec<Spanned<StatementVariant>>,
-    errors: &mut Vec<(Vec<String>, Spanned<anyhow::Error>)>,
+    errors: &mut Vec<Spanned<anyhow::Error>>,
 ) -> anyhow::Result<()>
 {
     for stmt in body {
@@ -52,6 +52,7 @@ pub fn resolve_identifiers(
             // create RawReference instances from the identifiers.
             _ => {
                 stmt.map_mut_child_statements(&mut |statement| {
+                    // Maps all the identifiers even in function (names/identifiers)
                     if let StatementVariant::BasicReference { identifier } = statement.get_inner() {
                         statement.inner = StatementVariant::RawReference {
                             identifier: identifier.clone(),
@@ -79,19 +80,18 @@ pub fn resolve_identifiers(
                                 else if let Some(import) = lookup_ident(imports, identifier) {
                                     match import {
                                         ImportType::File(_) => {
-                                            errors.push((
-                                                path.clone(),
+                                            errors.push(
                                                 Spanned::new(
                                                     AnalyzerError::ItemNotCallableAsFunction.into(),
                                                     statement.span,
                                                 ),
-                                            ));
+                                            );
 
                                             ResolvedItemReference::Unresolved
                                         },
                                         ImportType::Dependency(imported_path) => {
                                             let scope = imported_path[..imported_path.len() - 1].to_vec();
-                                            
+
                                             if let Some(imported_type) = items.get_item(
                                                 &scope,
                                                 &imported_path[imported_path.len() - 1],
@@ -111,8 +111,7 @@ pub fn resolve_identifiers(
                                                 )
                                             }
                                             else {
-                                                errors.push((
-                                                    path.clone(),
+                                                errors.push(
                                                     Spanned::new(
                                                         {
                                                             if !(function_sigs.contains_scope(&scope) || items.contains_scope(&scope)) {
@@ -123,8 +122,8 @@ pub fn resolve_identifiers(
                                                             }
                                                         },
                                                         statement.span,
-                                                    ),
-                                                ));
+                                                    )
+                                                );
 
                                                 ResolvedItemReference::Unresolved
                                             }
@@ -133,13 +132,12 @@ pub fn resolve_identifiers(
                                 }
                                 // If we could not find anything for the given identifier, we can return an error
                                 else {
-                                    errors.push((
-                                        path.clone(),
+                                    errors.push(
                                         Spanned::new(
                                             AnalyzerError::IdentifierNotFound.into(),
                                             statement.span,
                                         ),
-                                    ));
+                                    );
 
                                     // Insert a placeholder so that we can continue parsing
                                     ResolvedItemReference::Unresolved
