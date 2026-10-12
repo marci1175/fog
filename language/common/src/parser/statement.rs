@@ -496,7 +496,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
                         parse_variable_expression(
                             tkns,
                             Spanned {
-                                inner: StatementVariant::StructFieldReference {
+                                inner: StatementVariant::StructPropertyAccess {
                                     variable_reference: Box::new(stmt),
                                     field_name,
                                 },

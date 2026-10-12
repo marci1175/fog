@@ -146,11 +146,11 @@ pub fn resolve_identifiers(
                         };
                     }
                     // If a struct field reference is present stop parsing that, since struct field names may collide with any other item name
-                    else if let StatementVariant::StructFieldReference { .. } =
+                    else if let StatementVariant::StructPropertyAccess { .. } =
                         statement.get_inner()
                     {
                         // Signal to stop parsing this branch
-                        return false;
+                        return todo!();
                     }
 
                     // Signal to continue parsing

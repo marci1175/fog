@@ -9,5 +9,7 @@ public function main(): int {
 
     helper_function1(b);
     
+    x.foo.bar();
+
     return 0;
 }

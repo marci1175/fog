@@ -851,7 +851,7 @@ pub enum StatementVariant
         index: Box<Spanned<StatementVariant>>,
     },
 
-    StructFieldReference
+    StructPropertyAccess
     {
         variable_reference: Box<Spanned<StatementVariant>>,
         field_name: String,
@@ -964,7 +964,7 @@ impl Spanned<StatementVariant>
             } => {
                 variable_reference.map_mut_child_statements(closure);
             },
-            StatementVariant::StructFieldReference {
+            StatementVariant::StructPropertyAccess {
                 variable_reference,
                 field_name: _,
             } => {
