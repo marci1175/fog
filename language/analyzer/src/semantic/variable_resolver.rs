@@ -53,6 +53,7 @@ pub fn resolve_identifiers(
             _ => {
                 stmt.map_mut_child_statements(&mut |statement| {
                     // Maps all the identifiers even in function (names/identifiers)
+                    // There shouldnt be any exceptions where we should stop parsing as everything (that involves variables) resolves directly to a BasicReference
                     if let StatementVariant::BasicReference { identifier } = statement.get_inner() {
                         statement.inner = StatementVariant::RawReference {
                             identifier: identifier.clone(),
@@ -145,15 +146,7 @@ pub fn resolve_identifiers(
                             },
                         };
                     }
-                    // If a struct field reference is present stop parsing that, since struct field names may collide with any other item name
-                    else if let StatementVariant::StructPropertyAccess { .. } =
-                        statement.get_inner()
-                    {
-                        // Signal to stop parsing this branch
-                        return todo!();
-                    }
 
-                    // Signal to continue parsing
                     true
                 });
             },
