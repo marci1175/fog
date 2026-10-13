@@ -168,14 +168,15 @@ fn resolve_numerical_size_in_statement(
     errors: &mut Vec<Spanned<anyhow::Error>>,
 ) -> anyhow::Result<()>
 {
-    // Number literals can only be in a few variants of statements
+    // Number literals can only be in a limited  variants of statements
+    // When creating a new variable
     match &mut stmt.inner {
         // Parse the arguments of a function call
         StatementVariant::FunctionCall {
             identifier,
             arguments: call_args,
         } => {
-            if let StatementVariant::RawReference {
+            if let StatementVariant::InternalCheckedReference {
                 identifier: _,
                 referenced_item,
             } = identifier.get_inner()
@@ -215,7 +216,7 @@ fn resolve_numerical_size_in_statement(
                                     // This will return an error later at the type checking.
                                     if !ty.is_number() {
                                         // Parse next argument
-                                        continue;                                    
+                                        continue;
                                     }
 
                                     // Resize numeric literal
@@ -276,4 +277,64 @@ pub fn resolve_numerical_size(
     }
 
     Ok(())
+}
+
+/// This function resolves statements that have a return type by default. Such as values (0, 42, 5), variables' type, function calls, etc.
+/// Statements like `return foo;` do not have a directly returned type (or value).
+pub fn resolve_statement_type(stmt: &Spanned<StatementVariant>) -> anyhow::Result<Option<Type>> {
+    let resolved_type = match stmt.get_inner() {
+        StatementVariant::InternalCheckedReference { identifier, referenced_item } => {
+            match referenced_item {
+                common::parser::common::ResolvedItemReference::Variable => {
+                    // Lookup variable
+                    todo!()
+                },
+                common::parser::common::ResolvedItemReference::Type(custom_item) => {
+                    match custom_item.clone() {
+                        common::parser::common::CustomItem::Struct(struct_definition) => Some(Type::Struct { name: struct_definition.name, fields: struct_definition.fields, attributes: struct_definition.attributes }),
+                        common::parser::common::CustomItem::Enum { name, ty, variants } => Some(Type::Enum { name, ty: Box::new(ty), variants }),
+                        common::parser::common::CustomItem::Trait { name, functions, access_path } => Some(Type::Trait { name: name, access_path, functions }),
+                    }
+                },
+                common::parser::common::ResolvedItemReference::Function(function_signature) => todo!(),
+                common::parser::common::ResolvedItemReference::Static(_) => todo!(),
+                common::parser::common::ResolvedItemReference::Unresolved => todo!(),
+            }
+        },
+        StatementVariant::NewVariable { variable_name, variable_type, variable_value, variable_id, is_mutable } => None,
+        
+        StatementVariant::BasicReference { identifier } => todo!(),
+        StatementVariant::ArrayReference { variable_reference, index } => todo!(),
+        StatementVariant::StructPropertyAccess { variable_reference, field_name } => todo!(),
+
+        StatementVariant::Value(value) => Some(value.get_type()),
+        StatementVariant::TypeCast(spanned, target) => Some(target.clone()),
+        StatementVariant::MathematicalExpression { lhs, symbol, rhs } => resolve_statement_type(lhs)?,
+        StatementVariant::NegateValue(stmt) => resolve_statement_type(stmt)?,
+        StatementVariant::FunctionCall { identifier, arguments } => {
+            // Resolve function signature, by resolving its name and return type
+            todo!()
+        },
+        StatementVariant::SetValue { receiver, value } => None,
+        StatementVariant::ModifyValueArithmetic { receiver, symbol, value } => None,
+        StatementVariant::ReturnValue { value } => None,
+        StatementVariant::Comparison { lhs, ord, rhs } => Some(Type::Boolean),
+        StatementVariant::LogicalOperation { lhs, op, rhs } => resolve_statement_type(lhs)?,
+        StatementVariant::If(_) => {
+            // Resolve branch return values (check if they match and return that)
+            todo!()
+        },
+        StatementVariant::CodeBlock(spanneds) => {
+            // Do the same thing basically as with the branches of if.
+            todo!()
+        },
+        StatementVariant::Grouping { inner_expr } => resolve_statement_type(inner_expr)?,
+        StatementVariant::Loop(spanneds) => None,
+        StatementVariant::ControlFlow(control_flow_type) => None,
+        StatementVariant::ArrayInitialization { values } => Some(Type::Array { ty: todo!(), len: values.len() }),
+        StatementVariant::GetPointerTo(spanned) => Some(Type::Pointer(resolve_statement_type(spanned)?.map(|ty| Box::new(ty)))),
+        StatementVariant::DerefPointer(spanned) => resolve_statement_type(spanned)?,
+    };
+
+    Ok(resolved_type)
 }

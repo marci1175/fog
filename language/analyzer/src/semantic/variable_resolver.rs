@@ -55,7 +55,7 @@ pub fn resolve_identifiers(
                     // Maps all the identifiers even in function (names/identifiers)
                     // There shouldnt be any exceptions where we should stop parsing as everything (that involves variables) resolves directly to a BasicReference
                     if let StatementVariant::BasicReference { identifier } = statement.get_inner() {
-                        statement.inner = StatementVariant::RawReference {
+                        statement.inner = StatementVariant::InternalCheckedReference {
                             identifier: identifier.clone(),
                             referenced_item: {
                                 // Lookup identifier in the variable table

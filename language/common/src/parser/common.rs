@@ -822,7 +822,8 @@ pub enum StatementVariant
 {
     /// This is a statement that only the compiler itself can produce at analysis or codegen.
     /// This statement is a checked reference for a variable or function. (ie. The compiler has verified the exsistence of whatever this is pointing to.)
-    RawReference
+    /// Its basically a checked version of a basic reference.
+    InternalCheckedReference
     {
         /// The identifier/string of the referenced item
         identifier: String,
@@ -839,7 +840,7 @@ pub enum StatementVariant
         is_mutable: bool,
     },
 
-    /// This is the token for referencing an item via an identifier (could be a variable or function or whatever, this is resolved at analysis and tunred into a RawReference)
+    /// This is the token for referencing an item via an identifier (could be a variable or function or whatever, this is resolved at analysis and turned into a [`StatementVariant::InternalCheckedReference`])
     BasicReference
     {
         identifier: String,
@@ -869,8 +870,6 @@ pub enum StatementVariant
     },
 
     NegateValue(Box<Spanned<StatementVariant>>),
-
-    Brackets(Vec<Spanned<StatementVariant>>, Type),
 
     FunctionCall
     {
@@ -921,6 +920,9 @@ pub enum StatementVariant
 
     If(If),
 
+    /// This should in theory work as a standalone function body.
+    /// The returned type of this block is set by its environment.
+    /// All variables created in the scope that this exists in, should remain valid in the block.
     CodeBlock(Vec<Spanned<StatementVariant>>),
 
     Grouping
@@ -979,11 +981,6 @@ impl Spanned<StatementVariant>
             },
             StatementVariant::NegateValue(spanned) => {
                 spanned.map_mut_child_statements(closure);
-            },
-            StatementVariant::Brackets(spanneds, _) => {
-                for spanned in spanneds {
-                    spanned.map_mut_child_statements(closure);
-                }
             },
             StatementVariant::FunctionCall {
                 identifier,
@@ -1057,7 +1054,10 @@ impl Spanned<StatementVariant>
             },
 
             // Nowhere to traverse to
-            _ => (),
+            StatementVariant::InternalCheckedReference { .. }
+            | StatementVariant::BasicReference { .. }
+            | StatementVariant::Value(_)
+            | StatementVariant::ControlFlow(_) => (),
         }
     }
 }
@@ -1071,7 +1071,7 @@ pub enum ResolvedItemReference
     Function(FunctionSignature),
     Static(Type),
 
-    /// This item is only a placeholder and its only purpose is that the analyzer can continue.
+    /// This item is only a placeholder and its only purpose is that the analyzer can continue after encountering an error and using this to fill in the missing value.
     Unresolved,
 }
 

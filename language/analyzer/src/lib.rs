@@ -60,7 +60,7 @@ pub fn start_analysis(
         // Resolve types in the function bodies
         // This checks the intended type of a value and if that value is a literal, it resizes the literal to the desired type (size)
         resolve_numerical_size(&mut def.body, &mut function_errors)?;
-        
+
         if !function_errors.is_empty() {
             errors.push((path.clone(), std::mem::take(&mut function_errors)));
         }
