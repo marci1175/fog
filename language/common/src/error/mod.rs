@@ -91,6 +91,14 @@ impl<T> Spanned<T>
         &self.span
     }
 
+    pub fn rewrap_value<T2>(&self, inner: T2) -> Spanned<T2>
+    {
+        Spanned {
+            inner,
+            span: self.span,
+        }
+    }
+
     pub fn get_inner(&self) -> &T
     {
         &self.inner
@@ -212,9 +220,10 @@ impl<E: ToString> Display for SpannedError<E>
                     // Check if this is the last line
                     if idx + 1 == iterator_len {
                         message.push_str(line);
+                        message.push('\n');
 
                         // Push the error indicators
-                        for _ in 0..self.span.char_end.column - 1 {
+                        for _ in 0..self.span.char_end.column {
                             message.push('^');
                         }
 

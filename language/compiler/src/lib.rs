@@ -86,7 +86,7 @@ impl CompilerInstance
                 return Err(CodeGenError::NoMain.into());
             }
         }
-        dbg!(&global_context);
+
         // Analyze the whole project
         // This includes type resolving (widening type for numbers), type checking, semantic analysis
         let output = analyzer::start_analysis(&mut global_context)?;

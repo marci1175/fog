@@ -1271,6 +1271,7 @@ impl Context
         compiler_instructions: OrdSet<CompilerInstruction>,
         body: Vec<Spanned<StatementVariant>>,
         enabling_features: OrdSet<String>,
+        span: SpanInfo,
     ) -> (FunctionDefinition, FunctionSignature)
     {
         (
@@ -1278,6 +1279,7 @@ impl Context
                 compiler_instructions,
                 enabling_features,
                 body,
+                span,
             },
             FunctionSignature {
                 visibility: vis,

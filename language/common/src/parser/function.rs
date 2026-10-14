@@ -4,19 +4,11 @@ use indexmap::IndexSet;
 use strum::{EnumDiscriminants, EnumTryAs};
 
 use crate::{
-    anyhow::{self},
-    codegen::ty::{OrdMap, OrdSet, Type},
-    error::{Spanned, parser::ParserError, syntax::SyntaxError},
-    parser::{
+    anyhow::{self}, codegen::ty::{OrdMap, OrdSet, Type}, error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError}, parser::{
         common::{
             Context, ItemVisibility, StatementVariant, Stream, Streamable, find_closing_braces,
-        },
-        numeric_value::MathematicalSymbol,
-        statement::parse_statement,
-        ty::{create_ty_token, parse_type},
-        variable::{UniqueId, VARIABLE_ID_SOURCE},
-    },
-    tokenizer::{Token, TokenDiscriminants},
+        }, dbg::{combine_span_info, merge_ranges}, numeric_value::MathematicalSymbol, statement::parse_statement, ty::{create_ty_token, parse_type}, variable::{UniqueId, VARIABLE_ID_SOURCE},
+    }, tokenizer::{Token, TokenDiscriminants},
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Hash)]
@@ -40,6 +32,8 @@ pub struct FunctionDefinition
 
     /// Features required to be enabled for this function.
     pub enabling_features: OrdSet<String>,
+
+    pub span: SpanInfo,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
@@ -207,16 +201,16 @@ pub fn parse_function(
     let return_type = parse_type(tokens)?;
 
     // The TokenStream should now point to `Token::OpenBraces`
-    tokens.try_consume_match(
+    let opening_tkn = tokens.try_consume_match(
         ParserError::SyntaxError(SyntaxError::InvalidFunctionBodyStart),
         &TokenDiscriminants::OpenBraces,
-    )?;
+    )?.clone();
 
     // Fetch the function body and increment the tokenstream accordingly.
     let fn_body = parse_body(tokens)?;
 
     // This should never return an error since we are already checking the closing brace when fetching the fn body.
-    tokens.try_consume_match(
+    let closing_tkn = tokens.try_consume_match(
         ParserError::SyntaxError(SyntaxError::LeftOpenBraces),
         &TokenDiscriminants::CloseBraces,
     )?;
@@ -243,6 +237,7 @@ pub fn parse_function(
         compiler_instructions,
         fn_body,
         OrdSet::wrap(enabling_features),
+        combine_span_info(&[*opening_tkn.get_span(), *closing_tkn.get_span()], true)
     ))
 }
 

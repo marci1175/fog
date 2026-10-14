@@ -8,8 +8,11 @@ public function main(): int {
     const int b = 31;
 
     helper_function1(b);
-    
-    x.foo.bar();
 
-    return 0;
+    if (true) {
+        return 0;
+    }
+    else {
+        return 1;
+    }
 }

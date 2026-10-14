@@ -8,6 +8,10 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum AnalyzerError
 {
+    #[error("Not all conditional branches return a value, when needed.")]
+    InsufficientReturnPathCoverage,
+    #[error("A function with a return type other than `void` requires a value returned. A return statement is expected.")]
+    FunctionRequiresReturn,
     #[error(
         "The function has {0} arguments. This argument is the {1}. passed in the function call."
     )]

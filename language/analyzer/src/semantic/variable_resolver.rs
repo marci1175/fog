@@ -1,35 +1,29 @@
 use std::collections::HashMap;
 
+use crate::{ExternalDeclMap, FnSigMap, ImportMap, TypeMap, VariableMap};
 use common::{
     anyhow,
     codegen::ty::Type,
     error::{Spanned, analyzer::AnalyzerError},
     imports::{ExternalDeclerationType, ImportType},
-    parser::{
-        common::{
-            CustomItem, PathMap,
-            ResolvedItemReference::{self},
-            StatementVariant,
-        },
-        function::FunctionSignature,
+    parser::common::{
+        ResolvedItemReference::{self},
+        StatementVariant,
     },
 };
 
-pub fn lookup_ident<'a>(
-    imports: Option<&'a HashMap<String, ImportType>>,
-    ident: &'a str,
-) -> Option<&'a ImportType>
+pub fn lookup_ident<'a>(imports: Option<&'a ImportMap>, ident: &'a str) -> Option<&'a ImportType>
 {
     imports.and_then(|imports| imports.get(ident))
 }
 
 pub fn resolve_identifiers(
     path: Vec<String>,
-    items: &PathMap<Vec<String>, String, CustomItem>,
-    function_sigs: &PathMap<Vec<String>, String, FunctionSignature>,
-    external_declerations: &PathMap<Vec<String>, String, ExternalDeclerationType>,
-    imports: Option<&HashMap<String, ImportType>>,
-    mut variable_map: HashMap<String, Type>,
+    items: &TypeMap,
+    function_sigs: &FnSigMap,
+    external_declerations: &ExternalDeclMap,
+    imports: Option<&ImportMap>,
+    variable_map: &mut VariableMap,
 
     body: &mut Vec<Spanned<StatementVariant>>,
     errors: &mut Vec<Spanned<anyhow::Error>>,

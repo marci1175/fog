@@ -1,10 +1,21 @@
 use std::collections::HashMap;
 
-use common::{anyhow, error::Spanned, parser::common::GlobalContext, tracing::info};
+use common::{
+    anyhow, codegen::ty::Type, error::{Spanned, analyzer::AnalyzerError}, imports::{ExternalDeclerationType, ImportType}, parser::{
+        common::{CustomItem, GlobalContext, PathMap},
+        function::FunctionSignature,
+    }, tracing::info,
+};
 
 use crate::semantic::{
-    type_resolver::resolve_numerical_size, variable_resolver::resolve_identifiers,
+    control_flow_resolver::verify_function_control_flow, type_resolver::resolve_numerical_size, variable_resolver::resolve_identifiers,
 };
+
+pub type TypeMap = PathMap<Vec<String>, String, CustomItem>;
+pub type FnSigMap = PathMap<Vec<String>, String, FunctionSignature>;
+pub type ExternalDeclMap = PathMap<Vec<String>, String, ExternalDeclerationType>;
+pub type ImportMap = HashMap<String, ImportType>;
+pub type VariableMap = HashMap<String, Type>;
 
 /// Checks all types and automatically converts literals to their destined type.
 // pub mod ty;
@@ -30,11 +41,19 @@ pub fn start_analysis(
         // Resolve imports and identifiers (function names, variable names)
         let imports = g_ctx.ctx_imports.get(path);
 
-        // Get the external decls made in this context
-        // let extern_decls = g_ctx.external_declerations.get_scope(path);
-
         // Get the current function's signature
         let this_sig = g_ctx.function_signatures.get_item(path, name).unwrap();
+
+        // Create a variable map so that we can check the type of the variable later.
+        // (If the identifiers are resolved, then this map can be used regardless of where we are trying to resolve the type of a specific variable
+        // since the validity of the usage of the variable is verified when creating this list. `resolve_identifiers`)
+        let mut variable_map = HashMap::from_iter(
+            this_sig
+                .args
+                .arguments
+                .iter()
+                .map(|(name, (ty, _))| (name.clone(), ty.clone())),
+        );
 
         // Resolve items present in context (functions, structs, etc)
         // Analyze and modify the identifiers and return the list of errors
@@ -46,13 +65,7 @@ pub fn start_analysis(
             &g_ctx.external_declerations,
             imports,
             // Collect the arguments of this function and load the arguments into the pre-existing variable map
-            HashMap::from_iter(
-                this_sig
-                    .args
-                    .arguments
-                    .iter()
-                    .map(|(name, (ty, _))| (name.clone(), ty.clone())),
-            ),
+            &mut variable_map,
             &mut def.body,
             &mut function_errors,
         )?;
@@ -60,6 +73,14 @@ pub fn start_analysis(
         // Resolve types in the function bodies
         // This checks the intended type of a value and if that value is a literal, it resizes the literal to the desired type (size)
         resolve_numerical_size(&mut def.body, &mut function_errors)?;
+
+        // Verify the function return paths
+        let (returns_value, returned_types) = verify_function_control_flow(&def.body, &variable_map, &mut function_errors)?;
+
+        // If the function doesnt return anything and the return type is not void (meaning we should be returning smth) raise an error.
+        if this_sig.return_type != Type::Void && !returns_value {
+            function_errors.push(Spanned { inner: AnalyzerError::FunctionRequiresReturn.into(), span: def.span });
+        }
 
         if !function_errors.is_empty() {
             errors.push((path.clone(), std::mem::take(&mut function_errors)));
