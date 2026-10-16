@@ -39,9 +39,13 @@ fn fetch_return_type(
 
         match stmt {
             StatementVariant::ReturnValue { value } => {
+                // Store the returned type
                 returned_types.push(
-                    resolve_statement_type(value.get_inner(), variable_map)?.map(|ty| Spanned { inner: ty, span })
+                    resolve_statement_type(value.get_inner(), variable_map)?
+                        .map(|ty| Spanned { inner: ty, span }),
                 );
+
+                // Set this flag to true
                 value_returned = true;
 
                 // We dont have to parse further since the code will exit here anyway.
@@ -63,31 +67,30 @@ fn fetch_return_type(
                     errors,
                 )?;
 
-                if is_last_elem && !true_returned_val {
+                // Try fetching the return type of the false branch if it exists
+                let false_returned_val = stmt
+                    .false_branch
+                    .as_ref()
+                    .map(|false_branch| {
+                        fetch_return_type(&false_branch.body, variable_map, returned_types, errors)
+                    })
+                    .unwrap_or(Ok(false))?;
+
+                // If neither of the branches return a value then we can raise an error about the function not returning a value, otherwise we can be more specific and refer to the actual path coverage.
+                if !true_returned_val && !false_returned_val {
+                    return Ok(false);
+                }
+
+                // If this is the last element, and not all paths are returning a value, then we can store an error about insufficient path coverage.
+                if is_last_elem && !(false_returned_val && true_returned_val) {
                     errors.push(Spanned {
                         inner: AnalyzerError::InsufficientReturnPathCoverage.into(),
-                        span: stmt.true_branch.span,
+                        span,
                     });
                 }
 
-                // Try fetching the return type of the false branch if it exists
-                let false_returned_val = if let Some(false_branch) = &stmt.false_branch {
-                    let false_returned_val = fetch_return_type(&false_branch.body, variable_map, returned_types, errors)?;
-
-                    // We needed to return a value but didnt raise an error
-                    if is_last_elem && !false_returned_val {
-                        errors.push(Spanned {
-                            inner: AnalyzerError::InsufficientReturnPathCoverage.into(),
-                            span: false_branch.span,
-                        });
-                    }
-
-                    false_returned_val
-                }
-                else { false };
-
-                // If both cases are covered by the if statement branches we can return a `true` value automatically. If not then we should check if there are any return statements further down.
-                if false_returned_val && true_returned_val {
+                // If either of the cases return atleast one value then we can return a true since we are technically returning a value both not on all paths
+                if false_returned_val || true_returned_val {
                     return Ok(true);
                 }
             },

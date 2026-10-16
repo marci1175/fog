@@ -10,7 +10,7 @@ public function main(): int {
     helper_function1(b);
 
     if (true) {
-        return 0;
+        return 1;
     }
     else {
         return 1;

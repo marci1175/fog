@@ -9,7 +9,9 @@ use common::{
     codegen::ty::{OrdSet, Type},
     compiler::ProjectConfig,
     dependency::verify_dependencies_fs,
-    error::{SpannedError, application::ApplicationError, codegen::CodeGenError},
+    error::{
+        SpannedError, application::ApplicationError, codegen::CodeGenError,
+    },
     imports::ImportType,
     inkwell::{
         context::Context,
@@ -92,7 +94,10 @@ impl CompilerInstance
         let output = analyzer::start_analysis(&mut global_context)?;
 
         if !output.is_empty() {
-            error!("{} errors found.", output.len());
+            error!(
+                "{} errors found.",
+                output.iter().map(|(_, errs)| errs.len()).sum::<usize>()
+            );
 
             // Iter over all the outputs, if there are any and stop codegen as the code is invalid.
             // It does not really matter if the fn paths are being stored in an efficient way as code is going to quit anyway after printing out the errors.
@@ -205,7 +210,14 @@ impl CompilerInstance
 
         // Parse "main.f" (The main entrypoint of the project)
         // If "main.f" imports any other files those will get parsed too
-        parse_src_file(&parser_settings, &module_path, &mut g_context, src_path)?;
+        let parsing_result = parse_src_file(&parser_settings, &module_path, &mut g_context, src_path);
+
+        // Check if the parsing resulted in any errors, if yes display this error message
+        if parsing_result.is_err() {
+            error!("Parsing error occured, parsing cannot continue.")
+        }
+        
+        parsing_result?;
 
         // Check if the folder is present inside the dependencies folder
         let dependencies =

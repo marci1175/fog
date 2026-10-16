@@ -17,261 +17,55 @@ use crate::{
     tokenizer::{Token, TokenDiscriminants},
 };
 
-#[derive(Debug, Clone, Copy)]
-pub enum Expr
-{
-    /// Variable declarations, all variables must be created by declaring whether they are constant (`const`) or mutable (`var`)
-    VariableDeclaration,
-    Conditional,
-
-    // The reason why these are not separate is because when parsing the If statement, we also parse the else if and else chains too.
-    // There is simply no reason to parse these separately
-    // I just wanted to explicitly comment these out for future reference.
-    // Elseif,
-    // Else,
-
-    // These two loops are structurally different thus, these are interpreted as two different things.
-    While,
-    For,
-}
-
-const fn discriminants_eq(a: TokenDiscriminants, b: TokenDiscriminants) -> bool
-{
-    a as u32 == b as u32
-}
-
-const fn is_prefix_of(shorter: &[TokenDiscriminants], longer: &[TokenDiscriminants]) -> bool
-{
-    if shorter.len() > longer.len() {
-        return false;
-    }
-    let mut k = 0;
-    while k < shorter.len() {
-        if !discriminants_eq(shorter[k], longer[k]) {
-            return false;
-        }
-        k += 1;
-    }
-    true
-}
-
-/// Checks if two patterns collide (one is a prefix of the other)
-const fn patterns_collide(a: &[TokenDiscriminants], b: &[TokenDiscriminants]) -> bool
-{
-    is_prefix_of(a, b) || is_prefix_of(b, a)
-}
-
-/*
-    May the lord bless this macro and all versions of the future me trying to modify it.
-*/
-macro_rules! expr_pat {
-    ($(
-        (
-            &[ $( &[ $( $tok:tt )* ] ),* $(,)? ],
-            $result:expr $(,)?
-        )
-    ),* $(,)?) => {{
-        const ALL_PATTERNS: &[&[&[TokenDiscriminants]]] = &[
-            $(
-                {
-                    const GROUP: &[&[TokenDiscriminants]] = &[ $( &[ $( $tok )* ] ),* ];
-                    GROUP
-                },
-            )*
-        ];
-
-        const _: () = {
-            let groups = ALL_PATTERNS;
-            let mut i = 0;
-            while i < groups.len() {
-                let pats_a = groups[i];
-                let mut pi = 0;
-                while pi < pats_a.len() {
-                    let pat_a = pats_a[pi];
-                    let mut j = 0;
-                    while j < groups.len() {
-                        let pats_b = groups[j];
-                        let mut pj = 0;
-                        while pj < pats_b.len() {
-                            let pat_b = pats_b[pj];
-
-                            if !(i == j && pi == pj) && patterns_collide(pat_a, pat_b) {
-                                panic!("EXPR_PAT collision: a pattern is a prefix of another");
-                            }
-                            pj += 1;
-                        }
-                        j += 1;
-                    }
-                    pi += 1;
-                }
-                i += 1;
-            }
-        };
-
-        {
-            const RESULT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = &[
-                $(
-                    (
-                        { const GROUP: &[&[TokenDiscriminants]] = &[ $( &[ $( $tok )* ] ),* ]; GROUP },
-                        $result,
-                    ),
-                )*
-            ];
-            RESULT
-        }
-    }};
-}
-
-/// A map of all of the valid and invalid expression patterns.
-/// This should serve as a "fastpath" for expressions so that the main expressions can be easily updated later.
-/// This way code is easier to maintain and update.
-///
-/// **********************
-/// IMPORTANT:
-///     No patterns should partially contain one another, since that will cause the parser to take the first match's path.
-/// **********************
-///
-pub const EXPR_PAT: &[(&[&[TokenDiscriminants]], Result<Expr, SyntaxError>)] = expr_pat!(
-    // Varaible declarations should look like this:
-    //
-    // <ty> <name> "=" <val>
-    // <ident (for custom types)> <name> "=" <val>
-    //
-    (
-        &[
-            // "const" <ty> <name> "=" <val>
-            // These are immutable
-            &[TokenDiscriminants::Const],
-            // These are mutable
-            // "var" <ty> <name> "=" <val>
-            &[TokenDiscriminants::Variable]
-        ],
-        Ok(Expr::VariableDeclaration),
-    ),
-    // Lets return an error for a common pattern:
-    // All function must be initialized with a value before creating them.
-    // Null variables are invalid.
-    (
-        &[
-            // <ty> <name> ";"
-            &[
-                TokenDiscriminants::TypeDefinition,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SemiColon,
-            ],
-            // <ident (for custom types)> <name> ";"
-            &[
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::Identifier,
-                TokenDiscriminants::SemiColon,
-            ],
-        ],
-        Err(SyntaxError::VariableRequiresInitialization),
-    ),
-    (
-        &[&[TokenDiscriminants::If, TokenDiscriminants::OpenParentheses]],
-        Ok(Expr::Conditional),
-    ),
-    // Every else if and else chain is interpreted after the original if expression. They do not need to be parsed separately.
-    // (
-    //     &[&[
-    //         TokenDiscriminants::ElseIf,
-    //         TokenDiscriminants::OpenParentheses,
-    //     ]],
-    //     Ok(Expr::Elseif),
-    // ),
-    // (
-    //     &[&[TokenDiscriminants::Else, TokenDiscriminants::OpenBraces]],
-    //     Ok(Expr::Else),
-    // ),
-    (
-        &[&[
-            TokenDiscriminants::For,
-            TokenDiscriminants::Identifier,
-            TokenDiscriminants::In,
-        ]],
-        Ok(Expr::For),
-    ),
-    (
-        &[&[
-            TokenDiscriminants::While,
-            TokenDiscriminants::OpenParentheses,
-        ]],
-        Ok(Expr::While),
-    ),
-);
-
-/// Matches and returns the first match of the EXPR_PAT list from a given tokenstream.
-fn match_expr_pattern<'a, S: Streamable<Spanned<Token>>>(
-    tkns: &mut S,
-) -> Option<&'a Result<Expr, SyntaxError>>
-{
-    EXPR_PAT
-        .iter()
-        .find(|(patterns, _)| patterns.iter().any(|pat| tkns.try_match_pattern(pat)))
-        .map(|(_, expr_res)| expr_res)
-}
-
 pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    let value =
-    // Try matching with the pre-defined expression patterns
-    // If the pattern starts with a variable reference or and identifier which is not a function we will parse that manually.
-    if let Some(matched) = match_expr_pattern(tkns).cloned() {
-        // The reason the matched expression could be an error is because common syntactical mistakes are also recognized, thus these can be returned through a fastpath
-        let expr = matched?;
+    let value = match tkns.peek_next().map(|tkn| tkn.get_inner()) {
+        Some(Token::If) => conditional_expr(tkns)?,
+        Some(Token::While) => loop_while(tkns)?,
+        Some(Token::For) => loop_for(tkns)?,
+        // These expression should end at the `;` terminator since they are set size expressions.
+        Some(Token::Variable) | Some(Token::Const) => {
+            let return_val = var_decl(&mut child_iterator_until(
+                tkns,
+                &TokenDiscriminants::SemiColon,
+                ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+            )?)?;
 
-        // These are complete statements that do not create a new value. These statements introduce loop and logic to the language, but these do not create new values.
-        let stmt = match expr {
-            // These are complete expressions, these do not need the ';' terminator.
-            Expr::Conditional => conditional_expr(expr, tkns),
-            Expr::While => loop_while(expr, tkns),
-            Expr::For => loop_for(expr, tkns),
+            // Consume semicolon after variable declaration
+            tkns.try_consume_match(
+                ParserError::ExpressionSemicolonMissing,
+                &TokenDiscriminants::SemiColon,
+            )?;
 
-            // These expression should end at the `;` terminator since they are set size expressions.
-            Expr::VariableDeclaration => {
-                let return_val = var_decl(expr, &mut child_iterator_until(
-                    tkns,
-                    &TokenDiscriminants::SemiColon,
-                    ParserError::SyntaxError(SyntaxError::MissingSemiColon),
-                )?);
+            return_val
+        },
+        None => {
+            return Err(ParserError::EOF.into());
+        },
+        Some(_) => {
+            // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
+            // Even though we separate expression based on semicolons, if the user leaves out a semicolon the code is stil going to break so we have to add eadditional checks later.
+            let mut expr_tkns = child_iterator_until(
+                tkns,
+                &TokenDiscriminants::SemiColon,
+                ParserError::SyntaxError(SyntaxError::MissingSemiColon),
+            )?;
 
-                // Consume semicolon after variable declaration
-                tkns.try_consume_match(
-                    ParserError::ExpressionSemicolonMissing,
-                    &TokenDiscriminants::SemiColon,
-                )?;
+            let return_val = parse_expr(&mut expr_tkns)?;
 
-                return_val
-            },
-        }?;
+            // Drop child buffer
+            drop(expr_tkns);
 
-        // Return the expression matched by the fastpaths
-        stmt
-    }
-    else {
-        // Parse the value we might have here (most of the times this will be useless in this function, except the function call which may have a side effect on the code.)
-        // Even though we separate expression based on semicolons, if the user leaves out a semicolon the code is stil going to break so we have to add eadditional checks later.
-        let mut expr_tkns = child_iterator_until(
-            tkns,
-            &TokenDiscriminants::SemiColon,
-            ParserError::SyntaxError(SyntaxError::MissingSemiColon),
-        )?;
+            // Consume semicolon after expression
+            tkns.try_consume_match(
+                ParserError::ExpressionSemicolonMissing,
+                &TokenDiscriminants::SemiColon,
+            )?;
 
-        let return_val = parse_expr(&mut expr_tkns)?;
-
-        // Drop child buffer
-        drop(expr_tkns);
-
-        // Consume semicolon after expression
-        tkns.try_consume_match(
-            ParserError::ExpressionSemicolonMissing,
-            &TokenDiscriminants::SemiColon,
-        )?;
-
-        return_val
+            return_val
+        },
     };
 
     Ok(value)

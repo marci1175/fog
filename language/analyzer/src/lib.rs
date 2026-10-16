@@ -1,14 +1,20 @@
 use std::collections::HashMap;
 
 use common::{
-    anyhow, codegen::ty::Type, error::{Spanned, analyzer::AnalyzerError}, imports::{ExternalDeclerationType, ImportType}, parser::{
+    anyhow,
+    codegen::ty::Type,
+    error::{Spanned, analyzer::AnalyzerError},
+    imports::{ExternalDeclerationType, ImportType},
+    parser::{
         common::{CustomItem, GlobalContext, PathMap},
         function::FunctionSignature,
-    }, tracing::info,
+    },
+    tracing::info,
 };
 
 use crate::semantic::{
-    control_flow_resolver::verify_function_control_flow, type_resolver::resolve_numerical_size, variable_resolver::resolve_identifiers,
+    control_flow_resolver::verify_function_control_flow, type_resolver::resolve_numerical_size,
+    variable_resolver::resolve_identifiers,
 };
 
 pub type TypeMap = PathMap<Vec<String>, String, CustomItem>;
@@ -75,11 +81,15 @@ pub fn start_analysis(
         resolve_numerical_size(&mut def.body, &mut function_errors)?;
 
         // Verify the function return paths
-        let (returns_value, returned_types) = verify_function_control_flow(&def.body, &variable_map, &mut function_errors)?;
+        let (returns_value, returned_types) =
+            verify_function_control_flow(&def.body, &variable_map, &mut function_errors)?;
 
         // If the function doesnt return anything and the return type is not void (meaning we should be returning smth) raise an error.
         if this_sig.return_type != Type::Void && !returns_value {
-            function_errors.push(Spanned { inner: AnalyzerError::FunctionRequiresReturn.into(), span: def.span });
+            function_errors.push(Spanned {
+                inner: AnalyzerError::FunctionRequiresReturn.into(),
+                span: def.span,
+            });
         }
 
         if !function_errors.is_empty() {

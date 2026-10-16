@@ -3,7 +3,7 @@ use crate::{
     parser::{
         common::{StatementVariant, Streamable},
         dbg::combine_span_info,
-        statement::{Expr, parse_expr},
+        statement::parse_expr,
         ty::parse_type,
         variable::VARIABLE_ID_SOURCE,
     },
@@ -11,7 +11,6 @@ use crate::{
 };
 
 pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
-    _expr: Expr,
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {

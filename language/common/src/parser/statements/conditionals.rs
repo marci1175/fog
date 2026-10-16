@@ -4,23 +4,19 @@ use crate::{
         common::{Branch, If, StatementVariant, Streamable, find_closing_paren},
         dbg::combine_span_info,
         function::parse_body,
-        statement::{Expr, parse_expr},
+        statement::parse_expr,
     },
     tokenizer::{Token, TokenDiscriminants},
 };
 
 pub fn conditional_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
-    expr: Expr,
     tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    // The first token must be an `if` token
-    tkns.try_consume_match(
-        ParserError::InternalFastpathMatchingError(expr),
-        &TokenDiscriminants::If,
-    )?;
+    // The first token must be an `if` token, due to the check before this function
+    tkns.consume();
 
-    let condition = Box::new(parse_condition(expr, tkns)?);
+    let condition = Box::new(parse_condition(tkns)?);
     let if_branch = parse_expr_body(tkns)?;
 
     // This if instance can be modified later on by else if chains
@@ -44,7 +40,7 @@ pub fn conditional_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         // Consume the actual elseif token
         tkns.consume().unwrap();
 
-        let condition = Box::new(parse_condition(expr, tkns)?);
+        let condition = Box::new(parse_condition(tkns)?);
         let chained_branch = parse_expr_body(tkns)?;
 
         let false_branch_snapshot = std::mem::take(current_false_branch);
@@ -137,12 +133,11 @@ fn parse_expr_body<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 }
 
 fn parse_condition<S: Streamable<Spanned<Token>>>(
-    expr: Expr,
     tkns: &mut S,
 ) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
     tkns.try_consume_match(
-        ParserError::InternalFastpathMatchingError(expr),
+        ParserError::ConditionRequriredAfterIf,
         &TokenDiscriminants::OpenParentheses,
     )?;
 

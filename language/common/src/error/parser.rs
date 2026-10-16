@@ -4,23 +4,21 @@ use thiserror::Error;
 use crate::{
     codegen::ty::Type,
     error::syntax::SyntaxError,
-    parser::{common::StatementVariant, statement::Expr, variable::VariableReference},
+    parser::{common::StatementVariant, variable::VariableReference},
     tokenizer::Token,
 };
 
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
+    #[error("After the `if` (or elseif) keyword a condition is reqired. Example: ```if (x > 5) {{}}```")]
+    ConditionRequriredAfterIf,
     #[error(
         "When using the `this` keyword the function needs to be implemented for a specific type."
     )]
     NotImplementingForAny,
     #[error("Item with path `{0:?}` is present in dependency `{1}` and `{2}`.")]
     ContextItemCollision(Vec<String>, String, String),
-    #[error(
-        "[INTERNAL ERROR] The parser's predefined fastpath for this expression (`{0:?}`) mistmaches the actual definition requirement of the expression."
-    )]
-    InternalFastpathMatchingError(Expr),
     #[error("An item's name must be defined here.")]
     ItemNameExpected,
     #[error("Only functions and statics can be declared as a FFI item.")]

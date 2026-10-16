@@ -4,11 +4,20 @@ use indexmap::IndexSet;
 use strum::{EnumDiscriminants, EnumTryAs};
 
 use crate::{
-    anyhow::{self}, codegen::ty::{OrdMap, OrdSet, Type}, error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError}, parser::{
+    anyhow::{self},
+    codegen::ty::{OrdMap, OrdSet, Type},
+    error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
+    parser::{
         common::{
             Context, ItemVisibility, StatementVariant, Stream, Streamable, find_closing_braces,
-        }, dbg::{combine_span_info, merge_ranges}, numeric_value::MathematicalSymbol, statement::parse_statement, ty::{create_ty_token, parse_type}, variable::{UniqueId, VARIABLE_ID_SOURCE},
-    }, tokenizer::{Token, TokenDiscriminants},
+        },
+        dbg::{combine_span_info, merge_ranges},
+        numeric_value::MathematicalSymbol,
+        statement::parse_statement,
+        ty::{create_ty_token, parse_type},
+        variable::{UniqueId, VARIABLE_ID_SOURCE},
+    },
+    tokenizer::{Token, TokenDiscriminants},
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Hash)]
@@ -201,10 +210,12 @@ pub fn parse_function(
     let return_type = parse_type(tokens)?;
 
     // The TokenStream should now point to `Token::OpenBraces`
-    let opening_tkn = tokens.try_consume_match(
-        ParserError::SyntaxError(SyntaxError::InvalidFunctionBodyStart),
-        &TokenDiscriminants::OpenBraces,
-    )?.clone();
+    let opening_tkn = tokens
+        .try_consume_match(
+            ParserError::SyntaxError(SyntaxError::InvalidFunctionBodyStart),
+            &TokenDiscriminants::OpenBraces,
+        )?
+        .clone();
 
     // Fetch the function body and increment the tokenstream accordingly.
     let fn_body = parse_body(tokens)?;
@@ -237,7 +248,7 @@ pub fn parse_function(
         compiler_instructions,
         fn_body,
         OrdSet::wrap(enabling_features),
-        combine_span_info(&[*opening_tkn.get_span(), *closing_tkn.get_span()], true)
+        combine_span_info(&[*opening_tkn.get_span(), *closing_tkn.get_span()], true),
     ))
 }
 

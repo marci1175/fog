@@ -1,6 +1,13 @@
-use std::{fmt::Display, fs, ops::Deref, path::PathBuf};
+use anyhow::Error;
 
-use crate::tokenizer::Token;
+use crate::{error::analyzer::AnalyzerError, tokenizer::Token};
+use std::{
+    any::Any,
+    fmt::{Debug, Display},
+    fs,
+    ops::Deref,
+    path::PathBuf,
+};
 
 pub mod analyzer;
 pub mod application;
@@ -36,6 +43,12 @@ impl SpanInfo
             char_start,
             char_end,
         }
+    }
+}
+
+impl Display for SpanInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("From: {}:{}, To: {}:{}", self.char_start.line, self.char_start.column, self.char_end.line, self.char_end.column))
     }
 }
 
@@ -137,16 +150,9 @@ pub struct SpannedError<E>
     pub span: SpanInfo,
 }
 
-impl<E: ToString + Into<anyhow::Error>> From<SpannedError<E>> for anyhow::Error
-{
-    fn from(val: SpannedError<E>) -> Self
-    {
-        let span = val.to_string();
-        val.error.into().context(span)
-    }
-}
-
-impl<E: ToString> Display for SpannedError<E>
+impl<E> Display for SpannedError<E>
+where
+    E: ToString
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
     {
@@ -250,10 +256,22 @@ impl<E: ToString> Display for SpannedError<E>
         // Separate actual error from the file content
         message.push('\n');
 
-        message.push_str(&self.error.to_string());
+        message.push_str(&format!(
+            "{}",
+            self.error.to_string()
+        ));
 
         message.push('\n');
 
         f.write_str(&message)
+    }
+}
+
+impl<E> Into<anyhow::Error> for SpannedError<E>
+where
+    E: ToString + Into<anyhow::Error>,
+{
+    fn into(self) -> anyhow::Error {
+        Error::msg(format!("{self}"))
     }
 }

@@ -1,16 +1,18 @@
+use strum::IntoStaticStr;
 use thiserror::Error;
 
 use crate::{
-    codegen::ty::{Type, Value},
-    parser::common::StatementVariant,
+    codegen::ty::{Type, Value}, parser::common::StatementVariant,
 };
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, IntoStaticStr)]
 pub enum AnalyzerError
 {
-    #[error("Not all conditional branches return a value, when needed.")]
+    #[error("Not all conditional branches return a value when needed.")]
     InsufficientReturnPathCoverage,
-    #[error("A function with a return type other than `void` requires a value returned. A return statement is expected.")]
+    #[error(
+        "A function with a return type other than `void` requires a value returned. A return statement is expected."
+    )]
     FunctionRequiresReturn,
     #[error(
         "The function has {0} arguments. This argument is the {1}. passed in the function call."
