@@ -1,8 +1,6 @@
 use crate::{
     error::Spanned,
-    parser::{
-        common::{StatementVariant, Streamable},
-    },
+    parser::common::{StatementVariant, Streamable},
     tokenizer::Token,
 };
 

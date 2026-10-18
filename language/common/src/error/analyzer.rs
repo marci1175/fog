@@ -2,12 +2,15 @@ use strum::IntoStaticStr;
 use thiserror::Error;
 
 use crate::{
-    codegen::ty::{Type, Value}, parser::common::StatementVariant,
+    codegen::ty::{Type, Value},
+    parser::common::StatementVariant,
 };
 
 #[derive(Debug, Error, IntoStaticStr)]
 pub enum AnalyzerError
 {
+    #[error("Different code paths return different types.")]
+    HeterogeneousReturnType,
     #[error("Not all conditional branches return a value when needed.")]
     InsufficientReturnPathCoverage,
     #[error(

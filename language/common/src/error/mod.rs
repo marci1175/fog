@@ -46,9 +46,14 @@ impl SpanInfo
     }
 }
 
-impl Display for SpanInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("From: {}:{}, To: {}:{}", self.char_start.line, self.char_start.column, self.char_end.line, self.char_end.column))
+impl Display for SpanInfo
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
+        f.write_str(&format!(
+            "From: {}:{}, To: {}:{}",
+            self.char_start.line, self.char_start.column, self.char_end.line, self.char_end.column
+        ))
     }
 }
 
@@ -152,7 +157,7 @@ pub struct SpannedError<E>
 
 impl<E> Display for SpannedError<E>
 where
-    E: ToString
+    E: ToString,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
     {
@@ -256,10 +261,7 @@ where
         // Separate actual error from the file content
         message.push('\n');
 
-        message.push_str(&format!(
-            "{}",
-            self.error.to_string()
-        ));
+        message.push_str(&format!("{}", self.error.to_string()));
 
         message.push('\n');
 
@@ -269,9 +271,10 @@ where
 
 impl<E> Into<anyhow::Error> for SpannedError<E>
 where
-    E: ToString + Into<anyhow::Error>,
+    E: ToString + Into<anyhow::Error> + Send + Display + Sync + 'static,
 {
-    fn into(self) -> anyhow::Error {
+    fn into(self) -> anyhow::Error
+    {
         Error::msg(format!("{self}"))
     }
 }

@@ -9,9 +9,7 @@ use common::{
     codegen::ty::{OrdSet, Type},
     compiler::ProjectConfig,
     dependency::verify_dependencies_fs,
-    error::{
-        SpannedError, application::ApplicationError, codegen::CodeGenError,
-    },
+    error::{SpannedError, application::ApplicationError, codegen::CodeGenError},
     imports::ImportType,
     inkwell::{
         context::Context,
@@ -116,6 +114,12 @@ impl CompilerInstance
 
                     // Display error in cli
                     error!("{error}");
+                    
+                    // If this is a debug build we should also display the backtrace of the encountered error
+                    #[cfg(debug_assertions)]
+                    {
+                        info!("\n{}", error.error.backtrace());
+                    }
                 }
             }
 
@@ -129,12 +133,12 @@ impl CompilerInstance
         info!("Generating LLVM IR....");
 
         // Generate LLVM IR for the global context
-        self.generate_ir(&global_context)?;
+        let build_manifest = self.generate_ir(&global_context)?;
 
-        Ok(todo!())
+        Ok(build_manifest)
     }
 
-    fn generate_ir(&self, global_context: &GlobalContext) -> anyhow::Result<()>
+    fn generate_ir(&self, global_context: &GlobalContext) -> anyhow::Result<BuildManifest>
     {
         info!("Initalizing LLVM....");
 
@@ -180,6 +184,13 @@ impl CompilerInstance
             info!("Running optimization passes: {passes}...");
         }
 
+        let mut build_manifest = BuildManifest {
+            build_arctifact_paths: todo!(),
+            additional_linking_material: todo!(),
+            build_path: todo!(),
+            build_type: todo!(),
+        };
+
         for (name, (module, _)) in modules {
             if self.optimized {
                 module
@@ -191,7 +202,7 @@ impl CompilerInstance
             module.print_to_file(format!("{name}.ll"))?;
         }
 
-        Ok(())
+        Ok(build_manifest)
     }
 
     fn generate_asts(&self) -> Result<GlobalContext>
@@ -210,13 +221,14 @@ impl CompilerInstance
 
         // Parse "main.f" (The main entrypoint of the project)
         // If "main.f" imports any other files those will get parsed too
-        let parsing_result = parse_src_file(&parser_settings, &module_path, &mut g_context, src_path);
+        let parsing_result =
+            parse_src_file(&parser_settings, &module_path, &mut g_context, src_path);
 
         // Check if the parsing resulted in any errors, if yes display this error message
         if parsing_result.is_err() {
             error!("Parsing error occured, parsing cannot continue.")
         }
-        
+
         parsing_result?;
 
         // Check if the folder is present inside the dependencies folder

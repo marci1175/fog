@@ -11,7 +11,9 @@ use crate::{
 #[derive(Clone, Debug, Error)]
 pub enum ParserError
 {
-    #[error("After the `if` (or elseif) keyword a condition is reqired. Example: ```if (x > 5) {{}}```")]
+    #[error(
+        "After the `if` (or elseif) keyword a condition is reqired. Example: ```if (x > 5) {{}}```"
+    )]
     ConditionRequriredAfterIf,
     #[error(
         "When using the `this` keyword the function needs to be implemented for a specific type."

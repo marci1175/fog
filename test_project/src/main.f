@@ -7,10 +7,10 @@ public function main(): int {
     const int x = 1000;
     const int b = 31;
 
-    helper_function1(b);
+    helper_function1(helper_function1(b));
 
     if (true) {
-        return 1;
+        return 2;
     }
     else {
         return 1;

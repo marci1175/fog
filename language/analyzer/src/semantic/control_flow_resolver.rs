@@ -7,26 +7,68 @@ use common::{
 
 use crate::{VariableMap, semantic::type_resolver::resolve_statement_type};
 
-/// This function only parses and verifies the control flow of the function until a unconditional return statement.
-pub fn verify_function_control_flow(
+/// This function only parses and verifies the control flow of the function body until an unconditional return statement.
+pub fn verify_control_flow(
     body: &Vec<Spanned<StatementVariant>>,
     variable_map: &VariableMap,
     errors: &mut Vec<Spanned<anyhow::Error>>,
-) -> anyhow::Result<(bool, Vec<Option<Spanned<Type>>>)>
+    target_return_ty: Option<Type>,
+) -> anyhow::Result<(bool, Type)>
 {
     // Collect a list of the returned values
     let mut returned_types = Vec::new();
 
     // Fetch return type recursively
-    let returns_val = fetch_return_type(body, variable_map, &mut returned_types, errors)?;
+    let returns_val = fetch_returned_type(body, variable_map, &mut returned_types, errors)?;
 
-    Ok((returns_val, returned_types))
+    Ok((
+        returns_val,
+        // Verify that all of the returned types are uniform
+        // If the return types do not match, this function returns an error
+        verify_uniform_return_type(
+            &returned_types,
+            errors,
+            target_return_ty.unwrap_or(
+                returned_types
+                    .first()
+                    .map(|inner| inner.get_inner().clone())
+                    .unwrap_or(Type::Void),
+            ),
+        ).unwrap_or(Type::Placeholder),
+    ))
 }
 
-fn fetch_return_type(
+fn verify_uniform_return_type(
+    returned_types: &[Spanned<Type>],
+    errors: &mut Vec<Spanned<anyhow::Error>>,
+    correct_ret_ty: Type,
+) -> anyhow::Result<Type>
+{
+    let mismatching_types = returned_types
+        .iter()
+        .filter(|ret_ty| ret_ty.get_inner() != &correct_ret_ty);
+
+    let mut mismatch_occured = false;
+
+    // Iter over all the mismatching return types
+    for mismatching_type in mismatching_types {
+        mismatch_occured = true;
+
+        errors.push(mismatching_type.rewrap_value(AnalyzerError::HeterogeneousReturnType.into()));
+    }
+
+    // If there were any mismatching types then we can return an error here
+    if mismatch_occured {
+        return Err(AnalyzerError::HeterogeneousReturnType.into());
+    }
+
+    return Ok(correct_ret_ty);
+}
+
+fn fetch_returned_type(
     body: &Vec<Spanned<StatementVariant>>,
     variable_map: &VariableMap,
-    returned_types: &mut Vec<Option<Spanned<Type>>>,
+    returned_types: &mut Vec<Spanned<Type>>,
     errors: &mut Vec<Spanned<anyhow::Error>>,
 ) -> anyhow::Result<bool>
 {
@@ -40,10 +82,10 @@ fn fetch_return_type(
         match stmt {
             StatementVariant::ReturnValue { value } => {
                 // Store the returned type
-                returned_types.push(
-                    resolve_statement_type(value.get_inner(), variable_map)?
-                        .map(|ty| Spanned { inner: ty, span }),
-                );
+                returned_types.push(Spanned {
+                    inner: resolve_statement_type(value.get_inner(), variable_map, errors)?,
+                    span,
+                });
 
                 // Set this flag to true
                 value_returned = true;
@@ -52,7 +94,8 @@ fn fetch_return_type(
                 break;
             },
             StatementVariant::Loop(body) => {
-                fetch_return_type(&body, variable_map, returned_types, errors)?;
+                // We may just assume its not returning
+                value_returned = fetch_returned_type(&body, variable_map, returned_types, errors)?;
             },
             // Implement the rest of the loop types here
             StatementVariant::If(stmt) => {
@@ -60,7 +103,7 @@ fn fetch_return_type(
                 let is_last_elem = idx == body.len() - 1;
 
                 // Try fetching the return type of the true branch
-                let true_returned_val = fetch_return_type(
+                let true_returned_val = fetch_returned_type(
                     &stmt.true_branch.body,
                     variable_map,
                     returned_types,
@@ -72,11 +115,16 @@ fn fetch_return_type(
                     .false_branch
                     .as_ref()
                     .map(|false_branch| {
-                        fetch_return_type(&false_branch.body, variable_map, returned_types, errors)
+                        fetch_returned_type(
+                            &false_branch.body,
+                            variable_map,
+                            returned_types,
+                            errors,
+                        )
                     })
                     .unwrap_or(Ok(false))?;
 
-                // If neither of the branches return a value then we can raise an error about the function not returning a value, otherwise we can be more specific and refer to the actual path coverage.
+                // If neither of the branches return a value then we can signal the function not returning a value, otherwise we can be more specific and refer to the actual path coverage.
                 if !true_returned_val && !false_returned_val {
                     return Ok(false);
                 }

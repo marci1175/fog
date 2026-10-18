@@ -1072,7 +1072,7 @@ pub enum ResolvedItemReference
     Static(Type),
 
     /// This item is only a placeholder and its only purpose is that the analyzer can continue after encountering an error and using this to fill in the missing value.
-    Unresolved,
+    Placeholder,
 }
 
 #[derive(Display, Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]

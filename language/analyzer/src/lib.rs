@@ -13,8 +13,9 @@ use common::{
 };
 
 use crate::semantic::{
-    control_flow_resolver::verify_function_control_flow, type_resolver::resolve_numerical_size,
-    variable_resolver::resolve_identifiers,
+    control_flow_resolver::verify_control_flow,
+    type_resolver::resolve_numerical_size,
+    variable_resolver::{IdentifierMap, resolve_identifiers},
 };
 
 pub type TypeMap = PathMap<Vec<String>, String, CustomItem>;
@@ -61,28 +62,32 @@ pub fn start_analysis(
                 .map(|(name, (ty, _))| (name.clone(), ty.clone())),
         );
 
+        // Create a map of all the available identifiers, its easier to handle in this format
+        let identifier_map = IdentifierMap {
+            items: &g_ctx.items,
+            function_sigs: &g_ctx.function_signatures,
+            external_declerations: &g_ctx.external_declerations,
+            imports,
+            variable_map: &mut variable_map,
+            path,
+        };
+
         // Resolve items present in context (functions, structs, etc)
         // Analyze and modify the identifiers and return the list of errors
         // Extend the list of errors with the analyzation step
-        resolve_identifiers(
-            path.to_vec(),
-            &g_ctx.items,
-            &g_ctx.function_signatures,
-            &g_ctx.external_declerations,
-            imports,
-            // Collect the arguments of this function and load the arguments into the pre-existing variable map
-            &mut variable_map,
-            &mut def.body,
-            &mut function_errors,
-        )?;
+        resolve_identifiers(identifier_map, &mut def.body, &mut function_errors)?;
 
         // Resolve types in the function bodies
         // This checks the intended type of a value and if that value is a literal, it resizes the literal to the desired type (size)
         resolve_numerical_size(&mut def.body, &mut function_errors)?;
 
         // Verify the function return paths
-        let (returns_value, returned_types) =
-            verify_function_control_flow(&def.body, &variable_map, &mut function_errors)?;
+        let (returns_value, returned_type) = verify_control_flow(
+            &def.body,
+            &variable_map,
+            &mut function_errors,
+            Some(this_sig.return_type.clone()),
+        )?;
 
         // If the function doesnt return anything and the return type is not void (meaning we should be returning smth) raise an error.
         if this_sig.return_type != Type::Void && !returns_value {

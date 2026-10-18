@@ -303,6 +303,9 @@ pub enum Type
 
     /// A TraitObject is basically a set of traits, I may remove them later and adopt traits better
     TraitObject(OrdSet<Vec<String>>),
+
+    /// This type can only be created by the compiler and is for making the compiler continue after encountering a type error.
+    Placeholder,
 }
 
 impl From<CustomItem> for Type
@@ -403,6 +406,8 @@ impl PartialEq for Type
                     .iter()
                     .all(|impl_trait| attributes.traits_implemented.contains(impl_trait))
             },
+            // A placeholder type equals every other type, so that type checking can assume the best case scenario for the represented type
+            (Self::Placeholder, _) => true,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
@@ -476,6 +481,7 @@ impl Type
             Self::Trait { .. } => 0,
             Self::TraitObject { .. } => 0,
             Self::Unresolved(_) => panic!("[INTERNAL ERROR] Unresolved types do not have a size."),
+            Self::Placeholder => panic!("[INTERNAL ERROR] Placeholder types do not have a size."),
         }
     }
 
@@ -528,6 +534,9 @@ impl Type
                 return Err(CodeGenError::InternalUnresolvedType(str.to_string()).into());
             },
             Type::TraitObject(_ord_set) => {
+                return Err(CodeGenError::InternalTypeNonRepresentable(self.clone()).into());
+            },
+            Type::Placeholder => {
                 return Err(CodeGenError::InternalTypeNonRepresentable(self.clone()).into());
             },
         })
@@ -591,6 +600,9 @@ impl Type
             Self::Unresolved(_) => {
                 unimplemented!("Unresolved types must be modified before codegen.")
             },
+            Self::Placeholder => {
+                unimplemented!("Codegen cannot begin with placeholder types in code.")
+            },
         }
     }
 }
@@ -628,6 +640,7 @@ impl Display for Type
                 format!("TraitObject({implemented_traits:#?})")
             },
             Type::Unresolved(ident) => format!("Unresolved({ident})"),
+            Type::Placeholder => format!("Placeholder"),
         })
     }
 }
@@ -756,7 +769,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
                 Type::TraitObject(implemented_traits),
             ));
         },
-        Some(Type::Unresolved(_ident)) => {
+        Some(Type::Unresolved(_)) | Some(Type::Placeholder) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
                 dest_type.unwrap(),
@@ -1007,6 +1020,9 @@ pub fn ty_to_llvm_ty<'ctx>(ctx: &'ctx Context, ty: &Type) -> anyhow::Result<Basi
             return Err(CodeGenError::InternalUnresolvedType(str.to_string()).into());
         },
         Type::TraitObject(_ord_set) => {
+            return Err(CodeGenError::InternalTypeNonRepresentable(ty.clone()).into());
+        },
+        Type::Placeholder => {
             return Err(CodeGenError::InternalTypeNonRepresentable(ty.clone()).into());
         },
     })

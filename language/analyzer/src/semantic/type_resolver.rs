@@ -8,7 +8,7 @@ use common::{
     parser::common::{CustomItem, ResolvedItemReference, StatementVariant},
 };
 
-use crate::VariableMap;
+use crate::{VariableMap, semantic::control_flow_resolver::verify_control_flow};
 
 #[macro_export]
 macro_rules! create_conversion_chain {
@@ -253,7 +253,7 @@ fn resolve_numerical_size_in_statement(
                     },
 
                     // Continue analyzing the function and skip this statement
-                    ResolvedItemReference::Unresolved => return Ok(()),
+                    ResolvedItemReference::Placeholder => return Ok(()),
                 }
             }
             else {
@@ -286,7 +286,8 @@ pub fn resolve_numerical_size(
 pub fn resolve_statement_type(
     stmt: &StatementVariant,
     variable_map: &VariableMap,
-) -> anyhow::Result<Option<Type>>
+    errors: &mut Vec<Spanned<anyhow::Error>>,
+) -> anyhow::Result<Type>
 {
     let resolved_type = match stmt {
         StatementVariant::InternalCheckedReference {
@@ -296,106 +297,131 @@ pub fn resolve_statement_type(
             match referenced_item {
                 ResolvedItemReference::Variable => {
                     // Lookup variable
-                    Some(
-                        variable_map
-                            .get(identifier)
-                            .cloned()
-                            .ok_or(AnalyzerError::IdentifierNotFound)?,
-                    )
+                    variable_map
+                        .get(identifier)
+                        .cloned()
+                        .ok_or(AnalyzerError::IdentifierNotFound)?
                 },
                 ResolvedItemReference::Type(custom_item) => {
                     match custom_item.clone() {
                         CustomItem::Struct(struct_definition) => {
-                            Some(Type::Struct {
+                            Type::Struct {
                                 name: struct_definition.name,
                                 fields: struct_definition.fields,
                                 attributes: struct_definition.attributes,
-                            })
+                            }
                         },
                         CustomItem::Enum { name, ty, variants } => {
-                            Some(Type::Enum {
+                            Type::Enum {
                                 name,
                                 ty: Box::new(ty),
                                 variants,
-                            })
+                            }
                         },
                         CustomItem::Trait {
                             name,
                             functions,
                             access_path,
                         } => {
-                            Some(Type::Trait {
+                            Type::Trait {
                                 name: name,
                                 access_path,
                                 functions,
-                            })
+                            }
                         },
                     }
                 },
                 ResolvedItemReference::Function(function_signature) => {
-                    Some(function_signature.return_type.clone())
+                    function_signature.return_type.clone()
                 },
-                ResolvedItemReference::Static(ty) => Some(ty.clone()),
-                ResolvedItemReference::Unresolved => None,
+                ResolvedItemReference::Static(ty) => ty.clone(),
+                ResolvedItemReference::Placeholder => Type::Void,
             }
         },
-        StatementVariant::NewVariable { .. } => None,
+        StatementVariant::NewVariable { .. } => Type::Void,
 
         // This should not appear here since the previous analyzer step would overwrite this into a resolved reference
         StatementVariant::BasicReference { identifier } => todo!(),
 
         StatementVariant::ArrayReference {
             variable_reference, ..
-        } => resolve_statement_type(variable_reference, variable_map)?,
+        } => resolve_statement_type(variable_reference, variable_map, errors)?,
 
         StatementVariant::StructPropertyAccess {
             variable_reference,
             field_name,
         } => todo!(),
 
-        StatementVariant::Value(value) => Some(value.get_type()),
-        StatementVariant::TypeCast(_, target) => Some(target.clone()),
+        StatementVariant::Value(value) => value.get_type(),
+        StatementVariant::TypeCast(_, target) => target.clone(),
         StatementVariant::MathematicalExpression { lhs, .. } => {
-            resolve_statement_type(lhs, variable_map)?
+            resolve_statement_type(lhs, variable_map, errors)?
         },
-        StatementVariant::NegateValue(stmt) => resolve_statement_type(stmt, variable_map)?,
+        StatementVariant::NegateValue(stmt) => resolve_statement_type(stmt, variable_map, errors)?,
         StatementVariant::FunctionCall { identifier, .. } => {
             // Resolve function signature, by resolving its name and return type
             // To resolve the function we are gonna need the traits and everything parsed by this point so this is gonna be implemented later
             todo!()
         },
-        StatementVariant::SetValue { .. } => None,
-        StatementVariant::ModifyValueArithmetic { .. } => None,
-        StatementVariant::ReturnValue { .. } => None,
-        StatementVariant::Comparison { .. } => Some(Type::Boolean),
+        StatementVariant::SetValue { .. } => Type::Void,
+        StatementVariant::ModifyValueArithmetic { .. } => Type::Void,
+        StatementVariant::ReturnValue { .. } => Type::Void,
+        StatementVariant::Comparison { .. } => Type::Boolean,
         StatementVariant::LogicalOperation { lhs, .. } => {
-            resolve_statement_type(lhs, variable_map)?
+            resolve_statement_type(lhs, variable_map, errors)?
         },
-        StatementVariant::If(_) => {
+        StatementVariant::If(stmt) => {
             // Resolve branch return values (check if they match and return that)
-            todo!()
+            let (true_value_returned, true_returned_type) =
+                verify_control_flow(&stmt.true_branch.body, variable_map, errors, None)?;
+
+            if let Some(false_branch) = &stmt.false_branch {
+                let (false_value_returned, false_returned_type) = verify_control_flow(
+                    &false_branch.body,
+                    variable_map,
+                    errors,
+                    Some(true_returned_type.clone()),
+                )?;
+            }
+
+            if !true_value_returned {
+                Type::Void
+            }
+            else {
+                true_returned_type
+            }
         },
-        StatementVariant::CodeBlock(spanneds) => {
-            // Do the same thing basically as with the branches of if.
-            todo!()
+        StatementVariant::CodeBlock(body) => {
+            let (value_returned, returned_type) =
+                verify_control_flow(&body, variable_map, errors, None)?;
+            if !value_returned {
+                Type::Void
+            }
+            else {
+                returned_type
+            }
         },
         StatementVariant::Grouping { inner_expr } => {
-            resolve_statement_type(inner_expr, variable_map)?
+            resolve_statement_type(inner_expr, variable_map, errors)?
         },
-        StatementVariant::Loop(_) => None,
-        StatementVariant::ControlFlow(_) => None,
+        StatementVariant::Loop(_) => Type::Void,
+        StatementVariant::ControlFlow(_) => Type::Void,
         StatementVariant::ArrayInitialization { values } => {
-            Some(Type::Array {
+            Type::Array {
                 ty: todo!(),
                 len: values.len(),
-            })
+            }
         },
         StatementVariant::GetPointerTo(spanned) => {
-            Some(Type::Pointer(
-                resolve_statement_type(spanned, variable_map)?.map(|ty| Box::new(ty)),
-            ))
+            Type::Pointer(Some(Box::new(resolve_statement_type(
+                spanned,
+                variable_map,
+                errors,
+            )?)))
         },
-        StatementVariant::DerefPointer(spanned) => resolve_statement_type(spanned, variable_map)?,
+        StatementVariant::DerefPointer(spanned) => {
+            resolve_statement_type(spanned, variable_map, errors)?
+        },
     };
 
     Ok(resolved_type)
