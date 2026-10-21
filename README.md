@@ -50,7 +50,7 @@ public function main(): int {
 
     helper_function1(helper_function1(b));
 
-    println("Name: %s, Number: %i", name, number);
+    printf("Name: %s, Number: %i", name, number);
 
     if (true) {
         return (deref item_ptr) - 1;
