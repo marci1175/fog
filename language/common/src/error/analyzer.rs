@@ -11,7 +11,7 @@ pub enum AnalyzerError
 {
     #[error("Different code paths return different types.")]
     HeterogeneousReturnType,
-    #[error("Function returns a value of type `{0}`, signature requires `{1}.`")]
+    #[error("Function returns a value of type `{0}`, signature requires `{1}`.")]
     MismatchingReturnType(Type, Type),
     #[error("Not all conditional branches return a value when needed.")]
     InsufficientReturnPathCoverage,

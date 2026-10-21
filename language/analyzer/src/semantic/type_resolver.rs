@@ -215,24 +215,8 @@ fn resolve_numerical_size_in_statement(
 
                             // Verify that the function call's arguments match up with the function's signature
                             if let Some((ty, _id)) = argument_query {
-                                // If the value is a numeric value we can convert it
-                                if let Some(numeric_value) = value.inner.try_as_value_mut() {
-                                    // If the argument is not convertible just skip the argument
-                                    // The resize function is only callable with types that can have numeric values converted to them
-                                    // This is basically just to avoid an error in the resize function.
-                                    // This will return an error later at the type checking.
-                                    if !ty.is_number() {
-                                        // Parse next argument
-                                        continue;
-                                    }
-
-                                    // Resize numeric literal
-                                    resize(ty.clone(), numeric_value)?;
-                                }
-                                else {
-                                    // Resolve its argument recursively
-                                    resolve_numerical_size_in_statement(value, errors, Some(ty))?;
-                                }
+                                // Resolve its argument recursively
+                                resolve_numerical_size_in_statement(value, errors, Some(ty))?;
                             }
                             else {
                                 // Store error of the argument nad continue parsing
@@ -267,9 +251,24 @@ fn resolve_numerical_size_in_statement(
                 );
             }
         },
-        StatementVariant::ReturnValue { value } => {},
+        StatementVariant::ReturnValue { value } => {
+            resolve_numerical_size_in_statement(&mut *value, errors, target_type)?;
+        },
+        StatementVariant::Value(value) => {
+            let ty = target_type.cloned().unwrap_or(value.get_type());
+            
+            // If the given type is not a value we can return since we cannot convert it to any other type at this stage
+            if !ty.is_number() {
+                return Ok(());
+            }
+            
+            resize(ty.clone(), value)?;
+        }
         StatementVariant::ArrayInitialization { values } => {},
-        StatementVariant::MathematicalExpression { lhs, symbol, rhs } => {},
+        StatementVariant::MathematicalExpression { lhs,  rhs, .. } => {
+            resolve_numerical_size_in_statement(&mut *lhs, errors, target_type)?;
+            resolve_numerical_size_in_statement(&mut *rhs, errors, target_type)?;
+        },
         _ => (),
     }
 
@@ -285,12 +284,22 @@ pub fn resolve_numerical_size_in_fn_body(
     // We can simply iterate over all the statements since these arent need to be applied globally
     for stmt in body {
         // We should skip specific statements since they do not return any value or are insignificant (such as a statement with no side effect or function call.)
-        match stmt.get_inner() {
+        match &mut stmt.inner {
             // These can only be parsed when the resolver function calls itself
             StatementVariant::MathematicalExpression { .. } => continue,
             StatementVariant::ReturnValue { .. } => {
                 resolve_numerical_size_in_statement(stmt, errors, Some(&this_fn_sig.return_type))?
             },
+            StatementVariant::If(stmt) => {
+                resolve_numerical_size_in_fn_body(&mut stmt.true_branch.body, errors, this_fn_sig)?;
+
+                if let Some(branch) = &mut stmt.false_branch {
+                    resolve_numerical_size_in_fn_body(&mut branch.body, errors, this_fn_sig)?;
+                }
+            }
+            StatementVariant::CodeBlock(body) => {
+                resolve_numerical_size_in_fn_body(body, errors, this_fn_sig)?;
+            }
             _ => resolve_numerical_size_in_statement(stmt, errors, None)?,
         }
     }
