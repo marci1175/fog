@@ -114,7 +114,7 @@ impl CompilerInstance
 
                     // Display error in cli
                     error!("{error}");
-                    
+
                     // If this is a debug build we should also display the backtrace of the encountered error
                     #[cfg(debug_assertions)]
                     {

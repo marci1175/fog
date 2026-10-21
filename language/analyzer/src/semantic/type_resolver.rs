@@ -5,7 +5,10 @@ use common::{
         ty::{NotNan, Type, Value},
     },
     error::{Spanned, analyzer::AnalyzerError},
-    parser::common::{CustomItem, ResolvedItemReference, StatementVariant},
+    parser::{
+        common::{CustomItem, ResolvedItemReference, StatementVariant},
+        function::FunctionSignature,
+    },
 };
 
 use crate::{VariableMap, semantic::control_flow_resolver::verify_control_flow};
@@ -165,9 +168,11 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
     Ok(())
 }
 
+/// Ink itt ilyen "rule"okat kellene felallitani amely minden statementre igaz
 fn resolve_numerical_size_in_statement(
     stmt: &mut Spanned<StatementVariant>,
     errors: &mut Vec<Spanned<anyhow::Error>>,
+    target_type: Option<&Type>,
 ) -> anyhow::Result<()>
 {
     // Number literals can only be in a limited  variants of statements
@@ -226,7 +231,7 @@ fn resolve_numerical_size_in_statement(
                                 }
                                 else {
                                     // Resolve its argument recursively
-                                    resolve_numerical_size_in_statement(value, errors)?;
+                                    resolve_numerical_size_in_statement(value, errors, Some(ty))?;
                                 }
                             }
                             else {
@@ -262,20 +267,32 @@ fn resolve_numerical_size_in_statement(
                 );
             }
         },
+        StatementVariant::ReturnValue { value } => {},
+        StatementVariant::ArrayInitialization { values } => {},
+        StatementVariant::MathematicalExpression { lhs, symbol, rhs } => {},
         _ => (),
     }
 
     Ok(())
 }
 
-pub fn resolve_numerical_size(
+pub fn resolve_numerical_size_in_fn_body(
     body: &mut Vec<Spanned<StatementVariant>>,
     errors: &mut Vec<Spanned<anyhow::Error>>,
+    this_fn_sig: &FunctionSignature,
 ) -> anyhow::Result<()>
 {
     // We can simply iterate over all the statements since these arent need to be applied globally
     for stmt in body {
-        resolve_numerical_size_in_statement(stmt, errors)?;
+        // We should skip specific statements since they do not return any value or are insignificant (such as a statement with no side effect or function call.)
+        match stmt.get_inner() {
+            // These can only be parsed when the resolver function calls itself
+            StatementVariant::MathematicalExpression { .. } => continue,
+            StatementVariant::ReturnValue { .. } => {
+                resolve_numerical_size_in_statement(stmt, errors, Some(&this_fn_sig.return_type))?
+            },
+            _ => resolve_numerical_size_in_statement(stmt, errors, None)?,
+        }
     }
 
     Ok(())
@@ -372,11 +389,12 @@ pub fn resolve_statement_type(
         },
         StatementVariant::If(stmt) => {
             // Resolve branch return values (check if they match and return that)
-            let (true_value_returned, true_returned_type) =
+            let (true_returned_type) =
                 verify_control_flow(&stmt.true_branch.body, variable_map, errors, None)?;
 
             if let Some(false_branch) = &stmt.false_branch {
-                let (false_value_returned, false_returned_type) = verify_control_flow(
+                // We dont have to verify the returned type's validity here since its already checked in the function itself.
+                let (_false_returned_type) = verify_control_flow(
                     &false_branch.body,
                     variable_map,
                     errors,
@@ -384,22 +402,10 @@ pub fn resolve_statement_type(
                 )?;
             }
 
-            if !true_value_returned {
-                Type::Void
-            }
-            else {
-                true_returned_type
-            }
+            true_returned_type
         },
         StatementVariant::CodeBlock(body) => {
-            let (value_returned, returned_type) =
-                verify_control_flow(&body, variable_map, errors, None)?;
-            if !value_returned {
-                Type::Void
-            }
-            else {
-                returned_type
-            }
+            verify_control_flow(&body, variable_map, errors, None)?
         },
         StatementVariant::Grouping { inner_expr } => {
             resolve_statement_type(inner_expr, variable_map, errors)?

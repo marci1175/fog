@@ -14,7 +14,7 @@ use common::{
 
 use crate::semantic::{
     control_flow_resolver::verify_control_flow,
-    type_resolver::resolve_numerical_size,
+    type_resolver::resolve_numerical_size_in_fn_body,
     variable_resolver::{IdentifierMap, resolve_identifiers},
 };
 
@@ -79,10 +79,10 @@ pub fn start_analysis(
 
         // Resolve types in the function bodies
         // This checks the intended type of a value and if that value is a literal, it resizes the literal to the desired type (size)
-        resolve_numerical_size(&mut def.body, &mut function_errors)?;
+        resolve_numerical_size_in_fn_body(&mut def.body, &mut function_errors, this_sig)?;
 
         // Verify the function return paths
-        let (returns_value, returned_type) = verify_control_flow(
+        let returned_type = verify_control_flow(
             &def.body,
             &variable_map,
             &mut function_errors,
@@ -90,7 +90,7 @@ pub fn start_analysis(
         )?;
 
         // If the function doesnt return anything and the return type is not void (meaning we should be returning smth) raise an error.
-        if this_sig.return_type != Type::Void && !returns_value {
+        if this_sig.return_type != Type::Void && returned_type == Type::Void {
             function_errors.push(Spanned {
                 inner: AnalyzerError::FunctionRequiresReturn.into(),
                 span: def.span,
