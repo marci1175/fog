@@ -19,12 +19,13 @@ It focuses on minimalism, predictable semantics, and fast native compilation —
 | Module System | Supported ✅ |
 | Dependency System | Supported ✅ |
 | Function Generics & Traits | Supported ✅ |
+| Type checker & Dynamic type resolver | Partially Supported ⚠️ |
+| Basic code analyzer | Partially Supported ⚠️ |
 | Debug Information | Partially Supported ⚠️ |
 | FFI (C ABI) | Partially Supported ⚠️ |
 | Dynamic Memory Allocation | Planned 🔵 |
-| Async / Tasks | Planned 🔵 |
 | Incremental Compilation | Planned 🔵 |
-| Full Standard Library | Planned 🔵 |
+| Standard Library | Planned 🔵 |
 
 ---
 
@@ -33,9 +34,12 @@ It focuses on minimalism, predictable semantics, and fast native compilation —
 Fog offers a clean syntax designed around expressive power:
 
 ```fog
-external println(lhs: string, ...);
+external function printf(str: string, ...): int;
 
-pub function main(): int {
+import "helper.f";
+import helper::helper_function1;
+
+public function main(): int {
     array<int, 4> numbers = {1, 2, 3, 4};
     
     ptr<int> item_ptr = ref numbers[0];
@@ -44,13 +48,20 @@ pub function main(): int {
     string name = "Alma";
     int number = wello(10, 24);
 
-    println("Name: %s, Number: %i", name, number);
+    helper_function1(helper_function1(b));
 
-    return (deref item_ptr) - 1;
+    printf("Name: %s, Number: %i", name, number);
+
+    if (true) {
+        return (deref item_ptr) - 1;
+    }
+    else {
+        return 1;
+    }
 }
 
 @feature "testing"
-pub function wello(lhs: int, rhs: int): int {
+public function wello(lhs: int, rhs: int): int {
     return lhs * (rhs - lhs);
 }
 ```
