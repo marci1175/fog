@@ -151,7 +151,7 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         Token::UnparsedLiteral(unparsed_literal) => {
             Spanned {
                 inner: {
-                    if let Some((lit, ty)) = try_match_suffix(unparsed_literal) {
+                    if let Some((lit, ty)) = dbg!(try_match_suffix(unparsed_literal)) {
                         match ty {
                             TypeDiscriminants::I64 => {
                                 StatementVariant::Value(Value::I64(lit.parse::<i64>()?))
@@ -226,5 +226,5 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     // -foo
     // -bar()
 
-    parse_variable_expression(tkns, val)
+    parse_variable_expression(tkns, dbg!(val))
 }

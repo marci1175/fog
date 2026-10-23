@@ -1,7 +1,5 @@
 use std::{
-    fs::{self, ReadDir},
-    io::{self, Cursor, Read, Seek, Write},
-    path::PathBuf,
+    fs::{self, ReadDir}, io::{self, Cursor, Read, Seek, Write}, path::{Path, PathBuf},
 };
 
 use flate2::{
@@ -57,7 +55,7 @@ pub fn unzip_from_bytes<T: Read + Seek>(inner: T) -> anyhow::Result<ZipArchive<T
 }
 
 pub fn write_zip_to_fs<T: Seek + Read>(
-    dependency_path: &PathBuf,
+    dependency_path: &Path,
     mut archive: ZipArchive<T>,
 ) -> anyhow::Result<Vec<PathBuf>, DependencyManagerError>
 {
@@ -70,7 +68,7 @@ pub fn write_zip_to_fs<T: Seek + Read>(
         if let Some(file_path) = archived_file.enclosed_name()
             && archived_file.is_file()
         {
-            let mut fs_file_path = dependency_path.clone();
+            let mut fs_file_path = dependency_path.to_path_buf();
             fs_file_path.push(file_path.clone());
 
             if archived_file.is_file() {

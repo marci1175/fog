@@ -81,7 +81,7 @@ pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug
 {
     Ok(
         // Consume the next token in the stream
-        match tkns.consume().cloned() {
+        match dbg!(tkns.consume().cloned()) {
             Some(tkn) => {
                 match tkn.get_inner() {
                     // Match a function call
@@ -434,7 +434,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 ) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
     if let Some(tkn) = tkns.consume().cloned() {
-        let value = match tkn.get_inner() {
+        let value = match dbg!(tkn.get_inner()) {
             Token::Identifier(ident) => {
                 // Own the first identifier
                 let ident = ident.to_owned();
@@ -455,7 +455,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 parse_variable_expression(
                     tkns,
                     Spanned {
-                        inner: StatementVariant::Value(val.clone()),
+                        inner: StatementVariant::Value(*val.clone()),
                         span: *tkn.get_span(),
                     },
                 )?
@@ -475,12 +475,12 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             // Parse the numeric value
             Token::UnparsedLiteral(_)
             | Token::MathSym(MathematicalSymbol::Addition)
-            | Token::MathSym(MathematicalSymbol::Subtraction) => parse_numeric_value(tkn, tkns)?,
+            | Token::MathSym(MathematicalSymbol::Subtraction) => dbg!(parse_numeric_value(tkn, tkns)?),
 
             // Return token indicates the end of the function on that specific path
             Token::Return => {
                 // Get the returned value from the tokens
-                let returned_value = parse_expr(tkns)?;
+                let returned_value = parse_expr(dbg!(tkns))?;
 
                 // Create a new span for this return statement
                 let span = combine_span_info(&[*tkn.get_span(), *returned_value.get_span()], true);

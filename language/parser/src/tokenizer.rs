@@ -69,9 +69,9 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
 
                     // Store the captured string
                     token_list.push(Spanned::new(
-                        Token::Literal(Value::String(
+                        Token::Literal(Box::new(Value::String(
                             String::from_utf8(capture.string_buffer.clone()).unwrap(),
-                        )),
+                        ))),
                         SpanInfo::new(
                             capture.span_start,
                             CharPosition::new(line_number, column_idx_begin + quote_idx),
@@ -228,7 +228,7 @@ fn parse_single_text(
             // If the quote was present that means that the string didnt have any spaces.
             if quote_present {
                 token_list.push(Spanned::new(
-                    Token::Literal(Value::String(String::from_utf8(string_buffer).unwrap())),
+                    Token::Literal(Box::new(Value::String(String::from_utf8(string_buffer).unwrap()))),
                     create_span_info(line_number, span_offset, idx_start, idx),
                 ));
             }
@@ -365,8 +365,8 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         },
         b"%=" => Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Modulo),
 
-        b"false" => Token::Literal(Value::Boolean(false)),
-        b"true" => Token::Literal(Value::Boolean(true)),
+        b"false" => Token::Literal(Box::new(Value::Boolean(false))),
+        b"true" => Token::Literal(Box::new(Value::Boolean(true))),
         b"external" => Token::External,
         b"import" => Token::Import,
         b"function" => Token::TypeDefinition(TypeToken::Function),

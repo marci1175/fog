@@ -130,6 +130,8 @@ impl CompilerInstance
             info!("No errors found during analysis.");
         }
 
+        dbg!(&global_context);
+
         info!("Generating LLVM IR....");
 
         // Generate LLVM IR for the global context

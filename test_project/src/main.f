@@ -1,18 +1,12 @@
 external function printf(str: string, ...): int;
 
-import "helper.f";
-import helper::helper_function1;
-
 public function main(): int {
-    const int x = 1000;
-    const int b = 31;
+    const float x = 2;
 
-    helper_function1(helper_function1(b));
+    return 0;
+}
 
-    if (true) {
-        return 2;
-    }
-    else {
-        return 1;
-    }
+@feature "testing"
+public function wello(lhs: int, rhs: int): int {
+    return lhs * (rhs - 1);
 }

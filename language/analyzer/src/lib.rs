@@ -24,8 +24,6 @@ pub type ExternalDeclMap = PathMap<Vec<String>, String, ExternalDeclerationType>
 pub type ImportMap = HashMap<String, ImportType>;
 pub type VariableMap = HashMap<String, Type>;
 
-/// Checks all types and automatically converts literals to their destined type.
-// pub mod ty;
 
 /// Semantic analysis, for example checks if the code is actually valid structurally, not just syntactically.
 pub mod semantic;

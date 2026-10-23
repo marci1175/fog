@@ -261,8 +261,11 @@ fn resolve_numerical_size_in_statement(
             if !ty.is_number() {
                 return Ok(());
             }
-            
+
             resize(ty.clone(), value)?;
+        }
+        StatementVariant::NegateValue(value) => {
+            resolve_numerical_size_in_statement(value, errors, target_type)?;
         }
         StatementVariant::ArrayInitialization { values } => {},
         StatementVariant::MathematicalExpression { lhs,  rhs, .. } => {
@@ -361,7 +364,7 @@ pub fn resolve_statement_type(
                     function_signature.return_type.clone()
                 },
                 ResolvedItemReference::Static(ty) => ty.clone(),
-                ResolvedItemReference::Placeholder => Type::Void,
+                ResolvedItemReference::Placeholder => Type::Placeholder,
             }
         },
         StatementVariant::NewVariable { .. } => Type::Void,
