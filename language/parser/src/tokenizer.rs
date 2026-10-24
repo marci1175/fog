@@ -14,7 +14,7 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
     let mut capture_string: Option<CaptureString> = None;
 
     'line_loop: for (line_idx, mut line) in input.lines().enumerate() {
-        let line_number = line_idx + 1;
+        let line_number = (line_idx + 1) as u32;
         let mut column_idx = 0;
 
         if in_multiline_comment {
@@ -50,7 +50,6 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
 
         for raw_text in line.split_inclusive(char::is_whitespace) {
             let trimmed_text = raw_text.trim();
-
             let column_idx_begin = column_idx;
 
             // Increment column idx by the text length (This includes whitespace)
@@ -74,7 +73,7 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
                         ))),
                         SpanInfo::new(
                             capture.span_start,
-                            CharPosition::new(line_number, column_idx_begin + quote_idx),
+                            CharPosition::new(line_number, (column_idx_begin + quote_idx) as u32),
                         ),
                     ));
 
@@ -83,7 +82,7 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
                         &mut token_list,
                         line_number,
                         other.trim(),
-                        column_idx_begin,
+                        column_idx_begin as u32,
                         &mut capture_string,
                     );
 
@@ -107,7 +106,7 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
                     &mut token_list,
                     line_number,
                     trimmed_text,
-                    column_idx_begin,
+                    column_idx_begin as u32,
                     &mut capture_string,
                 );
             }
@@ -122,9 +121,9 @@ pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
 
 fn parse_single_text(
     token_list: &mut Vec<Spanned<Token>>,
-    line_number: usize,
+    line_number: u32,
     raw_text: &str,
-    span_offset: usize,
+    span_offset: u32,
     capture_string: &mut Option<CaptureString>,
 )
 {
@@ -133,7 +132,7 @@ fn parse_single_text(
     let mut idx = 0;
 
     while idx < text.len() {
-        let iter_start_idx = idx;
+        let iter_start_idx = idx as u32;
 
         if text[idx].is_ascii_digit() {
             // Collect the integer part
@@ -167,7 +166,7 @@ fn parse_single_text(
 
             token_list.push(Spanned::new(
                 Token::UnparsedLiteral(String::from_utf8(std::mem::take(&mut buffer)).unwrap()),
-                create_span_info(line_number, span_offset, iter_start_idx, idx),
+                create_span_info(line_number, span_offset, iter_start_idx, idx as u32),
             ));
         }
         else if let Some(tkn) = try_match_token(text[idx..].trim_ascii()) {
@@ -176,8 +175,8 @@ fn parse_single_text(
                 create_span_info(
                     line_number,
                     span_offset,
-                    idx,
-                    idx + text[idx..].trim_ascii().len(),
+                    idx as u32,
+                    (idx + text[idx..].trim_ascii().len()) as u32,
                 ),
             ));
 
@@ -201,14 +200,19 @@ fn parse_single_text(
 
             token_list.push(Spanned::new(
                 matched,
-                create_span_info(line_number, span_offset, idx, idx + match_len),
+                create_span_info(
+                    line_number,
+                    span_offset,
+                    idx as u32,
+                    (idx + match_len) as u32,
+                ),
             ));
 
             idx += match_len;
         }
         else if text[idx] == b'"' {
             let mut string_buffer = Vec::new();
-            let idx_start = idx;
+            let idx_start = idx as u32;
             let mut quote_present = false;
 
             // Move the cursor to the first letter of the string
@@ -228,8 +232,10 @@ fn parse_single_text(
             // If the quote was present that means that the string didnt have any spaces.
             if quote_present {
                 token_list.push(Spanned::new(
-                    Token::Literal(Box::new(Value::String(String::from_utf8(string_buffer).unwrap()))),
-                    create_span_info(line_number, span_offset, idx_start, idx),
+                    Token::Literal(Box::new(Value::String(
+                        String::from_utf8(string_buffer).unwrap(),
+                    ))),
+                    create_span_info(line_number, span_offset, idx_start, idx as u32),
                 ));
             }
             // If the quote was not present, that means that the string consists of multiple words.
@@ -260,7 +266,7 @@ fn parse_single_text(
             // Store the identifier
             token_list.push(Spanned::new(
                 token,
-                create_span_info(line_number, span_offset, iter_start_idx, idx),
+                create_span_info(line_number, span_offset, iter_start_idx, idx as u32),
             ));
         }
     }
@@ -279,7 +285,7 @@ fn match_longest_token(bytes: &[u8]) -> Option<(Token, usize)>
 }
 
 /// This assumes that the Span we are trying to create is in one line.
-fn create_span_info(line: usize, offset: usize, start: usize, end: usize) -> SpanInfo
+fn create_span_info(line: u32, offset: u32, start: u32, end: u32) -> SpanInfo
 {
     SpanInfo {
         char_start: CharPosition {

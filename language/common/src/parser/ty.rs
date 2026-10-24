@@ -58,7 +58,9 @@ pub fn parse_struct(
             },
             // We have consumed the OpenBraces token we can move onto the main struct body parsing loop
             Token::OpenBraces => (),
-            _ => return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into()),
+            _ => {
+                return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
+            },
         }
     }
 
@@ -107,7 +109,9 @@ pub fn parse_struct(
                 }
             },
             Token::CloseBraces => break 'main_loop,
-            _ => return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into()),
+            _ => {
+                return Err(ParserError::SyntaxError(SyntaxError::InvalidStructDefinition).into());
+            },
         }
     }
 

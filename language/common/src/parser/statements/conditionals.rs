@@ -51,11 +51,11 @@ pub fn conditional_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         // Realistically we will never really need this to be stored since we are parsing the else at the last place which is the only thing that can overwrite the actual false branch at the very end.
         *current_false_branch = Some(Branch {
             body: vec![Spanned {
-                inner: StatementVariant::If(If {
+                inner: StatementVariant::If(Box::new(If {
                     condition,
                     true_branch: chained_branch,
                     false_branch: false_branch_snapshot,
-                }),
+                })),
 
                 // The actal false branch is not included in this span (correctly) because this if statement is chained into the false branch
                 span: branch_span,
@@ -101,7 +101,7 @@ pub fn conditional_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     );
 
     Ok(Spanned {
-        inner: StatementVariant::If(if_instance),
+        inner: StatementVariant::If(Box::new(if_instance)),
         span,
     })
 }
@@ -148,7 +148,7 @@ fn parse_condition<S: Streamable<Spanned<Token>>>(
         )
         .ok_or(ParserError::EOF)?;
 
-    let condition = parse_expr(&mut condition_tokens)?;
+    let condition = parse_expr(&mut condition_tokens, None)?;
 
     drop(condition_tokens);
 

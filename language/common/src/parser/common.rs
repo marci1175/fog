@@ -240,12 +240,6 @@ impl<T> Streamable<T> for Stream<T>
         Some(query)
     }
 
-    /// Decrement the cursor by `num`. If `num > self.idx` the internal index is zeroed.
-    // fn decrement_cursor(&mut self, num: usize)
-    // {
-    //     self.idx = self.idx.saturating_sub(num);
-    // }
-
     /// Peeks the rest of the [`TokenStream`].
     fn peek_remainder(&self) -> Option<&[T]>
     {
@@ -828,13 +822,13 @@ pub enum StatementVariant
         /// The identifier/string of the referenced item
         identifier: String,
         /// The actual referenced item
-        referenced_item: ResolvedItemReference,
+        referenced_item: Box<ResolvedItemReference>,
     },
 
     NewVariable
     {
         variable_name: String,
-        variable_type: Type,
+        variable_type: Box<Type>,
         variable_value: Box<Spanned<StatementVariant>>,
         variable_id: UniqueId,
         is_mutable: bool,
@@ -858,9 +852,9 @@ pub enum StatementVariant
         field_name: String,
     },
 
-    Value(Value),
+    Value(Box<Value>),
 
-    TypeCast(Box<Spanned<StatementVariant>>, Type),
+    TypeCast(Box<Spanned<StatementVariant>>, Box<Type>),
 
     MathematicalExpression
     {
@@ -879,7 +873,7 @@ pub enum StatementVariant
         arguments: OrdMap<
             // A function's arguments can be identified by its position in the function call, or if the argument is named
             FunctionArgumentIdentifier<String, usize>,
-            Spanned<StatementVariant>,
+            Box<Spanned<StatementVariant>>,
         >,
     },
 
@@ -918,7 +912,7 @@ pub enum StatementVariant
         rhs: Box<Spanned<StatementVariant>>,
     },
 
-    If(If),
+    If(Box<If>),
 
     /// This should in theory work as a standalone function body.
     /// The returned type of this block is set by its environment.
@@ -1343,7 +1337,7 @@ pub fn find_next_bitor(bitor_start_slice: &[Token]) -> Result<usize>
         }
     }
 
-    Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
+    Err(ParserError::SyntaxError((SyntaxError::LeftOpenParentheses)).into())
 }
 
 pub fn find_closing_braces<S: Streamable<Spanned<Token>>>(tokens: &S) -> Option<usize>
@@ -1396,7 +1390,7 @@ pub fn find_next_comma(slice: &[Token]) -> Result<usize>
         }
     }
 
-    Err(ParserError::SyntaxError(SyntaxError::CommaNotFound).into())
+    Err(ParserError::SyntaxError((SyntaxError::CommaNotFound)).into())
 }
 
 pub fn parse_compiler_instruction(
@@ -1427,17 +1421,18 @@ pub fn parse_compiler_instruction(
                 }
             },
             _ => {
-                return Err(ParserError::SyntaxError(
-                    SyntaxError::CompilerInstructionRequiredAfterSymbol,
-                )
+                return Err(ParserError::SyntaxError((
+                    SyntaxError::CompilerInstructionRequiredAfterSymbol
+                ))
                 .into());
             },
         }
     }
     else {
-        return Err(
-            ParserError::SyntaxError(SyntaxError::CompilerInstructionRequiredAfterSymbol).into(),
-        );
+        return Err(ParserError::SyntaxError((
+            SyntaxError::CompilerInstructionRequiredAfterSymbol
+        ))
+        .into());
     }
 
     Ok(())

@@ -22,8 +22,7 @@ pub type TypeMap = PathMap<Vec<String>, String, CustomItem>;
 pub type FnSigMap = PathMap<Vec<String>, String, FunctionSignature>;
 pub type ExternalDeclMap = PathMap<Vec<String>, String, ExternalDeclerationType>;
 pub type ImportMap = HashMap<String, ImportType>;
-pub type VariableMap = HashMap<String, Type>;
-
+pub type VariableMap = HashMap<String, Box<Type>>;
 
 /// Semantic analysis, for example checks if the code is actually valid structurally, not just syntactically.
 pub mod semantic;
@@ -52,12 +51,12 @@ pub fn start_analysis(
         // Create a variable map so that we can check the type of the variable later.
         // (If the identifiers are resolved, then this map can be used regardless of where we are trying to resolve the type of a specific variable
         // since the validity of the usage of the variable is verified when creating this list. `resolve_identifiers`)
-        let mut variable_map = HashMap::from_iter(
+        let mut variable_map: HashMap<String, Box<Type>> = HashMap::from_iter(
             this_sig
                 .args
                 .arguments
                 .iter()
-                .map(|(name, (ty, _))| (name.clone(), ty.clone())),
+                .map(|(name, (ty, _))| (name.clone(), Box::new(ty.clone()))),
         );
 
         // Create a map of all the available identifiers, its easier to handle in this format

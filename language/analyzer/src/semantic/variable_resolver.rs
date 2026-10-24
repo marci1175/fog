@@ -145,11 +145,11 @@ pub fn resolve_identifiers(
                     if let StatementVariant::BasicReference { identifier } = statement.get_inner() {
                         statement.inner = StatementVariant::InternalCheckedReference {
                             identifier: identifier.clone(),
-                            referenced_item: identifier_map.lookup_ident(
+                            referenced_item: Box::new(identifier_map.lookup_ident(
                                 errors,
                                 *statement.get_span(),
                                 identifier,
-                            ),
+                            )),
                         };
                     }
 

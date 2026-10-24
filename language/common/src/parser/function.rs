@@ -11,7 +11,7 @@ use crate::{
         common::{
             Context, ItemVisibility, StatementVariant, Stream, Streamable, find_closing_braces,
         },
-        dbg::{combine_span_info, merge_ranges},
+        dbg::combine_span_info,
         numeric_value::MathematicalSymbol,
         statement::parse_statement,
         ty::{create_ty_token, parse_type},

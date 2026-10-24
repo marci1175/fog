@@ -46,14 +46,14 @@ pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     )?;
 
     // Get the value this variable was initalized with
-    let variable_value = Box::new(parse_expr(tkns)?);
+    let variable_value = Box::new(parse_expr(tkns, None)?);
     let span_end = *variable_value.get_span();
 
     // Return a valid variable decleration statement
     Ok(Spanned {
         inner: StatementVariant::NewVariable {
             variable_name,
-            variable_type,
+            variable_type: Box::new(variable_type),
             variable_value,
             variable_id: VARIABLE_ID_SOURCE.get_unique_id(),
             is_mutable: !is_constant,

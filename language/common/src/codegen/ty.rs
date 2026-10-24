@@ -221,7 +221,7 @@ impl Value
                 Type::Struct {
                     name: name.clone(),
                     fields: struct_field_ty_list,
-                    attributes: attributes.clone(),
+                    attributes: Box::new(attributes.clone()),
                 }
             },
             Value::Array { ty, len } => {
@@ -278,7 +278,7 @@ pub enum Type
     {
         name: String,
         fields: OrdMap<String, Type>,
-        attributes: StructAttributes,
+        attributes: Box<StructAttributes>,
     },
 
     Array
@@ -317,7 +317,7 @@ impl From<CustomItem> for Type
                 Self::Struct {
                     name: def.name,
                     fields: def.fields,
-                    attributes: def.attributes,
+                    attributes: Box::new(def.attributes),
                 }
             },
             CustomItem::Enum { name, ty, variants } => {
@@ -640,7 +640,7 @@ impl Display for Type
                 format!("TraitObject({implemented_traits:#?})")
             },
             Type::Unresolved(ident) => format!("Unresolved({ident})"),
-            Type::Placeholder => format!("Placeholder"),
+            Type::Placeholder => "Placeholder".to_string(),
         })
     }
 }
@@ -655,63 +655,63 @@ pub fn unparsed_const_to_typed_literal_unsafe(
     let val = match dest_type.clone() {
         Some(Type::I64) => {
             Value::I64(raw_string.parse::<i64>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?)
         },
         Some(Type::F64) => {
             Value::F64(NotNan(raw_string.parse::<f64>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?))
         },
         Some(Type::U64) => {
             Value::U64(raw_string.parse::<u64>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?)
         },
         Some(Type::I16) => {
             Value::I16(raw_string.parse::<i16>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?)
         },
         Some(Type::F16) => {
             Value::F16(NotNan(raw_string.parse::<f16>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?))
         },
         Some(Type::U16) => {
             Value::U16(raw_string.parse::<u16>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?)
         },
         Some(Type::I32) => {
             Value::I32(raw_string.parse::<i32>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?)
         },
         Some(Type::F32) => {
             Value::F32(NotNan(raw_string.parse::<f32>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?))
         },
         Some(Type::U32) => {
             Value::U32(raw_string.parse::<u32>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?)
         },
         Some(Type::U8) => {
             Value::U8(raw_string.parse::<u8>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?)
         },
         Some(Type::String) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::String,
+                Box::new(Type::String),
             ));
         },
         Some(Type::Boolean) => {
             Value::Boolean(raw_string.parse::<bool>().map_err(|_| {
-                ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                ParserError::InvalidTypeCast(raw_string.to_string(), Box::new(dest_type.unwrap()))
             })?)
         },
         Some(Type::Void) => Value::Void,
@@ -722,23 +722,26 @@ pub fn unparsed_const_to_typed_literal_unsafe(
         }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::Struct {
+                Box::new(Type::Struct {
                     name,
                     fields,
                     attributes,
-                },
+                }),
             ));
         },
         Some(Type::Array { ty, len }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::Array { ty, len },
+                Box::new(Type::Array { ty, len }),
             ));
         },
         Some(Type::Pointer(ref ptr_ty)) => {
             Value::Pointer {
                 address: raw_string.parse::<usize>().map_err(|_| {
-                    ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                    ParserError::InvalidTypeCast(
+                        raw_string.to_string(),
+                        Box::new(dest_type.unwrap()),
+                    )
                 })?,
                 ty: ptr_ty.clone(),
             }
@@ -746,7 +749,7 @@ pub fn unparsed_const_to_typed_literal_unsafe(
         Some(Type::Enum { name, ty, variants }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::Enum { name, ty, variants },
+                Box::new(Type::Enum { name, ty, variants }),
             ));
         },
         Some(Type::Trait {
@@ -756,23 +759,23 @@ pub fn unparsed_const_to_typed_literal_unsafe(
         }) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::Trait {
+                Box::new(Type::Trait {
                     functions,
                     access_path,
                     name,
-                },
+                }),
             ));
         },
         Some(Type::TraitObject(implemented_traits)) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                Type::TraitObject(implemented_traits),
+                Box::new(Type::TraitObject(implemented_traits)),
             ));
         },
         Some(Type::Unresolved(_)) | Some(Type::Placeholder) => {
             return Err(ParserError::InvalidTypeCast(
                 raw_string.to_string(),
-                dest_type.unwrap(),
+                Box::new(dest_type.unwrap()),
             ));
         },
         None => {
@@ -787,17 +790,26 @@ pub fn unparsed_const_to_typed_literal_unsafe(
             }
             else if float_flag {
                 Value::F64(NotNan(raw_string.parse::<f64>().map_err(|_| {
-                    ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                    ParserError::InvalidTypeCast(
+                        raw_string.to_string(),
+                        Box::new(dest_type.unwrap()),
+                    )
                 })?))
             }
             else if negative_flag {
                 Value::I64(raw_string.parse::<i64>().map_err(|_| {
-                    ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                    ParserError::InvalidTypeCast(
+                        raw_string.to_string(),
+                        Box::new(dest_type.unwrap()),
+                    )
                 })?)
             }
             else {
                 Value::U64(raw_string.parse::<u64>().map_err(|_| {
-                    ParserError::InvalidTypeCast(raw_string.to_string(), dest_type.unwrap())
+                    ParserError::InvalidTypeCast(
+                        raw_string.to_string(),
+                        Box::new(dest_type.unwrap()),
+                    )
                 })?)
             }
         },

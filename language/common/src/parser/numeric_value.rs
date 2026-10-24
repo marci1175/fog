@@ -1,10 +1,7 @@
 use crate::{
     codegen::ty::{NotNan, TypeDiscriminants, Value},
     error::{Spanned, parser::ParserError},
-    parser::{
-        common::Streamable,
-        statement::{parse_expr, parse_variable_expression},
-    },
+    parser::{common::Streamable, statement::parse_expr},
     tokenizer::Token,
 };
 use anyhow::Result;
@@ -141,53 +138,53 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         // Check if the first token is a negation/subtraction sign.
         Token::MathSym(MathematicalSymbol::Subtraction) => {
             Spanned {
-                inner: StatementVariant::NegateValue(Box::new(parse_expr(tkns)?)),
+                inner: StatementVariant::NegateValue(Box::new(parse_expr(tkns, None)?)),
                 span: current_token_span,
             }
         },
         // I defined this so its a bit easier to read since subtraction is a different path too
-        Token::MathSym(MathematicalSymbol::Addition) => parse_expr(tkns)?,
+        Token::MathSym(MathematicalSymbol::Addition) => parse_expr(tkns, None)?,
         // Parse the number present
         Token::UnparsedLiteral(unparsed_literal) => {
             Spanned {
                 inner: {
-                    if let Some((lit, ty)) = dbg!(try_match_suffix(unparsed_literal)) {
+                    if let Some((lit, ty)) = try_match_suffix(unparsed_literal) {
                         match ty {
                             TypeDiscriminants::I64 => {
-                                StatementVariant::Value(Value::I64(lit.parse::<i64>()?))
+                                StatementVariant::Value(Box::new(Value::I64(lit.parse::<i64>()?)))
                             },
                             TypeDiscriminants::F64 => {
-                                StatementVariant::Value(Value::F64(NotNan::new(
+                                StatementVariant::Value(Box::new(Value::F64(NotNan::new(
                                     lit.parse::<f64>()?,
-                                )?))
+                                )?)))
                             },
                             TypeDiscriminants::U64 => {
-                                StatementVariant::Value(Value::U64(lit.parse::<u64>()?))
+                                StatementVariant::Value(Box::new(Value::U64(lit.parse::<u64>()?)))
                             },
                             TypeDiscriminants::I32 => {
-                                StatementVariant::Value(Value::I32(lit.parse::<i32>()?))
+                                StatementVariant::Value(Box::new(Value::I32(lit.parse::<i32>()?)))
                             },
                             TypeDiscriminants::F32 => {
-                                StatementVariant::Value(Value::F32(NotNan::new(
+                                StatementVariant::Value(Box::new(Value::F32(NotNan::new(
                                     lit.parse::<f32>()?,
-                                )?))
+                                )?)))
                             },
                             TypeDiscriminants::U32 => {
-                                StatementVariant::Value(Value::U32(lit.parse::<u32>()?))
+                                StatementVariant::Value(Box::new(Value::U32(lit.parse::<u32>()?)))
                             },
                             TypeDiscriminants::I16 => {
-                                StatementVariant::Value(Value::I16(lit.parse::<i16>()?))
+                                StatementVariant::Value(Box::new(Value::I16(lit.parse::<i16>()?)))
                             },
                             TypeDiscriminants::F16 => {
-                                StatementVariant::Value(Value::F32(NotNan::new(
+                                StatementVariant::Value(Box::new(Value::F32(NotNan::new(
                                     lit.parse::<f16>()? as f32,
-                                )?))
+                                )?)))
                             },
                             TypeDiscriminants::U16 => {
-                                StatementVariant::Value(Value::U16(lit.parse::<u16>()?))
+                                StatementVariant::Value(Box::new(Value::U16(lit.parse::<u16>()?)))
                             },
                             TypeDiscriminants::U8 => {
-                                StatementVariant::Value(Value::U8(lit.parse::<u8>()?))
+                                StatementVariant::Value(Box::new(Value::U8(lit.parse::<u8>()?)))
                             },
 
                             _ => {
@@ -202,10 +199,10 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                         // If it doesnt, then it is an unsigned since subtractions are handled elsewhere. (Semantic analysis)
                         StatementVariant::Value({
                             if unparsed_literal.contains('.') {
-                                fit_float(unparsed_literal)?
+                                Box::new(fit_float(unparsed_literal)?)
                             }
                             else {
-                                fit_unsigned(unparsed_literal)?
+                                Box::new(fit_unsigned(unparsed_literal)?)
                             }
                         })
                     }
@@ -215,7 +212,7 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         },
 
         // Try to parse the value regardless
-        _ => parse_expr(tkns)?,
+        _ => parse_expr(tkns, None)?,
     };
 
     // We should accept any of these:
@@ -226,5 +223,5 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     // -foo
     // -bar()
 
-    parse_variable_expression(tkns, dbg!(val))
+    parse_expr(tkns, Some(val))
 }

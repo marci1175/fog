@@ -53,7 +53,7 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 ParserError::SyntaxError(SyntaxError::MissingSemiColon),
             )?;
 
-            let return_val = parse_expr(&mut expr_tkns)?;
+            let return_val = parse_expr(&mut expr_tkns, None)?;
 
             // Drop child buffer
             drop(expr_tkns);
@@ -74,523 +74,530 @@ pub fn parse_statement<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 /// This function is called when we want to parse a part of the expression which might change or repeat an undefined times.
 /// Examples include parsing mathematical expressions: ```10 + foo + bar```
 /// Parsing struct field accessing: ```foo.bar[3].baz.asd[0]```
-pub fn parse_variable_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
-    tkns: &mut S,
-    stmt: Spanned<StatementVariant>,
-) -> anyhow::Result<Spanned<StatementVariant>>
-{
-    Ok(
-        // Consume the next token in the stream
-        match dbg!(tkns.consume().cloned()) {
-            Some(tkn) => {
-                match tkn.get_inner() {
-                    // Match a function call
-                    Token::OpenParentheses => {
-                        // After the opening parentheses if something other than the closing parentheses is following it means that the function has arguments
-                        // We should consume the token straight away since if the function has an argument we wouldnt be able to provide athe whole token buffer for the arguments
-                        let next_tkn = tkns.peek_next().cloned();
-
-                        // The function has no arguments
-                        if let Some(Spanned {
-                            inner: Token::CloseParentheses,
-                            span,
-                        }) = next_tkn
-                        {
-                            // Consume token here since we are sure what this is
-                            tkns.consume();
-
-                            parse_variable_expression(
-                                tkns,
-                                Spanned {
-                                    inner: StatementVariant::FunctionCall {
-                                        identifier: Box::new(stmt),
-                                        arguments: OrdMap::new(),
-                                    },
-                                    span: combine_span_info(&[*tkn.get_span(), span], true),
-                                },
-                            )?
-                        }
-                        // Function has arguments
-                        else {
-                            // Select everything until the closing brace
-                            let closing_paren_pos = tkns
-                                .map_next_pos({
-                                    let mut currently_open = 1;
-
-                                    move |tkn| {
-                                        match tkn.get_inner() {
-                                            Token::OpenParentheses => currently_open += 1,
-                                            Token::CloseParentheses => currently_open -= 1,
-                                            _ => {},
-                                        }
-
-                                        currently_open == 0
-                                    }
-                                })
-                                .ok_or(ParserError::SyntaxError(
-                                    SyntaxError::LeftOpenParentheses,
-                                ))?;
-
-                            // Tokens for the arguments inside the function call
-                            let mut argument_tkns = tkns
-                                .child_iterator_bulk(closing_paren_pos)
-                                .ok_or(ParserError::EOF)?;
-
-                            // Create a way to store the parsed arguments
-                            let mut arguments = OrdMap::new();
-
-                            // Create a variable for tracking the indexed arguments' index.
-                            let mut argument_idx: usize = 0;
-
-                            // Parse the values in the arguments buffer until the buffer is exhausted.
-                            while argument_tkns.peek_next().is_some() {
-                                // Try peeking the next two tokens to see if it is a named argument
-                                let next_tokens = argument_tkns.peek_bulk(2);
-
-                                // Check if the current arguments is a named argument
-                                // Pattern match the two next tokens
-                                if matches!(
-                                    next_tokens,
-                                    Some([
-                                        Spanned {
-                                            inner: Token::Identifier(_),
-                                            span: _
-                                        },
-                                        Spanned {
-                                            inner: Token::SetValue,
-                                            span: _
-                                        }
-                                    ])
-                                ) {
-                                    // We can safely assume that the next token is an identifier due to the check above
-                                    let named_arg = argument_tkns
-                                        .consume()
-                                        .unwrap()
-                                        .try_as_identifier_ref()
-                                        .unwrap()
-                                        .clone();
-
-                                    // Consume the equals sign
-                                    argument_tkns.consume();
-
-                                    arguments.insert(
-                                        crate::codegen::common::FunctionArgumentIdentifier::Identifier(
-                                            named_arg,
-                                        ),
-                                        parse_expr(&mut argument_tkns)?,
-                                    );
-                                }
-                                else {
-                                    arguments.insert(
-                                        crate::codegen::common::FunctionArgumentIdentifier::Index(
-                                            argument_idx,
-                                        ),
-                                        parse_expr(&mut argument_tkns)?,
-                                    );
-                                }
-
-                                // Increment index regardless whether this was an indexed argument or not
-                                // When looking up a function argument we need the absolute position/index of the argument
-                                argument_idx += 1;
-                            }
-
-                            // Explicitly drop child iterator
-                            drop(argument_tkns);
-
-                            // The next token should be the function call's closing parentheses. Fetch the span of this token and create a span for the whole function call.
-                            let closing_paren_span = *tkns
-                                .try_consume_match(
-                                    ParserError::SyntaxError(SyntaxError::LeftOpenParentheses),
-                                    &TokenDiscriminants::CloseParentheses,
-                                )?
-                                .get_span();
-
-                            parse_variable_expression(
-                                tkns,
-                                Spanned {
-                                    inner: StatementVariant::FunctionCall {
-                                        identifier: Box::new(stmt),
-                                        arguments,
-                                    },
-                                    span: combine_span_info(
-                                        &[*tkn.get_span(), closing_paren_span],
-                                        true,
-                                    ),
-                                },
-                            )?
-                        }
-                    },
-                    // Indexing
-                    Token::OpenSquareBrackets => {
-                        // The next few tokens should be the index referencing the position of the value in the array
-                        // Capture the tokens until the closing "]"
-                        let closing_pos = tkns
-                            .map_next_pos({
-                                let mut currently_open = 1;
-
-                                move |tkn| {
-                                    match tkn.get_inner() {
-                                        Token::OpenSquareBrackets => currently_open += 1,
-                                        Token::CloseSquareBrackets => currently_open -= 1,
-                                        _ => {},
-                                    }
-
-                                    currently_open == 0
-                                }
-                            })
-                            .ok_or(ParserError::SyntaxError(
-                                SyntaxError::LeftOpenSquareBrackets,
-                            ))?;
-
-                        let mut index_value_tkns = tkns
-                            .child_iterator_bulk(closing_pos)
-                            .ok_or(ParserError::EOF)?;
-
-                        let index_value = parse_expr(&mut index_value_tkns)?;
-
-                        // Drop the child buffer explicitly
-                        drop(index_value_tkns);
-
-                        // The next token should be the closing "]", consume it for syntax purposes
-                        let closing_bracket_span = *tkns
-                            .try_consume_match(
-                                ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets),
-                                &TokenDiscriminants::CloseSquareBrackets,
-                            )?
-                            .get_span();
-
-                        parse_variable_expression(
-                            tkns,
-                            Spanned {
-                                inner: StatementVariant::ArrayReference {
-                                    variable_reference: Box::new(stmt),
-                                    index: Box::new(index_value),
-                                },
-                                // Combine the spans of the opening and the closing brackets so that the span will contain the whole array reference.
-                                span: combine_span_info(
-                                    &[*tkn.get_span(), closing_bracket_span],
-                                    true,
-                                ),
-                            },
-                        )?
-                    },
-                    // Struct access
-                    Token::Dot => {
-                        // The next item should be an identifer referencing the struct name
-                        let field_name = tkns
-                            .try_consume_match(
-                                ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference),
-                                &TokenDiscriminants::Identifier,
-                            )?
-                            .try_as_identifier_ref()
-                            .unwrap()
-                            .clone();
-
-                        // Call the function recursively to see if there are any more tokens left in the stream
-                        parse_variable_expression(
-                            tkns,
-                            Spanned {
-                                inner: StatementVariant::StructPropertyAccess {
-                                    variable_reference: Box::new(stmt),
-                                    field_name,
-                                },
-                                span: *tkn.get_span(),
-                            },
-                        )?
-                    },
-
-                    // Implement math expressions here
-                    Token::MathSym(sym) => {
-                        // THe right hand side of the mathematical operation
-                        let rhs = parse_expr(tkns)?;
-
-                        parse_variable_expression(
-                            tkns,
-                            Spanned {
-                                inner: StatementVariant::MathematicalExpression {
-                                    lhs: Box::new(stmt),
-                                    symbol: *sym,
-                                    rhs: Box::new(rhs),
-                                },
-                                span: combine_span_info(
-                                    &[
-                                        *tkn.get_span(),
-                                        *tkns
-                                            .get_last_consumed()
-                                            .ok_or(ParserError::EOF)?
-                                            .get_span(),
-                                    ],
-                                    true,
-                                ),
-                            },
-                        )?
-                    },
-
-                    // If the next token after a statement is a comma, then we should assume that the comme is used as a separator of some sorts and return the original stmt.
-                    // Example `fun(a, b)`, parse value returns a, since we are returning if a comma is present
-                    Token::Comma => stmt,
-
-                    Token::SetValueMathSym(sym) => {
-                        // Parse the value we are setting whatever to
-                        let value = Box::new(parse_expr(tkns)?);
-
-                        // Create a span for this statement
-                        let span = combine_span_info(&[*stmt.get_span(), *value.get_span()], true);
-
-                        Spanned {
-                            inner: StatementVariant::ModifyValueArithmetic {
-                                receiver: Box::new(stmt),
-                                value,
-                                symbol: *sym,
-                            },
-                            span,
-                        }
-                    },
-
-                    // The reason this is included here
-                    Token::SetValue => {
-                        // Parse the value we are setting whatever to
-                        let value = Box::new(parse_expr(tkns)?);
-
-                        // Create a span for this statement
-                        let span = combine_span_info(&[*stmt.get_span(), *value.get_span()], true);
-
-                        // Return a valid statement
-                        Spanned {
-                            inner: StatementVariant::SetValue {
-                                receiver: Box::new(stmt),
-                                value,
-                            },
-                            span,
-                        }
-                    },
-
-                    Token::LogicalOperator(log_op) => {
-                        let lhs = stmt;
-                        let rhs = parse_expr(tkns)?;
-
-                        let span = combine_span_info(&[*lhs.get_span(), *rhs.get_span()], true);
-
-                        parse_variable_expression(
-                            tkns,
-                            Spanned {
-                                inner: StatementVariant::LogicalOperation {
-                                    lhs: Box::new(lhs),
-                                    op: *log_op,
-                                    rhs: Box::new(rhs),
-                                },
-                                span,
-                            },
-                        )?
-                    },
-
-                    Token::Comparison(_)
-                    | Token::OpenAngledBrackets
-                    | Token::CloseAngledBrackets => {
-                        let ord = match tkn.get_inner() {
-                            Token::Comparison(ord) => *ord,
-                            Token::OpenAngledBrackets => crate::parser::common::Order::Bigger,
-                            Token::CloseAngledBrackets => crate::parser::common::Order::Smaller,
-                            _ => unreachable!(),
-                        };
-
-                        // Rhs of the comparsion
-                        let rhs = parse_expr(tkns)?;
-
-                        // Create a span for the comparison
-                        let span = combine_span_info(&[*stmt.get_span(), *rhs.get_span()], true);
-
-                        parse_variable_expression(
-                            tkns,
-                            Spanned {
-                                inner: StatementVariant::Comparison {
-                                    lhs: Box::new(stmt),
-                                    ord,
-                                    rhs: Box::new(rhs),
-                                },
-                                span,
-                            },
-                        )?
-                    },
-
-                    _ => {
-                        return Err(ParserError::SyntaxError(
-                            SyntaxError::InvalidVariableExpression(tkn.get_inner().clone()),
-                        )
-                        .into());
-                    },
-                }
-            },
-            None => stmt,
-        },
-    )
-}
-
-/// This function should already be receiving a slice of tokens until the next semicolon.
-/// This function is basically for parsing standalone expressions (Most of the times able to be guessed from the first token) from tokens. It parses expressions which are already complete.
-/// Called for example when we want to parse the tokens until the next semicolon, or when trying to parse a standalone value.
 pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
-) -> Result<Spanned<StatementVariant>, anyhow::Error>
+    base_statement: Option<Spanned<StatementVariant>>,
+) -> anyhow::Result<Spanned<StatementVariant>>
 {
-    if let Some(tkn) = tkns.consume().cloned() {
-        let value = match dbg!(tkn.get_inner()) {
-            Token::Identifier(ident) => {
-                // Own the first identifier
-                let ident = ident.to_owned();
+    let mut stmt = fetch_base_expression(tkns, base_statement)?;
 
-                // Conume the next token
-                // Call a recursive function here which will resolve the expression after the variable's name.
-                // This function is the legacy eq of "fetch_variable_expr", parsing the statement after an identifier - such as foo[0] | foo.asd
-                parse_variable_expression(
-                    tkns,
-                    Spanned {
-                        inner: StatementVariant::BasicReference { identifier: ident },
-                        span: *tkn.get_span(),
-                    },
-                )?
-            },
-            Token::Literal(val) => {
-                // Consume the tokens after that since this may be a math expression or anything like that.
-                parse_variable_expression(
-                    tkns,
-                    Spanned {
-                        inner: StatementVariant::Value(*val.clone()),
-                        span: *tkn.get_span(),
-                    },
-                )?
-            },
-            Token::Reference => {
-                Spanned {
-                    inner: StatementVariant::GetPointerTo(Box::new(parse_expr(tkns)?)),
-                    span: *tkn.get_span(),
-                }
-            },
-            Token::Dereference => {
-                Spanned {
-                    inner: StatementVariant::DerefPointer(Box::new(parse_expr(tkns)?)),
-                    span: *tkn.get_span(),
-                }
-            },
-            // Parse the numeric value
-            Token::UnparsedLiteral(_)
-            | Token::MathSym(MathematicalSymbol::Addition)
-            | Token::MathSym(MathematicalSymbol::Subtraction) => dbg!(parse_numeric_value(tkn, tkns)?),
-
-            // Return token indicates the end of the function on that specific path
-            Token::Return => {
-                // Get the returned value from the tokens
-                let returned_value = parse_expr(dbg!(tkns))?;
-
-                // Create a new span for this return statement
-                let span = combine_span_info(&[*tkn.get_span(), *returned_value.get_span()], true);
-
-                Spanned {
-                    inner: StatementVariant::ReturnValue {
-                        value: Box::new(returned_value),
-                    },
-                    span,
-                }
-            },
-
-            // This must be an array definition
-            Token::OpenBraces => {
-                let mut values = Vec::new();
-
-                let mut array_init_tokens = tkns
-                    .child_iterator_bulk(
-                        find_closing_braces(&*tkns)
-                            .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?,
-                    )
-                    .ok_or(ParserError::EOF)?;
-
-                // Consume all the tokens in this buffer, and fetch all the values in the array value definition.
-                while array_init_tokens.peek_next().is_some() {
-                    // This function returns at the "," so all of the values can be parsed
-                    let value = parse_expr(&mut array_init_tokens)?;
-
-                    // Store value
-                    values.push(value);
-                }
-
-                // Drop child buffer explicitly
-                drop(array_init_tokens);
-
-                // Consume the closing brace (and fetch its span)
-                let closing_brace = tkns.try_consume_match(
-                    ParserError::SyntaxError(SyntaxError::LeftOpenBraces),
-                    &TokenDiscriminants::CloseBraces,
-                )?;
-
-                let span = combine_span_info(&[*tkn.get_span(), *closing_brace.get_span()], true);
-
-                // Return the array init
-                parse_variable_expression(
-                    tkns,
-                    Spanned {
-                        inner: StatementVariant::ArrayInitialization { values },
-                        span,
-                    },
-                )?
-            },
-
-            // Used to parse grouped expressions
+    while let Some(tkn) = tkns.consume().cloned() {
+        // Consume the next token in the stream
+        stmt = match tkn.get_inner() {
             Token::OpenParentheses => {
-                let mut code_block_tokens = tkns
-                    .child_iterator_bulk(
-                        find_closing_paren(&*tkns)
-                            .ok_or(ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?,
+                // If the last statement parsed was an identifier, we should interpret the parentheses as the arguments of a function call
+                if matches!(stmt.get_inner(), StatementVariant::BasicReference { .. })
+                    || matches!(
+                        stmt.get_inner(),
+                        StatementVariant::StructPropertyAccess { .. }
                     )
-                    .ok_or(ParserError::EOF)?;
-
-                // Parse the expression inside the grouping
-                let grouped_expression = parse_expr(&mut code_block_tokens)?;
-
-                // Drop child buffer
-                drop(code_block_tokens);
-
-                // Consume closing parentheses to ensure syntax, however this check is impossible to fail due to the way we extract the child iterator.
-                let grouping_close = tkns.try_consume_match(
-                    ParserError::SyntaxError(SyntaxError::LeftOpenParentheses),
-                    &TokenDiscriminants::CloseParentheses,
-                )?;
-
-                // Create a spaninfo for the grouped expr
-                let grouped_expr_span =
-                    combine_span_info(&[*tkn.get_span(), *grouping_close.get_span()], true);
-
-                // Create a grouped expression statement
-                let grouped_expr = Spanned {
-                    inner: StatementVariant::Grouping {
-                        inner_expr: Box::new(grouped_expression),
-                    },
-                    span: grouped_expr_span,
-                };
-
-                // Parse the rest of the expression
-                let complete_expression = parse_variable_expression(tkns, grouped_expr)?;
-
-                // Create a span of the whole expression
-                let span =
-                    combine_span_info(&[*tkn.get_span(), *complete_expression.get_span()], true);
-
-                parse_variable_expression(
-                    tkns,
-                    Spanned {
-                        inner: complete_expression.inner_owned(),
-                        span,
-                    },
-                )?
+                {
+                    parse_function_call(tkns, stmt, &tkn)?
+                }
+                // Interpret it as a grouped expression
+                else {
+                    parse_grouped_expr(tkns, tkn)?
+                }
             },
+
+            // Indexing
+            Token::OpenSquareBrackets => parse_indexing(tkns, stmt, &tkn)?,
+
+            // Struct access
+            Token::Dot => parse_field_access(tkns, stmt, &tkn)?,
+
+            // Implement math expressions here
+            Token::MathSym(sym) => parse_math_symbol(tkns, stmt, sym, &tkn)?,
+
+            // If the next token after a statement is a comma, then we should assume that the comme is used as a separator of some sorts and return the original stmt.
+            // Example `fun(a, b)`, parse value returns `a` since we are returning if a comma is present
+            Token::Comma => stmt,
+
+            Token::SetValueMathSym(sym) => parse_set_value_math_symbol(tkns, stmt, sym)?,
+
+            Token::SetValue => parse_set_value(tkns, stmt)?,
+
+            Token::LogicalOperator(log_op) => parse_logical_operator(tkns, stmt, log_op)?,
+
+            Token::Comparison(_) | Token::OpenAngledBrackets | Token::CloseAngledBrackets => {
+                parse_comparison(tkns, stmt, &tkn)?
+            },
+
+            Token::OpenBraces => parse_array_init(tkns, &tkn)?,
 
             _ => {
-                // If any other tokens are encountered just return an error.
-                return Err(ParserError::UnknownExpression.into());
+                return Err(
+                    ParserError::SyntaxError(SyntaxError::InvalidVariableExpression(
+                        tkn.get_inner().clone(),
+                    ))
+                    .into(),
+                );
             },
         };
-
-        return Ok(value);
     }
 
-    Err(ParserError::EOF.into())
+    Ok(stmt)
+}
+
+fn parse_set_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let value = Box::new(parse_expr(tkns, None)?);
+    let span = combine_span_info(&[*stmt.get_span(), *value.get_span()], true);
+
+    Ok(Spanned {
+        inner: StatementVariant::SetValue {
+            receiver: Box::new(stmt),
+            value,
+        },
+        span,
+    })
+}
+
+#[inline(never)]
+fn parse_logical_operator<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+    log_op: &super::common::LogicalOperator,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let lhs = stmt;
+    let rhs = parse_expr(tkns, None)?;
+
+    let span = combine_span_info(&[*lhs.get_span(), *rhs.get_span()], true);
+
+    Ok(Spanned {
+        inner: StatementVariant::LogicalOperation {
+            lhs: Box::new(lhs),
+            op: *log_op,
+            rhs: Box::new(rhs),
+        },
+        span,
+    })
+}
+
+#[inline(never)]
+fn parse_set_value_math_symbol<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+    sym: &MathematicalSymbol,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let value = Box::new(parse_expr(tkns, None)?);
+
+    let span = combine_span_info(&[*stmt.get_span(), *value.get_span()], true);
+
+    Ok(Spanned {
+        inner: StatementVariant::ModifyValueArithmetic {
+            receiver: Box::new(stmt),
+            value,
+            symbol: *sym,
+        },
+        span,
+    })
+}
+
+#[inline(never)]
+fn parse_math_symbol<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+    sym: &MathematicalSymbol,
+    tkn: &Spanned<Token>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let rhs = parse_expr(tkns, None)?;
+
+    Ok(Spanned {
+        inner: StatementVariant::MathematicalExpression {
+            lhs: Box::new(stmt),
+            symbol: *sym,
+            rhs: Box::new(rhs),
+        },
+        span: combine_span_info(
+            &[
+                *tkn.get_span(),
+                *tkns.get_last_consumed().ok_or_else(|| ParserError::EOF)?.get_span(),
+            ],
+            true,
+        ),
+    })
+}
+
+#[inline(never)]
+fn parse_field_access<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+    tkn: &Spanned<Token>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let field_name = tkns
+        .try_consume_match(
+            ParserError::SyntaxError(SyntaxError::InvalidStructFieldReference),
+            &TokenDiscriminants::Identifier,
+        )?
+        .try_as_identifier_ref()
+        .unwrap()
+        .clone();
+
+    Ok(Spanned {
+        inner: StatementVariant::StructPropertyAccess {
+            variable_reference: Box::new(stmt),
+            field_name,
+        },
+        span: *tkn.get_span(),
+    })
+}
+
+#[inline(never)]
+fn parse_comparison<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+    tkn: &Spanned<Token>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let ord = match tkn.get_inner() {
+        Token::Comparison(ord) => *ord,
+        Token::OpenAngledBrackets => crate::parser::common::Order::Bigger,
+        Token::CloseAngledBrackets => crate::parser::common::Order::Smaller,
+        _ => unreachable!(),
+    };
+
+    let rhs = parse_expr(tkns, None)?;
+
+    let span = combine_span_info(&[*stmt.get_span(), *rhs.get_span()], true);
+
+    Ok(Spanned {
+        inner: StatementVariant::Comparison {
+            lhs: Box::new(stmt),
+            ord,
+            rhs: Box::new(rhs),
+        },
+        span,
+    })
+}
+
+#[inline(never)]
+fn fetch_base_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    base_statement: Option<Spanned<StatementVariant>>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let stmt: Spanned<StatementVariant> = if let Some(stmt) = base_statement {
+        stmt
+    }
+    else {
+        if let Some(tkn) = tkns.consume().cloned() {
+            match tkn.get_inner() {
+                Token::Identifier(ident) => {
+                    // Conume the next token
+                    // Call a recursive function here which will resolve the expression after the variable's name.
+                    // This function is the legacy eq of "fetch_variable_expr", parsing the statement after an identifier - such as foo[0] | foo.asd
+                    Spanned {
+                        inner: StatementVariant::BasicReference {
+                            identifier: ident.to_owned(),
+                        },
+                        span: *tkn.get_span(),
+                    }
+                },
+                Token::Literal(val) => {
+                    // Consume the tokens after that since this may be a math expression or anything like that.
+                    Spanned {
+                        inner: StatementVariant::Value(Box::new(*val.clone())),
+                        span: *tkn.get_span(),
+                    }
+                },
+                Token::Reference => {
+                    Spanned {
+                        inner: StatementVariant::GetPointerTo(Box::new(parse_expr(tkns, None)?)),
+                        span: *tkn.get_span(),
+                    }
+                },
+                Token::Dereference => {
+                    Spanned {
+                        inner: StatementVariant::DerefPointer(Box::new(parse_expr(tkns, None)?)),
+                        span: *tkn.get_span(),
+                    }
+                },
+
+                Token::UnparsedLiteral(_)
+                | Token::MathSym(MathematicalSymbol::Addition)
+                | Token::MathSym(MathematicalSymbol::Subtraction) => {
+                    parse_numeric_value(tkn, tkns)?
+                },
+
+                // Return token indicates the end of the function on that specific path
+                Token::Return => {
+                    // Get the returned value from the tokens
+                    let returned_value = parse_expr(tkns, None)?;
+
+                    // Create a new span for this return statement
+                    let span =
+                        combine_span_info(&[*tkn.get_span(), *returned_value.get_span()], true);
+
+                    Spanned {
+                        inner: StatementVariant::ReturnValue {
+                            value: Box::new(returned_value),
+                        },
+                        span,
+                    }
+                },
+
+                Token::OpenParentheses => parse_grouped_expr(tkns, tkn)?,
+
+                _ => return Err(ParserError::UnknownExpression.into()),
+            }
+        }
+        else {
+            return Err(ParserError::EOF.into());
+        }
+    };
+    Ok(stmt)
+}
+
+#[inline(never)]
+fn parse_indexing<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+    tkn: &Spanned<Token>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let closing_pos = tkns
+        .map_next_pos({
+            let mut currently_open = 1;
+
+            move |tkn| {
+                match tkn.get_inner() {
+                    Token::OpenSquareBrackets => currently_open += 1,
+                    Token::CloseSquareBrackets => currently_open -= 1,
+                    _ => {},
+                }
+
+                currently_open == 0
+            }
+        })
+        .ok_or_else(|| ParserError::SyntaxError(
+            SyntaxError::LeftOpenSquareBrackets,
+        ))?;
+    
+    let mut index_value_tkns = tkns
+        .child_iterator_bulk(closing_pos)
+        .ok_or_else(|| ParserError::EOF)?;
+    
+    let index_value = parse_expr(&mut index_value_tkns, None)?;
+    
+    drop(index_value_tkns);
+
+    let closing_bracket_span = *tkns
+        .try_consume_match(
+            ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets),
+            &TokenDiscriminants::CloseSquareBrackets,
+        )?
+        .get_span();
+    
+    Ok(Spanned {
+        inner: StatementVariant::ArrayReference {
+            variable_reference: Box::new(stmt),
+            index: Box::new(index_value),
+        },
+        // Combine the spans of the opening and the closing brackets so that the span will contain the whole array reference.
+        span: combine_span_info(&[*tkn.get_span(), closing_bracket_span], true),
+    })
+}
+
+#[inline(never)]
+fn parse_array_init<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    tkn: &Spanned<Token>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let mut values = Vec::new();
+
+    let mut array_init_tokens = tkns
+        .child_iterator_bulk(
+            find_closing_braces(&*tkns)
+                .ok_or_else(|| ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?,
+        )
+        .ok_or_else(|| ParserError::EOF)?;
+
+    while array_init_tokens.peek_next().is_some() {
+        // This function returns at the "," so all of the values can be parsed
+        let value = parse_expr(&mut array_init_tokens, None)?;
+
+        // Store value
+        values.push(value);
+    }
+
+    drop(array_init_tokens);
+
+    let closing_brace = tkns.try_consume_match(
+        ParserError::SyntaxError(SyntaxError::LeftOpenBraces),
+        &TokenDiscriminants::CloseBraces,
+    )?;
+
+    let span = combine_span_info(&[*tkn.get_span(), *closing_brace.get_span()], true);
+
+    Ok(Spanned {
+        inner: StatementVariant::ArrayInitialization { values },
+        span,
+    })
+}
+
+#[inline(never)]
+fn parse_function_call<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    stmt: Spanned<StatementVariant>,
+    tkn: &Spanned<Token>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let next_tkn = tkns.peek_next().cloned();
+
+    let call = if let Some(Spanned {
+        inner: Token::CloseParentheses,
+        span,
+    }) = next_tkn
+    {
+        // Consume token here since we are sure what this is
+        tkns.consume();
+
+        Spanned {
+            inner: StatementVariant::FunctionCall {
+                identifier: Box::new(stmt),
+                arguments: OrdMap::new(),
+            },
+            span: combine_span_info(&[*tkn.get_span(), span], true),
+        }
+    }
+    // Function has arguments
+    else {
+        // Select everything until the closing brace
+        let closing_paren_pos = tkns
+            .map_next_pos({
+                let mut currently_open = 1;
+
+                move |tkn| {
+                    match tkn.get_inner() {
+                        Token::OpenParentheses => currently_open += 1,
+                        Token::CloseParentheses => currently_open -= 1,
+                        _ => {},
+                    }
+
+                    currently_open == 0
+                }
+            })
+            .ok_or_else(|| ParserError::SyntaxError(SyntaxError::LeftOpenParentheses))?;
+
+        // Tokens for the arguments inside the function call
+        let mut argument_tkns = tkns
+            .child_iterator_bulk(closing_paren_pos)
+            .ok_or_else(|| ParserError::EOF)?;
+
+        // Create a way to store the parsed arguments
+        let mut arguments = OrdMap::new();
+
+        // Create a variable for tracking the indexed arguments' index.
+        let mut argument_idx: usize = 0;
+
+        // Parse the values in the arguments buffer until the buffer is exhausted.
+        while argument_tkns.peek_next().is_some() {
+            // Try peeking the next two tokens to see if it is a named argument
+            let next_tokens = argument_tkns.peek_bulk(2);
+
+            // Check if the current arguments is a named argument
+            // Pattern match the two next tokens
+            if matches!(
+                next_tokens,
+                Some([
+                    Spanned {
+                        inner: Token::Identifier(_),
+                        span: _
+                    },
+                    Spanned {
+                        inner: Token::SetValue,
+                        span: _
+                    }
+                ])
+            ) {
+                // We can safely assume that the next token is an identifier due to the check above
+                let named_arg = argument_tkns
+                    .consume()
+                    .unwrap()
+                    .try_as_identifier_ref()
+                    .unwrap()
+                    .clone();
+
+                // Consume the equals sign
+                argument_tkns.consume();
+
+                arguments.insert(
+                    crate::codegen::common::FunctionArgumentIdentifier::Identifier(named_arg),
+                    Box::new(parse_expr(&mut argument_tkns, None)?),
+                );
+            }
+            else {
+                arguments.insert(
+                    crate::codegen::common::FunctionArgumentIdentifier::Index(argument_idx),
+                    Box::new(parse_expr(&mut argument_tkns, None)?),
+                );
+            }
+
+            // Increment index regardless whether this was an indexed argument or not
+            // When looking up a function argument we need the absolute position/index of the argument
+            argument_idx += 1;
+        }
+
+        // Explicitly drop child iterator
+        drop(argument_tkns);
+
+        // The next token should be the function call's closing parentheses. Fetch the span of this token and create a span for the whole function call.
+        let closing_paren_span = *tkns
+            .try_consume_match(
+                ParserError::SyntaxError(SyntaxError::LeftOpenParentheses),
+                &TokenDiscriminants::CloseParentheses,
+            )?
+            .get_span();
+
+        Spanned {
+            inner: StatementVariant::FunctionCall {
+                identifier: Box::new(stmt),
+                arguments,
+            },
+            span: combine_span_info(&[*tkn.get_span(), closing_paren_span], true),
+        }
+    };
+
+    Ok(call)
+}
+
+#[inline(never)]
+fn parse_grouped_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
+    tkns: &mut S,
+    tkn: Spanned<Token>,
+) -> Result<Spanned<StatementVariant>, anyhow::Error>
+{
+    let mut code_block_tokens = tkns
+        .child_iterator_bulk(
+            find_closing_paren(&*tkns)
+                .ok_or_else(|| ParserError::SyntaxError(SyntaxError::LeftOpenBraces))?,
+        )
+        .ok_or_else(|| ParserError::EOF)?;
+
+    let grouped_expression = parse_expr(&mut code_block_tokens, None)?;
+
+    drop(code_block_tokens);
+
+    let grouping_close = tkns.try_consume_match(
+        ParserError::SyntaxError(SyntaxError::LeftOpenParentheses),
+        &TokenDiscriminants::CloseParentheses,
+    )?;
+
+    let grouped_expr_span = combine_span_info(&[*tkn.get_span(), *grouping_close.get_span()], true);
+
+    Ok(Spanned {
+        inner: StatementVariant::Grouping {
+            inner_expr: Box::new(grouped_expression),
+        },
+        span: grouped_expr_span,
+    })
 }

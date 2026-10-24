@@ -188,7 +188,7 @@ fn resolve_numerical_size_in_statement(
                 referenced_item,
             } = identifier.get_inner()
             {
-                match referenced_item {
+                match &**referenced_item {
                     // Function pointers are not supported right now, just return an error for this or any other unsupported item.
                     ResolvedItemReference::Static(_)
                     | ResolvedItemReference::Type(_)
@@ -256,19 +256,19 @@ fn resolve_numerical_size_in_statement(
         },
         StatementVariant::Value(value) => {
             let ty = target_type.cloned().unwrap_or(value.get_type());
-            
+
             // If the given type is not a value we can return since we cannot convert it to any other type at this stage
             if !ty.is_number() {
                 return Ok(());
             }
 
             resize(ty.clone(), value)?;
-        }
+        },
         StatementVariant::NegateValue(value) => {
             resolve_numerical_size_in_statement(value, errors, target_type)?;
-        }
+        },
         StatementVariant::ArrayInitialization { values } => {},
-        StatementVariant::MathematicalExpression { lhs,  rhs, .. } => {
+        StatementVariant::MathematicalExpression { lhs, rhs, .. } => {
             resolve_numerical_size_in_statement(&mut *lhs, errors, target_type)?;
             resolve_numerical_size_in_statement(&mut *rhs, errors, target_type)?;
         },
@@ -299,10 +299,10 @@ pub fn resolve_numerical_size_in_fn_body(
                 if let Some(branch) = &mut stmt.false_branch {
                     resolve_numerical_size_in_fn_body(&mut branch.body, errors, this_fn_sig)?;
                 }
-            }
+            },
             StatementVariant::CodeBlock(body) => {
                 resolve_numerical_size_in_fn_body(body, errors, this_fn_sig)?;
-            }
+            },
             _ => resolve_numerical_size_in_statement(stmt, errors, None)?,
         }
     }
@@ -316,17 +316,17 @@ pub fn resolve_statement_type(
     stmt: &StatementVariant,
     variable_map: &VariableMap,
     errors: &mut Vec<Spanned<anyhow::Error>>,
-) -> anyhow::Result<Type>
+) -> anyhow::Result<Box<Type>>
 {
     let resolved_type = match stmt {
         StatementVariant::InternalCheckedReference {
             identifier,
             referenced_item,
         } => {
-            match referenced_item {
+            match &**referenced_item {
                 ResolvedItemReference::Variable => {
                     // Lookup variable
-                    variable_map
+                    *variable_map
                         .get(identifier)
                         .cloned()
                         .ok_or(AnalyzerError::IdentifierNotFound)?
@@ -337,7 +337,7 @@ pub fn resolve_statement_type(
                             Type::Struct {
                                 name: struct_definition.name,
                                 fields: struct_definition.fields,
-                                attributes: struct_definition.attributes,
+                                attributes: Box::new(struct_definition.attributes),
                             }
                         },
                         CustomItem::Enum { name, ty, variants } => {
@@ -374,7 +374,7 @@ pub fn resolve_statement_type(
 
         StatementVariant::ArrayReference {
             variable_reference, ..
-        } => resolve_statement_type(variable_reference, variable_map, errors)?,
+        } => *resolve_statement_type(variable_reference, variable_map, errors)?,
 
         StatementVariant::StructPropertyAccess {
             variable_reference,
@@ -382,11 +382,11 @@ pub fn resolve_statement_type(
         } => todo!(),
 
         StatementVariant::Value(value) => value.get_type(),
-        StatementVariant::TypeCast(_, target) => target.clone(),
+        StatementVariant::TypeCast(_, target) => *target.clone(),
         StatementVariant::MathematicalExpression { lhs, .. } => {
-            resolve_statement_type(lhs, variable_map, errors)?
+            *resolve_statement_type(lhs, variable_map, errors)?
         },
-        StatementVariant::NegateValue(stmt) => resolve_statement_type(stmt, variable_map, errors)?,
+        StatementVariant::NegateValue(stmt) => *resolve_statement_type(stmt, variable_map, errors)?,
         StatementVariant::FunctionCall { identifier, .. } => {
             // Resolve function signature, by resolving its name and return type
             // To resolve the function we are gonna need the traits and everything parsed by this point so this is gonna be implemented later
@@ -397,7 +397,7 @@ pub fn resolve_statement_type(
         StatementVariant::ReturnValue { .. } => Type::Void,
         StatementVariant::Comparison { .. } => Type::Boolean,
         StatementVariant::LogicalOperation { lhs, .. } => {
-            resolve_statement_type(lhs, variable_map, errors)?
+            *resolve_statement_type(lhs, variable_map, errors)?
         },
         StatementVariant::If(stmt) => {
             // Resolve branch return values (check if they match and return that)
@@ -416,11 +416,9 @@ pub fn resolve_statement_type(
 
             true_returned_type
         },
-        StatementVariant::CodeBlock(body) => {
-            verify_control_flow(&body, variable_map, errors, None)?
-        },
+        StatementVariant::CodeBlock(body) => verify_control_flow(body, variable_map, errors, None)?,
         StatementVariant::Grouping { inner_expr } => {
-            resolve_statement_type(inner_expr, variable_map, errors)?
+            *resolve_statement_type(inner_expr, variable_map, errors)?
         },
         StatementVariant::Loop(_) => Type::Void,
         StatementVariant::ControlFlow(_) => Type::Void,
@@ -431,16 +429,16 @@ pub fn resolve_statement_type(
             }
         },
         StatementVariant::GetPointerTo(spanned) => {
-            Type::Pointer(Some(Box::new(resolve_statement_type(
+            Type::Pointer(Some(Box::new(*resolve_statement_type(
                 spanned,
                 variable_map,
                 errors,
             )?)))
         },
         StatementVariant::DerefPointer(spanned) => {
-            resolve_statement_type(spanned, variable_map, errors)?
+            *resolve_statement_type(spanned, variable_map, errors)?
         },
     };
 
-    Ok(resolved_type)
+    Ok(Box::new(resolved_type))
 }

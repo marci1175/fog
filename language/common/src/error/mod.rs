@@ -1,8 +1,5 @@
-use anyhow::Error;
-
-use crate::{error::analyzer::AnalyzerError, tokenizer::Token};
+use crate::tokenizer::Token;
 use std::{
-    any::Any,
     fmt::{Debug, Display},
     fs,
     ops::Deref,
@@ -60,8 +57,8 @@ impl Display for SpanInfo
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, PartialOrd, Copy)]
 pub struct CharPosition
 {
-    pub line: usize,
-    pub column: usize,
+    pub line: u32,
+    pub column: u32,
 }
 
 impl Ord for CharPosition
@@ -76,7 +73,7 @@ impl Ord for CharPosition
 
 impl CharPosition
 {
-    pub fn new(line: usize, column: usize) -> Self
+    pub fn new(line: u32, column: u32) -> Self
     {
         Self { line, column }
     }
@@ -181,7 +178,9 @@ where
             // Lets print out the whole line(s) of the file where the error occured
             if self.span.char_end.line == self.span.char_start.line {
                 // Fetch the relevant line
-                let relevant_line = lines.nth(self.span.char_start.line - 1).unwrap_or_default();
+                let relevant_line = lines
+                    .nth((self.span.char_start.line - 1) as usize)
+                    .unwrap_or_default();
 
                 // Store the relevant line
                 message.push_str(relevant_line);
@@ -204,8 +203,8 @@ where
                 // These are the lines which need to be printed fully.
                 let iterator_len = self.span.char_end.line - self.span.char_start.line;
                 let mut relevant_lines = lines
-                    .skip(self.span.char_start.line - 1)
-                    .take(iterator_len + 1);
+                    .skip((self.span.char_start.line - 1) as usize)
+                    .take((iterator_len + 1) as usize);
 
                 // The first line should be printed from the beginning of the span's column
                 let first_line = relevant_lines.next().unwrap_or_default();
@@ -220,7 +219,7 @@ where
                 }
 
                 // Push the error indicators
-                for _ in self.span.char_start.column..first_line.len() {
+                for _ in self.span.char_start.column as usize..first_line.len() {
                     message.push('^');
                 }
 
@@ -229,7 +228,7 @@ where
                 // Iterate over all the lines pushing the error indicators too, but leave out the last line
                 for (idx, line) in relevant_lines.enumerate() {
                     // Check if this is the last line
-                    if idx + 1 == iterator_len {
+                    if idx + 1 == iterator_len as usize {
                         message.push_str(line);
                         message.push('\n');
 
@@ -261,7 +260,7 @@ where
         // Separate actual error from the file content
         message.push('\n');
 
-        message.push_str(&format!("{}", self.error.to_string()));
+        message.push_str(&self.error.to_string());
 
         message.push('\n');
 
@@ -269,12 +268,4 @@ where
     }
 }
 
-impl<E> Into<anyhow::Error> for SpannedError<E>
-where
-    E: ToString + Into<anyhow::Error> + Send + Display + Sync + 'static,
-{
-    fn into(self) -> anyhow::Error
-    {
-        Error::msg(format!("{self}"))
-    }
-}
+impl<E> std::error::Error for SpannedError<E> where E: ToString + Debug {}

@@ -5,14 +5,14 @@ use crate::{
 };
 
 pub fn loop_for<S: Streamable<Spanned<Token>>>(
-    tkns: &mut S,
+    _tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
     Ok(todo!())
 }
 
 pub fn loop_while<S: Streamable<Spanned<Token>>>(
-    tkns: &mut S,
+    _tkns: &mut S,
 ) -> anyhow::Result<Spanned<StatementVariant>>
 {
     Ok(todo!())

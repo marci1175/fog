@@ -76,7 +76,7 @@ pub enum SyntaxError
     #[error(
         "Duplicate function definitions have been found with function `{0}`. Signature: `{1}`. Functions with matching names are only available when they are allowed under different features."
     )]
-    DuplicateFunctions(String, FunctionSignature),
+    DuplicateFunctions(String, Box<FunctionSignature>),
     #[error(r#"The import statement contains invalid tokens. Consult the documentation on the correct usage of imports. Example: ```import "../../foo.f"; import foo::bar;``` "#)]
     InvalidImportDefinition,
     #[error("Invalid Function name definition.")]
@@ -112,7 +112,7 @@ pub enum SyntaxError
     #[error("A comma has been left out when defining a funcition's generics.")]
     MissingCommaAtGenericsDefinition,
     #[error("The type `{0}` cannot be indexed with.")]
-    InvalidIndex(Type),
+    InvalidIndex(Box<Type>),
     #[error("Unparsable expression: `{0}`")]
     UnparsableExpression(String),
     #[error("Enum variants should be accessed like items inside modules. ie. `Foo::Bar`")]

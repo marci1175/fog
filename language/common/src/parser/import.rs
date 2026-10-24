@@ -1,11 +1,15 @@
 use std::{collections::HashMap, ops::Deref, path::PathBuf};
 
 use crate::{
-    codegen::ty::{self, Value}, error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition}, imports::{ExternalDeclerationType, ImportType}, parser::{
+    codegen::ty::Value,
+    error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition},
+    imports::{ExternalDeclerationType, ImportType},
+    parser::{
         common::Streamable,
         function::{FunctionArguments, FunctionSignature, parse_function_signature},
         ty::parse_type,
-    }, tokenizer::{Token, TokenDiscriminants},
+    },
+    tokenizer::{Token, TokenDiscriminants},
 };
 
 /// All item imports must point to concrete items, such as a function or enum, they cannot point to a module.
@@ -48,17 +52,17 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
             Token::Literal(lit) => {
                 if let Value::String(path) = Box::deref(lit) {
                     let path = PathBuf::from(path.clone());
-    
+
                     // Get the file name of the imported file
                     let file_name = path
                         .file_prefix()
                         .map(|str| str.to_string_lossy().to_string())
                         .ok_or(ParserError::InvalidImportPath)?;
-    
+
                     (file_name, ImportType::File(path))
                 }
                 else {
-                    return Err(ParserError::SyntaxError(InvalidImportDefinition).into())
+                    return Err(ParserError::SyntaxError(InvalidImportDefinition).into());
                 }
             },
             Token::Identifier(ident) => {

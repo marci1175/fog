@@ -25,7 +25,7 @@ pub fn verify_control_flow(
     let target_return_type = target_return_ty.unwrap_or(
         returned_types
             .first()
-            .map(|inner| inner.get_inner().clone())
+            .map(|inner| *inner.get_inner().clone())
             .unwrap_or(Type::Void),
     );
 
@@ -39,14 +39,14 @@ pub fn verify_control_flow(
 /// This function verifies that all of the Types in the provided list match, the target return type.
 /// If a mismatch occurs, the function stores the error with the span.
 fn verify_uniform_return_type(
-    returned_types: &[Spanned<Type>],
+    returned_types: &[Spanned<Box<Type>>],
     errors: &mut Vec<Spanned<anyhow::Error>>,
     target_return_type: &Type,
 )
 {
     let mismatching_types = returned_types
         .iter()
-        .filter(|ret_ty| ret_ty.get_inner() != target_return_type);
+        .filter(|ret_ty| &**ret_ty.get_inner() != target_return_type);
 
     // Iter over all the mismatching return types
     for mismatching_type in mismatching_types {
@@ -54,7 +54,7 @@ fn verify_uniform_return_type(
         errors.push(
             mismatching_type.rewrap_value(
                 AnalyzerError::MismatchingReturnType(
-                    mismatching_type.inner.clone(),
+                    *mismatching_type.inner.clone(),
                     target_return_type.clone(),
                 )
                 .into(),
@@ -65,9 +65,9 @@ fn verify_uniform_return_type(
 
 /// Fetches the return types of the function body passed in.
 fn fetch_returned_types(
-    body: &Vec<Spanned<StatementVariant>>,
+    body: &[Spanned<StatementVariant>],
     variable_map: &VariableMap,
-    returned_types: &mut Vec<Spanned<Type>>,
+    returned_types: &mut Vec<Spanned<Box<Type>>>,
     errors: &mut Vec<Spanned<anyhow::Error>>,
 ) -> anyhow::Result<bool>
 {

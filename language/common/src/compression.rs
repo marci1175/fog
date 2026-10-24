@@ -1,5 +1,7 @@
 use std::{
-    fs::{self, ReadDir}, io::{self, Cursor, Read, Seek, Write}, path::{Path, PathBuf},
+    fs::{self, ReadDir},
+    io::{self, Cursor, Read, Seek, Write},
+    path::{Path, PathBuf},
 };
 
 use flate2::{

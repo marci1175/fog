@@ -60,7 +60,7 @@ pub enum ParserError
     )]
     InvalidFunctionArgumentDefinition,
     #[error("Type `{0}` does not implement the following required traits: {1:?}.")]
-    TraitMismatch(Type, Vec<Vec<String>>),
+    TraitMismatch(Box<Type>, Vec<Vec<String>>),
     #[error(
         "An implemented function and field cannot have the same name. Function name collides with field `{0}`."
     )]
@@ -126,11 +126,9 @@ pub enum ParserError
     )]
     DeterminiateArgumentsFunction,
     #[error("Type `{0}` mismatches type `{1}` or does not implement appropriate  trait.")]
-    TypeMismatch(Type, Type),
+    TypeMismatch(Box<Type>, Box<Type>),
     #[error("Source code contains a Syntax Error: {0}")]
     SyntaxError(SyntaxError),
-    #[error("Variable `{0}` with type `{1}` mismatches `{2}`.")]
-    VariableTypeMismatch(String, Type, Type),
     #[error("The variable named `{0}` has not been found in the current scope.")]
     VariableNotFound(String),
     #[error("The following argument was not found in the argument list: `{0}`.")]
@@ -152,13 +150,13 @@ pub enum ParserError
     )]
     InternalDesiredTypeMissing,
     #[error("[INTERNAL ERROR] Variable `{0}` has the inner type of `{1}` which is invalid.")]
-    InternalTypeMismatch(VariableReference, Type),
+    InternalTypeMismatch(VariableReference, Box<Type>),
     #[error("A function with name `{0}` has been imported already.")]
     DuplicateSignatureImports(String),
     #[error("The linked source file at `{0}` is inaccesible or is not a vaild Fog source file.")]
     LinkedSourceFileError(PathBuf),
     #[error(r#"Type `{1}` cannot be constructed from '{0}'."#)]
-    InvalidTypeCast(String, Type),
+    InvalidTypeCast(String, Box<Type>),
     #[error("Token `{0}` is not a valid type.")]
     InvalidType(Token),
     #[error("The type of literal `{0}` could not be guessed.")]
@@ -166,7 +164,7 @@ pub enum ParserError
     #[error("Floats cannot be created with a value of NaN.")]
     FloatIsNAN,
     #[error("Type `{0}` is non-indexable.")]
-    TypeMismatchNonIndexable(Type),
+    TypeMismatchNonIndexable(Box<Type>),
     #[error("Array has type `{0:?}` as its initalizer type.")]
     InvalidArrayTypeDefinition(Vec<Token>),
     #[error(
@@ -192,19 +190,19 @@ pub enum ParserError
     #[error("Number cannot be represented in 64bits. Please truncate numbers which are too large.")]
     NumberTooLarge,
     #[error("Expected literal value with type `{0:?}`, found `{1}`.")]
-    InvalidValue(Option<Type>, StatementVariant),
+    InvalidValue(Option<Box<Type>>, StatementVariant),
     #[error("Enum variant `{0}` was not found in specified enum.")]
     EnumVariantNotFound(String),
     #[error(
         "Type `{0}` does not contain any fields and may not be accessed via any field. (Only structs have fields)"
     )]
-    TypeWithoutFields(Type),
+    TypeWithoutFields(Box<Type>),
     #[error(
         "Parser has encountered an unexpected END OF FILE. This usually means that the source code was discontinued while matching a language item pattern."
     )]
     EOF,
     #[error("Variable `{0}` must have a default value of type `{1}`.")]
-    MissingVariableValue(String, Type),
+    MissingVariableValue(String, Box<Type>),
     #[error(
         "Function name cannot start with `__internal` as it is reserved for internally generated functions."
     )]
