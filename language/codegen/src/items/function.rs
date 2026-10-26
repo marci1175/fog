@@ -9,10 +9,7 @@ use common::{
         module::Module,
         types::{BasicMetadataTypeEnum, BasicType, FunctionType},
     },
-    parser::{
-        common::{ItemVisibility, StatementVariant},
-        function::{FunctionDefinition, FunctionSignature},
-    },
+    parser::{FunctionDefinition, FunctionSignature, ItemVisibility, StatementVariant},
 };
 
 use crate::irgen::add_compiler_hints_to_fn;

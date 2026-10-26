@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{codegen::ty::Type, parser::function::FunctionSignature, tokenizer::Token};
+use crate::{codegen::ty::Type, parser::FunctionSignature, tokenizer::Token};
 
 #[derive(Clone, Debug, Error)]
 pub enum SyntaxError

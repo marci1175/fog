@@ -1,3 +1,11 @@
+pub mod dbg;
+pub mod function;
+pub mod import;
+pub mod numeric_value;
+pub mod statement;
+pub mod statement_variants;
+pub mod ty;
+
 use std::hint::cold_path;
 
 use common::{
@@ -6,12 +14,16 @@ use common::{
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{Context, Stream, Streamable, child_iterator_until, parse_compiler_instruction},
-        function::{CompilerInstruction, parse_function},
-        import::{parse_external_decl, parse_import_statement},
-        ty::{parse_enum, parse_struct},
+        CompilerInstruction, Context, Stream, Streamable, child_iterator_until,
+        parse_compiler_instruction,
     },
     tokenizer::{Token, TokenDiscriminants},
+};
+
+use crate::parser::{
+    function::parse_function,
+    import::{parse_external_decl, parse_import_statement},
+    ty::{parse_enum, parse_struct},
 };
 
 #[derive(Debug, Clone)]
@@ -25,14 +37,7 @@ pub struct Settings
 impl Settings
 {
     /*
-        TODO: recode importing stuff
-
-        First of all, remove the extra logic from here relating to dependencies
-        Also, when parsing the deps make a dependency tree, with the value of `HashMap<&[&str], Dependency>`
-        Implement parsing for `foo::bar::x()` type expressions, this will allow us to use functions with the same name on different paths
-
-        Modify the type resolving function to look up dependency items
-        Create the `namespace` keyword rework how the dependency paths work
+        Implement namespaces.
         ```
         namespace backend {
             struct request {};
@@ -101,7 +106,7 @@ impl Settings
                                 ctx.items.insert(
                                     ctx.path.clone(),
                                     struct_def.name.clone(),
-                                    common::parser::common::CustomItem::Struct(struct_def),
+                                    common::parser::CustomItem::Struct(struct_def),
                                 );
                             },
                             common::tokenizer::TypeToken::Function => {
@@ -128,7 +133,9 @@ impl Settings
                         cold_path();
 
                         // Panic if we still reach this path.
-                        unreachable!("The token matched here is asserted to be a TypeDefinition.")
+                        unreachable!(
+                            "[INTERNAL ERROR] The token matched here is asserted to be a TypeDefinition."
+                        )
                     }
                 },
                 Token::Import => {

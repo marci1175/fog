@@ -1,48 +1,12 @@
-use crate::{
+use common::{
+    anyhow,
     codegen::ty::{NotNan, TypeDiscriminants, Value},
     error::{Spanned, parser::ParserError},
-    parser::{common::Streamable, statement::parse_expr},
+    parser::{MathematicalSymbol, NUMERIC_SUFFIX, StatementVariant, Streamable},
     tokenizer::Token,
 };
-use anyhow::Result;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum MathematicalSymbol
-{
-    Addition,
-    Subtraction,
-    Division,
-    Multiplication,
-    Modulo,
-    Power,
-}
-
-use crate::parser::common::StatementVariant;
-
-///
-/// Bits	Signed	Unsigned	Float
-/// 8-bit	-	    uintsmall	-
-/// 16-bit	inthalf	uinthalf	floathalf
-/// 32-bit	int	    uint	    float
-/// 64-bit	intlong	uintlong	floatlong
-///
-/// Numeric suffixes will also be supported
-/// The list of suffixes are found here:
-///
-
-// The list of the numeric suffiexes
-pub const NUMERIC_SUFFIX: &[(&str, TypeDiscriminants)] = &[
-    ("uintsmall", TypeDiscriminants::U8),
-    ("uinthalf", TypeDiscriminants::U16),
-    ("uint", TypeDiscriminants::U32),
-    ("uintlong", TypeDiscriminants::U64),
-    ("inthalf", TypeDiscriminants::I16),
-    ("int", TypeDiscriminants::I32),
-    ("intlong", TypeDiscriminants::I64),
-    ("floathalf", TypeDiscriminants::F16),
-    ("float", TypeDiscriminants::F32),
-    ("floatlong", TypeDiscriminants::F64),
-];
+use crate::parser::statement::parse_expr;
 
 // Matches the suffix of a number and returns the unparsed literal without the suffix.
 fn try_match_suffix(str: &str) -> Option<(&str, TypeDiscriminants)>
@@ -223,5 +187,5 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     // -foo
     // -bar()
 
-    parse_expr(tkns, Some(val))
+    parse_expr(dbg!(tkns), Some(val))
 }

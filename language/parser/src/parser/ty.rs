@@ -1,12 +1,15 @@
-use crate::{
+use common::{
+    anyhow,
     codegen::ty::{OrdMap, OrdSet, Type},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{Context, ItemVisibility, Stream, Streamable, StructAttributes, StructDefinition},
-        function::{CompilerInstruction, parse_generics},
+        CompilerInstruction, Context, ItemVisibility, Stream, Streamable, StructAttributes,
+        StructDefinition,
     },
     tokenizer::{self, Token, TokenDiscriminants},
 };
+
+use crate::parser::function::parse_generics;
 
 pub fn parse_enum(
     _ctx: &mut Context,

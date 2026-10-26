@@ -23,10 +23,7 @@ use common::{
         types::AsTypeRef,
         values::BasicValue,
     },
-    parser::{
-        common::CustomItem,
-        function::{FunctionDefinition, FunctionSignature},
-    },
+    parser::{CustomItem, FunctionDefinition, FunctionSignature},
 };
 use std::{
     ffi::{CStr, CString},

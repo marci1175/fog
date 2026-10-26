@@ -2,10 +2,9 @@ use common::{
     anyhow,
     codegen::ty::Value,
     error::{CharPosition, SpanInfo, Spanned},
-    parser::{common::LogicalOperator, function::CompilerInstructionDiscriminants},
+    parser::{CompilerInstructionDiscriminants, LogicalOperator},
     tokenizer::{Token, TypeToken},
 };
-use std::u8;
 
 pub fn tokenize(input: &str) -> anyhow::Result<Vec<Spanned<Token>>>
 {
@@ -302,11 +301,11 @@ fn create_span_info(line: u32, offset: u32, start: u32, end: u32) -> SpanInfo
 fn try_match_token(string_to_match: &[u8]) -> Option<Token>
 {
     Some(match string_to_match {
-        b"+" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Addition),
-        b"-" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Subtraction),
-        b"*" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Multiplication),
-        b"/" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Division),
-        b"%" => Token::MathSym(common::parser::numeric_value::MathematicalSymbol::Modulo),
+        b"+" => Token::MathSym(common::parser::MathematicalSymbol::Addition),
+        b"-" => Token::MathSym(common::parser::MathematicalSymbol::Subtraction),
+        b"*" => Token::MathSym(common::parser::MathematicalSymbol::Multiplication),
+        b"/" => Token::MathSym(common::parser::MathematicalSymbol::Division),
+        b"%" => Token::MathSym(common::parser::MathematicalSymbol::Modulo),
 
         b"}" => Token::CloseBraces,
         b">" => Token::CloseAngledBrackets,
@@ -345,31 +344,21 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"ref" => Token::Reference,
         b"deref" => Token::Dereference,
 
-        b"==" => Token::Comparison(common::parser::common::Order::Equal),
-        b"!=" => Token::Comparison(common::parser::common::Order::NotEqual),
-        b">=" => Token::Comparison(common::parser::common::Order::EqBigger),
-        b"<=" => Token::Comparison(common::parser::common::Order::EqSmaller),
+        b"==" => Token::Comparison(common::parser::Order::Equal),
+        b"!=" => Token::Comparison(common::parser::Order::NotEqual),
+        b">=" => Token::Comparison(common::parser::Order::EqBigger),
+        b"<=" => Token::Comparison(common::parser::Order::EqSmaller),
         // b">" => Token::Comparison(common::codegen::Order::Bigger),
         // b"<" => Token::Comparison(common::codegen::Order::Smaller),
         b"&&" => Token::LogicalOperator(LogicalOperator::And),
         b"||" => Token::LogicalOperator(LogicalOperator::Or),
         b"x||" => Token::LogicalOperator(LogicalOperator::Xor),
 
-        b"=+" => {
-            Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Addition)
-        },
-        b"=-" => {
-            Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Subtraction)
-        },
-        b"=*" => {
-            Token::SetValueMathSym(
-                common::parser::numeric_value::MathematicalSymbol::Multiplication,
-            )
-        },
-        b"=/" => {
-            Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Division)
-        },
-        b"%=" => Token::SetValueMathSym(common::parser::numeric_value::MathematicalSymbol::Modulo),
+        b"=+" => Token::SetValueMathSym(common::parser::MathematicalSymbol::Addition),
+        b"=-" => Token::SetValueMathSym(common::parser::MathematicalSymbol::Subtraction),
+        b"=*" => Token::SetValueMathSym(common::parser::MathematicalSymbol::Multiplication),
+        b"=/" => Token::SetValueMathSym(common::parser::MathematicalSymbol::Division),
+        b"%=" => Token::SetValueMathSym(common::parser::MathematicalSymbol::Modulo),
 
         b"false" => Token::Literal(Box::new(Value::Boolean(false))),
         b"true" => Token::Literal(Box::new(Value::Boolean(true))),
@@ -387,8 +376,8 @@ fn try_match_token(string_to_match: &[u8]) -> Option<Token>
         b"break" => Token::Break,
         b"continue" => Token::Continue,
 
-        b"private" => Token::ItemVisibility(common::parser::common::ItemVisibility::Private),
-        b"public" => Token::ItemVisibility(common::parser::common::ItemVisibility::Public),
+        b"private" => Token::ItemVisibility(common::parser::ItemVisibility::Private),
+        b"public" => Token::ItemVisibility(common::parser::ItemVisibility::Public),
 
         b"cold" => Token::CompilerInstruction(CompilerInstructionDiscriminants::Cold),
         b"nofree" => Token::CompilerInstruction(CompilerInstructionDiscriminants::NoFree),

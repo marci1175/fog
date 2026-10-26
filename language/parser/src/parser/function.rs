@@ -1,149 +1,24 @@
-use std::{fmt::Display, hash::Hash};
 
-use indexmap::IndexSet;
-use strum::{EnumDiscriminants, EnumTryAs};
+use common::{
+    indexmap::IndexSet,
+    parser::{CompilerInstruction, FunctionArguments, FunctionDefinition, FunctionSignature},
+};
 
-use crate::{
+use common::{
     anyhow::{self},
     codegen::ty::{OrdMap, OrdSet, Type},
-    error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
+    error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{
-            Context, ItemVisibility, StatementVariant, Stream, Streamable, find_closing_braces,
-        },
-        dbg::combine_span_info,
-        numeric_value::MathematicalSymbol,
-        statement::parse_statement,
-        ty::{create_ty_token, parse_type},
-        variable::{UniqueId, VARIABLE_ID_SOURCE},
+        Context, ItemVisibility, MathematicalSymbol, StatementVariant, Stream, Streamable, VARIABLE_ID_SOURCE, find_closing_braces,
     },
     tokenizer::{Token, TokenDiscriminants},
 };
 
-#[derive(Clone, Debug, Default, PartialEq, Hash)]
-pub struct UnparsedFunctionDefinition
-{
-    pub signature: FunctionSignature,
-    pub inner: Vec<Token>,
-
-    /// This is used to offset the index when fetching [`DebugInformation`] about [`ParsedToken`]s inside the function.
-    pub token_offset: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Hash, Default, Eq)]
-pub struct FunctionDefinition
-{
-    /// The actual body of the function.
-    pub body: Vec<Spanned<StatementVariant>>,
-
-    /// Compiler instructions for this specific function.
-    pub compiler_instructions: OrdSet<CompilerInstruction>,
-
-    /// Features required to be enabled for this function.
-    pub enabling_features: OrdSet<String>,
-
-    pub span: SpanInfo,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct FunctionSignature
-{
-    /// Name of the function.
-    pub name: String,
-    /// Required arguments of the function.
-    pub args: FunctionArguments,
-    /// Return type of the function.
-    pub return_type: Type,
-    /// The visibility of this function in the given [`Context`] (scope).
-    pub visibility: ItemVisibility,
-}
-
-impl Display for FunctionSignature
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
-    {
-        f.write_str(&format!("[Function Signature]:\n{:#?}", self))
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct FunctionArguments
-{
-    /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are unique in this context.
-    pub arguments: OrdMap<String, (Type, UniqueId)>,
-    /// Made for backwards compatibility with FFI functions. (`...`)
-    pub ellipsis_present: bool,
-    /// The map consists of the generic types and their traits.
-    /// ie: { "T": {"trait1", "trait2"} }
-    /// Functions containing generics are generated when a function call is made to the specific function.
-    /// Basically, when a function with generics is called, it will check the arguments and if the arguments have the traits needed it will create a new function instance which will have the concrete types as its arguments.
-    pub generics: OrdMap<String, OrdSet<String>>,
-    /// If the function is being implemented for a valid type, this field will contain the type we are implementing for.
-    pub referenced_receiver: Option<Type>,
-}
-
-impl FunctionArguments
-{
-    /// We need to implement a Custom eq check on [`FunctionArguments`]s because the use of the [`UniqueId`] they both contain.
-    /// If the argument's order and name match this returns `true` otherwise `false`.
-    pub fn check_arg_eq(&self, rhs: &Self) -> bool
-    {
-        self.arguments
-            .iter()
-            .map(|(name, (ty, _))| (name, ty))
-            .collect::<Vec<_>>()
-            == rhs
-                .arguments
-                .iter()
-                .map(|(name, (ty, _))| (name, ty))
-                .collect::<Vec<_>>()
-    }
-}
-
-impl FunctionArguments
-{
-    pub fn new() -> Self
-    {
-        Self {
-            arguments: OrdMap::new(),
-            generics: OrdMap::new(),
-            ellipsis_present: false,
-            referenced_receiver: None,
-        }
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumDiscriminants, EnumTryAs,
-)]
-#[strum_discriminants(derive(Hash))]
-pub enum CompilerInstruction
-{
-    /// See llvm function attributes
-    Cold,
-    NoFree,
-    Inline,
-    NoUnWind,
-
-    /// Feature flag to only enable compilation of the function if a certain function is enabled
-    Feature(String),
-}
-
-impl From<CompilerInstructionDiscriminants> for CompilerInstruction
-{
-    fn from(val: CompilerInstructionDiscriminants) -> Self
-    {
-        match val {
-            CompilerInstructionDiscriminants::Cold => CompilerInstruction::Cold,
-            CompilerInstructionDiscriminants::NoFree => CompilerInstruction::NoFree,
-            CompilerInstructionDiscriminants::Inline => CompilerInstruction::Inline,
-            CompilerInstructionDiscriminants::NoUnWind => CompilerInstruction::NoUnWind,
-            CompilerInstructionDiscriminants::Feature => {
-                CompilerInstruction::Feature(String::new())
-            },
-        }
-    }
-}
+use crate::parser::{
+    dbg::combine_span_info,
+    statement::parse_statement,
+    ty::{create_ty_token, parse_type},
+};
 
 /// The function parses the entire function, but does not validate the function's body.
 /// Syntax of a function:

@@ -7,10 +7,7 @@ use std::{
 use crate::{
     DEFAULT_COMPILER_ADDRESS_SPACE_SIZE,
     error::{Spanned, codegen::CodeGenError, parser::ParserError},
-    parser::{
-        common::{CustomItem, StatementVariant, StructAttributes},
-        function::FunctionSignature,
-    },
+    parser::{CustomItem, FunctionSignature, StatementVariant, StructAttributes},
 };
 use indexmap::{IndexMap, IndexSet};
 use inkwell::{

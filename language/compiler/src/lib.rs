@@ -17,7 +17,7 @@ use common::{
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     },
     linker::BuildManifest,
-    parser::common::{GlobalContext, ItemVisibility, Stream, Streamable},
+    parser::{GlobalContext, ItemVisibility, Stream, Streamable},
     toml,
     tracing::{error, info},
 };
@@ -314,13 +314,20 @@ fn parse_src_file(
             }
         },
         Err(error) => {
-            // Create a specialized error that also display where the issue is.
-            let spanned_err = tokens
-                .get_last_consumed()
-                .map(|tkn| tkn.raise_error(src_path, error))
-                .unwrap();
+            #[cfg(debug_assertions)]
+            {
+                return Err(error.into());
+            }
+            #[cfg(not(debug_assertions))]
+            {
+                // Create a specialized error that also display where the issue is.
+                let spanned_err = tokens
+                    .get_last_consumed()
+                    .map(|tkn| tkn.raise_error(src_path, error))
+                    .unwrap();
 
-            return Err(spanned_err.into());
+                return Err(spanned_err.into());
+            }
         },
     };
 

@@ -4,7 +4,7 @@ use thiserror::Error;
 use crate::{
     codegen::ty::Type,
     error::syntax::SyntaxError,
-    parser::{common::StatementVariant, variable::VariableReference},
+    parser::{StatementVariant, VariableReference},
     tokenizer::Token,
 };
 

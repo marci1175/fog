@@ -1,18 +1,21 @@
-use crate::{
-    codegen::ty::OrdMap,
+use crate::parser::{
+    dbg::combine_span_info,
+    numeric_value::parse_numeric_value,
+    statement_variants::{
+        conditionals::conditional_expr,
+        loops::{loop_for, loop_while},
+        variables::var_decl,
+    },
+};
+use common::{
+    anyhow,
+    codegen::{common::FunctionArgumentIdentifier, ty::OrdMap},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        common::{
-            StatementVariant, Streamable, child_iterator_until, find_closing_braces,
-            find_closing_paren,
-        },
-        dbg::combine_span_info,
-        numeric_value::{MathematicalSymbol, parse_numeric_value},
-        statements::{
-            conditionals::conditional_expr,
-            loops::{loop_for, loop_while},
-            variables::var_decl,
-        },
+        LogicalOperator, MathematicalSymbol,
+        Order::{self, Bigger, Smaller},
+        StatementVariant, Streamable, child_iterator_until, find_closing_braces,
+        find_closing_paren,
     },
     tokenizer::{Token, TokenDiscriminants},
 };
@@ -123,8 +126,6 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 parse_comparison(tkns, stmt, &tkn)?
             },
 
-            Token::OpenBraces => parse_array_init(tkns, &tkn)?,
-
             _ => {
                 return Err(
                     ParserError::SyntaxError(SyntaxError::InvalidVariableExpression(
@@ -160,7 +161,7 @@ fn parse_set_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 fn parse_logical_operator<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
     stmt: Spanned<StatementVariant>,
-    log_op: &super::common::LogicalOperator,
+    log_op: &LogicalOperator,
 ) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
     let lhs = stmt;
@@ -218,7 +219,10 @@ fn parse_math_symbol<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         span: combine_span_info(
             &[
                 *tkn.get_span(),
-                *tkns.get_last_consumed().ok_or_else(|| ParserError::EOF)?.get_span(),
+                *tkns
+                    .get_last_consumed()
+                    .ok_or_else(|| ParserError::EOF)?
+                    .get_span(),
             ],
             true,
         ),
@@ -257,10 +261,10 @@ fn parse_comparison<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkn: &Spanned<Token>,
 ) -> Result<Spanned<StatementVariant>, anyhow::Error>
 {
-    let ord = match tkn.get_inner() {
+    let ord: Order = match tkn.get_inner() {
         Token::Comparison(ord) => *ord,
-        Token::OpenAngledBrackets => crate::parser::common::Order::Bigger,
-        Token::CloseAngledBrackets => crate::parser::common::Order::Smaller,
+        Token::OpenAngledBrackets => Bigger,
+        Token::CloseAngledBrackets => Smaller,
         _ => unreachable!(),
     };
 
@@ -343,7 +347,7 @@ fn fetch_base_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                         span,
                     }
                 },
-
+                Token::OpenBraces => parse_array_init(tkns, &tkn)?,
                 Token::OpenParentheses => parse_grouped_expr(tkns, tkn)?,
 
                 _ => return Err(ParserError::UnknownExpression.into()),
@@ -353,6 +357,7 @@ fn fetch_base_expression<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             return Err(ParserError::EOF.into());
         }
     };
+
     Ok(stmt)
 }
 
@@ -377,16 +382,14 @@ fn parse_indexing<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 currently_open == 0
             }
         })
-        .ok_or_else(|| ParserError::SyntaxError(
-            SyntaxError::LeftOpenSquareBrackets,
-        ))?;
-    
+        .ok_or_else(|| ParserError::SyntaxError(SyntaxError::LeftOpenSquareBrackets))?;
+
     let mut index_value_tkns = tkns
         .child_iterator_bulk(closing_pos)
         .ok_or_else(|| ParserError::EOF)?;
-    
+
     let index_value = parse_expr(&mut index_value_tkns, None)?;
-    
+
     drop(index_value_tkns);
 
     let closing_bracket_span = *tkns
@@ -395,7 +398,7 @@ fn parse_indexing<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
             &TokenDiscriminants::CloseSquareBrackets,
         )?
         .get_span();
-    
+
     Ok(Spanned {
         inner: StatementVariant::ArrayReference {
             variable_reference: Box::new(stmt),
@@ -531,13 +534,13 @@ fn parse_function_call<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                 argument_tkns.consume();
 
                 arguments.insert(
-                    crate::codegen::common::FunctionArgumentIdentifier::Identifier(named_arg),
+                    FunctionArgumentIdentifier::Identifier(named_arg),
                     Box::new(parse_expr(&mut argument_tkns, None)?),
                 );
             }
             else {
                 arguments.insert(
-                    crate::codegen::common::FunctionArgumentIdentifier::Index(argument_idx),
+                    FunctionArgumentIdentifier::Index(argument_idx),
                     Box::new(parse_expr(&mut argument_tkns, None)?),
                 );
             }

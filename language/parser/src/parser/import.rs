@@ -1,16 +1,15 @@
 use std::{collections::HashMap, ops::Deref, path::PathBuf};
 
-use crate::{
+use common::{
+    anyhow,
     codegen::ty::Value,
     error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition},
     imports::{ExternalDeclerationType, ImportType},
-    parser::{
-        common::Streamable,
-        function::{FunctionArguments, FunctionSignature, parse_function_signature},
-        ty::parse_type,
-    },
+    parser::{FunctionArguments, FunctionSignature, ItemVisibility, Streamable},
     tokenizer::{Token, TokenDiscriminants},
 };
+
+use crate::parser::{function::parse_function_signature, ty::parse_type};
 
 /// All item imports must point to concrete items, such as a function or enum, they cannot point to a module.
 /// Both raw paths and dependencies can be imported via this keyword.
@@ -84,17 +83,13 @@ pub fn parse_import_statement<S: Streamable<Spanned<Token>>>(
                 {
                     // The next token should be a double colon
                     tkns.try_consume_match(
-                        ParserError::SyntaxError(
-                            crate::error::syntax::SyntaxError::InvalidImportDefinition,
-                        ),
+                        ParserError::SyntaxError(InvalidImportDefinition),
                         &TokenDiscriminants::DoubleColon,
                     )?;
 
                     // The next token should be an identifier
                     let path_item = tkns.try_consume_match(
-                        ParserError::SyntaxError(
-                            crate::error::syntax::SyntaxError::InvalidImportDefinition,
-                        ),
+                        ParserError::SyntaxError(InvalidImportDefinition),
                         &TokenDiscriminants::Identifier,
                     )?;
 
@@ -191,7 +186,7 @@ pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         let tkn = decl_type.get_inner();
 
         // Match the valid item variants
-        if let Token::TypeDefinition(crate::tokenizer::TypeToken::Function) = tkn {
+        if let Token::TypeDefinition(common::tokenizer::TypeToken::Function) = tkn {
             // Next token is the name of the item
             let name = tkns
                 .try_consume_match(
@@ -230,7 +225,7 @@ pub fn parse_external_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
                     args,
                     return_type,
                     // It really doesnt matter what you set this to since the external declerations are searched separately.
-                    visibility: super::common::ItemVisibility::Private,
+                    visibility: ItemVisibility::Private,
                 }),
             );
         }

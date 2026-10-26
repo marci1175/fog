@@ -1,4 +1,4 @@
-use crate::error::SpanInfo;
+use common::error::SpanInfo;
 
 /// This function ignores whether the ranges are joint.
 /// If this function with is_ordered, it will create a range based on the first and the last item of the range

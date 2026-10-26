@@ -5,10 +5,7 @@ use common::{
         ty::{NotNan, Type, Value},
     },
     error::{Spanned, analyzer::AnalyzerError},
-    parser::{
-        common::{CustomItem, ResolvedItemReference, StatementVariant},
-        function::FunctionSignature,
-    },
+    parser::{CustomItem, FunctionSignature, ResolvedItemReference, StatementVariant},
 };
 
 use crate::{VariableMap, semantic::control_flow_resolver::verify_control_flow};
@@ -23,7 +20,7 @@ macro_rules! create_conversion_chain {
                         *$modifyable_value = Value::$destination_ty(converted_val);
                     }
                     Err(_) => {
-                        return Err(AnalyzerError::UnsupportedValueByType($modifyable_value.clone(), $destination_ty_var).into());
+                        return Err(AnalyzerError::UnsupportedValueByType(Box::new($modifyable_value.clone()), Box::new($destination_ty_var)).into());
                     }
                 }
 
@@ -41,7 +38,7 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
 
     // If the original value is not a number return an error
     if !(original_ty.is_float() || original_ty.is_int() || original_ty.is_uint()) {
-        return Err(AnalyzerError::InternalValueNotNumerical(original_ty).into());
+        return Err(AnalyzerError::InternalValueNotNumerical(Box::new(original_ty)).into());
     }
 
     // If the original type matches the desitnation type then we dont have to do anything really, we can just return Ok
@@ -54,7 +51,11 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
         Value::F64(_) => {
             // If a value is parsed as an f64 it cannot be casted to anything else without data loss.
             if original_ty != dest_ty {
-                return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+                return Err(AnalyzerError::UnsupportedValueByType(
+                    Box::new(value.clone()),
+                    Box::new(dest_ty),
+                )
+                .into());
             }
         },
         Value::U64(val) => {
@@ -64,7 +65,11 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
             };
 
             // The macro produces code that should automatically return, so if the code executes favourably this error will never be returned.
-            return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+            return Err(AnalyzerError::UnsupportedValueByType(
+                Box::new(value.clone()),
+                Box::new(dest_ty),
+            )
+            .into());
         },
         Value::F32(val) => {
             if dest_ty == Type::F64 {
@@ -74,7 +79,11 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
                 return Ok(());
             }
 
-            return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+            return Err(AnalyzerError::UnsupportedValueByType(
+                Box::new(value.clone()),
+                Box::new(dest_ty),
+            )
+            .into());
         },
         Value::U32(val) => {
             create_conversion_chain! {
@@ -85,7 +94,11 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
             };
 
             // The macro produces code that should automatically return, so if the code executes favourably this error will never be returned.
-            return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+            return Err(AnalyzerError::UnsupportedValueByType(
+                Box::new(value.clone()),
+                Box::new(dest_ty),
+            )
+            .into());
         },
         Value::F16(val) => {
             if dest_ty == Type::F64 {
@@ -101,7 +114,11 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
                 return Ok(());
             }
 
-            return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+            return Err(AnalyzerError::UnsupportedValueByType(
+                Box::new(value.clone()),
+                Box::new(dest_ty),
+            )
+            .into());
         },
         Value::U16(val) => {
             create_conversion_chain! {
@@ -114,7 +131,11 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
             };
 
             // The macro produces code that should automatically return, so if the code executes favourably this error will never be returned.
-            return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+            return Err(AnalyzerError::UnsupportedValueByType(
+                Box::new(value.clone()),
+                Box::new(dest_ty),
+            )
+            .into());
         },
         Value::U8(val) => {
             create_conversion_chain! {
@@ -128,14 +149,22 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
             };
 
             // The macro produces code that should automatically return, so if the code executes favourably this error will never be returned.
-            return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+            return Err(AnalyzerError::UnsupportedValueByType(
+                Box::new(value.clone()),
+                Box::new(dest_ty),
+            )
+            .into());
         },
 
         // These are usually not emitted by the AST parser.
         // Negative numbers are parsed as NegateValue(uint)
         Value::I64(_) => {
             if original_ty != dest_ty {
-                return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+                return Err(AnalyzerError::UnsupportedValueByType(
+                    Box::new(value.clone()),
+                    Box::new(dest_ty),
+                )
+                .into());
             }
         },
         Value::I32(val) => {
@@ -146,7 +175,11 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
                 (U32, u32),
             };
 
-            return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+            return Err(AnalyzerError::UnsupportedValueByType(
+                Box::new(value.clone()),
+                Box::new(dest_ty),
+            )
+            .into());
         },
         Value::I16(val) => {
             create_conversion_chain! {
@@ -158,10 +191,14 @@ fn resize(dest_ty: Type, value: &mut Value) -> anyhow::Result<()>
                 (U16, u16),
             };
 
-            return Err(AnalyzerError::UnsupportedValueByType(value.clone(), dest_ty).into());
+            return Err(AnalyzerError::UnsupportedValueByType(
+                Box::new(value.clone()),
+                Box::new(dest_ty),
+            )
+            .into());
         },
 
-        _ => return Err(AnalyzerError::InternalValueNotNumerical(original_ty).into()),
+        _ => return Err(AnalyzerError::InternalValueNotNumerical(Box::new(original_ty)).into()),
     }
 
     // No modification has been done to the passed in value, all passed without issue.
@@ -267,7 +304,11 @@ fn resolve_numerical_size_in_statement(
         StatementVariant::NegateValue(value) => {
             resolve_numerical_size_in_statement(value, errors, target_type)?;
         },
-        StatementVariant::ArrayInitialization { values } => {},
+        StatementVariant::ArrayInitialization { values } => {
+            for val in values {
+                resolve_numerical_size_in_statement(val, errors, target_type)?;
+            }
+        },
         StatementVariant::MathematicalExpression { lhs, rhs, .. } => {
             resolve_numerical_size_in_statement(&mut *lhs, errors, target_type)?;
             resolve_numerical_size_in_statement(&mut *rhs, errors, target_type)?;
@@ -353,7 +394,7 @@ pub fn resolve_statement_type(
                             access_path,
                         } => {
                             Type::Trait {
-                                name: name,
+                                name,
                                 access_path,
                                 functions,
                             }
@@ -370,15 +411,15 @@ pub fn resolve_statement_type(
         StatementVariant::NewVariable { .. } => Type::Void,
 
         // This should not appear here since the previous analyzer step would overwrite this into a resolved reference
-        StatementVariant::BasicReference { identifier } => todo!(),
+        StatementVariant::BasicReference { identifier: _ } => todo!(),
 
         StatementVariant::ArrayReference {
             variable_reference, ..
         } => *resolve_statement_type(variable_reference, variable_map, errors)?,
 
         StatementVariant::StructPropertyAccess {
-            variable_reference,
-            field_name,
+            variable_reference: _,
+            field_name: _,
         } => todo!(),
 
         StatementVariant::Value(value) => value.get_type(),
@@ -387,7 +428,7 @@ pub fn resolve_statement_type(
             *resolve_statement_type(lhs, variable_map, errors)?
         },
         StatementVariant::NegateValue(stmt) => *resolve_statement_type(stmt, variable_map, errors)?,
-        StatementVariant::FunctionCall { identifier, .. } => {
+        StatementVariant::FunctionCall { .. } => {
             // Resolve function signature, by resolving its name and return type
             // To resolve the function we are gonna need the traits and everything parsed by this point so this is gonna be implemented later
             todo!()
@@ -401,12 +442,12 @@ pub fn resolve_statement_type(
         },
         StatementVariant::If(stmt) => {
             // Resolve branch return values (check if they match and return that)
-            let (true_returned_type) =
+            let true_returned_type =
                 verify_control_flow(&stmt.true_branch.body, variable_map, errors, None)?;
 
             if let Some(false_branch) = &stmt.false_branch {
                 // We dont have to verify the returned type's validity here since its already checked in the function itself.
-                let (_false_returned_type) = verify_control_flow(
+                let _false_returned_type = verify_control_flow(
                     &false_branch.body,
                     variable_map,
                     errors,
@@ -423,8 +464,39 @@ pub fn resolve_statement_type(
         StatementVariant::Loop(_) => Type::Void,
         StatementVariant::ControlFlow(_) => Type::Void,
         StatementVariant::ArrayInitialization { values } => {
+            let mut types = Vec::new();
+
+            // Fetch all array values' return type
+            for val in values {
+                let ret_ty = resolve_statement_type(val.get_inner(), variable_map, errors)?;
+                types.push(val.rewrap_value(ret_ty));
+            }
+
+            // Assume the first item has the correct type, assume it as the target type if there is one
+            let target_type = types
+                .first()
+                .map(|target| target.get_inner().clone())
+                .unwrap_or_else(|| Box::new(Type::Void));
+
+            // If there is no first item, then we can use void as a temporary type.
+            for ty in types {
+                let current_ty = ty.get_inner().clone();
+
+                if target_type != current_ty {
+                    errors.push(
+                        ty.rewrap_value(
+                            AnalyzerError::HeterogeneousArrayItemType(
+                                target_type.clone(),
+                                current_ty,
+                            )
+                            .into(),
+                        ),
+                    );
+                }
+            }
+
             Type::Array {
-                ty: todo!(),
+                ty: target_type,
                 len: values.len(),
             }
         },

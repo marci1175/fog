@@ -2,9 +2,8 @@ use crate::{
     codegen::ty::{Type, Value},
     error::{Spanned, parser::ParserError},
     parser::{
-        common::{ItemVisibility, LogicalOperator, Order},
-        function::CompilerInstructionDiscriminants,
-        numeric_value::MathematicalSymbol,
+        CompilerInstructionDiscriminants, ItemVisibility, LogicalOperator, MathematicalSymbol,
+        Order,
     },
 };
 use strum::EnumTryAs;

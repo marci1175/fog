@@ -3,7 +3,7 @@ use common::{
     anyhow,
     error::{SpanInfo, Spanned, analyzer::AnalyzerError},
     imports::{ExternalDeclerationType, ImportType},
-    parser::common::{
+    parser::{
         ResolvedItemReference::{self},
         StatementVariant,
     },
@@ -31,11 +31,11 @@ impl<'a> IdentifierMap<'a>
     {
         // Lookup identifier in the variable table
         if self.variable_map.contains_key(identifier) {
-            common::parser::common::ResolvedItemReference::Variable
+            common::parser::ResolvedItemReference::Variable
         }
         // Lookup item the locally available items.
         else if let Some(item) = self.items.get_item(self.path, identifier) {
-            common::parser::common::ResolvedItemReference::Type(item.clone())
+            common::parser::ResolvedItemReference::Type(item.clone())
         }
         // Search ident in external declerations
         else if let Some(external_decl) =
@@ -68,13 +68,13 @@ impl<'a> IdentifierMap<'a>
                         .items
                         .get_item(&scope, &imported_path[imported_path.len() - 1])
                     {
-                        common::parser::common::ResolvedItemReference::Type(imported_type.clone())
+                        common::parser::ResolvedItemReference::Type(imported_type.clone())
                     }
                     else if let Some(imported_fn) = self
                         .function_sigs
                         .get_item(&scope, &imported_path[imported_path.len() - 1])
                     {
-                        common::parser::common::ResolvedItemReference::Function(imported_fn.clone())
+                        common::parser::ResolvedItemReference::Function(imported_fn.clone())
                     }
                     else {
                         errors.push(Spanned::new(

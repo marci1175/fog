@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     codegen::ty::Type,
-    parser::common::{CustomItem, StatementVariant},
+    parser::{CustomItem, StatementVariant},
 };
 use anyhow::Result;
 use indexmap::IndexMap;

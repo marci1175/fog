@@ -8,7 +8,7 @@ use common::{
         attributes::Attribute, builder::Builder, context::Context, module::Module,
         targets::TargetMachine, values::FunctionValue,
     },
-    parser::{common::GlobalContext, function::CompilerInstruction},
+    parser::{CompilerInstruction, GlobalContext},
 };
 
 use crate::{

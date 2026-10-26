@@ -1,14 +1,11 @@
-use crate::{
+use common::{
+    anyhow,
     error::{Spanned, parser::ParserError},
-    parser::{
-        common::{StatementVariant, Streamable},
-        dbg::combine_span_info,
-        statement::parse_expr,
-        ty::parse_type,
-        variable::VARIABLE_ID_SOURCE,
-    },
+    parser::{StatementVariant, Streamable, VARIABLE_ID_SOURCE},
     tokenizer::{Token, TokenDiscriminants},
 };
+
+use crate::parser::{dbg::combine_span_info, statement::parse_expr, ty::parse_type};
 
 pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     tkns: &mut S,
@@ -32,7 +29,7 @@ pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     // Fetch the variable's name
     let variable_name = tkns
         .try_consume_match(
-            ParserError::SyntaxError(crate::error::syntax::SyntaxError::InvalidVariableDefinition),
+            ParserError::SyntaxError(common::error::syntax::SyntaxError::InvalidVariableDefinition),
             &TokenDiscriminants::Identifier,
         )?
         .try_as_identifier_ref()
@@ -41,7 +38,9 @@ pub fn var_decl<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 
     // Next token should be the equals sign in all cases as a variable cannot be uninitalized.
     tkns.try_consume_match(
-        ParserError::SyntaxError(crate::error::syntax::SyntaxError::VariableRequiresInitialization),
+        ParserError::SyntaxError(
+            common::error::syntax::SyntaxError::VariableRequiresInitialization,
+        ),
         &TokenDiscriminants::SetValue,
     )?;
 

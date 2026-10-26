@@ -5,10 +5,7 @@ use common::{
     codegen::ty::Type,
     error::{Spanned, analyzer::AnalyzerError},
     imports::{ExternalDeclerationType, ImportType},
-    parser::{
-        common::{CustomItem, GlobalContext, PathMap},
-        function::FunctionSignature,
-    },
+    parser::{CustomItem, FunctionSignature, GlobalContext, PathMap},
     tracing::info,
 };
 

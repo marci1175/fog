@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::{
     codegen::ty::{Type, Value},
-    parser::common::StatementVariant,
+    parser::StatementVariant,
 };
 
 #[derive(Debug, Error, IntoStaticStr)]
@@ -12,7 +12,11 @@ pub enum AnalyzerError
     #[error("Different code paths return different types.")]
     HeterogeneousReturnType,
     #[error("Function returns a value of type `{0}`, signature requires `{1}`.")]
-    MismatchingReturnType(Type, Type),
+    MismatchingReturnType(Box<Type>, Box<Type>),
+    #[error(
+        "Different items of an array have different types. First item's type is `{0}` but the this item's type is `{1}`"
+    )]
+    HeterogeneousArrayItemType(Box<Type>, Box<Type>),
     #[error("Not all conditional branches return a value when needed.")]
     InsufficientReturnPathCoverage,
     #[error(
@@ -36,11 +40,11 @@ pub enum AnalyzerError
     )]
     IdentifierNotFound,
     #[error("The value `{0}` cannot be fit into the destination type `{1}`.")]
-    UnsupportedValueByType(Value, Type),
+    UnsupportedValueByType(Box<Value>, Box<Type>),
     #[error(
         "[INTERNAL ERROR] Value with type `{0}` is not numerical. Check where the automatic type"
     )]
-    InternalValueNotNumerical(Type),
+    InternalValueNotNumerical(Box<Type>),
     #[error("Item is not a function and cannot be called as one.")]
     ItemNotCallableAsFunction,
 }

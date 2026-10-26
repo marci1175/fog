@@ -1,26 +1,19 @@
-use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::atomic::AtomicUsize};
 
 use anyhow::Result;
 use bimap::BiMap;
 use indexmap::IndexMap;
 use inkwell::{FloatPredicate, IntPredicate};
+use strum::{EnumDiscriminants, EnumTryAs};
 use strum_macros::Display;
 
 use crate::{
     codegen::{
         common::FunctionArgumentIdentifier,
-        ty::{OrdMap, OrdSet, Type, Value},
+        ty::{OrdMap, OrdSet, Type, TypeDiscriminants, Value},
     },
     error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     imports::{ExternalDeclerationType, ImportType},
-    parser::{
-        function::{
-            CompilerInstruction, CompilerInstructionDiscriminants, FunctionArguments,
-            FunctionDefinition, FunctionSignature, UnparsedFunctionDefinition,
-        },
-        numeric_value::MathematicalSymbol,
-        variable::{ControlFlowType, UniqueId},
-    },
     tokenizer::{Token, TokenDiscriminants},
 };
 use std::hash::Hash;
@@ -1337,7 +1330,7 @@ pub fn find_next_bitor(bitor_start_slice: &[Token]) -> Result<usize>
         }
     }
 
-    Err(ParserError::SyntaxError((SyntaxError::LeftOpenParentheses)).into())
+    Err(ParserError::SyntaxError(SyntaxError::LeftOpenParentheses).into())
 }
 
 pub fn find_closing_braces<S: Streamable<Spanned<Token>>>(tokens: &S) -> Option<usize>
@@ -1390,7 +1383,7 @@ pub fn find_next_comma(slice: &[Token]) -> Result<usize>
         }
     }
 
-    Err(ParserError::SyntaxError((SyntaxError::CommaNotFound)).into())
+    Err(ParserError::SyntaxError(SyntaxError::CommaNotFound).into())
 }
 
 pub fn parse_compiler_instruction(
@@ -1421,18 +1414,17 @@ pub fn parse_compiler_instruction(
                 }
             },
             _ => {
-                return Err(ParserError::SyntaxError((
-                    SyntaxError::CompilerInstructionRequiredAfterSymbol
-                ))
+                return Err(ParserError::SyntaxError(
+                    SyntaxError::CompilerInstructionRequiredAfterSymbol,
+                )
                 .into());
             },
         }
     }
     else {
-        return Err(ParserError::SyntaxError((
-            SyntaxError::CompilerInstructionRequiredAfterSymbol
-        ))
-        .into());
+        return Err(
+            ParserError::SyntaxError(SyntaxError::CompilerInstructionRequiredAfterSymbol).into(),
+        );
     }
 
     Ok(())
@@ -1620,6 +1612,328 @@ impl Order
             Order::EqBigger => FloatPredicate::OGE,
             Order::Smaller => FloatPredicate::OLT,
             Order::EqSmaller => FloatPredicate::OLE,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Hash)]
+pub struct UnparsedFunctionDefinition
+{
+    pub signature: FunctionSignature,
+    pub inner: Vec<Token>,
+
+    /// This is used to offset the index when fetching [`DebugInformation`] about [`ParsedToken`]s inside the function.
+    pub token_offset: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Default, Eq)]
+pub struct FunctionDefinition
+{
+    /// The actual body of the function.
+    pub body: Vec<Spanned<StatementVariant>>,
+
+    /// Compiler instructions for this specific function.
+    pub compiler_instructions: OrdSet<CompilerInstruction>,
+
+    /// Features required to be enabled for this function.
+    pub enabling_features: OrdSet<String>,
+
+    pub span: SpanInfo,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct FunctionSignature
+{
+    /// Name of the function.
+    pub name: String,
+    /// Required arguments of the function.
+    pub args: FunctionArguments,
+    /// Return type of the function.
+    pub return_type: Type,
+    /// The visibility of this function in the given [`Context`] (scope).
+    pub visibility: ItemVisibility,
+}
+
+impl std::fmt::Display for FunctionSignature
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
+        f.write_str(&format!("[Function Signature]:\n{:#?}", self))
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct FunctionArguments
+{
+    /// Even though [`UniqueId`]s are truly unique, we still dont want to use them (for now) as a key because strings are unique in this context.
+    pub arguments: OrdMap<String, (Type, UniqueId)>,
+    /// Made for backwards compatibility with FFI functions. (`...`)
+    pub ellipsis_present: bool,
+    /// The map consists of the generic types and their traits.
+    /// ie: { "T": {"trait1", "trait2"} }
+    /// Functions containing generics are generated when a function call is made to the specific function.
+    /// Basically, when a function with generics is called, it will check the arguments and if the arguments have the traits needed it will create a new function instance which will have the concrete types as its arguments.
+    pub generics: OrdMap<String, OrdSet<String>>,
+    /// If the function is being implemented for a valid type, this field will contain the type we are implementing for.
+    pub referenced_receiver: Option<Type>,
+}
+
+impl FunctionArguments
+{
+    /// We need to implement a Custom eq check on [`FunctionArguments`]s because the use of the [`UniqueId`] they both contain.
+    /// If the argument's order and name match this returns `true` otherwise `false`.
+    pub fn check_arg_eq(&self, rhs: &Self) -> bool
+    {
+        self.arguments
+            .iter()
+            .map(|(name, (ty, _))| (name, ty))
+            .collect::<Vec<_>>()
+            == rhs
+                .arguments
+                .iter()
+                .map(|(name, (ty, _))| (name, ty))
+                .collect::<Vec<_>>()
+    }
+}
+
+impl FunctionArguments
+{
+    pub fn new() -> Self
+    {
+        Self {
+            arguments: OrdMap::new(),
+            generics: OrdMap::new(),
+            ellipsis_present: false,
+            referenced_receiver: None,
+        }
+    }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, strum_macros::Display, Eq, Hash, EnumDiscriminants, EnumTryAs,
+)]
+#[strum_discriminants(derive(Hash))]
+pub enum CompilerInstruction
+{
+    /// See llvm function attributes
+    Cold,
+    NoFree,
+    Inline,
+    NoUnWind,
+
+    /// Feature flag to only enable compilation of the function if a certain function is enabled
+    Feature(String),
+}
+
+impl From<CompilerInstructionDiscriminants> for CompilerInstruction
+{
+    fn from(val: CompilerInstructionDiscriminants) -> Self
+    {
+        match val {
+            CompilerInstructionDiscriminants::Cold => CompilerInstruction::Cold,
+            CompilerInstructionDiscriminants::NoFree => CompilerInstruction::NoFree,
+            CompilerInstructionDiscriminants::Inline => CompilerInstruction::Inline,
+            CompilerInstructionDiscriminants::NoUnWind => CompilerInstruction::NoUnWind,
+            CompilerInstructionDiscriminants::Feature => {
+                CompilerInstruction::Feature(String::new())
+            },
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum MathematicalSymbol
+{
+    Addition,
+    Subtraction,
+    Division,
+    Multiplication,
+    Modulo,
+    Power,
+}
+
+///
+/// Bits	Signed	Unsigned	Float
+/// 8-bit	-	    uintsmall	-
+/// 16-bit	inthalf	uinthalf	floathalf
+/// 32-bit	int	    uint	    float
+/// 64-bit	intlong	uintlong	floatlong
+///
+/// Numeric suffixes will also be supported
+/// The list of suffixes are found here:
+///
+
+// The list of the numeric suffiexes
+pub const NUMERIC_SUFFIX: &[(&str, TypeDiscriminants)] = &[
+    ("uintsmall", TypeDiscriminants::U8),
+    ("uinthalf", TypeDiscriminants::U16),
+    ("uint", TypeDiscriminants::U32),
+    ("uintlong", TypeDiscriminants::U64),
+    ("inthalf", TypeDiscriminants::I16),
+    ("int", TypeDiscriminants::I32),
+    ("intlong", TypeDiscriminants::I64),
+    ("floathalf", TypeDiscriminants::F16),
+    ("float", TypeDiscriminants::F32),
+    ("floatlong", TypeDiscriminants::F64),
+];
+
+#[derive(Debug, Clone, Display, PartialEq, Eq, Hash)]
+pub enum ControlFlowType
+{
+    Break,
+    Continue,
+}
+
+pub type UniqueId = usize;
+
+/// Wrapper (around [`AtomicUsize`]) [`IdSource`] type.
+/// [`AtomicUsize`] with a simplified function interface.
+#[derive(Debug)]
+pub struct IdSource
+{
+    inner: AtomicUsize,
+}
+
+impl IdSource
+{
+    /// Creates a new [`IdSource`] with a starting id.
+    pub const fn new(starting_id: usize) -> Self
+    {
+        Self {
+            inner: AtomicUsize::new(starting_id),
+        }
+    }
+
+    /// Fetches current [`AtomicUsize`] state and increments it by one.
+    pub fn get_unique_id(&self) -> UniqueId
+    {
+        self.inner
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Sets the current internal state of the [`IDSource`].
+    pub fn set_current_unique_id(&self, id: UniqueId)
+    {
+        self.inner.store(id, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Fetches the current state of the internal [`AtomicUsize`].
+    pub fn get_current_id(&self) -> usize
+    {
+        self.inner.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+/// This static is a Variable Id source. This means that all of the variables (function argmuents included) have a unique id generated by this function.
+/// This is crucial when implementing a pre allocation table for loops
+pub static VARIABLE_ID_SOURCE: IdSource = IdSource::new(0);
+
+#[derive(Debug, Clone, Display, PartialEq, Eq, Hash, strum_macros::EnumTryAs)]
+/// VariableReferences are the lowest layer of referencing a variable. This enum wrapped in a ParsedToken, consult the documentation of that enum variant for more information.
+/// VariableReferences should not contain themselves as they are only for referencing a variable, there is not much more to it.
+pub enum VariableReference
+{
+    /// Variable name and custom identifier number (id for global scope)
+    BasicReference
+    {
+        /// The referred variable's name
+        variable_name: String,
+        // The referred variables global id
+        // id: usize
+    },
+    ///
+    StructField
+    {
+        /// Inner reference for the underlying variable
+        inner_reference: Box<Spanned<VariableReference>>,
+        /// The field name we are trying to access
+        field_name: String,
+    },
+    ArrayIndex
+    {
+        /// Inner reference for the underlying variable
+        inner_reference: Box<Spanned<VariableReference>>,
+        /// The index we are trying to access through the variable
+        index: Box<Spanned<StatementVariant>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StructFieldRef
+{
+    /// Variable reference enum this shows the underlying variable its referring from
+    pub variable_ref: Box<VariableReference>,
+    /// This field is for verifying types (Even if the struct fields match it could still be two different structs)
+    pub struct_name: String,
+    /// The actual struct body, this contains the fields paired with their types. (In order of insertion)
+    /// This field uses an [`OrdMap`] so that [`Hash`] can be implemented.
+    pub struct_fields: OrdMap<String, Type>,
+    /// This is the fields name we are refering
+    pub field: StructFieldType<
+        String,
+        (
+            FunctionSignature,
+            OrdMap<
+                FunctionArgumentIdentifier<String, usize>,
+                (Spanned<StatementVariant>, (Type, UniqueId)),
+            >,
+        ),
+    >,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum StructFieldType<F, FN>
+{
+    Field(F),
+    Function(FN),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ArrayIndexing
+{
+    pub variable_reference: Box<VariableReference>,
+    pub idx: Box<Spanned<StatementVariant>>,
+}
+
+/// The first item of the StructFieldReference is used to look up the name of the variable which stores the Struct.
+/// The functions which take the iterator of the `field_stack` field should not be passed the first item of the iterator, since the first item is used to look up the name of the variable which stores the struct.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StructFieldReference
+{
+    /// The name of the fields which get referenced
+    pub field_stack: Vec<String>,
+}
+
+impl Default for StructFieldReference
+{
+    fn default() -> Self
+    {
+        Self::new()
+    }
+}
+
+impl StructFieldReference
+{
+    /// Creates an instnace from a single entry
+    pub fn from_single_entry(field_name: String) -> Self
+    {
+        Self {
+            field_stack: vec![field_name],
+        }
+    }
+
+    /// Initializes an instance from a list of field entries
+    pub fn from_stack(field_stack: Vec<String>) -> Self
+    {
+        Self { field_stack }
+    }
+
+    /// Creates an instnace from an empty list
+    pub fn new() -> Self
+    {
+        Self {
+            // Most struct references are one field deep, might aswell take a guess
+            field_stack: Vec::with_capacity(1),
         }
     }
 }

@@ -10,7 +10,7 @@ use common::{
         types::{ArrayType, BasicMetadataTypeEnum},
         values::{IntValue, PointerValue},
     },
-    parser::{common::StatementVariant, variable::UniqueId},
+    parser::{StatementVariant, UniqueId},
 };
 
 pub fn allocate_string<'a>(

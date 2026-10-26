@@ -3,11 +3,7 @@ use thiserror::Error;
 
 use crate::{
     codegen::ty::Type,
-    parser::{
-        common::{ItemVisibility, StatementVariant},
-        function::CompilerInstruction,
-        variable::UniqueId,
-    },
+    parser::{CompilerInstruction, ItemVisibility, StatementVariant, UniqueId},
 };
 
 #[derive(Debug, Error)]

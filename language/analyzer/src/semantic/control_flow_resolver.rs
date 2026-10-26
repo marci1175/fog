@@ -1,8 +1,8 @@
 use common::{
     anyhow,
     codegen::ty::Type,
-    error::{SpanInfo, Spanned, analyzer::AnalyzerError},
-    parser::common::StatementVariant,
+    error::{Spanned, analyzer::AnalyzerError},
+    parser::StatementVariant,
 };
 
 use crate::{VariableMap, semantic::type_resolver::resolve_statement_type};
@@ -54,8 +54,8 @@ fn verify_uniform_return_type(
         errors.push(
             mismatching_type.rewrap_value(
                 AnalyzerError::MismatchingReturnType(
-                    *mismatching_type.inner.clone(),
-                    target_return_type.clone(),
+                    Box::new(*mismatching_type.inner.clone()),
+                    Box::new(target_return_type.clone()),
                 )
                 .into(),
             ),
@@ -75,7 +75,7 @@ fn fetch_returned_types(
 
     for (idx, stmt) in body.iter().enumerate() {
         // Iterate over all the if statements and such
-        let span = stmt.get_span().clone();
+        let span = *stmt.get_span();
         let stmt = stmt.get_inner();
 
         match stmt {
@@ -94,7 +94,7 @@ fn fetch_returned_types(
             },
             StatementVariant::Loop(body) => {
                 // We may just assume its not returning
-                value_returned = fetch_returned_types(&body, variable_map, returned_types, errors)?;
+                value_returned = fetch_returned_types(body, variable_map, returned_types, errors)?;
             },
             // Implement the rest of the loop types here
             StatementVariant::If(stmt) => {
