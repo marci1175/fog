@@ -1,4 +1,3 @@
-
 use common::{
     indexmap::IndexSet,
     parser::{CompilerInstruction, FunctionArguments, FunctionDefinition, FunctionSignature},
@@ -9,7 +8,8 @@ use common::{
     codegen::ty::{OrdMap, OrdSet, Type},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
-        Context, ItemVisibility, MathematicalSymbol, StatementVariant, Stream, Streamable, VARIABLE_ID_SOURCE, find_closing_braces,
+        Context, ItemVisibility, MathematicalSymbol, StatementVariant, Stream, Streamable,
+        VARIABLE_ID_SOURCE, find_closing_braces,
     },
     tokenizer::{Token, TokenDiscriminants},
 };

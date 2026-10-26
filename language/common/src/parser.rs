@@ -1169,6 +1169,20 @@ impl GlobalContext
             }
         }
 
+        for (path, name, sig) in g_ctx.function_signatures.iter() {
+            if let Some(_) =
+                self.function_signatures
+                    .insert(path.clone(), name.clone(), sig.clone())
+            {
+                return Err(ParserError::ContextItemCollision(
+                    (*path).clone(),
+                    g_ctx.name.clone(),
+                    self.name.clone(),
+                )
+                .into());
+            }
+        }
+
         // Store the context's items
         for (path, name, def) in g_ctx.items.iter() {
             if let Some(_) = self.items.insert(path.clone(), name.clone(), def.clone()) {

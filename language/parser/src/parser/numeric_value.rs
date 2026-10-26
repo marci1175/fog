@@ -187,5 +187,5 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
     // -foo
     // -bar()
 
-    parse_expr(dbg!(tkns), Some(val))
+    parse_expr(tkns, Some(val))
 }

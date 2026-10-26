@@ -3,8 +3,9 @@ use std::{net::SocketAddr, path::PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    codegen::ty::OrdSet, compiler::ProjectConfig, dependency_manager::DependencyInformation,
-    linker::BuildManifest,
+    codegen::ty::OrdSet,
+    compiler::{BuildManifest, ProjectConfig},
+    dependency_manager::DependencyInformation,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]

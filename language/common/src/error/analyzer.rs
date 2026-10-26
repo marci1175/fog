@@ -9,6 +9,10 @@ use crate::{
 #[derive(Debug, Error, IntoStaticStr)]
 pub enum AnalyzerError
 {
+    #[error(
+        "[INTERNAL ERROR] A function `{0}`'s definition has been found but its signature is not available during analysis."
+    )]
+    InternalFunctionSignatureNotFoundDefinitionFound(String),
     #[error("Different code paths return different types.")]
     HeterogeneousReturnType,
     #[error("Function returns a value of type `{0}`, signature requires `{1}`.")]

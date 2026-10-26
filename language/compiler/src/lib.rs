@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{self},
     path::PathBuf,
 };
@@ -7,7 +8,7 @@ use codegen::irgen::start_codegen;
 use common::{
     anyhow::{self, Result},
     codegen::ty::{OrdSet, Type},
-    compiler::ProjectConfig,
+    compiler::{BuildCache, BuildManifest, ProjectConfig},
     dependency::verify_dependencies_fs,
     error::{SpannedError, application::ApplicationError, codegen::CodeGenError},
     imports::ImportType,
@@ -16,7 +17,6 @@ use common::{
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
     },
-    linker::BuildManifest,
     parser::{GlobalContext, ItemVisibility, Stream, Streamable},
     toml,
     tracing::{error, info},
@@ -57,13 +57,16 @@ impl CompilerInstance
 
     /// Comprehensive function for compiling an entire project.
     /// The function handles generating ASTs, LLVM IR and producing a [`BuildManifest`] that the linker can use to produce a binary.
-    pub fn compile(&self) -> anyhow::Result<BuildManifest>
+    pub fn compile(
+        &self,
+        build_cache: Option<BuildCache>,
+    ) -> anyhow::Result<(BuildManifest, BuildCache)>
     {
         let root_path = vec![self.config.name.clone()];
 
         // The global context for the whole project
         // This function basically generates all of the ASTs for all of the dependencies and source files and puts them into one global context.
-        let mut global_context = self.generate_asts()?;
+        let mut global_context = self.generate_asts(build_cache.as_ref())?;
 
         // Ensure that if this project is not a library it has a main function
         if !self.config.is_library {
@@ -131,16 +134,16 @@ impl CompilerInstance
         }
 
         // dbg!(&global_context);
-
         info!("Generating LLVM IR....");
 
-        // Generate LLVM IR for the global context
-        let build_manifest = self.generate_ir(&global_context)?;
-
-        Ok(build_manifest)
+        // Generate LLVM IR for the global context and return the output of the generation
+        Ok(self.generate_ir(&global_context)?)
     }
 
-    fn generate_ir(&self, global_context: &GlobalContext) -> anyhow::Result<BuildManifest>
+    fn generate_ir(
+        &self,
+        global_context: &GlobalContext,
+    ) -> anyhow::Result<(BuildManifest, BuildCache)>
     {
         info!("Initalizing LLVM....");
 
@@ -186,12 +189,9 @@ impl CompilerInstance
             info!("Running optimization passes: {passes}...");
         }
 
-        let mut build_manifest = BuildManifest {
-            build_arctifact_paths: todo!(),
-            additional_linking_material: todo!(),
-            build_path: todo!(),
-            build_type: todo!(),
-        };
+        // Store the canonicalized paths of the
+        let mut artifacts = Vec::new();
+        let mut compiled_modules = HashMap::new();
 
         for (name, (module, _)) in modules {
             if self.optimized {
@@ -201,13 +201,41 @@ impl CompilerInstance
             }
 
             // Write the generated llvm IR to its designated file
-            module.print_to_file(format!("{name}.ll"))?;
+            let path = format!("{}\\{name}.ll", self.config.build_path);
+            module.print_to_file(&path)?;
+
+            // Store as a pathbuf and try to canonicalize the path
+            artifacts.push(PathBuf::from(path).canonicalize()?);
         }
 
-        Ok(build_manifest)
+        // Generate the compiler's build cache of the project's dependencies
+        for (name, info) in self.config.dependencies.iter() {
+            // Fetch the last modified time of the folder so that we will know when to recompile
+            let metadata =
+                fs::metadata(format!("{}\\deps\\{name}", self.root_dir.display()))?;
+            let last_modified = metadata.modified()?;
+
+            // Store the compiled library in the cache
+            compiled_modules.insert(name.clone(), (info.clone(), last_modified));
+        }
+
+        Ok((
+            BuildManifest {
+                build_arctifact_paths: artifacts,
+                additional_linking_material: self.config.additional_linking_material.clone(),
+                build_path: self.config.build_path.clone().into(),
+                build_type: if self.config.is_library {
+                    common::compiler::BuildType::Library
+                }
+                else {
+                    common::compiler::BuildType::Executable
+                },
+            },
+            BuildCache { compiled_modules },
+        ))
     }
 
-    fn generate_asts(&self) -> Result<GlobalContext>
+    fn generate_asts(&self, build_cache: Option<&BuildCache>) -> Result<GlobalContext>
     {
         let parser_settings = Settings::new(self.config.clone(), self.enabled_features.clone());
 
@@ -234,11 +262,28 @@ impl CompilerInstance
         parsing_result?;
 
         // Check if the folder is present inside the dependencies folder
-        let dependencies =
-            verify_dependencies_fs(self.root_dir.clone(), &self.config.dependencies)?;
+        let dependencies = verify_dependencies_fs(
+            format!("{}\\deps", self.root_dir.display()).into(),
+            &self.config.dependencies,
+        )?;
 
         // Create jobs for the compiler from the dependencies
-        for (name, path) in dependencies {
+        for (name, path, last_modified) in dependencies {
+            // If a cache has been passed in check whether we have to create a job for the dependency
+            if let Some(cache) = build_cache {
+                // Try getting the dependency's name from the cache
+                if let Some((cached_dependency_info, cached_last_modified)) =
+                    cache.compiled_modules.get(name)
+                {
+                    // Check if everything matches, if it does we can skip the compilation
+                    if &last_modified == cached_last_modified
+                        && cached_dependency_info == self.config.dependencies.get(name).unwrap()
+                    {
+                        continue;
+                    }
+                }
+            }
+
             // Its safe to unwrap here since the names presented are fetched from the dependency list directly.
             let job = CompilerInstance::new(
                 path,
@@ -249,7 +294,7 @@ impl CompilerInstance
 
             // Create a list of artifacts (these are usually the dependencies of the dependency itself)
             // The function checks for item path collisions
-            g_context.append_global_ctx(job.generate_asts()?)?;
+            g_context.append_global_ctx(job.generate_asts(None)?)?;
         }
 
         Ok(g_context)

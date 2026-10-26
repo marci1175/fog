@@ -43,7 +43,10 @@ pub fn start_analysis(
         let imports = g_ctx.ctx_imports.get(path);
 
         // Get the current function's signature
-        let this_sig = g_ctx.function_signatures.get_item(path, name).unwrap();
+        let this_sig = g_ctx
+            .function_signatures
+            .get_item(path, name)
+            .ok_or(AnalyzerError::InternalFunctionSignatureNotFoundDefinitionFound(name.clone()))?;
 
         // Create a variable map so that we can check the type of the variable later.
         // (If the identifiers are resolved, then this map can be used regardless of where we are trying to resolve the type of a specific variable

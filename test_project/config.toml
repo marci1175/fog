@@ -9,4 +9,4 @@ additional_linking_material = ["deps\\dep1\\external_deps\\PtrTest.lib"]
 # ]
 
 [dependencies]
-# dependency-test = { version = "0.0.1", remote = "Remote", features = [] }
+dep1 = { version = "0.0.1", features = [] }

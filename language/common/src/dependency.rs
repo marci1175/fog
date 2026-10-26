@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf, time::SystemTime};
 
 use serde::{Deserialize, Serialize};
 
@@ -22,40 +22,23 @@ pub struct DependencyRequest
     pub version: String,
 }
 
-pub fn construct_dependency_path(
-    deps_path: PathBuf,
-    dependency_name: String,
-    dependency_version: String,
-) -> PathBuf
-{
-    let mut dependency_path = deps_path.clone();
-
-    dependency_path.push(format!(
-        "{}({})",
-        dependency_name.clone(),
-        dependency_version.clone()
-    ));
-
-    dependency_path
-}
-
 /// This function verifies all the dependencies that they are present in the dependency folder and returns a Path for each.
 /// This does not verify if config file and whatever need is in there, only check the presence of the folder inside the dependencies folder.
 pub fn verify_dependencies_fs(
-    mut project_root: PathBuf,
+    mut dependency_root: PathBuf,
     dependencies: &HashMap<String, DependencyInfo>,
-) -> anyhow::Result<Vec<(&str, PathBuf)>>
+) -> anyhow::Result<Vec<(&str, PathBuf, SystemTime)>>
 {
     let mut dependency_paths = Vec::new();
 
     for name in dependencies.keys() {
-        project_root.push(name);
+        dependency_root.push(name);
 
-        if fs::exists(&project_root)? {
-            dependency_paths.push((name.as_str(), project_root.clone()));
-        }
+        let metadata = fs::metadata(&dependency_root)?;
 
-        project_root.pop();
+        dependency_paths.push((name.as_str(), dependency_root.clone(), metadata.modified()?));
+
+        dependency_root.pop();
     }
 
     Ok(dependency_paths)

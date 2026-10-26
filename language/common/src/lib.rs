@@ -20,9 +20,6 @@ pub mod error;
 /// Used for hanlidng imports from dependencies and external files
 pub mod imports;
 
-/// Linking interface with clang (Can be compiled as a standalone tool)
-pub mod linker;
-
 /// Parsing the tokens produced by the tokenizer
 pub mod parser;
 

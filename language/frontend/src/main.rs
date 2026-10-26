@@ -5,9 +5,8 @@ use clap::Parser;
 use common::{
     anyhow,
     codegen::ty::OrdSet,
-    compiler::ProjectConfig,
+    compiler::{BuildManifest, ProjectConfig},
     error::{application::ApplicationError, linker::LinkerError},
-    linker::BuildManifest,
     toml,
     tracing::{info, warn},
     tracing_subscriber,
@@ -107,17 +106,25 @@ fn main() -> common::anyhow::Result<()>
 
             let build_path = PathBuf::from(format!("{build_artifact_name}.exe"));
             let build_manifest_path = PathBuf::from(format!("{build_artifact_name}.manifest"));
+            let cache_path = PathBuf::from(format!("{build_artifact_name}.cache"));
+
+            // Try reading the cache from the output folder if there is one.
+            let cache = fs::read_to_string(&cache_path)
+                .ok()
+                .and_then(|content| toml::from_str(&content).ok());
+
             let compiler_startup_instant = std::time::Instant::now();
 
-            let build_manifest = compiler.compile()?;
+            // Start the compiler, and pass in the build cache if there is one.
+            let (manifest, cache) = compiler.compile(cache)?;
 
-            // Write build manifest to disc
-            fs::write(build_manifest_path, toml::to_string(&build_manifest)?)?;
+            fs::write(build_manifest_path, toml::to_string(&manifest)?)?;
+            fs::write(cache_path, toml::to_string(&cache)?)?;
 
             info!("All build artifacts have been saved.");
 
             // Link automaticly
-            let link_res = link(&build_manifest).map_err(anyhow::Error::from)?;
+            let link_res = link(&manifest).map_err(anyhow::Error::from)?;
 
             if !link_res.status.success() {
                 return Err(LinkerError::Other(String::from_utf8(link_res.stderr)?.into()).into());
@@ -127,7 +134,6 @@ fn main() -> common::anyhow::Result<()>
                 "Linking finished successfully! Binary output is available at: {}",
                 build_path.display()
             );
-
             info!(
                 "Building finished in {:.2?}.",
                 compiler_startup_instant.elapsed()
@@ -143,7 +149,7 @@ fn main() -> common::anyhow::Result<()>
                 );
 
                 // Run the acutal compiled application
-                let exit_status = build_manifest.run_build_output(root_path, args)?;
+                let exit_status = manifest.run_build_output(root_path, args)?;
 
                 if !exit_status.success() {
                     if let Some(exit_code) = exit_status.code() {
