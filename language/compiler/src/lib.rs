@@ -164,11 +164,11 @@ impl CompilerInstance
         let mut artifacts = Vec::new();
 
         for (name, (module, _)) in modules {
-            if self.is_release {
-                module
-                    .run_passes(passes, &target_machine, PassBuilderOptions::create())
-                    .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
-            }
+            // if self.is_release {
+            //     module
+            //         .run_passes(passes, &target_machine, PassBuilderOptions::create())
+            //         .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
+            // }
 
             // Write the generated llvm IR to its designated file
             let path = format!("{}\\{name}.ll", self.config.build_path);
@@ -188,7 +188,14 @@ impl CompilerInstance
             let last_modified = metadata.modified()?;
 
             // Store the compiled library in the cache
-            cache_modified |= build_cache.compiled_modules.insert(format!("{name}_{}", if self.is_release { "release" } else { "debug" }), (info.clone(), last_modified)).is_some();
+            let data = (info.clone(), last_modified);
+            cache_modified |= match build_cache.compiled_modules.insert(generate_dependency_name(name.clone(), self.is_release, info.version.clone()), data.clone()) {
+                Some(old_item) => {
+                    // Only update the cache if the inserted item is different from the old item.
+                    old_item != data
+                },
+                None => true,
+            };
         }
 
         Ok((
@@ -240,16 +247,16 @@ impl CompilerInstance
         )?;
 
         // Create jobs for the compiler from the dependencies
-        for (name, path, last_modified) in dependencies {
+        for (name, path, last_modified, info) in dependencies {
             // If a cache has been passed in check whether we have to create a job for the dependency
             if let Some(cache) = build_cache {
                 // Try getting the dependency's name from the cache
                 if let Some((cached_dependency_info, cached_last_modified)) =
-                    cache.compiled_modules.get(&format!("{name}_{}", if self.is_release { "release" } else { "debug" }))
+                    cache.compiled_modules.get(&generate_dependency_name(name.to_string(), self.is_release, info.version.clone()))
                 {
                     // Check if everything matches, if it does we can skip the compilation
                     if &last_modified == cached_last_modified
-                        && cached_dependency_info == self.config.dependencies.get(name).unwrap()
+                        && cached_dependency_info == info
                     {
                         // Inform the user that we are skipping the cached dependency
                         info!("Skipped cached dependency `{name}({})`.", cached_dependency_info.version);
@@ -349,4 +356,8 @@ fn parse_src_file(
     };
 
     Ok(())
+}
+
+pub fn generate_dependency_name(name: String, is_release: bool, version: String) -> String {
+    format!("{name}_{}_{}", if is_release { "release" } else { "debug" }, version)
 }

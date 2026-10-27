@@ -27,16 +27,16 @@ pub struct DependencyRequest
 pub fn verify_dependencies_fs(
     mut dependency_root: PathBuf,
     dependencies: &HashMap<String, DependencyInfo>,
-) -> anyhow::Result<Vec<(&str, PathBuf, SystemTime)>>
+) -> anyhow::Result<Vec<(&str, PathBuf, SystemTime, &DependencyInfo)>>
 {
     let mut dependency_paths = Vec::new();
 
-    for name in dependencies.keys() {
+    for (name, info) in dependencies {
         dependency_root.push(name);
 
         let metadata = fs::metadata(&dependency_root)?;
 
-        dependency_paths.push((name.as_str(), dependency_root.clone(), metadata.modified()?));
+        dependency_paths.push((name.as_str(), dependency_root.clone(), metadata.modified()?, info));
 
         dependency_root.pop();
     }
