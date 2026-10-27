@@ -114,7 +114,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 
             // If the next token after a statement is a comma, then we should assume that the comme is used as a separator of some sorts and return the original stmt.
             // Example `fun(a, b)`, parse value returns `a` since we are returning if a comma is present
-            Token::Comma => { break 'main_loop },
+            Token::Comma => break 'main_loop,
 
             Token::SetValueMathSym(sym) => parse_set_value_math_symbol(tkns, stmt, sym)?,
 

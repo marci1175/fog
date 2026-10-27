@@ -36,7 +36,12 @@ pub fn verify_dependencies_fs(
 
         let metadata = fs::metadata(&dependency_root)?;
 
-        dependency_paths.push((name.as_str(), dependency_root.clone(), metadata.modified()?, info));
+        dependency_paths.push((
+            name.as_str(),
+            dependency_root.clone(),
+            metadata.modified()?,
+            info,
+        ));
 
         dependency_root.pop();
     }

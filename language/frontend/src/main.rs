@@ -13,7 +13,12 @@ use common::{
 };
 use compiler::CompilerInstance;
 use linker::link;
-use std::{env, fs::{self, File}, io::Write, path::PathBuf};
+use std::{
+    env,
+    fs::{self, File},
+    io::Write,
+    path::PathBuf,
+};
 use tracing::Level;
 
 #[derive(Parser, Debug)]

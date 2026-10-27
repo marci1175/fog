@@ -4,13 +4,22 @@ use std::{
     path::PathBuf,
 };
 
-use codegen::{startup::start_codegen, startup::initalize_llvm};
+use codegen::startup::{initalize_llvm, start_codegen};
 use common::{
-    anyhow::{self, Result}, codegen::ty::{OrdSet, Type}, compiler::{BuildCache, BuildManifest, ProjectConfig}, dependency::verify_dependencies_fs, error::{SpannedError, application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::{
+    anyhow::{self, Result},
+    codegen::ty::{OrdSet, Type},
+    compiler::{BuildCache, BuildManifest, ProjectConfig},
+    dependency::verify_dependencies_fs,
+    error::{SpannedError, application::ApplicationError, codegen::CodeGenError},
+    imports::ImportType,
+    inkwell::{
         context::Context,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    }, parser::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::{error, info},
+    },
+    parser::{GlobalContext, ItemVisibility, Stream, Streamable},
+    toml,
+    tracing::{error, info},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
@@ -53,7 +62,7 @@ impl CompilerInstance
         build_cache: Option<BuildCache>,
     ) -> anyhow::Result<(BuildManifest, Option<BuildCache>)>
     {
-        let root_path = vec![self.config.name.clone()];
+        let root_path = vec![generate_dependency_name(&self.config.name, self.is_release, &self.config.version)];
 
         // The global context for the whole project
         // This function basically generates all of the ASTs for all of the dependencies and source files and puts them into one global context.
@@ -141,7 +150,7 @@ impl CompilerInstance
         // Create the llvm context
         let context = Context::create();
         let builder = context.create_builder();
-        
+
         // Generate modules
         let modules = start_codegen(
             &context,
@@ -171,7 +180,14 @@ impl CompilerInstance
             // }
 
             // Write the generated llvm IR to its designated file
-            let path = format!("{}\\{name}.ll", self.config.build_path);
+            // Try checking if its a dependency of the project
+            let path = if let Some(dependency) = self.config.dependencies.get(&name) {
+                generate_dependency_name(&name, self.is_release, &dependency.version)
+            }
+            else {
+                format!("{}\\{name}.ll", self.config.build_path)
+            };
+
             module.print_to_file(&path)?;
 
             // Store as a pathbuf and try to canonicalize the path
@@ -183,13 +199,18 @@ impl CompilerInstance
         // Generate the compiler's build cache of the project's dependencies
         for (name, info) in self.config.dependencies.iter() {
             // Fetch the last modified time of the folder so that we will know when to recompile
-            let metadata =
-                fs::metadata(format!("{}\\deps\\{name}", self.root_dir.display()))?;
+            let path = format!("{}\\deps\\{name}", self.root_dir.display());
+
+            // Fetch metadata of item
+            let metadata = fs::metadata(&path)?;
             let last_modified = metadata.modified()?;
 
             // Store the compiled library in the cache
             let data = (info.clone(), last_modified);
-            cache_modified |= match build_cache.compiled_modules.insert(generate_dependency_name(name.clone(), self.is_release, info.version.clone()), data.clone()) {
+            cache_modified |= match build_cache.compiled_modules.insert(
+                generate_dependency_name(name, self.is_release, &info.version),
+                data.clone(),
+            ) {
                 Some(old_item) => {
                     // Only update the cache if the inserted item is different from the old item.
                     old_item != data
@@ -210,13 +231,19 @@ impl CompilerInstance
                     common::compiler::BuildType::Executable
                 },
             },
-            if cache_modified { Some(build_cache) } else { None },
+            if cache_modified {
+                Some(build_cache)
+            }
+            else {
+                None
+            },
         ))
     }
 
     fn generate_asts(&self, build_cache: Option<&BuildCache>) -> Result<GlobalContext>
     {
         let parser_settings = Settings::new(self.config.clone(), self.enabled_features.clone());
+        let name = generate_dependency_name(&self.config.name, self.is_release, &self.config.version);
 
         // A global GlobalContext holds all of the context files' items.
         let mut g_context = GlobalContext::new(self.config.name.clone());
@@ -224,7 +251,7 @@ impl CompilerInstance
         // This source path is always defining the path of the currently parsed file.
         // This is also a way of navigating between imported source files via their relative path.
         let src_path = PathBuf::from(format!("{}\\src\\main.f", self.root_dir.display()));
-        let module_path = vec![self.config.name.clone()];
+        let module_path = vec![name];
 
         info!("Compiling `{}`...", self.config.name);
 
@@ -252,14 +279,35 @@ impl CompilerInstance
             if let Some(cache) = build_cache {
                 // Try getting the dependency's name from the cache
                 if let Some((cached_dependency_info, cached_last_modified)) =
-                    cache.compiled_modules.get(&generate_dependency_name(name.to_string(), self.is_release, info.version.clone()))
+                    cache.compiled_modules.get(&generate_dependency_name(
+                        name,
+                        self.is_release,
+                        &info.version,
+                    ))
                 {
                     // Check if everything matches, if it does we can skip the compilation
+                    // We should also check if the artifact of the dependency is also present in the output folder
                     if &last_modified == cached_last_modified
                         && cached_dependency_info == info
+                        && fs::exists(
+                            format!(
+                                "{}\\{}\\{}",
+                                self.root_dir.display(),
+                                self.config.build_path,
+                                generate_dependency_name(
+                                    name,
+                                    self.is_release,
+                                    &info.version
+                                )
+                            )
+                        )
+                        .unwrap_or_default()
                     {
                         // Inform the user that we are skipping the cached dependency
-                        info!("Skipped cached dependency `{name}({})`.", cached_dependency_info.version);
+                        info!(
+                            "Skipped cached dependency `{name}({})`.",
+                            cached_dependency_info.version
+                        );
 
                         continue;
                     }
@@ -358,6 +406,11 @@ fn parse_src_file(
     Ok(())
 }
 
-pub fn generate_dependency_name(name: String, is_release: bool, version: String) -> String {
-    format!("{name}_{}_{}", if is_release { "release" } else { "debug" }, version)
+pub fn generate_dependency_name(name: &str, is_release: bool, version: &str) -> String
+{
+    format!(
+        "{name}_{}_{}",
+        if is_release { "release" } else { "debug" },
+        version
+    )
 }

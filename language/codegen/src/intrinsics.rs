@@ -1,4 +1,10 @@
-use common::{anyhow, codegen::ty::OrdSet, error::codegen::CodeGenError, inkwell::{attributes::Attribute, context::Context, values::FunctionValue}, parser::CompilerInstruction};
+use common::{
+    anyhow,
+    codegen::ty::OrdSet,
+    error::codegen::CodeGenError,
+    inkwell::{attributes::Attribute, context::Context, values::FunctionValue},
+    parser::CompilerInstruction,
+};
 
 pub fn add_compiler_hints_to_fn(
     context: &Context,

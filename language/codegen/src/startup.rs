@@ -1,10 +1,15 @@
 use std::collections::HashMap;
 
 use common::{
-    anyhow::{self, Result}, codegen::ty::OrdSet, error::codegen::CodeGenError, inkwell::{
+    anyhow::{self, Result},
+    codegen::ty::OrdSet,
+    error::codegen::CodeGenError,
+    inkwell::{
         attributes::Attribute, builder::Builder, context::Context, module::Module,
         targets::TargetMachine, values::FunctionValue,
-    }, parser::{CompilerInstruction, GlobalContext}, tracing::info,
+    },
+    parser::{CompilerInstruction, GlobalContext},
+    tracing::info,
 };
 
 use crate::{
@@ -69,9 +74,10 @@ pub fn start_codegen<'ctx>(
     Ok(modules)
 }
 
-use common::{inkwell::targets::{InitializationConfig, RelocMode, Target}};
+use common::inkwell::targets::{InitializationConfig, RelocMode, Target};
 
-pub fn initalize_llvm() -> Result<TargetMachine, anyhow::Error> {
+pub fn initalize_llvm() -> Result<TargetMachine, anyhow::Error>
+{
     info!("Initalizing LLVM...");
 
     Target::initialize_x86(&InitializationConfig::default());
