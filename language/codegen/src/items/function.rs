@@ -12,7 +12,7 @@ use common::{
     parser::{FunctionDefinition, FunctionSignature, ItemVisibility, StatementVariant},
 };
 
-use crate::irgen::add_compiler_hints_to_fn;
+use crate::intrinsics::add_compiler_hints_to_fn;
 
 pub fn create_function_type<'ctx>(
     ctx: &'ctx Context,

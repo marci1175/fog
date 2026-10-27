@@ -1,14 +1,10 @@
 use std::collections::HashMap;
 
 use common::{
-    anyhow::{self, Result},
-    codegen::ty::OrdSet,
-    error::codegen::CodeGenError,
-    inkwell::{
+    anyhow::{self, Result}, codegen::ty::OrdSet, error::codegen::CodeGenError, inkwell::{
         attributes::Attribute, builder::Builder, context::Context, module::Module,
         targets::TargetMachine, values::FunctionValue,
-    },
-    parser::{CompilerInstruction, GlobalContext},
+    }, parser::{CompilerInstruction, GlobalContext}, tracing::info,
 };
 
 use crate::{
@@ -25,6 +21,8 @@ pub fn start_codegen<'ctx>(
     target_machine: &TargetMachine,
 ) -> Result<HashMap<String, (Module<'ctx>, DebugInformation<'ctx>)>>
 {
+    info!("Generating LLVM IR...");
+
     // Create a map of the available modules.
     // A module is created if its not found in the map. A module contains every function which has the module name as its first item in its path. (ie. module: `foo` contains foo::bar, foo::bar::baz, etc.)
     let mut modules: HashMap<String, (Module, DebugInformation<'ctx>)> = HashMap::new();
@@ -71,45 +69,28 @@ pub fn start_codegen<'ctx>(
     Ok(modules)
 }
 
-pub fn add_compiler_hints_to_fn(
-    context: &Context,
-    compiler_hints: &OrdSet<CompilerInstruction>,
-    function: FunctionValue<'_>,
-) -> anyhow::Result<()>
-{
-    for hint in compiler_hints.iter() {
-        match hint {
-            CompilerInstruction::Cold => {
-                let attr =
-                    context.create_enum_attribute(Attribute::get_named_enum_kind_id("cold"), 0);
+use common::{inkwell::targets::{InitializationConfig, RelocMode, Target}};
 
-                function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
-            },
-            CompilerInstruction::NoFree => {
-                let attr =
-                    context.create_enum_attribute(Attribute::get_named_enum_kind_id("nofree"), 0);
+pub fn initalize_llvm() -> Result<TargetMachine, anyhow::Error> {
+    info!("Initalizing LLVM...");
 
-                function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
-            },
-            CompilerInstruction::Inline => {
-                let attr = context
-                    .create_enum_attribute(Attribute::get_named_enum_kind_id("inlinehint"), 0);
+    Target::initialize_x86(&InitializationConfig::default());
 
-                function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
-            },
-            CompilerInstruction::NoUnWind => {
-                let attr =
-                    context.create_enum_attribute(Attribute::get_named_enum_kind_id("nounwind"), 0);
+    let target_triple = TargetMachine::get_default_triple();
 
-                function.add_attribute(common::inkwell::attributes::AttributeLoc::Function, attr);
-            },
-            CompilerInstruction::Feature(_) => {
-                return Err(
-                    CodeGenError::InternalFunctionCompilerHintParsingError(hint.clone()).into(),
-                );
-            },
-        }
-    }
+    let target = Target::from_triple(&target_triple)
+        .map_err(|_| common::anyhow::Error::from(CodeGenError::FaliedToAcquireTargetTriple))?;
 
-    Ok(())
+    let target_machine = target
+        .create_target_machine(
+            &target_triple,
+            &TargetMachine::get_host_cpu_name().to_string(),
+            &TargetMachine::get_host_cpu_features().to_string(),
+            common::inkwell::OptimizationLevel::Aggressive,
+            RelocMode::Default,
+            common::inkwell::targets::CodeModel::Default,
+        )
+        .unwrap();
+
+    Ok(target_machine)
 }

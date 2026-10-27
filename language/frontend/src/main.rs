@@ -13,7 +13,7 @@ use common::{
 };
 use compiler::CompilerInstance;
 use linker::link;
-use std::{env, fs, path::PathBuf};
+use std::{env, fs::{self, File}, io::Write, path::PathBuf};
 use tracing::Level;
 
 #[derive(Parser, Debug)]
@@ -118,8 +118,11 @@ fn main() -> common::anyhow::Result<()>
             // Start the compiler, and pass in the build cache if there is one.
             let (manifest, cache) = compiler.compile(cache)?;
 
+            // The cache return is only some if it was modified, or otherwise should be updated.
+            if let Some(cache) = cache {
+                fs::write(cache_path, toml::to_string_pretty(&cache)?)?;
+            }
             fs::write(build_manifest_path, toml::to_string(&manifest)?)?;
-            fs::write(cache_path, toml::to_string(&cache)?)?;
 
             info!("All build artifacts have been saved.");
 

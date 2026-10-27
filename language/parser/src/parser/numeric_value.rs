@@ -179,13 +179,5 @@ pub fn parse_numeric_value<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
         _ => parse_expr(tkns, None)?,
     };
 
-    // We should accept any of these:
-    // 200 + 100
-    // foo;
-    // -(foo)
-    // -200
-    // -foo
-    // -bar()
-
-    parse_expr(tkns, Some(val))
+    Ok(val)
 }

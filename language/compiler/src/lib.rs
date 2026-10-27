@@ -4,28 +4,19 @@ use std::{
     path::PathBuf,
 };
 
-use codegen::irgen::start_codegen;
+use codegen::{startup::start_codegen, startup::initalize_llvm};
 use common::{
-    anyhow::{self, Result},
-    codegen::ty::{OrdSet, Type},
-    compiler::{BuildCache, BuildManifest, ProjectConfig},
-    dependency::verify_dependencies_fs,
-    error::{SpannedError, application::ApplicationError, codegen::CodeGenError},
-    imports::ImportType,
-    inkwell::{
+    anyhow::{self, Result}, codegen::ty::{OrdSet, Type}, compiler::{BuildCache, BuildManifest, ProjectConfig}, dependency::verify_dependencies_fs, error::{SpannedError, application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::{
         context::Context,
         passes::PassBuilderOptions,
         targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    },
-    parser::{GlobalContext, ItemVisibility, Stream, Streamable},
-    toml,
-    tracing::{error, info},
+    }, parser::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::{error, info},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
 pub struct CompilerInstance
 {
-    pub optimized: bool,
+    pub is_release: bool,
     pub config: ProjectConfig,
     pub root_dir: PathBuf,
     pub enabled_features: OrdSet<String>,
@@ -48,7 +39,7 @@ impl CompilerInstance
             toml::from_str::<ProjectConfig>(&config_file).map_err(ApplicationError::ConfigError)?;
 
         Ok(Self {
-            optimized,
+            is_release: optimized,
             config,
             root_dir: project_root_dir,
             enabled_features,
@@ -60,7 +51,7 @@ impl CompilerInstance
     pub fn compile(
         &self,
         build_cache: Option<BuildCache>,
-    ) -> anyhow::Result<(BuildManifest, BuildCache)>
+    ) -> anyhow::Result<(BuildManifest, Option<BuildCache>)>
     {
         let root_path = vec![self.config.name.clone()];
 
@@ -133,50 +124,30 @@ impl CompilerInstance
             info!("No errors found during analysis.");
         }
 
-        // dbg!(&global_context);
-        info!("Generating LLVM IR....");
-
         // Generate LLVM IR for the global context and return the output of the generation
-        Ok(self.generate_ir(&global_context)?)
+        Ok(self.generate_ir(&global_context, build_cache)?)
     }
 
     fn generate_ir(
         &self,
         global_context: &GlobalContext,
-    ) -> anyhow::Result<(BuildManifest, BuildCache)>
+        build_cache: Option<BuildCache>,
+    ) -> anyhow::Result<(BuildManifest, Option<BuildCache>)>
     {
-        info!("Initalizing LLVM....");
-
-        // Initalize target
-        Target::initialize_x86(&InitializationConfig::default());
-        let target_triple = TargetMachine::get_default_triple();
-
-        // Create target
-        let target = Target::from_triple(&target_triple)
-            .map_err(|_| common::anyhow::Error::from(CodeGenError::FaliedToAcquireTargetTriple))?;
-
-        // Create target machine
-        let target_machine = target
-            .create_target_machine(
-                &target_triple,
-                &TargetMachine::get_host_cpu_name().to_string(),
-                &TargetMachine::get_host_cpu_features().to_string(),
-                common::inkwell::OptimizationLevel::Aggressive,
-                RelocMode::Default,
-                common::inkwell::targets::CodeModel::Default,
-            )
-            .unwrap();
+        // Fetch the current build cache or create a new empty one
+        let mut build_cache = build_cache.unwrap_or_default();
+        let target_machine = initalize_llvm()?;
 
         // Create the llvm context
         let context = Context::create();
         let builder = context.create_builder();
-
+        
         // Generate modules
         let modules = start_codegen(
             &context,
             &builder,
             global_context,
-            self.optimized,
+            self.is_release,
             &target_machine,
         )?;
 
@@ -185,16 +156,15 @@ impl CompilerInstance
         let passes = passes.as_str();
 
         // Run optimization passes if the user prompted to
-        if self.optimized {
-            info!("Running optimization passes: {passes}...");
+        if self.is_release {
+            info!("Running optimization passes: {passes}");
         }
 
         // Store the canonicalized paths of the
         let mut artifacts = Vec::new();
-        let mut compiled_modules = HashMap::new();
 
         for (name, (module, _)) in modules {
-            if self.optimized {
+            if self.is_release {
                 module
                     .run_passes(passes, &target_machine, PassBuilderOptions::create())
                     .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
@@ -208,6 +178,8 @@ impl CompilerInstance
             artifacts.push(PathBuf::from(path).canonicalize()?);
         }
 
+        let mut cache_modified = false;
+
         // Generate the compiler's build cache of the project's dependencies
         for (name, info) in self.config.dependencies.iter() {
             // Fetch the last modified time of the folder so that we will know when to recompile
@@ -216,7 +188,7 @@ impl CompilerInstance
             let last_modified = metadata.modified()?;
 
             // Store the compiled library in the cache
-            compiled_modules.insert(name.clone(), (info.clone(), last_modified));
+            cache_modified |= build_cache.compiled_modules.insert(format!("{name}_{}", if self.is_release { "release" } else { "debug" }), (info.clone(), last_modified)).is_some();
         }
 
         Ok((
@@ -231,7 +203,7 @@ impl CompilerInstance
                     common::compiler::BuildType::Executable
                 },
             },
-            BuildCache { compiled_modules },
+            if cache_modified { Some(build_cache) } else { None },
         ))
     }
 
@@ -247,7 +219,7 @@ impl CompilerInstance
         let src_path = PathBuf::from(format!("{}\\src\\main.f", self.root_dir.display()));
         let module_path = vec![self.config.name.clone()];
 
-        info!("Generating ({})....", self.config.name);
+        info!("Compiling `{}`...", self.config.name);
 
         // Parse "main.f" (The main entrypoint of the project)
         // If "main.f" imports any other files those will get parsed too
@@ -273,12 +245,15 @@ impl CompilerInstance
             if let Some(cache) = build_cache {
                 // Try getting the dependency's name from the cache
                 if let Some((cached_dependency_info, cached_last_modified)) =
-                    cache.compiled_modules.get(name)
+                    cache.compiled_modules.get(&format!("{name}_{}", if self.is_release { "release" } else { "debug" }))
                 {
                     // Check if everything matches, if it does we can skip the compilation
                     if &last_modified == cached_last_modified
                         && cached_dependency_info == self.config.dependencies.get(name).unwrap()
                     {
+                        // Inform the user that we are skipping the cached dependency
+                        info!("Skipped cached dependency `{name}({})`.", cached_dependency_info.version);
+
                         continue;
                     }
                 }
@@ -289,7 +264,7 @@ impl CompilerInstance
                 path,
                 // Fetch the enabled features from the config.toml
                 OrdSet::from_vec(self.config.dependencies.get(name).unwrap().features.clone()),
-                self.optimized,
+                self.is_release,
             )?;
 
             // Create a list of artifacts (these are usually the dependencies of the dependency itself)
@@ -308,9 +283,6 @@ fn parse_src_file(
     src_path: PathBuf,
 ) -> Result<(), anyhow::Error>
 {
-    // Inform the user that we are parsing the files
-    info!("Parsing file `{}`", src_path.display());
-
     let file_contents = fs::read_to_string(&src_path).map_err(|_| {
         // Check for the edgecase being that the first file read is always for the "main.f" file
         if src_path.ends_with("\\main.f") {

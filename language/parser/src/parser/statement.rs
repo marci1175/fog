@@ -84,7 +84,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 {
     let mut stmt = fetch_base_expression(tkns, base_statement)?;
 
-    while let Some(tkn) = tkns.consume().cloned() {
+    'main_loop: while let Some(tkn) = tkns.consume().cloned() {
         // Consume the next token in the stream
         stmt = match tkn.get_inner() {
             Token::OpenParentheses => {
@@ -114,7 +114,7 @@ pub fn parse_expr<S: Streamable<Spanned<Token>> + std::fmt::Debug>(
 
             // If the next token after a statement is a comma, then we should assume that the comme is used as a separator of some sorts and return the original stmt.
             // Example `fun(a, b)`, parse value returns `a` since we are returning if a comma is present
-            Token::Comma => stmt,
+            Token::Comma => { break 'main_loop },
 
             Token::SetValueMathSym(sym) => parse_set_value_math_symbol(tkns, stmt, sym)?,
 

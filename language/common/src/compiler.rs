@@ -168,9 +168,10 @@ impl BuildManifest
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct BuildCache
 {
+    /// If a dependency is cached in release mode its name will be extended with a `_release` or if its in "debug" with `_debug`.
     pub compiled_modules: HashMap<String, (DependencyInfo, SystemTime)>,
 }
 

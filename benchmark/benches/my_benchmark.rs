@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use codegen::irgen::start_codegen;
+use codegen::startup::start_codegen;
 use common::codegen::ty::OrdSet;
 use criterion::{Criterion, criterion_group, criterion_main};
 use parser::{parser::Settings, tokenizer::tokenize};
