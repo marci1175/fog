@@ -14,7 +14,6 @@ It focuses on minimalism, predictable semantics, and fast native compilation —
 | Feature | Status |
 |--------|--------|
 | LLVM Backend | Supported ✅ |
-| Fog IR + LLVM IR Emission | Supported ✅ |
 | Custom Types | Supported ✅ |
 | Module System | Supported ✅ |
 | Dependency System | Supported ✅ |
