@@ -5,7 +5,7 @@ use common::{
 
 use common::{
     anyhow::{self},
-    codegen::ty::{OrdMap, OrdSet, Type},
+    ty::{OrdMap, OrdSet, Type},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         Context, ItemVisibility, MathematicalSymbol, StatementVariant, Stream, Streamable,

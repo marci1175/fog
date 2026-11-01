@@ -1,6 +1,6 @@
 use common::{
     anyhow,
-    codegen::ty::OrdSet,
+    ty::OrdSet,
     error::codegen::CodeGenError,
     inkwell::{attributes::Attribute, context::Context, values::FunctionValue},
     parser::CompilerInstruction,

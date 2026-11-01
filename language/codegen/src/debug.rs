@@ -1,6 +1,6 @@
 use common::{
     anyhow::{self, Result},
-    codegen::ty::Type,
+    ty::Type,
     get_unique_id,
     indexmap::IndexMap,
     inkwell::{

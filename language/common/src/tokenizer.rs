@@ -1,5 +1,5 @@
 use crate::{
-    codegen::ty::{Type, Value},
+    ty::{Type, Value},
     error::{Spanned, parser::ParserError},
     parser::{
         CompilerInstructionDiscriminants, ItemVisibility, LogicalOperator, MathematicalSymbol,

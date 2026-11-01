@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use common::{
     anyhow,
-    codegen::ty::Type,
+    ty::Type,
     error::{Spanned, analyzer::AnalyzerError},
     imports::{ExternalDeclerationType, ImportType},
     parser::{CustomItem, FunctionSignature, GlobalContext, PathMap},

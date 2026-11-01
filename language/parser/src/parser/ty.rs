@@ -1,6 +1,6 @@
 use common::{
     anyhow,
-    codegen::ty::{OrdMap, OrdSet, Type},
+    ty::{OrdMap, OrdSet, Type},
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{
         CompilerInstruction, Context, ItemVisibility, Stream, Streamable, StructAttributes,

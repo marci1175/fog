@@ -11,7 +11,7 @@ use std::{
 
 use common::{
     anyhow,
-    codegen::ty::OrdSet,
+    ty::OrdSet,
     compression::{compress_bytes, decompress_bytes, unzip_from_bytes, write_zip_to_fs_async},
     crossbeam::channel::{Receiver, bounded},
     dependency::construct_dependency_path,

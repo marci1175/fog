@@ -1,6 +1,6 @@
 use common::{
     anyhow,
-    codegen::ty::Value,
+    ty::Value,
     error::{CharPosition, SpanInfo, Spanned},
     parser::{CompilerInstructionDiscriminants, LogicalOperator},
     tokenizer::{Token, TypeToken},

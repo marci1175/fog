@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{codegen::ty::Type, parser::FunctionSignature};
+use crate::{ty::Type, parser::FunctionSignature};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct LibraryImport

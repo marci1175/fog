@@ -1,25 +1,11 @@
 use std::{
-    collections::HashMap,
     fs::{self},
     path::PathBuf,
 };
 
 use codegen::startup::{initalize_llvm, start_codegen};
 use common::{
-    anyhow::{self, Result},
-    codegen::ty::{OrdSet, Type},
-    compiler::{BuildCache, BuildManifest, ProjectConfig},
-    dependency::verify_dependencies_fs,
-    error::{SpannedError, application::ApplicationError, codegen::CodeGenError},
-    imports::ImportType,
-    inkwell::{
-        context::Context,
-        passes::PassBuilderOptions,
-        targets::{InitializationConfig, RelocMode, Target, TargetMachine},
-    },
-    parser::{GlobalContext, ItemVisibility, Stream, Streamable},
-    toml,
-    tracing::{error, info},
+    anyhow::{self, Result}, ty::{OrdSet, Type}, compiler::{BuildCache, BuildManifest, ProjectConfig}, dependency::verify_dependencies_fs, error::{SpannedError, application::ApplicationError, codegen::CodeGenError}, imports::ImportType, inkwell::{context::Context, passes::PassBuilderOptions}, parser::{GlobalContext, ItemVisibility, Stream, Streamable}, toml, tracing::{error, info},
 };
 use parser::{parser::Settings, tokenizer::tokenize};
 
@@ -62,7 +48,11 @@ impl CompilerInstance
         build_cache: Option<BuildCache>,
     ) -> anyhow::Result<(BuildManifest, Option<BuildCache>)>
     {
-        let root_path = vec![generate_dependency_name(&self.config.name, self.is_release, &self.config.version)];
+        let root_path = vec![generate_dependency_name(
+            &self.config.name,
+            self.is_release,
+            &self.config.version,
+        )];
 
         // The global context for the whole project
         // This function basically generates all of the ASTs for all of the dependencies and source files and puts them into one global context.
@@ -134,7 +124,7 @@ impl CompilerInstance
         }
 
         // Generate LLVM IR for the global context and return the output of the generation
-        Ok(self.generate_ir(&global_context, build_cache)?)
+        self.generate_ir(&global_context, build_cache)
     }
 
     fn generate_ir(
@@ -173,11 +163,11 @@ impl CompilerInstance
         let mut artifacts = Vec::new();
 
         for (name, (module, _)) in modules {
-            // if self.is_release {
-            //     module
-            //         .run_passes(passes, &target_machine, PassBuilderOptions::create())
-            //         .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
-            // }
+            if self.is_release {
+                module
+                    .run_passes(passes, &target_machine, PassBuilderOptions::create())
+                    .map_err(|_| CodeGenError::InternalOptimisationPassFailed)?;
+            }
 
             // Write the generated llvm IR to its designated file
             // Try checking if its a dependency of the project
@@ -243,7 +233,8 @@ impl CompilerInstance
     fn generate_asts(&self, build_cache: Option<&BuildCache>) -> Result<GlobalContext>
     {
         let parser_settings = Settings::new(self.config.clone(), self.enabled_features.clone());
-        let name = generate_dependency_name(&self.config.name, self.is_release, &self.config.version);
+        let name =
+            generate_dependency_name(&self.config.name, self.is_release, &self.config.version);
 
         // A global GlobalContext holds all of the context files' items.
         let mut g_context = GlobalContext::new(self.config.name.clone());
@@ -289,18 +280,12 @@ impl CompilerInstance
                     // We should also check if the artifact of the dependency is also present in the output folder
                     if &last_modified == cached_last_modified
                         && cached_dependency_info == info
-                        && fs::exists(
-                            format!(
-                                "{}\\{}\\{}",
-                                self.root_dir.display(),
-                                self.config.build_path,
-                                generate_dependency_name(
-                                    name,
-                                    self.is_release,
-                                    &info.version
-                                )
-                            )
-                        )
+                        && fs::exists(format!(
+                            "{}\\{}\\{}",
+                            self.root_dir.display(),
+                            self.config.build_path,
+                            generate_dependency_name(name, self.is_release, &info.version)
+                        ))
                         .unwrap_or_default()
                     {
                         // Inform the user that we are skipping the cached dependency
@@ -388,7 +373,7 @@ fn parse_src_file(
         Err(error) => {
             #[cfg(debug_assertions)]
             {
-                return Err(error.into());
+                return Err(error);
             }
             #[cfg(not(debug_assertions))]
             {
@@ -406,6 +391,7 @@ fn parse_src_file(
     Ok(())
 }
 
+#[inline(always)]
 pub fn generate_dependency_name(name: &str, is_release: bool, version: &str) -> String
 {
     format!(

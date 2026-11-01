@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use common::{
     anyhow::{self, Result},
-    codegen::ty::Type,
+    ty::Type,
     error::Spanned,
     inkwell::{
         builder::Builder,

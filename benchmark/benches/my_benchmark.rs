@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use codegen::startup::start_codegen;
-use common::codegen::ty::OrdSet;
+use common::ty::OrdSet;
 use criterion::{Criterion, criterion_group, criterion_main};
 use parser::{parser::Settings, tokenizer::tokenize};
 

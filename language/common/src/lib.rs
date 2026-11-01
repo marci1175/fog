@@ -3,7 +3,10 @@
 pub const DEFAULT_COMPILER_ADDRESS_SPACE_SIZE: u16 = 0;
 
 /// LLVM-IR generation code with inkwell
-pub mod codegen;
+// pub mod codegen;
+
+/// Type definitions related to helper types and types inside the language
+pub mod ty;
 
 /// Main fog compiler frontend
 pub mod compiler;

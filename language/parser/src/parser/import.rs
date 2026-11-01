@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::Deref, path::PathBuf};
 
 use common::{
     anyhow,
-    codegen::ty::Value,
+    ty::Value,
     error::{Spanned, parser::ParserError, syntax::SyntaxError::InvalidImportDefinition},
     imports::{ExternalDeclerationType, ImportType},
     parser::{FunctionArguments, FunctionSignature, ItemVisibility, Streamable},

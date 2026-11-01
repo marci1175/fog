@@ -10,7 +10,7 @@ use std::hint::cold_path;
 
 use common::{
     anyhow::Result,
-    codegen::ty::OrdSet,
+    ty::OrdSet,
     compiler::ProjectConfig,
     error::{Spanned, parser::ParserError, syntax::SyntaxError},
     parser::{

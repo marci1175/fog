@@ -2,13 +2,9 @@ use std::collections::HashMap;
 
 use common::{
     anyhow::{self, Result},
-    codegen::ty::OrdSet,
     error::codegen::CodeGenError,
-    inkwell::{
-        attributes::Attribute, builder::Builder, context::Context, module::Module,
-        targets::TargetMachine, values::FunctionValue,
-    },
-    parser::{CompilerInstruction, GlobalContext},
+    inkwell::{builder::Builder, context::Context, module::Module, targets::TargetMachine},
+    parser::GlobalContext,
     tracing::info,
 };
 

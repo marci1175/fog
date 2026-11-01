@@ -3,7 +3,7 @@ use std::{net::SocketAddr, path::PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    codegen::ty::OrdSet,
+    ty::OrdSet,
     compiler::{BuildManifest, ProjectConfig},
     dependency_manager::DependencyInformation,
 };

@@ -1,6 +1,6 @@
 use common::{
     anyhow,
-    codegen::ty::Type,
+    ty::Type,
     error::{Spanned, analyzer::AnalyzerError},
     parser::StatementVariant,
 };

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    codegen::ty::Type,
+    ty::Type,
     error::syntax::SyntaxError,
     parser::{StatementVariant, VariableReference},
     tokenizer::Token,

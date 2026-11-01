@@ -1,6 +1,6 @@
 use common::{
     anyhow,
-    codegen::ty::{NotNan, TypeDiscriminants, Value},
+    ty::{NotNan, TypeDiscriminants, Value},
     error::{Spanned, parser::ParserError},
     parser::{MathematicalSymbol, NUMERIC_SUFFIX, StatementVariant, Streamable},
     tokenizer::Token,

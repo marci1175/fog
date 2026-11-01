@@ -8,10 +8,7 @@ use strum::{EnumDiscriminants, EnumTryAs};
 use strum_macros::Display;
 
 use crate::{
-    codegen::{
-        common::FunctionArgumentIdentifier,
-        ty::{OrdMap, OrdSet, Type, TypeDiscriminants, Value},
-    },
+    ty::{OrdMap, OrdSet, Type, TypeDiscriminants, Value},
     error::{SpanInfo, Spanned, parser::ParserError, syntax::SyntaxError},
     imports::{ExternalDeclerationType, ImportType},
     tokenizer::{Token, TokenDiscriminants},
@@ -1106,7 +1103,8 @@ pub struct GlobalContext
     /// These are all the imports belonging to one [`Context`] instance.
     pub ctx_imports: HashMap<Vec<String>, HashMap<String, ImportType>>,
 
-    /// Name of the global context
+    /// Name of the global context.
+    /// This is only for displaying the name of the context, this shouldnt be used in anything critical.
     pub name: String,
 }
 
@@ -1694,6 +1692,16 @@ pub struct FunctionArguments
 
 impl FunctionArguments
 {
+    pub fn new() -> Self
+    {
+        Self {
+            arguments: OrdMap::new(),
+            generics: OrdMap::new(),
+            ellipsis_present: false,
+            referenced_receiver: None,
+        }
+    }
+
     /// We need to implement a Custom eq check on [`FunctionArguments`]s because the use of the [`UniqueId`] they both contain.
     /// If the argument's order and name match this returns `true` otherwise `false`.
     pub fn check_arg_eq(&self, rhs: &Self) -> bool
@@ -1710,16 +1718,21 @@ impl FunctionArguments
     }
 }
 
-impl FunctionArguments
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum FunctionArgumentIdentifier<IDENT, IDX>
 {
-    pub fn new() -> Self
-    {
-        Self {
-            arguments: OrdMap::new(),
-            generics: OrdMap::new(),
-            ellipsis_present: false,
-            referenced_receiver: None,
-        }
+    Identifier(IDENT),
+    Index(IDX),
+}
+
+pub fn fn_arg_to_string(fn_name: &str, fn_arg: &FunctionArgumentIdentifier<String, usize>)
+-> String
+{
+    match fn_arg {
+        FunctionArgumentIdentifier::Identifier(ident) => ident.to_string(),
+        FunctionArgumentIdentifier::Index(idx) => {
+            format!("{fn_name}_idx_{idx}_arg")
+        },
     }
 }
 

@@ -4,7 +4,7 @@ use crate::cli::CliCommand;
 use clap::Parser;
 use common::{
     anyhow,
-    codegen::ty::OrdSet,
+    ty::OrdSet,
     compiler::{BuildManifest, ProjectConfig},
     error::{application::ApplicationError, linker::LinkerError},
     toml,
@@ -15,8 +15,7 @@ use compiler::CompilerInstance;
 use linker::link;
 use std::{
     env,
-    fs::{self, File},
-    io::Write,
+    fs::{self},
     path::PathBuf,
 };
 use tracing::Level;

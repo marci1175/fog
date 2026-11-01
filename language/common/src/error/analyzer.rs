@@ -2,7 +2,7 @@ use strum::IntoStaticStr;
 use thiserror::Error;
 
 use crate::{
-    codegen::ty::{Type, Value},
+    ty::{Type, Value},
     parser::StatementVariant,
 };
 
