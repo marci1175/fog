@@ -57,7 +57,7 @@ trait dog {
 }
 
 marci implements human {
-    pub function talk(this): int {
+    public function talk(this): int {
         printf("My float: %f\n", this.c);
 
         return 0;
@@ -65,17 +65,17 @@ marci implements human {
 }
 
 doggo implements dog {
-    pub function bark(this): void {
+    public function bark(this): void {
         printf("The dog says: %s", this.thought);
     }
 }
 
-pub function do_something |H: human, D: dog| (human: H, dog: D): void {
+public function do_something |H: human, D: dog| (human: H, dog: D): void {
     human.talk();
     dog.bark();
 }
 
-pub function main(): int {
+public function main(): int {
     marci me = marci { a: 200, c: 432.2 };
     doggo my_dog = doggo { thought: "bark" };
 
@@ -93,11 +93,11 @@ Impl bodies are defined as such:
 
 ```fog
 <struct name> implements <trait (optional)> {
-    pub function foo(this, rhs: int): int {
+    public function foo(this, rhs: int): int {
         return this.inner * rhs;
     }
 
-    pub function bar(lhs: int, rhs: int): int {
+    public function bar(lhs: int, rhs: int): int {
         return lhs + rhs;
     }
 }
@@ -115,11 +115,11 @@ struct math {
 }
 
 math implements {
-    pub function foo(this, rhs: int): int {
+    public function foo(this, rhs: int): int {
         return this.inner * rhs;
     }
 
-    pub function bar(lhs: int, rhs: int): int {
+    public function bar(lhs: int, rhs: int): int {
         return lhs + rhs;
     }
 }
@@ -129,12 +129,12 @@ trait calculate {
 }
 
 math implements calculate {
-    pub function cmp(this, rhs: int): bool {
+    public function cmp(this, rhs: int): bool {
         return this.inner == rhs;
     }
 }
 
-pub function main(): int {
+public function main(): int {
     math bar = math { inner: 100 };
 
     int calc1 = bar.foo(2);

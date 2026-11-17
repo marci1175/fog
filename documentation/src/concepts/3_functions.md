@@ -26,11 +26,11 @@ Every function requires a predetermined visibility attribute.
 **Function definition example:**
 
 ```fog
-pub function name(arg1: int, arg2: float) {
+public function name(arg1: int, arg2: float) {
     // Function body
 }
 
-pub function name_2(arg1: int, arg2: float): int {
+public function name_2(arg1: int, arg2: float): int {
     // Function body
 
     return 0;
@@ -42,7 +42,7 @@ pub function name_2(arg1: int, arg2: float): int {
 > Generics can also be used in function arguments to help with the object-orientedness of the language.
 
 ```fog
-pub function foo |<generic's name>: <trait1> + <trait2>, <...>|: int {
+public function foo |<generic's name>: <trait1> + <trait2>, <...>|: int {
     foo.trait1_fn()
 }
 ```
@@ -61,7 +61,7 @@ We can import functions from other source files or from libc.
 
 ```fog
 // -- other.f --
-pub function return_2(): int {
+public function return_2(): int {
     return 2;
 } 
 
@@ -80,7 +80,7 @@ import other::return_2;
 // Importing from a dependency
 import foo::bar::baz::hello;
 
-pub function main(): int {
+public function main(): int {
     int num = return_2();
 
     // Greet the user

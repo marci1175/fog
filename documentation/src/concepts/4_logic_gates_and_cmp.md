@@ -7,7 +7,7 @@ Logic gates work **almost** perfectly. The issue is with comparisons, as every c
 **An example of using logic gates:**
 
 ```fog
-external printf(msg: string): void;
+external function printf(msg: string): void;
 
 public function main(): int {
     if (3 > 8) {

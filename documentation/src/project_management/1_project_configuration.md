@@ -31,7 +31,7 @@ additional_linking_material = []
 ```toml
 name = <string>
 is_library = <bool>
-version = <version> # This must follow the semver specification.
+version = <version> # This should follow the semver specification.
 build_path = <path>
 *features = [<feature>, <feature>]
 additional_linking_material = [<path>, <path>, ...]
